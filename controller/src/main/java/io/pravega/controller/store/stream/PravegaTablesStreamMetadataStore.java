@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStore {
-    public static final String SEPARATOR = ".#.";
+    static final String SEPARATOR = ".#.";
     static final String SCOPES_TABLE = "Table" + SEPARATOR + "scopes";
     static final String DELETED_STREAMS_TABLE = "Table" + SEPARATOR + "deletedStreams";
     static final String COMPLETED_TRANSACTIONS_BATCHES_TABLE = "Table" + SEPARATOR + "completedTransactionsBatches";
@@ -53,7 +53,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final PravegaTablesStoreHelper storeHelper;
-
+    private final ScheduledExecutorService executor;
     @VisibleForTesting
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor) {
         this(segmentHelper, client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
@@ -68,6 +68,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.completedTxnGC.awaitRunning();
         this.counter = new ZkInt96Counter(zkStoreHelper);
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
+        this.executor = executor;
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
@@ -101,7 +102,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Override
     PravegaTablesStream newStream(final String scope, final String name) {
         return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch,
-                () -> ((PravegaTableScope) getScope(scope)).getStreamsInScopeTableName());
+                () -> ((PravegaTableScope) getScope(scope)).getStreamsInScopeTableName(), executor);
     }
 
     @Override

@@ -75,7 +75,7 @@ public class StreamTest {
         
         PravegaTablesStream stream = new PravegaTablesStream("test", "test",
                 storeHelper, () -> 0, 
-                scope::getStreamsInScopeTableName);
+                scope::getStreamsInScopeTableName, executor);
         testStream(stream);
     }
     
@@ -178,7 +178,7 @@ public class StreamTest {
                 PravegaTableScope scope = new PravegaTableScope(x, storeHelper);
                 Futures.exceptionallyExpecting(scope.createScope(), e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null).join();
                 scope.addStreamToScope(y).join();
-                return new PravegaTablesStream(x, y, storeHelper, () -> 0, scope::getStreamsInScopeTableName);
+                return new PravegaTablesStream(x, y, storeHelper, () -> 0, scope::getStreamsInScopeTableName, executor);
             });
         }
     }

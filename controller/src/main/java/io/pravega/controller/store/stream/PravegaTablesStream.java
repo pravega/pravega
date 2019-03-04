@@ -11,6 +11,8 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
@@ -21,6 +23,7 @@ import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 
+import java.util.Base64;
 import java.util.Collections;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,6 +33,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -81,24 +86,27 @@ class PravegaTablesStream extends PersistentStreamBase {
     private final Supplier<Integer> currentBatchSupplier;
     private final Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier;
     private final AtomicReference<String> idRef;
-
+    private final ScheduledExecutorService executor;
+    
     @VisibleForTesting
     PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper,
-                        Supplier<Integer> currentBatchSupplier, Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier) {
+                        Supplier<Integer> currentBatchSupplier, Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier,
+                        ScheduledExecutorService executor) {
         this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE,
-                SealedSegmentsMapShard.SHARD_SIZE, streamsInScopeTableNameSupplier);
+                SealedSegmentsMapShard.SHARD_SIZE, streamsInScopeTableNameSupplier, executor);
     }
 
     @VisibleForTesting
     PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper,
                         Supplier<Integer> currentBatchSupplier, int chunkSize, int shardSize,
-                        Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier) {
+                        Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier, ScheduledExecutorService executor) {
         super(scopeName, streamName, chunkSize, shardSize);
         this.storeHelper = storeHelper;
 
         this.currentBatchSupplier = currentBatchSupplier;
         this.streamsInScopeTableNameSupplier = streamsInScopeTableNameSupplier;
         this.idRef = new AtomicReference<>(null);
+        this.executor = executor;
     }
 
     private CompletableFuture<String> getId() {
@@ -137,19 +145,23 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
         AtomicInteger count = new AtomicInteger(0);
+        
+        AtomicReference<ByteBuf> token = new AtomicReference<>(Unpooled.wrappedBuffer(new byte[0]));
+        AtomicBoolean canContinue = new AtomicBoolean(true);
         return getTransactionsTable()
-                .thenCompose(table -> storeHelper.getAllKeys(getScope(), table)
-                                                 .collectRemaining(x -> {
-                                                     count.incrementAndGet();
-                                                     return true;
-                                                 })
-                                                 .thenApply(v -> count.get()));
+                .thenCompose(table -> Futures.loop(canContinue::get, 
+                        () -> storeHelper.getKeysPaginated(getScope(), table, token.get(), 1000)
+                                                 .thenAccept(v -> {
+                                                     canContinue.set(!v.getValue().isEmpty());
+                                                     count.addAndGet(v.getValue().size());
+                                                     token.set(v.getKey());
+                                                 }), executor))
+                .thenApply(v -> count.get());
     }
 
     @Override
     public CompletableFuture<Void> deleteStream() {
         String scope = getScope();
-        List<CompletableFuture<Void>> futures = new ArrayList<>();
         return getId()
                 .thenCompose(id -> {
                     String transactionsTable = getTransactionsTableName(id);
