@@ -13,18 +13,19 @@ import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.junit.Assert;
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -97,8 +98,9 @@ public class IteratorTest {
                 });
             }
 
-            return CompletableFuture.completedFuture(
+            CompletableFuture<Entry<String, Collection<Integer>>> result = CompletableFuture.completedFuture(
                     new AbstractMap.SimpleEntry<>("" + endIndex, list.subList(startIndex, endIndex)));
+            return result;
         }, ""));
 
         Integer next0 = iterator.getNext().join();

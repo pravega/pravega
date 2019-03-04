@@ -49,6 +49,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
+    @Override
     protected int getThreadPoolSize() {
         return 2;
     }
