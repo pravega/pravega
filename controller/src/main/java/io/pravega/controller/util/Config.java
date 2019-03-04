@@ -113,7 +113,7 @@ public final class Config {
     //endregion
 
     //region Property Definitions
-
+    private static final String NULL_VALUE = "{null}";
     private static final Property<Integer> PROPERTY_CONTAINER_COUNT = Property.named("containerCount", 4);
     private static final Property<Boolean> PROPERTY_HOST_MONITORING_ENABLED = Property.named("hostMonitorEnabled", true);
     private static final Property<Integer> PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS = Property.named("minRebalanceIntervalSeconds", 10);
@@ -123,7 +123,7 @@ public final class Config {
     private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("service.asyncTaskPoolSize", 80);
     private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named("service.hostIp", "localhost");
     private static final Property<Integer> PROPERTY_SERVICE_HOST_PORT = Property.named("service.hostPort", 12345);
-    private static final Property<String> PROPERTY_RPC_HOST = Property.named("service.publishedRPCHost", "localhost");
+    private static final Property<String> PROPERTY_RPC_HOST = Property.named("service.publishedRPCHost", NULL_VALUE);
     private static final Property<Integer> PROPERTY_RPC_PORT = Property.named("service.publishedRPCPort", 9090);
     private static final Property<String> PROPERTY_CLUSTER_NAME = Property.named("service.cluster", "pravega-cluster");
     private static final Property<String> PROPERTY_REST_IP = Property.named("service.restIp", "0.0.0.0");
@@ -275,8 +275,7 @@ public final class Config {
 
     private static GRPCServerConfig createGrpcServerConfig() {
         String publishHost = Config.RPC_PUBLISHED_SERVER_HOST;
-        if (publishHost != null && publishHost.equals("{null}")) {
-            // This config is optional. "{null}" is used for testing purposes - we override all defaults to null.
+        if (publishHost != null && publishHost.equals(NULL_VALUE)) {
             publishHost = null;
             log.info("publishedRPCHost is not configured, will use default value");
         }
