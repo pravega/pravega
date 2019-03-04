@@ -72,6 +72,7 @@ jobs:
          - kubectl config view
          - kubectl config current-context
          - kubectl get nodes -o wide
+         - kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=pravega-travis-service-account@pravega-dev.iam.gserviceaccount.com
          # Install Helm tiller
          - kubectl create serviceaccount --namespace kube-system tiller
          - kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
