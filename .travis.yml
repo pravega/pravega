@@ -48,8 +48,8 @@ jobs:
          - PROJECT_NAME=pravega-dev
          - CLUSTER_NAME="pravega-travis-$(date +'%Y%m%d%H%M%S')"
          - CLUSTER_ZONE=us-central1-c
-         - PRAVEGA_BASE_TAG=pravega/pravega-testimages
-         - BOOKKEEPER_BASE_TAG=pravega/bookkeeper-testimages
+         - PRAVEGA_IMAGE_NAME=pravega-testimages
+         - BOOKKEEPER_IMAGE_NAME=bookkeeper-testimages
       install:
          - if [ ! -d "$HOME/google-cloud-sdk/bin" ]; then rm -rf $HOME/google-cloud-sdk; curl https://sdk.cloud.google.com | bash; fi
          - source $HOME/google-cloud-sdk/path.bash.inc
@@ -63,7 +63,7 @@ jobs:
          - export BRANCH=${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
          - export VERSION="${BRANCH}-${BASE_VERSION}-$(git rev-list HEAD --count).$(git rev-parse --short HEAD)"
          - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
-         - ./gradlew docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=$PRAVEGA_BASE_TAG -PbookkeeperBaseTag=$BOOKKEEPER_BASE_TAG
+         - ./gradlew docker dockerPush -PpravegaVersion=$VERSION -PpravegaBaseTag=pravega/$PRAVEGA_IMAGE_NAME -PbookkeeperBaseTag=pravega/$BOOKKEEPER_IMAGE_NAME
          # Provision GKE cluster
          - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
          - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
@@ -82,7 +82,7 @@ jobs:
          # Create pravega-tier2 PVC
          - kubectl create -f https://raw.githubusercontent.com/pravega/pravega-operator/master/test/e2e/resources/tier2.yaml
       script:
-         - ./gradlew startK8SystemTests -PpravegaVersion=$VERSION -PpravegaBaseTag=$PRAVEGA_BASE_TAG -PbookkeeperBaseTag=$BOOKKEEPER_BASE_TAG
+         - ./gradlew startK8SystemTests -PimageVersion=$VERSION -PpravegaImageName=$PRAVEGA_IMAGE_NAME -PbookkeeperImageName=$BOOKKEEPER_IMAGE_NAME
       after_script:
          # TODO: collect the logs
          - gcloud --quiet container clusters delete $CLUSTER_NAME --zone $CLUSTER_ZONE
