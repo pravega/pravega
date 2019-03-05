@@ -27,8 +27,8 @@ public class MetricsConfig {
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDurationMinutes", 30);
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("outputFrequencySeconds", 60);
     public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
-    public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
-    public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
+    public final static Property<String> STATSD_HOST = Property.named("statsdHost", "localhost");
+    public final static Property<Integer> STATSD_PORT = Property.named("statsdPort", 8125);
     public final static Property<String> INFLUXDB_URI = Property.named("influxDBURI", "http://localhost:8086");
     public final static Property<String> INFLUXDB_NAME = Property.named("influxDBName", "pravega");
     public final static Property<String> INFLUXDB_USERNAME = Property.named("influxDBUserName", "");
@@ -73,16 +73,16 @@ public class MetricsConfig {
     private final String metricsPrefix;
 
     /**
-     * The host name (no port) where StatsD is listening.
+     * The host name (no port) where Statsd is listening.
      */
     @Getter
-    private final String statsDHost;
+    private final String statsdHost;
 
     /**
-     * The port where StatsD is listening.
+     * The port where Statsd is listening.
      */
     @Getter
-    private final int statsDPort;
+    private final int statsdPort;
 
     /**
      * The URI of InfluxDB endpoint.
@@ -109,7 +109,7 @@ public class MetricsConfig {
     private final String influxDBPassword;
 
     /**
-     * The status of enable StatsD reporter.
+     * The status of enable Statsd reporter.
      */
     @Getter
     private final boolean enableStatsdReporter;
@@ -135,8 +135,8 @@ public class MetricsConfig {
         this.dynamicCacheEvictionDurationMinutes = Duration.ofMinutes(properties.getInt(DYNAMIC_CACHE_EVICTION_DURATION_MINUTES));
         this.outputFrequencySeconds = Duration.ofSeconds(properties.getInt(OUTPUT_FREQUENCY));
         this.metricsPrefix = properties.get(METRICS_PREFIX);
-        this.statsDHost = properties.get(STATSD_HOST);
-        this.statsDPort = properties.getInt(STATSD_PORT);
+        this.statsdHost = properties.get(STATSD_HOST);
+        this.statsdPort = properties.getInt(STATSD_PORT);
         this.influxDBUri = properties.get(INFLUXDB_URI);
         this.influxDBName = properties.get(INFLUXDB_NAME);
         this.influxDBUserName = properties.get(INFLUXDB_USERNAME);
