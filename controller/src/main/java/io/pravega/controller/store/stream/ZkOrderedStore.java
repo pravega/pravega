@@ -91,8 +91,8 @@ public class ZkOrderedStore {
                                                             .collect(Collectors.toList())));
     }
 
-    public CompletableFuture<Map<String, Long>> getEntitiesWithPosition(String scope, String stream) {
-        Map<String, Long> result = new ConcurrentHashMap<>();
+    public CompletableFuture<Map<Long, String>> getEntitiesWithPosition(String scope, String stream) {
+        Map<Long, String> result = new ConcurrentHashMap<>();
         return Futures.exceptionallyExpecting(storeHelper.getChildren(getStreamPath(scope, stream)), DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
                           .thenCompose(children -> {
                               // start with smallest queue and collect records
@@ -107,8 +107,8 @@ public class ZkOrderedStore {
                                                                         int pos = getPositionFromPath(x);
                                                                         return storeHelper.getData(getEntityPath(scope, stream, queueNumber, pos))
                                                                                           .thenAccept(r -> {
-                                                                                              result.put(new String(r.getData(), Charsets.UTF_8),
-                                                                                                      Position.toLong(queueNumber, pos));
+                                                                                              result.put(Position.toLong(queueNumber, pos),
+                                                                                                      new String(r.getData(), Charsets.UTF_8));
                                                                                           });
                                                                     }).collect(Collectors.toList()))
                                                     );

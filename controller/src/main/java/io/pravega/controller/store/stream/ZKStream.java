@@ -460,14 +460,14 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<List<UUID>> getOrderedCommittingTxnInLowestEpoch() {
+    public CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
         // get all transactions that have been added to commit orderer.
         return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
                 DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
                       .thenCompose(allTxns -> {
                           // group transactions by epoch and then iterate over it from smallest epoch to largest
                           val groupByEpoch = allTxns.entrySet().stream().collect(
-                                  Collectors.groupingBy(x -> RecordHelper.getTransactionEpoch(UUID.fromString(x.getKey()))));
+                                  Collectors.groupingBy(x -> RecordHelper.getTransactionEpoch(UUID.fromString(x.getValue()))));
 
                           // sort transaction groups by epoch
                           val iterator = groupByEpoch
@@ -478,7 +478,7 @@ class ZKStream extends PersistentStreamBase {
                           // We will opportunistically identify ordered positions that are stale (either transaction is no longer active)
                           // or its a duplicate entry or transaction is aborting. 
                           ConcurrentSet<Long> toPurge = new ConcurrentSet<>();
-                          ConcurrentHashMap<String, ActiveTxnRecord> transactionsMap = new ConcurrentHashMap<>();
+                          ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap = new ConcurrentHashMap<>();
 
                           // Collect transactions that are in committing state from smallest available epoch 
                           // smallest epoch has transactions in committing state, we should break, else continue.
@@ -489,25 +489,33 @@ class ZKStream extends PersistentStreamBase {
                                         .thenApply(v ->
                                                 transactionsMap.entrySet().stream().sorted(
                                                         Comparator.comparing(x -> x.getValue().getCommitOrder()))
-                                                               .map(x -> UUID.fromString(x.getKey())).collect(Collectors.toList()));
+                                                               .collect(Collectors.toList()));
                       });
     }
 
-    private CompletableFuture<Void> processTransactionsInEpoch(Map.Entry<Integer, List<Map.Entry<String, Long>>> nextEpoch,
-                                                               ConcurrentSet<Long> toPurge, 
-                                                               ConcurrentHashMap<String, ActiveTxnRecord> transactionsMap) {
-        List<Map.Entry<String, Long>> txnIds = nextEpoch.getValue();
+    @Override
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns() {
+        return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
+                DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
+                .thenApply(map -> map.entrySet().stream()
+                                     .collect(Collectors.toMap(Map.Entry::getKey, x -> UUID.fromString(x.getValue()))));
+    }
+
+    private CompletableFuture<Void> processTransactionsInEpoch(Map.Entry<Integer, List<Map.Entry<Long, String>>> nextEpoch,
+                                                               ConcurrentSet<Long> toPurge,
+                                                               ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap) {
+        List<Map.Entry<Long, String>> txnIds = nextEpoch.getValue();
 
         return Futures.allOf(txnIds.stream().map(txnIdOrder -> {
-            String txnId = txnIdOrder.getKey();
-            long order = txnIdOrder.getValue();
+            String txnId = txnIdOrder.getValue();
+            long order = txnIdOrder.getKey();
             return Futures.exceptionallyExpecting(getTxnRecord(txnId), DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY)
                           .thenAccept(txnRecord -> {
                               switch (txnRecord.getTxnStatus()) {
                                   case COMMITTING:
                                       if (txnRecord.getCommitOrder() == order) {
                                           // if entry matches record's position then include it
-                                          transactionsMap.put(txnId, txnRecord);
+                                          transactionsMap.put(UUID.fromString(txnId), txnRecord);
                                       } else {
                                           toPurge.add(order);
                                       }

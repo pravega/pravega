@@ -697,7 +697,7 @@ public interface StreamMetadataStore {
     CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
     
     /**
-     * Update stream store to commitTime transaction as sealed.
+     * Update stream store to mark transaction as sealed.
      *
      * @param scope    scope
      * @param stream   stream

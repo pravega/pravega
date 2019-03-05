@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
@@ -585,7 +586,7 @@ public class InMemoryStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Long> addTxnToCommitOrder(UUID txId) {
-        long orderedPosition = counter.incrementAndGet();
+        long orderedPosition = counter.getAndIncrement();
         synchronized (txnsLock) {
             transactionCommitOrder.put(orderedPosition, txId);
         }
@@ -593,9 +594,9 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> entities) {
+    CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> positions) {
         synchronized (txnsLock) {
-            entities.forEach(transactionCommitOrder::remove);
+            positions.forEach(transactionCommitOrder::remove);
         }
         return CompletableFuture.completedFuture(null);
     }
@@ -708,7 +709,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<List<UUID>> getOrderedCommittingTxnInLowestEpoch() {
+    CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
         synchronized (txnsLock) {
             // take smallest epoch and collection transactions from smallest epoch.
             List<Long> toPurge = new ArrayList<>();
@@ -747,12 +748,18 @@ public class InMemoryStream extends PersistentStreamBase {
             
             // take smallest epoch from committing transactions. order transactions in this epoch by 
             // ordered position
-            List<UUID> list = committing.entrySet().stream().filter(x -> RecordHelper.getTransactionEpoch(x.getKey()) == smallestEpoch.get())
-                                        .sorted(Comparator.comparing(x -> x.getValue().getCommitOrder()))
-                                        .map(Map.Entry::getKey)
-                                        .collect(Collectors.toList());
+            List<Map.Entry<UUID, ActiveTxnRecord>> list = committing.entrySet().stream().filter(x -> RecordHelper.getTransactionEpoch(x.getKey()) == smallestEpoch.get())
+                                                                    .sorted(Comparator.comparing(x -> x.getValue().getCommitOrder()))
+                                                                    .collect(Collectors.toList());
             
-                 return CompletableFuture.completedFuture(list);
+            return CompletableFuture.completedFuture(list);
+        }
+    }
+
+    @Override
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns() {
+        synchronized (txnsLock) {
+            return CompletableFuture.completedFuture(ImmutableMap.copyOf(transactionCommitOrder));
         }
     }
 

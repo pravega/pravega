@@ -33,7 +33,7 @@ public class ActiveTxnRecord {
             .writerId(Optional.empty()).commitTime(Optional.empty()).build();
     
     public static final ActiveTxnRecordSerializer SERIALIZER = new ActiveTxnRecordSerializer();
-    
+
     private final long txCreationTimestamp;
     private final long leaseExpiryTime;
     private final long maxExecutionExpiryTime;

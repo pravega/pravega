@@ -1334,11 +1334,17 @@ public abstract class PersistentStreamBase implements Stream {
                                     if (list.isEmpty()) {
                                         return CompletableFuture.completedFuture(versioned);
                                     } else {
-                                        int epoch = RecordHelper.getTransactionEpoch(list.get(0));
+                                        Map.Entry<UUID, ActiveTxnRecord> firstEntry = list.get(0);
+                                        List<UUID> txIdList = list.stream().map(Map.Entry::getKey).collect(Collectors.toList());
+                                        List<Long> positions = list.stream().map(x -> x.getValue().getCommitOrder()).collect(Collectors.toList());
+                                        int epoch = RecordHelper.getTransactionEpoch(firstEntry.getKey());
                                         CommittingTransactionsRecord record = CommittingTransactionsRecord.builder()
-                                                                              .epoch(epoch).transactionsToCommit(list).build();
+                                                                              .epoch(epoch).transactionsToCommit(txIdList).build();
                                         return updateCommittingTxnRecord(new Data(record.toBytes(), versioned.getVersion()))
-                                                .thenApply(version -> new VersionedMetadata<>(record, version));
+                                                // now that we have included transactions from positions for commit, we
+                                                // can safely remove the position references in orderer. 
+                                                .thenCompose(version -> removeTxnsFromCommitOrder(positions)
+                                                        .thenApply(v -> new VersionedMetadata<>(record, version)));
                                     }
                                 });
                     } else {
@@ -1716,7 +1722,7 @@ public abstract class PersistentStreamBase implements Stream {
     // 3. we could have transactions that are no longer in activeTxn list yet present in commit order. 
     abstract CompletableFuture<Long> addTxnToCommitOrder(final UUID txId);
 
-    abstract CompletableFuture<Void> removeTxnsFromCommitOrder(final List<Long> txId);
+    abstract CompletableFuture<Void> removeTxnsFromCommitOrder(final List<Long> positions);
 
     abstract CompletableFuture<Data> getCompletedTx(final UUID txId);
 
@@ -1730,7 +1736,10 @@ public abstract class PersistentStreamBase implements Stream {
      * This method finds transactions to commit in lowest epoch and returns a sorted list of transaction ids, 
      * sorted by their order of commits. 
      */
-    abstract CompletableFuture<List<UUID>> getOrderedCommittingTxnInLowestEpoch();
+    abstract CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch();
+    
+    @VisibleForTesting
+    abstract CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns();
     // endregion
 
     // region marker
