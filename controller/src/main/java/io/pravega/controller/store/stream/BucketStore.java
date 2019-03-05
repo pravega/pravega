@@ -82,7 +82,7 @@ public interface BucketStore {
 
     static int getBucket(String scope, String stream, int bucketCount) {
         String scopedStreamName = getScopedStreamName(scope, stream);
-        return scopedStreamName.hashCode() % bucketCount;
+        return Math.abs(scopedStreamName.hashCode()) % bucketCount;
     }
 
     static String getScopedStreamName(String scope, String stream) {
