@@ -35,16 +35,18 @@ import java.lang.annotation.Target;
  * The boilerplate code replaces the method body as follows.
  *
  * The method
- * @Task(name = "a", version="0.1")
- * CompletableFuture<T> method(Object... params) {
+ * <pre><code>
+ * {@literal @}Task(name = "a", version="0.1")
+ * CompletableFuture{@literal <T>} method(Object... params) {
  *     body;
  * }
+ * </code></pre>
  *
  * is replaced with the following method
- *
- * CompletableFuture<T> method (Object... params) {
+ * <pre><code>
+ * CompletableFuture{@literal <T>} method (Object... params) {
  *   try {
- *     CompletableFuture<Boolean> lock = this.lock();
+ *     CompletableFuture{@literal <Boolean>} lock = this.lock();
  *     if (lock.get()) {
  *       TaskData data = new TaskData("a", "0.1", params);
  *       persist(data);
@@ -59,6 +61,7 @@ import java.lang.annotation.Target;
  *     unlock();
  *   }
  * }
+ * </code></pre>
  */
 
 @Target(ElementType.METHOD)
