@@ -24,7 +24,7 @@ import static io.pravega.shared.metrics.NullStatsLogger.NULLCOUNTER;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLGAUGE;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLMETER;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLOPSTATSLOGGER;
-import static io.pravega.shared.MetricsNames.name;
+import static io.pravega.shared.MetricsNames.joinWithDot;
 
 @Slf4j
 public class StatsLoggerImpl implements StatsLogger {
@@ -82,7 +82,7 @@ public class StatsLoggerImpl implements StatsLogger {
         if (0 == basename.length()) {
             scopeName = scope;
         } else {
-            scopeName = name(basename, scope);
+            scopeName = joinWithDot(basename, scope);
         }
         return new StatsLoggerImpl(metrics, scopeName);
     }
@@ -97,7 +97,7 @@ public class StatsLoggerImpl implements StatsLogger {
 
         CounterImpl(String statName, String... tagPairs) {
             this.tags = io.micrometer.core.instrument.Tags.of(tagPairs);
-            this.name = name(basename, statName);
+            this.name = joinWithDot(basename, statName);
             this.counter = metrics.counter(name, this.tags);
             this.id = counter.getId();
         }
@@ -134,7 +134,7 @@ public class StatsLoggerImpl implements StatsLogger {
         private final Id id;
 
         GaugeImpl(String statName, Supplier<T> value, String... tagPairs) {
-            String name = name(basename, statName);
+            String name = joinWithDot(basename, statName);
             io.micrometer.core.instrument.Tags tags = io.micrometer.core.instrument.Tags.of(tagPairs);
             this.id = new Id(name, tags, null, null, io.micrometer.core.instrument.Meter.Type.GAUGE);
             metrics.remove(this.id);
@@ -155,7 +155,7 @@ public class StatsLoggerImpl implements StatsLogger {
 
         MeterImpl(String statName, String... tagPairs) {
             this.summary = io.micrometer.core.instrument.DistributionSummary
-                    .builder(name(basename, statName))
+                    .builder(joinWithDot(basename, statName))
                     .tags(tagPairs)
                     .register(metrics);
             this.id = summary == null ? null : summary.getId();

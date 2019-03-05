@@ -174,11 +174,11 @@ project ('shared:cluster') {
 project ('shared:metrics') {
     dependencies {
         compile group: 'io.micrometer', name: 'micrometer-core', version: micrometerVersion
-        // https://mvnrepository.com/artifact/io.micrometer/micrometer-core/1.1.2
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-core/<micrometerVersion>
         compile group: 'io.micrometer', name: 'micrometer-registry-statsd', version: micrometerVersion
-        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-statsd/1.1.2
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-statsd/<micrometerVersion>
         compile group: 'io.micrometer', name: 'micrometer-registry-influx', version: micrometerVersion
-        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/1.1.2
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/<micrometerVersion>
         compile project(':common')
     }
 
