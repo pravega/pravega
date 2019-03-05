@@ -113,7 +113,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
 
         //1. Start writing events to the Stream.
         List<CompletableFuture<Void>> writers = new ArrayList<>();
-        writers.add(startWritingIntoTxn(clientFactory.createTransactionalEventWriter(STREAM_NAME, new JavaSerializer<>(),
+        writers.add(startWritingIntoTxn(clientFactory.createTransactionalEventWriter("initWriter", STREAM_NAME, new JavaSerializer<>(),
                 EventWriterConfig.builder().transactionTimeoutTime(25000).build()), stopWriteFlag));
 
         //2. Start a reader group with 2 readers (The stream is configured with 2 segments.)
@@ -133,8 +133,8 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         //3 Now increase the number of TxnWriters to trigger scale operation.
         log.info("Increasing the number of writers to 6");
         for (int i = 0; i < 5; i++) {
-            writers.add(startWritingIntoTxn(clientFactory.createTransactionalEventWriter(STREAM_NAME, new JavaSerializer<>(),
-                    EventWriterConfig.builder().transactionTimeoutTime(25000).build()), stopWriteFlag));
+            writers.add(startWritingIntoTxn(clientFactory.createTransactionalEventWriter("writer-"
+                    + i, STREAM_NAME, new JavaSerializer<>(), EventWriterConfig.builder().transactionTimeoutTime(25000).build()), stopWriteFlag));
         }
 
         //4 Wait until the scale operation is triggered (else time out)
