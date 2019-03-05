@@ -130,6 +130,14 @@ public class PravegaAuthManager {
         return handler.authorize(resource, principal).ordinal() >= level.ordinal();
     }
 
+
+    /**
+     * This method is not only visible for testing, but also intended to be used solely for testing. It allows tests
+     * to inject and register custom auth handlers. Also, this method is idempotent.
+     *
+     * @param authHandler the {@code AuthHandler} implementation to register
+     * @Throws NullPointerException {@code authHandler} is null
+     */
     @VisibleForTesting
     public synchronized void registerHandler(AuthHandler authHandler) {
         this.handlerMap.put(authHandler.getHandlerName(), authHandler);
