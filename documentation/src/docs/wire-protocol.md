@@ -43,6 +43,7 @@ The client requests to read from a particular Segment at a particular `Offset`. 
 # Appending
 
 ## Setup Append - Request
+
 1. `RequestId`: Long (8 bytes). This field contains the client-generated _ID_ that has been propagated to identify a client request.
 2. `writerId`: UUID (16 bytes). It identifies the requesting appender.
 3. `Segment`: String (2 bytes) followed by that many bytes of Java's Modified UTF-8. This Segment indicates the Stream Segment that was read.
@@ -93,6 +94,7 @@ When appending a client:
 - Waits for the "Append Setup" reply.
 
 After receiving the "Append Setup" reply, it performs the following:
+
 - Send a `AppendBlock` request.
 - Send as many Events that can fit in the block.
 - Send an `AppendBlockEnd` request.
