@@ -98,7 +98,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
                                                           StreamConfiguration newConfig, long requestId) {
         return streamMetadataStore.getActiveSegments(scope, stream, context, executor)
                 .thenCompose(activeSegments -> streamMetadataTasks.notifyPolicyUpdates(scope, stream, activeSegments,
-                        newConfig.getScalingPolicy(), requestId))
+                        newConfig.getScalingPolicy(), this.streamMetadataTasks.retrieveDelegationToken(), requestId))
                 .handle((res, ex) -> {
                     if (ex == null) {
                         return true;

@@ -40,6 +40,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -49,7 +50,7 @@ public class PravegaTablesStoreHelper {
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
     private final Cache<CacheKey> cache;
-    
+    private final AtomicReference<String> authToken;
     @lombok.Data
     private class CacheKey {
         private final String scope;
@@ -65,6 +66,7 @@ public class PravegaTablesStoreHelper {
             // Since there are be multiple tables, we will cache `table+key` in our cache
             return getEntry(entryKey.getScope(), entryKey.getTable(), entryKey.getKey());
         });
+        this.authToken = new AtomicReference<>(segmentHelper.retrieveMasterToken());
     }
 
     CompletionStage<Data> getCachedData(String scope, String table, String key) {
@@ -78,7 +80,7 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> createTable(String scope, String tableName) {
         log.debug("create table called for table: {}/{}", scope, tableName);
 
-        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(scope, tableName, RequestTag.NON_EXISTENT_ID),
+        return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(scope, tableName, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 String.format("create table: %s/%s", scope, tableName)))
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
@@ -91,7 +93,7 @@ public class PravegaTablesStoreHelper {
     
     public CompletableFuture<Void> deleteTable(String scope, String tableName, boolean mustBeEmpty) {
         log.debug("delete table called for table: {}/{}", scope, tableName);
-        return withRetries(() -> segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, RequestTag.NON_EXISTENT_ID),
+        return withRetries(() -> segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, authToken.get(), RequestTag.NON_EXISTENT_ID),
                         String.format("delete table: %s/%s", scope, tableName))
                                    .thenAcceptAsync(v -> log.debug("table {}/{} deleted successfully", scope, tableName), executor);
     }
@@ -102,7 +104,7 @@ public class PravegaTablesStoreHelper {
         List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
                 new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), value));
         String errorMessage = String.format("addNewEntry: key: %s table: %s/%s", key, scope, tableName);
-        return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
+        return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 errorMessage)
                 .exceptionally(e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
@@ -134,7 +136,7 @@ public class PravegaTablesStoreHelper {
 
         List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
                 new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version), value.getData()));
-        return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, RequestTag.NON_EXISTENT_ID),
+        return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 String.format("updateEntry: key: %s table: %s/%s", key, scope, tableName))
                 .thenApplyAsync(x -> {
                     KeyVersion first = x.get(0);
@@ -147,7 +149,7 @@ public class PravegaTablesStoreHelper {
         log.debug("get entry called for : {}/{} key : {}", scope, tableName, key);
         List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         CompletableFuture<Data> result = new CompletableFuture<>();
-        withRetries(() -> segmentHelper.readTable(scope, tableName, keys, RequestTag.NON_EXISTENT_ID),
+        withRetries(() -> segmentHelper.readTable(scope, tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 String.format("get entry: key: %s table: %s/%s", key, scope, tableName))
                 .thenApplyAsync(x -> {
                     TableEntry<byte[], byte[]> first = x.get(0);
@@ -170,7 +172,7 @@ public class PravegaTablesStoreHelper {
         log.debug("remove entry called for : {}/{} key : {}", scope, tableName, key);
 
         List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
-        return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, keys, 0L),
+        return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 String.format("remove entry: key: %s table: %s/%s", key, scope, tableName))
                 .thenAcceptAsync(v -> log.debug("entry for key {} removed from table {}/{}", key, scope, tableName), executor);
     }
@@ -179,7 +181,7 @@ public class PravegaTablesStoreHelper {
         log.debug("remove entry called for : {}/{} keys : {}", scope, tableName, keys);
 
         List<TableKey<byte[]>> listOfKeys = keys.stream().map(x -> new TableKeyImpl<>(x.getBytes(Charsets.UTF_8), null)).collect(Collectors.toList());
-        return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, listOfKeys, 0L),
+        return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, listOfKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName))
                 .thenAcceptAsync(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName), executor);
     }
@@ -188,7 +190,7 @@ public class PravegaTablesStoreHelper {
         log.debug("get keys paginated called for : {}/{}", scope, tableName);
 
         return withRetries(() -> 
-                segmentHelper.readTableKeys(scope, tableName, limit, IteratorState.fromBytes(continuationToken), 0L),
+                segmentHelper.readTableKeys(scope, tableName, limit, IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
                         String.format("get keys paginated for table: %s/%s", scope, tableName))
                              .thenApplyAsync(result -> {
                                  List<String> items = result.getItems().stream().map(x -> new String(x.getKey(), Charsets.UTF_8))
@@ -203,7 +205,7 @@ public class PravegaTablesStoreHelper {
         log.debug("get entries paginated called for : {}/{}", scope, tableName);
 
         return withRetries(() -> segmentHelper.readTableEntries(scope, tableName, limit,
-                IteratorState.fromBytes(continuationToken), 0L),
+                IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
                 String.format("get entries paginated for table: %s/%s", scope, tableName))
                 .thenApplyAsync(result -> {
                     List<Pair<String, Data>> items = result.getItems().stream().map(x -> {
@@ -244,6 +246,7 @@ public class PravegaTablesStoreHelper {
                         toThrow = StoreException.create(StoreException.Type.ILLEGAL_STATE, wcfe, errorMessage);
                         break;
                     case AuthFailed:
+                        authToken.set(segmentHelper.retrieveMasterToken());
                         toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, wcfe, errorMessage);
                         break;
                     case SegmentDoesNotExist:

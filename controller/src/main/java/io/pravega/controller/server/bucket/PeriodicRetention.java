@@ -54,7 +54,8 @@ public class PeriodicRetention {
 
         return RetryHelper.withRetriesAsync(() -> streamMetadataStore.getConfiguration(stream.getScope(), stream.getStreamName(), context, executor)
                          .thenCompose(config -> streamMetadataTasks.retention(stream.getScope(), stream.getStreamName(),
-                                 config.getRetentionPolicy(), System.currentTimeMillis(), context))
+                                 config.getRetentionPolicy(), System.currentTimeMillis(), context,
+                                 this.streamMetadataTasks.retrieveDelegationToken()))
                          .exceptionally(e -> {
                              log.warn(requestId, "Exception thrown while performing auto retention for stream {} ", stream, e);
                              throw new CompletionException(e);

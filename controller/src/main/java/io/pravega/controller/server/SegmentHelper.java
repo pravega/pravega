@@ -84,6 +84,7 @@ public class SegmentHelper {
                                                     final String stream,
                                                     final long segmentId,
                                                     final ScalingPolicy policy,
+                                                    final String controllerToken,
                                                     final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
@@ -134,7 +135,7 @@ public class SegmentHelper {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, qualifiedStreamSegmentName,
-                extracted.getLeft(), extracted.getRight(), retrieveMasterToken());
+                extracted.getLeft(), extracted.getRight(), controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -143,6 +144,7 @@ public class SegmentHelper {
                                                       final String stream,
                                                       final long segmentId,
                                                       final long offset,
+                                                      final String controllerToken,
                                                       final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
@@ -170,7 +172,7 @@ public class SegmentHelper {
                 log.info(requestId, "truncateSegment {} SegmentTruncated", qualifiedName);
                 result.complete(true);
             }
-
+            
             @Override
             public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
                 log.info(requestId, "truncateSegment {} SegmentIsTruncated", qualifiedName);
@@ -191,7 +193,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, qualifiedName, offset, retrieveMasterToken());
+        WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, qualifiedName, offset, controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -199,6 +201,7 @@ public class SegmentHelper {
     public CompletableFuture<Boolean> deleteSegment(final String scope,
                                                     final String stream,
                                                     final long segmentId,
+                                                    final String controllerToken,
                                                     final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
@@ -247,7 +250,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(requestId, qualifiedName, retrieveMasterToken());
+        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(requestId, qualifiedName, controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -264,16 +267,17 @@ public class SegmentHelper {
     public CompletableFuture<Boolean> sealSegment(final String scope,
                                                   final String stream,
                                                   final long segmentId,
+                                                  final String controllerToken,
                                                   final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
-        return sealSegment(qualifiedName, uri, requestId);
+        return sealSegment(qualifiedName, uri, controllerToken, requestId);
     }
 
     private CompletableFuture<Boolean> sealSegment(final String qualifiedName,
                                                    final Controller.NodeUri uri,
-                                                   final
+                                                   final String controllerToken,
                                                    long requestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
@@ -318,7 +322,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.SealSegment request = new WireCommands.SealSegment(requestId, qualifiedName, retrieveMasterToken());
+        WireCommands.SealSegment request = new WireCommands.SealSegment(requestId, qualifiedName, controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -326,7 +330,8 @@ public class SegmentHelper {
     public CompletableFuture<UUID> createTransaction(final String scope,
                                                      final String stream,
                                                      final long segmentId,
-                                                     final UUID txId) {
+                                                     final UUID txId,
+                                                     final String controllerToken) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
 
@@ -374,7 +379,7 @@ public class SegmentHelper {
         };
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(), transactionName,
-                WireCommands.CreateSegment.NO_SCALE, 0, retrieveMasterToken());
+                WireCommands.CreateSegment.NO_SCALE, 0, controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -392,7 +397,8 @@ public class SegmentHelper {
                                                           final String stream,
                                                           final long targetSegmentId,
                                                           final long sourceSegmentId,
-                                                          final UUID txId) {
+                                                          final UUID txId,
+                                                          final String controllerToken) {
         Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId));
         final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId);
         final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, targetSegmentId);
@@ -448,7 +454,7 @@ public class SegmentHelper {
         };
 
         WireCommands.MergeSegments request = new WireCommands.MergeSegments(idGenerator.get(),
-                qualifiedNameTarget, transactionName, retrieveMasterToken());
+                qualifiedNameTarget, transactionName, controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -456,7 +462,8 @@ public class SegmentHelper {
     public CompletableFuture<TxnStatus> abortTransaction(final String scope,
                                                          final String stream,
                                                          final long segmentId,
-                                                         final UUID txId) {
+                                                         final UUID txId,
+                                                         final String controllerToken) {
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
@@ -501,13 +508,13 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(), transactionName, retrieveMasterToken());
+        WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(), transactionName, controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy, long segmentId,
-                                                long clientRequestId) {
+                                                final String controllerToken, long clientRequestId) {
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
@@ -551,12 +558,13 @@ public class SegmentHelper {
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(requestId,
-                qualifiedName, extracted.getLeft(), extracted.getRight(), retrieveMasterToken());
+                qualifiedName, extracted.getLeft(), extracted.getRight(), controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
-    public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String scope, String stream, long segmentId) {
+    public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String scope, String stream, long segmentId,
+                                                                            final String controllerToken) {
         final CompletableFuture<WireCommands.StreamSegmentInfo> result = new CompletableFuture<>();
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
@@ -597,7 +605,7 @@ public class SegmentHelper {
         };
 
         WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(),
-                qualifiedName, retrieveMasterToken());
+                qualifiedName, controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -614,6 +622,7 @@ public class SegmentHelper {
      */
     public CompletableFuture<Boolean> createTableSegment(final String scope,
                                                          final String stream,
+                                                         final String controllerToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, 0L);
@@ -661,7 +670,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, qualifiedStreamSegmentName, retrieveMasterToken());
+        WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, qualifiedStreamSegmentName, controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -680,7 +689,7 @@ public class SegmentHelper {
     public CompletableFuture<Boolean> deleteTableSegment(final String scope,
                                                          final String stream,
                                                          final boolean mustBeEmpty,
-
+                                                         final String controllerToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -735,7 +744,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, qualifiedName, mustBeEmpty, retrieveMasterToken());
+        WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, qualifiedName, mustBeEmpty, controllerToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -754,6 +763,7 @@ public class SegmentHelper {
     public CompletableFuture<List<KeyVersion>> updateTableEntries(final String scope,
                                                                   final String stream,
                                                                   final List<TableEntry<byte[], byte[]>> entries,
+                                                                  final String controllerToken,
                                                                   final long clientRequestId) {
         final CompletableFuture<List<KeyVersion>> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -819,7 +829,7 @@ public class SegmentHelper {
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
-        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, retrieveMasterToken(),
+        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, controllerToken,
                                                                                       new WireCommands.TableEntries(wireCommandEntries));
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
@@ -841,6 +851,7 @@ public class SegmentHelper {
     public CompletableFuture<Void> removeTableKeys(final String scope,
                                                    final String stream,
                                                    final List<TableKey<byte[]>> keys,
+                                                   final String controllerToken,
                                                    final long clientRequestId) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -903,7 +914,7 @@ public class SegmentHelper {
 
         List<WireCommands.TableKey> keyList = keys.stream().map(this::convertToWireCommand).collect(Collectors.toList());
 
-        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, retrieveMasterToken(), keyList);
+        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, controllerToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -924,6 +935,7 @@ public class SegmentHelper {
     public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
                                                                          final String stream,
                                                                          final List<TableKey<byte[]>> keys,
+                                                                         final String controllerToken,
                                                                          final long clientRequestId) {
         final CompletableFuture<List<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -999,7 +1011,7 @@ public class SegmentHelper {
                 WireCommands.TableKey.NO_VERSION))
                                                   .collect(Collectors.toList());
 
-        WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, retrieveMasterToken(), keyList);
+        WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, controllerToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -1017,6 +1029,7 @@ public class SegmentHelper {
                                                                                     final String stream,
                                                                                     final int suggestedKeyCount,
                                                                                     final IteratorState state,
+                                                                                        final String controllerToken,
                                                                                     final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -1077,7 +1090,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, retrieveMasterToken(), suggestedKeyCount,
+        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, controllerToken, suggestedKeyCount,
                 token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
@@ -1097,6 +1110,7 @@ public class SegmentHelper {
                                                                                                      final String stream,
                                                                                                      final int suggestedEntryCount,
                                                                                                      final IteratorState state,
+                                                                                                     final String controllerToken,
                                                                                                      final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -1162,7 +1176,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, retrieveMasterToken(),
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, controllerToken,
                 suggestedEntryCount, token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
