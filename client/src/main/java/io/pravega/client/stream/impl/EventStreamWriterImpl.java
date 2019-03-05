@@ -254,11 +254,16 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
 
         @Override
         public void commit() throws TxnFailedException {
+            commit(System.currentTimeMillis());
+        }
+        
+        @Override
+        public void commit(long timestamp) throws TxnFailedException {
             throwIfClosed();
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.close();
             }
-            getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
+            getAndHandleExceptions(controller.commitTransaction(stream, writerId, txId, timestamp), TxnFailedException::new);
             pinger.stopPing(txId);
             closed.set(true);
         }

@@ -55,6 +55,7 @@ import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+import java.util.UUID;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -129,16 +130,24 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     @Override
     @SuppressWarnings("deprecation")
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+        return createEventWriter(UUID.randomUUID().toString(), streamName, s, config);
+    }
+    
+    @Override
+    public <T> EventStreamWriter<T> createEventWriter(String writerId, String streamName, Serializer<T> s,
+                                                      EventWriterConfig config) {
         log.info("Creating writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
         ThreadPoolExecutor executor = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());
         return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, executor);
     }
-    
+
     @Override
     @SuppressWarnings("deprecation")
-    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String writerId, String streamName,
+                                                                                Serializer<T> s,
+                                                                                EventWriterConfig config) {
         log.info("Creating transactional writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
         return new TransactionalEventStreamWriterImpl<T>(stream, controller, outFactory, s, config);
