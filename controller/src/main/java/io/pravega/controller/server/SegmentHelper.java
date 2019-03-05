@@ -261,18 +261,19 @@ public class SegmentHelper {
      * @param scope               stream scope
      * @param stream              stream name
      * @param segmentId           number of segment to be sealed
+     * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     client-generated id for end-to-end tracing
      * @return void
      */
     public CompletableFuture<Boolean> sealSegment(final String scope,
                                                   final String stream,
                                                   final long segmentId,
-                                                  final String controllerToken,
+                                                  final String delegationToken,
                                                   final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
-        return sealSegment(qualifiedName, uri, controllerToken, requestId);
+        return sealSegment(qualifiedName, uri, delegationToken, requestId);
     }
 
     private CompletableFuture<Boolean> sealSegment(final String qualifiedName,
