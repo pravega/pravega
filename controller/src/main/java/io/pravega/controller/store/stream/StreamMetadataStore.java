@@ -22,6 +22,7 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -188,6 +189,19 @@ public interface StreamMetadataStore {
      * @return A map of streams in scope to their configurations
      */
     CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scopeName);
+
+    /**
+     * List existing streams in scopes with pagination. This api continues listing streams from the supplied continuation token
+     * and returns a count limited list of streams and a new continuation token.
+     *
+     * @param scopeName Name of the scope
+     * @param continuationToken continuation token
+     * @param limit limit on number of streams to return.
+     * @param executor 
+     * @return A pair of list of streams in scope with the continuation token. 
+     */
+    CompletableFuture<Pair<List<String>, String>> listStream(final String scopeName, final String continuationToken,
+                                                             final int limit, final Executor executor);
 
     /**
      * List Scopes in cluster.

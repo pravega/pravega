@@ -252,6 +252,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         });
     }
 
+    @Override
+    public CompletableFuture<Pair<List<String>, String>> listStream(String scopeName, String continuationToken,
+                                                                    int limit, Executor executor) {
+        return getScope(scopeName).listStreams(limit, continuationToken, executor);
+    }
 
     @Override
     public CompletableFuture<Void> startTruncation(final String scope,
@@ -731,7 +736,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         cache.put(new ImmutablePair<>(stream.getScope(), stream.getName()), stream);
     }
 
-    private Scope getScope(final String scopeName) {
+    protected Scope getScope(final String scopeName) {
         Scope scope = scopeCache.getUnchecked(scopeName);
         scope.refresh();
         return scope;

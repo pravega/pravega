@@ -1,3 +1,5 @@
+import org.gradle.internal.jvm.Jvm
+
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
@@ -10,6 +12,9 @@
  */
 // Apply the java plugin to add support for Java
 buildscript {
+
+    // log the current JVM version.
+    println "Build JVM Version is : " + Jvm.current()
     repositories {
         jcenter()
         maven {
@@ -72,8 +77,8 @@ allprojects {
 
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
-            sourceCompatibility = "8"
-            targetCompatibility = "8"
+            sourceCompatibility = JavaVersion.VERSION_1_8
+            targetCompatibility = JavaVersion.VERSION_1_8
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
@@ -117,12 +122,11 @@ project('common') {
         failOnError = false
         source {
             project(':common').sourceSets.main.java
-            project(':shared:protocol').sourceSets.main.java
+
         }
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion   
+            compile 'org.projectlombok:lombok:' + lombokVersion  
         }
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -144,7 +148,6 @@ project('shared:authplugin') {
             sourceSets.main.java
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -164,7 +167,6 @@ project ('shared:cluster') {
             compile 'org.projectlombok:lombok:' + lombokVersion   
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -191,7 +193,6 @@ project ('shared:metrics') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -203,6 +204,7 @@ project('shared:protocol') {
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
+     
     }
 }
 
@@ -223,7 +225,6 @@ project('client') {
         title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
@@ -242,7 +243,6 @@ project('test:testcommon') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -257,7 +257,6 @@ project('segmentstore:contracts') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
@@ -275,7 +274,6 @@ project('segmentstore:storage') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -296,7 +294,6 @@ project('segmentstore:storage:impl') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -326,7 +323,6 @@ project ('bindings') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -344,7 +340,6 @@ project('segmentstore:server') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
     }
 }
@@ -524,11 +519,9 @@ project('shared:controller-api') {
 
     dependencies {
         compile project(':common')
-
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-
         compile "io.grpc:grpc-netty:" + grpcVersion
         compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
@@ -544,7 +537,6 @@ project('shared:controller-api') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -800,6 +792,7 @@ project('test:system') {
     }
 
     task startK8SystemTests(type: Test) {
+        tasks.withType(Exec) { environment "tier2Type", System.getProperty("tier2Type", "nfs") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
@@ -818,7 +811,11 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
         // bookkeeper version defaults to pravega version.
         systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
-        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+
+        // tier2Type , default is NFS.
+        systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
+        // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
+        systemProperty "tier2Config", System.getProperty("tier2Config")
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
