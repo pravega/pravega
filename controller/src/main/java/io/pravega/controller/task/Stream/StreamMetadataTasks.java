@@ -893,6 +893,7 @@ public class StreamMetadataTasks extends TaskBase {
             writer.close();
         }
     }
+
     public String retrieveDelegationToken() {
         return segmentHelper.retrieveMasterToken();
     }
