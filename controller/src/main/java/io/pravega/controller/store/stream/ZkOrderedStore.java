@@ -29,6 +29,17 @@ import java.util.stream.Collectors;
 
 import static io.pravega.controller.store.stream.ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 
+/**
+ * This class is used to store ordered objects on a per stream basis. 
+ * It uses Persistent Sequential znodes to create ordered sets.
+ * New entities can be added and existing entities can be removed from these ordered sets. 
+ * All entities from the set can be viewed and ordered based on the given order (a long). 
+ * 
+ * Since we use Persistent Sequential znodes to assign order, we can exhaust the order space which is basically 10 digits
+ * (Integer.Max). So this store is responsible for internally creating and progressing new sets once a previous set is 
+ * exhausted. Overall we can create Integer.Max new sets. This means overall we have approximately Long.Max entries that 
+ * each ordered set can support in its lifetime. 
+ */
 public class ZkOrderedStore {
     public static final String SEALED_NODE = "sealed";
     public static final String ENTITIES_NODE = "entities";
@@ -41,6 +52,7 @@ public class ZkOrderedStore {
     // root/scope/stream/<queueNum>/sealed
     // root/scope/stream/<queueNum>/entities
     public ZkOrderedStore(String ordererName, ZKStoreHelper storeHelper, Executor executor) {
+        // default roll over is after 90% or 1.8 billion entries have been added to a set. 
         this(ordererName, storeHelper, executor, (Integer.MAX_VALUE / 10) * 9);
     }
 
@@ -52,6 +64,17 @@ public class ZkOrderedStore {
         this.rollOverAfter = rollOverAfter;
     }
 
+    /**
+     * Method to add new entity to the ordered set. Note: Same entity could be added to the set multiple times.
+     * Entities are added to the latest set for the stream. If the set has exhausted positions allowed for by rollOver limit,
+     * a new successor set is initiated and the entry is added to the new set.
+     * Any entries with positions higher than rollover values under a set are ignored and eventually purged. 
+     * 
+     * @param scope scope
+     * @param stream stream 
+     * @param entity entity to add
+     * @return CompletableFuture which when completed returns the position where the entity is added to the set. 
+     */
     public CompletableFuture<Long> addEntity(String scope, String stream, String entity) {
         // add persistent sequential node to the latest queue number 
         // if queueNum is sealed, increment queue number and write the entity there. 
@@ -82,6 +105,13 @@ public class ZkOrderedStore {
                                    }));
     }
 
+    /**
+     * Method to remove entities from the ordered set. Entities are referred to by their position pointer.  
+     * @param scope scope
+     * @param stream stream
+     * @param entities list of entities' positions to remove
+     * @return CompletableFuture which when completed will indicate that entities are removed from the set. 
+     */
     public CompletableFuture<Void> removeEntities(String scope, String stream, Collection<Long> entities) {
         Set<Integer> queues = entities.stream().collect(Collectors.groupingBy(x -> new Position(x).queueNumber)).keySet();
         return Futures.allOf(entities.stream()
@@ -91,6 +121,14 @@ public class ZkOrderedStore {
                                                             .collect(Collectors.toList())));
     }
 
+    /**
+     * Returns a map of position to entity that was added to the set. 
+     * Note: Entities are ordered by position in the set but the map responded from this api is not ordered by default.
+     * Users can filter and order elements based on the position and entity id.  
+     * @param scope scope scope
+     * @param stream stream stream
+     * @return CompletableFuture which when completed will contain all positions to entities in the set. 
+     */
     public CompletableFuture<Map<Long, String>> getEntitiesWithPosition(String scope, String stream) {
         Map<Long, String> result = new ConcurrentHashMap<>();
         return Futures.exceptionallyExpecting(storeHelper.getChildren(getStreamPath(scope, stream)), DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
@@ -180,7 +218,7 @@ public class ZkOrderedStore {
                                        String entitiesPath = getEntitiesPath(scope, stream, queueNum);
 
                                        // delete entities greater than max pos
-                                       return Futures.allOf(entitiesPos.stream().filter(pos -> getPositionFromPath(pos) >= rollOverAfter)
+                                       return Futures.allOf(entitiesPos.stream().filter(pos -> getPositionFromPath(pos) > rollOverAfter)
                                                                     .map(pos -> storeHelper.deletePath(ZKPaths.makePath(entitiesPath, pos), false))
                                                                     .collect(Collectors.toList()));
                                    }))
@@ -193,9 +231,28 @@ public class ZkOrderedStore {
                 });
     }
     
+    @VisibleForTesting
+    CompletableFuture<Boolean> isSealed(String scope, String stream, int queueNumber) {
+        return Futures.exceptionallyExpecting(storeHelper.getData(getQueueSealedPath(scope, stream, queueNumber)).thenApply(v -> true), 
+            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);        
+    }
+    
+    @VisibleForTesting
+    CompletableFuture<Boolean> isDeleted(String scope, String stream, int queueNumber) {
+        return Futures.exceptionallyExpecting(storeHelper.getData(getQueuePath(scope, stream, queueNumber)).thenApply(v -> false), 
+            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, true);
+    }
+
+    @VisibleForTesting
+    CompletableFuture<Boolean> positionExists(String scope, String stream, long position) {
+        return Futures.exceptionallyExpecting(storeHelper.getData(getEntityPath(scope, stream, position)).thenApply(v -> true), 
+            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
+    }
+    
     @Data
     @AllArgsConstructor
-    private static class Position {
+    @VisibleForTesting
+    static class Position {
         private final int queueNumber;
         private final int positionInQueue;
 
