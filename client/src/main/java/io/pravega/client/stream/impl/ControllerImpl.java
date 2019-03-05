@@ -25,6 +25,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -884,7 +885,9 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId) {
+    public CompletableFuture<Void> commitTransaction(final Stream stream, final String writerId, final Long timestamp, final UUID txId) {
+        //TODO watermarking: Pass data over the wire to the controller.
+        
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
@@ -1099,5 +1102,15 @@ public class ControllerImpl implements Controller {
         public void deleteStream(StreamInfo streamInfo, RPCAsyncCallback<DeleteStreamStatus> callback) {
             clientStub.deleteStream(streamInfo, callback);
         }
+    }
+
+    @Override
+    public void noteTimestampFromWriter(String writer, Stream stream, long timestamp, Position lastWrittenPosition) {
+        //TODO watermarking: Implement passing timestamp to controller.
+    }
+
+    @Override
+    public void writerShutdown(String writerId, Stream stream) {
+        //TODO watermarking: Implement passing shutdown to controller.
     }
 }

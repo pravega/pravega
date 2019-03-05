@@ -406,4 +406,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         return config;
     }
 
+    @Override
+    public void noteTime(long timestamp) {
+        //TODO watermarking : Pass timestamp to controller.
+        
+    }
+
 }
