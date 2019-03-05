@@ -26,7 +26,7 @@ public class RegistryConfigUtil {
      * @return instance of StatsdConfig to be used by Statsd Register.
      */
     public static StatsdConfig createStatsdConfig(MetricsConfig conf) {
-        log.info("Configuring stats with statsD at {}:{}", conf.getStatsDHost(), conf.getStatsDPort());
+        log.info("Configuring stats with statsd at {}:{}", conf.getStatsdHost(), conf.getStatsdPort());
         return new StatsdConfig() {
             @Override
             public Duration step() {
@@ -40,12 +40,12 @@ public class RegistryConfigUtil {
 
             @Override
             public String host() {
-                return conf.getStatsDHost();
+                return conf.getStatsdHost();
             }
 
             @Override
             public int port() {
-                return conf.getStatsDPort();
+                return conf.getStatsdPort();
             }
 
             @Override

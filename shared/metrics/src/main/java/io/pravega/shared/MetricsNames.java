@@ -240,13 +240,13 @@ public final class MetricsNames {
     }
 
     /**
-     * Convenient method to concastenate two Strings using dot.
+     * Convenient method to join two Strings with dot.
      *
      * @param element1 the first String object.
      * @param element2 the second String object.
-     * @return String object with element1 and element2 connected with dot.
+     * @return String object with element1 and element2 joined with dot.
      */
-    public static String name(String element1, String element2) {
+    public static String joinWithDot(String element1, String element2) {
         return element1 + "." + element2;
     }
 
