@@ -105,11 +105,16 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
 
         @Override
         public void commit() throws TxnFailedException {
+            commit(System.currentTimeMillis());
+        }
+        
+        @Override
+        public void commit(long timestamp) throws TxnFailedException {
             throwIfClosed();
             for (SegmentTransaction<Type> tx : inner.values()) {
                 tx.close();
             }
-            getAndHandleExceptions(controller.commitTransaction(stream, txId), TxnFailedException::new);
+            getAndHandleExceptions(controller.commitTransaction(stream, writerId, timestamp, txId), TxnFailedException::new);
             pinger.stopPing(txId);
             closed.set(true);
         }
