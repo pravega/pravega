@@ -641,7 +641,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         return TaskStepsRetryHelper.withRetries(() -> segmentHelper.createTransaction(scope,
                 stream,
                 segmentId,
-                txnId), executor);
+                txnId,
+                this.retrieveDelegationToken()), executor);
     }
 
     private CompletableFuture<Void> checkReady() {
@@ -657,7 +658,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                         final OperationContext contextOpt) {
         return contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
     }
-    
+
+    public String retrieveDelegationToken() {
+        return segmentHelper.retrieveMasterToken();
+    }
+
     @Override
     public void close() throws Exception {
         timeoutService.stopAsync();

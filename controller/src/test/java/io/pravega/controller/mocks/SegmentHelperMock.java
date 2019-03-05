@@ -60,31 +60,31 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).sealSegment(
-                anyString(), anyString(), anyLong(), anyLong());
+                anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).deleteSegment(
-                anyString(), anyString(), anyLong(), anyLong());
+                anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any());
+                anyString(), anyString(), anyLong(), any(), anyString());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any());
+                anyString(), anyString(), anyLong(), any(), anyString());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any());
+                anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).updatePolicy(
-                anyString(), anyString(), any(), anyLong(), anyLong());
+                anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).truncateSegment(
-                anyString(), anyString(), anyLong(), anyLong(), anyLong());
+                anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
-                anyString(), anyString(), anyLong());
+                anyString(), anyString(), anyLong(), anyString());
 
         return helper;
     }
@@ -96,25 +96,25 @@ public class SegmentHelperMock {
                 anyString(), anyString(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).sealSegment(
-                anyString(), anyString(), anyLong(), anyLong());
+                anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyString(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).deleteSegment(
-                anyString(), anyString(), anyLong(), anyLong());
+                anyString(), anyString(), anyLong(), anyString(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any());
+                anyString(), anyString(), anyLong(), any(), anyString());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any());
+                anyString(), anyString(), anyLong(), any(), anyString());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any());
+                anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
-                anyString(), anyString(), any(), anyLong(), anyLong());
+                anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
 
         return helper;
     }
@@ -142,7 +142,7 @@ public class SegmentHelperMock {
                     mapOfTablesPosition.put(scope + "/" + tableName, new HashMap<>());
                 }
             }, executor);
-        }).when(helper).createTableSegment(anyString(), anyString(), anyLong());
+        }).when(helper).createTableSegment(anyString(), anyString(), anyString(), anyLong());
         // endregion
         
         // region delete table
@@ -169,7 +169,7 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).deleteTableSegment(anyString(), anyString(), anyBoolean(), anyLong());
+        }).when(helper).deleteTableSegment(anyString(), anyString(), anyBoolean(), anyString(), anyLong());
         // endregion
         
         // region update keys
@@ -222,7 +222,7 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).updateTableEntries(anyString(), anyString(), any(), anyLong());
+        }).when(helper).updateTableEntries(anyString(), anyString(), any(), anyString(), anyLong());
         // endregion
     
         // region remove keys    
@@ -258,7 +258,7 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).removeTableKeys(anyString(), anyString(), any(), anyLong());
+        }).when(helper).removeTableKeys(anyString(), anyString(), any(), anyString(), anyLong());
         // endregion
 
         // region read keys    
@@ -296,7 +296,7 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).readTable(anyString(), anyString(), any(), anyLong());
+        }).when(helper).readTable(anyString(), anyString(), any(), anyString(), anyLong());
         // endregion
         
         // region readTableKeys
@@ -337,7 +337,7 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).readTableKeys(anyString(), anyString(), anyInt(), any(), anyLong());
+        }).when(helper).readTableKeys(anyString(), anyString(), anyInt(), any(), anyString(), anyLong());
         // endregion        
         
         // region readTableEntries
@@ -378,7 +378,7 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).readTableEntries(anyString(), anyString(), anyInt(), any(), anyLong());
+        }).when(helper).readTableEntries(anyString(), anyString(), anyInt(), any(), anyString(), anyLong());
         // endregion
         return helper;
     }

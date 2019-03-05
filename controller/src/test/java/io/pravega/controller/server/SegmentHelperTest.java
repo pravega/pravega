@@ -91,7 +91,7 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
         CompletableFuture<Boolean> retVal = helper.createSegment("", "",
-                0, ScalingPolicy.fixed(2), Long.MIN_VALUE);
+                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -105,7 +105,7 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
         CompletableFuture<Boolean> retVal = helper.truncateSegment("", "", 0L, 0L,
-                System.nanoTime());
+                "", System.nanoTime());
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -119,7 +119,7 @@ public class SegmentHelperTest {
     public void deleteSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
-        CompletableFuture<Boolean> retVal = helper.deleteSegment("", "", 0L, System.nanoTime());
+        CompletableFuture<Boolean> retVal = helper.deleteSegment("", "", 0L, "", System.nanoTime());
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -132,7 +132,7 @@ public class SegmentHelperTest {
     public void sealSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
-        CompletableFuture<Boolean> retVal = helper.sealSegment("", "", 0L,
+        CompletableFuture<Boolean> retVal = helper.sealSegment("", "", 0L, "",
                 System.nanoTime());
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
@@ -146,7 +146,7 @@ public class SegmentHelperTest {
     public void createTransaction() {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
-        CompletableFuture<UUID> retVal = helper.createTransaction("", "", 0L, new UUID(0, 0L));
+        CompletableFuture<UUID> retVal = helper.createTransaction("", "", 0L, new UUID(0, 0L), "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -160,7 +160,8 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
         
-        CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0L, 0L, new UUID(0, 0L));
+        CompletableFuture<Controller.TxnStatus> retVal = helper.commitTransaction("", "", 0L, 
+                0L, new UUID(0, 0L), "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -174,7 +175,8 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
         
-        CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0L, new UUID(0, 0L));
+        CompletableFuture<Controller.TxnStatus> retVal = helper.abortTransaction("", "", 0L, 
+                new UUID(0, 0L), "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -188,7 +190,7 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
         
-        CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0L, System.nanoTime());
+        CompletableFuture<Void> retVal = helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0L, "", System.nanoTime());
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -201,7 +203,7 @@ public class SegmentHelperTest {
     public void getSegmentInfo() {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
-        CompletableFuture<WireCommands.StreamSegmentInfo> retVal = helper.getSegmentInfo("", "", 0L);
+        CompletableFuture<WireCommands.StreamSegmentInfo> retVal = helper.getSegmentInfo("", "", 0L, "");
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -216,17 +218,17 @@ public class SegmentHelperTest {
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
         
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Boolean> result = helper.createTableSegment("", "", Long.MIN_VALUE);
+        CompletableFuture<Boolean> result = helper.createTableSegment("", "", "", Long.MIN_VALUE);
         factory.rp.segmentAlreadyExists(new WireCommands.SegmentAlreadyExists(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         assertTrue(result.join());
 
         // On Receiving SegmentCreated true should be returned.
-        result = helper.createTableSegment("", "", Long.MIN_VALUE);
+        result = helper.createTableSegment("", "", "", Long.MIN_VALUE);
         factory.rp.segmentCreated(new WireCommands.SegmentCreated(0, getQualifiedStreamSegmentName("", "", 0L)));
         assertTrue(result.join());
 
         // Validate failure conditions.
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", Long.MIN_VALUE);
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", "", Long.MIN_VALUE);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -240,24 +242,24 @@ public class SegmentHelperTest {
         SegmentHelper helper = new SegmentHelper(new MockHostControllerStore(), factory, AuthHelper.getDisabledAuthHelper());
 
         // On receiving NoSuchSegment true should be returned.
-        CompletableFuture<Boolean> result = helper.deleteTableSegment("", "", true, System.nanoTime());
+        CompletableFuture<Boolean> result = helper.deleteTableSegment("", "", true, "", System.nanoTime());
         factory.rp.noSuchSegment(new WireCommands.NoSuchSegment(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertFutureThrows("", result, e -> Exceptions.unwrap(e) instanceof WireCommandFailedException
                 && ((WireCommandFailedException) Exceptions.unwrap(e)).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist));
 
         // On receiving SegmentDeleted true should be returned.
-        result = helper.deleteTableSegment("", "", true, System.nanoTime());
+        result = helper.deleteTableSegment("", "", true, "", System.nanoTime());
         factory.rp.segmentDeleted(new WireCommands.SegmentDeleted(0, getQualifiedStreamSegmentName("", "", 0L)));
         assertTrue(result.join());
 
         // On receiving TableSegmentNotEmpty WireCommandFailedException is thrown.
-        result = helper.deleteTableSegment("", "", true, System.nanoTime());
+        result = helper.deleteTableSegment("", "", true, "", System.nanoTime());
         factory.rp.tableSegmentNotEmpty(new WireCommands.TableSegmentNotEmpty(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableSegmentNotEmpty));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteTableSegment("", "", true, System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteTableSegment("", "", true, "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -279,25 +281,25 @@ public class SegmentHelperTest {
                                                           new KeyVersionImpl(11L));
 
         // On receiving TableEntriesUpdated.
-        CompletableFuture<List<KeyVersion>> result = helper.updateTableEntries("", "", entries, System.nanoTime());
+        CompletableFuture<List<KeyVersion>> result = helper.updateTableEntries("", "", entries, "", System.nanoTime());
         factory.rp.tableEntriesUpdated(new WireCommands.TableEntriesUpdated(0, Arrays.asList(0L, 1L, 11L)));
         assertEquals(expectedVersions, result.join());
 
         // On receiving TableKeyDoesNotExist.
-        result = helper.updateTableEntries("", "", entries, System.nanoTime());
+        result = helper.updateTableEntries("", "", entries, "", System.nanoTime());
         factory.rp.tableKeyDoesNotExist(new WireCommands.TableKeyDoesNotExist(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableKeyDoesNotExist));
 
         // On receiving TableKeyBadVersion.
-        result = helper.updateTableEntries("", "", entries, System.nanoTime());
+        result = helper.updateTableEntries("", "", entries, "", System.nanoTime());
         factory.rp.tableKeyBadVersion(new WireCommands.TableKeyBadVersion(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableKeyBadVersion));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.updateTableEntries("", "", entries, System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.updateTableEntries("", "", entries, "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -314,23 +316,23 @@ public class SegmentHelperTest {
                                                     new TableKeyImpl<>("k1".getBytes(), KeyVersion.NOT_EXISTS));
 
         // On receiving TableKeysRemoved.
-        CompletableFuture<Void> result = helper.removeTableKeys("", "", keys, System.nanoTime());
+        CompletableFuture<Void> result = helper.removeTableKeys("", "", keys, "", System.nanoTime());
         factory.rp.tableKeysRemoved(new WireCommands.TableKeysRemoved(0, getQualifiedStreamSegmentName("", "", 0L) ));
         assertTrue(Futures.await(result));
 
         // On receiving TableKeyDoesNotExist.
-        result = helper.removeTableKeys("", "", keys, System.nanoTime());
+        result = helper.removeTableKeys("", "", keys, "", System.nanoTime());
         factory.rp.tableKeyDoesNotExist(new WireCommands.TableKeyDoesNotExist(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         assertTrue(Futures.await(result));
 
         // On receiving TableKeyBadVersion.
-        result = helper.removeTableKeys("", "", keys, System.nanoTime());
+        result = helper.removeTableKeys("", "", keys, "", System.nanoTime());
         factory.rp.tableKeyBadVersion(new WireCommands.TableKeyBadVersion(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableKeyBadVersion));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.removeTableKeys("", "", keys, System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.removeTableKeys("", "", keys, "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -349,7 +351,7 @@ public class SegmentHelperTest {
         List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>("k".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()),
                                                                  new TableEntryImpl<>(new TableKeyImpl<>("k1".getBytes(), new KeyVersionImpl(10L)), "v".getBytes()));
         // On receiving TableKeysRemoved.
-        CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", "", keys, System.nanoTime());
+        CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", "", keys, "", System.nanoTime());
         factory.rp.tableRead(new WireCommands.TableRead(0, getQualifiedStreamSegmentName("", "", 0L), getTableEntries(entries)));
         List<TableEntry<byte[], byte[]>> readResult = result.join();
         assertArrayEquals(key0, readResult.get(0).getKey().getKey());
@@ -360,13 +362,13 @@ public class SegmentHelperTest {
         assertArrayEquals(value, readResult.get(1).getValue());
 
         // On receiving TableKeyDoesNotExist.
-        result = helper.readTable("", "", keys, System.nanoTime());
+        result = helper.readTable("", "", keys, "", System.nanoTime());
         factory.rp.tableKeyDoesNotExist(new WireCommands.TableKeyDoesNotExist(0, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableKeyDoesNotExist));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTable("", "", keys, System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTable("", "", keys, "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -386,7 +388,7 @@ public class SegmentHelperTest {
                                                            new TableKeyImpl<>(key3, new KeyVersionImpl(10L)));
 
         CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> result = helper.readTableKeys("", "", 3,
-                                                                                                     IteratorState.EMPTY, System.nanoTime());
+                                                                                                     IteratorState.EMPTY, "", System.nanoTime());
 
         assertFalse(result.isDone());
         factory.rp.tableKeysRead(getTableKeysRead(keys1, token1));
@@ -400,7 +402,7 @@ public class SegmentHelperTest {
         assertArrayEquals(token1.array(), result.join().getState().toBytes().array());
 
         // fetch the next value
-        result = helper.readTableKeys("", "", 3, IteratorState.fromBytes(token1), System.nanoTime());
+        result = helper.readTableKeys("", "", 3, IteratorState.fromBytes(token1), "", System.nanoTime());
         assertFalse(result.isDone());
         factory.rp.tableKeysRead(getTableKeysRead(keys2, token2));
         assertTrue(Futures.await(result));
@@ -413,7 +415,7 @@ public class SegmentHelperTest {
         assertArrayEquals(token2.array(), result.join().getState().toBytes().array());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTableKeys("", "", 1,
-                                                                                   new IteratorStateImpl(wrappedBuffer(new byte[0])),
+                                                                                   new IteratorStateImpl(wrappedBuffer(new byte[0])), "", 
                                                                                    System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
@@ -437,7 +439,7 @@ public class SegmentHelperTest {
                                                                                                           new KeyVersionImpl(10L)), value));
 
         CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> result = helper.readTableEntries("", "", 3,
-                                                                                                                  null,
+                                                                                                                  null, "",
                                                                                                                   System.nanoTime());
         assertFalse(result.isDone());
         factory.rp.tableEntriesRead(getTableEntriesRead(entries1, token1));
@@ -450,7 +452,7 @@ public class SegmentHelperTest {
         assertEquals(10L, iterationResult.get(1).getKey().getVersion().getSegmentVersion());
         assertArrayEquals(token1.array(), result.join().getState().toBytes().array());
 
-        result = helper.readTableEntries("", "", 3, IteratorState.fromBytes(token1), System.nanoTime());
+        result = helper.readTableEntries("", "", 3, IteratorState.fromBytes(token1), "", System.nanoTime());
         assertFalse(result.isDone());
         factory.rp.tableEntriesRead(getTableEntriesRead(entries2, token2));
         assertTrue(Futures.await(result));
@@ -463,7 +465,7 @@ public class SegmentHelperTest {
         assertArrayEquals(token2.array(), result.join().getState().toBytes().array());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTableEntries("", "", 1,
-                                                                                      new IteratorStateImpl(wrappedBuffer(new byte[0])),
+                                                                                      new IteratorStateImpl(wrappedBuffer(new byte[0])), "",
                                                                                       System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
