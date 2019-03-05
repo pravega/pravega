@@ -28,6 +28,7 @@ import io.kubernetes.client.models.V1beta1CustomResourceDefinition;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionBuilder;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionNamesBuilder;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionSpecBuilder;
+import io.kubernetes.client.models.V1beta1CustomResourceDefinitionStatus;
 import io.kubernetes.client.models.V1beta1PolicyRuleBuilder;
 import io.kubernetes.client.models.V1beta1Role;
 import io.kubernetes.client.models.V1beta1RoleBinding;
@@ -219,7 +220,9 @@ public abstract class AbstractService implements Service {
                                                      .build())
                                   .withScope("Namespaced")
                                   .withVersion(CUSTOM_RESOURCE_VERSION_PRAVEGA)
-                                  .withNewSubresources().withStatus(null).endSubresources()
+                                  .withNewSubresources()
+                                                     .withStatus(new V1beta1CustomResourceDefinitionStatus())
+                                  .endSubresources()
                                   .build())
                 .build();
 
