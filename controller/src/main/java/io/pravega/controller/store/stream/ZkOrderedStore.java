@@ -143,7 +143,7 @@ public class ZkOrderedStore {
 
     private String getEntityPath(String scope, String stream, long entity) {
         Position position = new Position(entity);
-        return getEntitySequentialPath(scope, stream, position.queueNumber) + position.positionInQueue;
+        return getEntityPath(scope, stream, position.queueNumber, position.positionInQueue);
     }
 
     private int getPositionFromPath(String name) {
