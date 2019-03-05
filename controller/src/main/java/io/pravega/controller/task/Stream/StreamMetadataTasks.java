@@ -50,6 +50,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.Config;
+import io.pravega.controller.util.RetryHelper;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -101,7 +102,8 @@ public class StreamMetadataTasks extends TaskBase {
 
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
     private final RequestTracker requestTracker;
-
+    private final AtomicBoolean streamWritersInitialized;
+    
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
@@ -119,6 +121,7 @@ public class StreamMetadataTasks extends TaskBase {
         this.bucketStore = bucketStore;
         this.segmentHelper = segmentHelper;
         this.requestTracker = requestTracker;
+        this.streamWritersInitialized = new AtomicBoolean(false);
         this.setReady();
     }
 
@@ -126,6 +129,7 @@ public class StreamMetadataTasks extends TaskBase {
                                         final String streamName) {
         this.requestStreamName = streamName;
         this.clientFactory = clientFactory;
+        this.streamWritersInitialized.set(true);
     }
 
     /**
@@ -164,10 +168,10 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(configProperty -> {
                     // 2. post event to start update workflow
                     if (!configProperty.getObject().isUpdating()) {
-                        return writeEvent(new UpdateStreamEvent(scope, stream, requestId))
+                        return addIndexAndSubmitTask(new UpdateStreamEvent(scope, stream, requestId), 
                                 // 3. update new configuration in the store with updating flag = true
                                 // if attempt to update fails, we bail out with no harm done
-                                .thenCompose(x -> streamMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
+                                () -> streamMetadataStore.startUpdateConfiguration(scope, stream, newConfig,
                                         context, executor))
                                 // 4. wait for update to complete
                                 .thenCompose(x -> checkDone(() -> isUpdated(scope, stream, newConfig, context))
@@ -355,9 +359,9 @@ public class StreamMetadataTasks extends TaskBase {
                 .thenCompose(property -> {
                     if (!property.getObject().isUpdating()) {
                         // 2. post event with new stream cut if no truncation is ongoing
-                        return writeEvent(new TruncateStreamEvent(scope, stream, requestId))
+                        return addIndexAndSubmitTask(new TruncateStreamEvent(scope, stream, requestId), 
                                 // 3. start truncation by updating the metadata
-                                .thenCompose(x -> streamMetadataStore.startTruncation(scope, stream, streamCut,
+                                () -> streamMetadataStore.startTruncation(scope, stream, streamCut,
                                         context, executor))
                                 .thenApply(x -> {
                                     log.debug(requestId, "Started truncation request for stream {}/{}", scope, stream);
@@ -389,16 +393,16 @@ public class StreamMetadataTasks extends TaskBase {
 
         // 1. post event for seal.
         SealStreamEvent event = new SealStreamEvent(scope, stream, requestId);
-        return writeEvent(event)
+        return addIndexAndSubmitTask(event, 
                 // 2. set state to sealing
-                .thenCompose(x -> streamMetadataStore.getVersionedState(scope, stream, context, executor))
+                () -> streamMetadataStore.getVersionedState(scope, stream, context, executor)
                 .thenCompose(state -> {
                     if (state.getObject().equals(State.SEALED)) {
                         return CompletableFuture.completedFuture(state);
                     } else {
                         return streamMetadataStore.updateVersionedState(scope, stream, State.SEALING, state, context, executor);
                     }
-                })
+                }))
                 // 3. return with seal initiated.
                 .thenCompose(result -> {
                     if (result.getObject().equals(State.SEALED) || result.getObject().equals(State.SEALING)) {
@@ -481,8 +485,8 @@ public class StreamMetadataTasks extends TaskBase {
         final long requestId = requestTracker.getRequestIdFor("scaleStream", scope, stream, String.valueOf(scaleTimestamp));
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, segmentsToSeal, newRanges, true, scaleTimestamp, requestId);
 
-        return writeEvent(event)
-                .thenCompose(x -> streamMetadataStore.submitScale(scope, stream, segmentsToSeal, new ArrayList<>(newRanges),
+        return addIndexAndSubmitTask(event,
+                () -> streamMetadataStore.submitScale(scope, stream, segmentsToSeal, new ArrayList<>(newRanges),
                         scaleTimestamp, null, context, executor)
                         .handle((startScaleResponse, e) -> {
                             ScaleResponse.Builder response = ScaleResponse.newBuilder();
@@ -547,6 +551,31 @@ public class StreamMetadataTasks extends TaskBase {
                         });
     }
 
+    /**
+     * This method takes an event and a future supplier and guarantees that if future supplier has been executed then event will 
+     * be posted in request stream. It does it by following approach:
+     * 1. it first adds the index for the event to be posted to the current host. 
+     * 2. it then invokes future. 
+     * 3. it then posts event. 
+     * 4. removes the index. 
+     *
+     * If controller fails after step 2, a replacement controller will failover all indexes and {@link RequestSweeper} will 
+     * post events for any index that is found.  
+     *
+     * Upon failover, an index can be found if failure occurred in any step before 3. It is safe to post duplicate events 
+     * because event processing is idempotent. It is also safe to post event even if step 2 was not performed because the 
+     * event will be ignored by the processor after a while.
+     */
+    @VisibleForTesting
+    <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
+        String id = UUID.randomUUID().toString();
+        return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event)
+                           .thenCompose(v -> futureSupplier.get())
+                           .thenCompose(t -> RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event), e -> { }, executor)
+                                                        .thenCompose(v -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
+                                                        .thenApply(v -> t));
+    }
+    
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
@@ -572,6 +601,7 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     public void setRequestEventWriter(EventStreamWriter<ControllerEvent> requestEventWriter) {
         requestEventWriterRef.set(requestEventWriter);
+        streamWritersInitialized.set(true);
     }
 
     private EventStreamWriter<ControllerEvent> getRequestWriter() {
@@ -833,6 +863,10 @@ public class StreamMetadataTasks extends TaskBase {
                 txnId), executor);
     }
 
+    public boolean isStreamWriterInitialized() {
+        return streamWritersInitialized.get();    
+    }
+    
     @Override
     public TaskBase copyWithContext(Context context) {
         return new StreamMetadataTasks(streamMetadataStore,
@@ -845,6 +879,10 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close()  {
+        EventStreamWriter<ControllerEvent> writer = requestEventWriterRef.get();
+        if (writer != null) {
+            writer.close();
+        }
     }
 }

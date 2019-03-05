@@ -33,11 +33,14 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.ControllerEventSerializer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,9 +70,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
-    private final HostIndex hostIndex;
+    private final HostIndex hostTxnIndex;
+    private final HostIndex hostTaskIndex;
+    private final ControllerEventSerializer controllerEventSerializer;
 
-    protected AbstractStreamMetadataStore(HostIndex hostIndex) {
+    protected AbstractStreamMetadataStore(HostIndex hostTxnIndex, HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(MAXIMUM_SIZE)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
@@ -104,7 +109,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                             }
                         });
 
-        this.hostIndex = hostIndex;
+        this.hostTxnIndex = hostTxnIndex;
+        this.hostTaskIndex = hostTaskIndex;
+        this.controllerEventSerializer = new ControllerEventSerializer();
     }
 
     /**
@@ -618,34 +625,69 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, Version version) {
-        return hostIndex.addEntity(hostId, getTxnResourceString(txn), Optional.ofNullable(version).orElse(getEmptyVersion()).toBytes());
+        return hostTxnIndex.addEntity(hostId, getTxnResourceString(txn), Optional.ofNullable(version).orElse(getEmptyVersion()).toBytes());
     }
 
     @Override
     public CompletableFuture<Void> removeTxnFromIndex(String hostId, TxnResource txn, boolean deleteEmptyParent) {
-        return hostIndex.removeEntity(hostId, getTxnResourceString(txn), deleteEmptyParent);
+        return hostTxnIndex.removeEntity(hostId, getTxnResourceString(txn), deleteEmptyParent);
     }
 
     @Override
     public CompletableFuture<Optional<TxnResource>> getRandomTxnFromIndex(final String hostId) {
-        return hostIndex.getEntities(hostId).thenApply(list -> list != null && list.size() > 0 ?
+        return hostTxnIndex.getEntities(hostId).thenApply(list -> list != null && list.size() > 0 ?
                 Optional.of(this.getTxnResource(list.get(RandomFactory.create().nextInt(list.size())))) : Optional.empty());
     }
 
     @Override
     public CompletableFuture<Version> getTxnVersionFromIndex(final String hostId, final TxnResource resource) {
-        return hostIndex.getEntityData(hostId, getTxnResourceString(resource))
+        return hostTxnIndex.getEntityData(hostId, getTxnResourceString(resource))
                 .thenApply(data -> Optional.ofNullable(data).map(this::parseVersionData).filter(x -> !x.equals(getEmptyVersion())).orElse(null));
     }
 
     @Override
     public CompletableFuture<Void> removeHostFromIndex(String hostId) {
-        return hostIndex.removeHost(hostId);
+        return hostTxnIndex.removeHost(hostId);
     }
 
     @Override
     public CompletableFuture<Set<String>> listHostsOwningTxn() {
-        return hostIndex.getHosts();
+        return hostTxnIndex.getHosts();
+    }
+
+    @Override
+    public CompletableFuture<Void> addRequestToIndex(String hostId, String id, ControllerEvent task) {
+        return hostTaskIndex.addEntity(hostId, id, controllerEventSerializer.toByteBuffer(task).array());
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTaskFromIndex(String hostId, String id) {
+        return hostTaskIndex.removeEntity(hostId, id, true);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, ControllerEvent>> getPendingsTaskForHost(String hostId, int limit) {
+        return hostTaskIndex.getEntities(hostId)
+                .thenCompose(list ->
+                        Futures.allOfWithResults(list.stream()
+                                                     .limit(limit)
+                                                     .collect(Collectors.toMap(id -> id,
+                                                             id -> getControllerTask(hostId, id)))));
+    }
+
+    private CompletableFuture<ControllerEvent> getControllerTask(String hostId, String id) {
+        return hostTaskIndex.getEntityData(hostId, id)
+                          .thenApply(data -> controllerEventSerializer.fromByteBuffer(ByteBuffer.wrap(data)));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeHostFromTaskIndex(String hostId) {
+        return hostTaskIndex.removeHost(hostId);
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> listHostsWithPendingTask() {
+        return hostTaskIndex.getHosts();
     }
 
     @Override

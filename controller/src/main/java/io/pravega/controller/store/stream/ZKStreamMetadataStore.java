@@ -59,7 +59,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod) {
-        super(new ZKHostIndex(client, "/hostTxnIndex", executor));
+        super(new ZKHostIndex(client, "/hostTxnIndex", executor), new ZKHostIndex(client, "/hostRequestIndex", executor));
         storeHelper = new ZKStoreHelper(client, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();

@@ -45,6 +45,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.task.Stream.RequestSweeper;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
@@ -213,6 +214,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), controllerExecutor);
+            RequestSweeper requestSweeper = new RequestSweeper(streamStore, controllerExecutor,
+                    streamMetadataTasks);
 
             if (serviceConfig.isControllerClusterListenerEnabled()) {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
@@ -245,6 +248,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 List<FailoverSweeper> failoverSweepers = new ArrayList<>();
                 failoverSweepers.add(taskSweeper);
                 failoverSweepers.add(txnSweeper);
+                failoverSweepers.add(requestSweeper);
                 if (serviceConfig.getEventProcessorConfig().isPresent()) {
                     assert controllerEventProcessors != null;
                     failoverSweepers.add(controllerEventProcessors);

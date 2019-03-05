@@ -61,7 +61,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @VisibleForTesting
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod) {
-        super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor));
+        super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
