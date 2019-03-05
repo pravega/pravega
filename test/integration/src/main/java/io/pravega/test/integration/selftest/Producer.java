@@ -9,11 +9,14 @@
  */
 package io.pravega.test.integration.selftest;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.AbstractTimer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -24,7 +27,6 @@ import java.util.function.Supplier;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.commons.lang.NotImplementedException;
 
 /**
  * Represents an Operation Producer for the Self Tester.
@@ -39,6 +41,7 @@ class Producer extends Actor {
     private final AtomicBoolean canContinue;
     private final int id;
     private final ProducerDataSource dataSource;
+    private final Map<ProducerOperationType, OperationExecutor> executors;
 
     //endregion
 
@@ -61,6 +64,18 @@ class Producer extends Actor {
         this.iterationCount = new AtomicInteger();
         this.dataSource = dataSource;
         this.canContinue = new AtomicBoolean(true);
+        this.executors = loadExecutors();
+    }
+
+    @SneakyThrows
+    private Map<ProducerOperationType, OperationExecutor> loadExecutors() {
+        return ImmutableMap.<ProducerOperationType, OperationExecutor>builder()
+                .put(ProducerOperationType.CREATE_STREAM_TRANSACTION, new CreateTransactionExecutor())
+                .put(ProducerOperationType.ABORT_STREAM_TRANSACTION, new AbortTransactionExecutor())
+                .put(ProducerOperationType.MERGE_STREAM_TRANSACTION, new MergeTransactionExecutor())
+                .put(ProducerOperationType.STREAM_SEAL, new StreamSealExecutor())
+                .put(ProducerOperationType.STREAM_APPEND, new StreamAppendExecutor())
+                .build();
     }
 
     //endregion
@@ -102,8 +117,7 @@ class Producer extends Actor {
             try {
                 CompletableFuture<Void> waitOn = op.getWaitOn();
                 if (waitOn != null) {
-                    result = waitOn
-                            .exceptionally(ex -> null)
+                    result = Futures.exceptionallyExpecting(waitOn, ex -> true, null)
                             .thenComposeAsync(v -> executeOperation(op), this.executorService);
                 } else {
                     result = executeOperation(op);
@@ -140,7 +154,7 @@ class Producer extends Actor {
             // This is OK: some other producer deleted the segment after we requested the operation and until we
             // tried to apply it.
             return true;
-        } else if (ex instanceof NotImplementedException || ex instanceof UnsupportedOperationException) {
+        } else if (ex instanceof UnsupportedOperationException) {
             // Operation is not supported. No need to fail the test; just log it.
             TestLogger.log(getLogId(), "Operation '%s' cannot be executed on '%s' because it is not supported.", op.getType(), op.getTarget());
             return true;
@@ -163,52 +177,170 @@ class Producer extends Actor {
      * Executes the given operation.
      */
     private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
-        CompletableFuture<Void> result;
-        final AtomicLong startTime = new AtomicLong(TIME_PROVIDER.get());
-        if (operation.getType() == ProducerOperationType.CREATE_TRANSACTION) {
-            // Create the Transaction, then record it's name in the operation's result.
-            StoreAdapter.Feature.Transaction.ensureSupported(this.store, "create transaction");
-            startTime.set(TIME_PROVIDER.get());
-            result = this.store.createTransaction(operation.getTarget(), this.config.getTimeout())
-                               .thenAccept(operation::setResult);
-        } else if (operation.getType() == ProducerOperationType.MERGE_TRANSACTION) {
-            // Merge the Transaction.
-            StoreAdapter.Feature.Transaction.ensureSupported(this.store, "merge transaction");
-            startTime.set(TIME_PROVIDER.get());
-            result = this.store.mergeTransaction(operation.getTarget(), this.config.getTimeout());
-        } else if (operation.getType() == ProducerOperationType.ABORT_TRANSACTION) {
-            // Abort the Transaction.
-            StoreAdapter.Feature.Transaction.ensureSupported(this.store, "abort transaction");
-            startTime.set(TIME_PROVIDER.get());
-            result = this.store.abortTransaction(operation.getTarget(), this.config.getTimeout());
-        } else if (operation.getType() == ProducerOperationType.APPEND) {
-            // Generate some random data, then append it.
-            StoreAdapter.Feature.Append.ensureSupported(this.store, "append");
-            Event event = this.dataSource.nextEvent(operation.getTarget(), this.id);
-            operation.setLength(event.getSerialization().getLength());
-            startTime.set(TIME_PROVIDER.get());
-            result = this.store.append(operation.getTarget(), event, this.config.getTimeout());
-        } else if (operation.getType() == ProducerOperationType.SEAL) {
-            // Seal the target.
-            StoreAdapter.Feature.SealStream.ensureSupported(this.store, "seal");
-            startTime.set(TIME_PROVIDER.get());
-            result = this.store.sealStream(operation.getTarget(), this.config.getTimeout());
-        } else {
-            throw new IllegalArgumentException("Unsupported Operation Type: " + operation.getType());
-        }
-
-        return result
-                .exceptionally(ex -> attemptReconcile(ex, operation))
-                .thenRun(() -> operation.completed((TIME_PROVIDER.get() - startTime.get()) / AbstractTimer.NANOS_TO_MILLIS));
+        OperationExecutor e = this.executors.get(operation.getType());
+        Preconditions.checkArgument(e != null, "Unsupported Operation Type: %s.", operation.getType());
+        return e.execute(operation);
     }
 
-    @SneakyThrows
-    private Void attemptReconcile(Throwable ex, ProducerOperation operation) {
-        ex = Exceptions.unwrap(ex);
-        if (this.dataSource.isClosed(operation.getTarget())) {
-            return null;
-        } else {
-            throw ex;
+    //endregion
+
+    //region Operation Executor
+
+    /**
+     * Defines an executor for a Producer Operation.
+     */
+    private abstract class OperationExecutor {
+        /**
+         * Executes the given {@link ProducerOperation}.
+         *
+         * @param operation The {@link ProducerOperation} to execute.
+         * @return A CompletableFuture that will be completed when the operation execution completes.
+         */
+        CompletableFuture<Void> execute(ProducerOperation operation) {
+            StoreAdapter.Feature requiredFeature = getFeature();
+            if (requiredFeature != null) {
+                requiredFeature.ensureSupported(Producer.this.store, getOperationName());
+            }
+
+            final AtomicLong startTime = new AtomicLong(TIME_PROVIDER.get());
+            return executeInternal(operation)
+                    .exceptionally(ex -> attemptReconcile(ex, operation))
+                    .thenRun(() -> operation.completed((TIME_PROVIDER.get() - startTime.get()) / AbstractTimer.NANOS_TO_MILLIS));
+        }
+
+        /**
+         * Gets the required {@link StoreAdapter.Feature} that this {@link OperationExecutor} requires in order to execute.
+         *
+         * @return The result.
+         */
+        abstract StoreAdapter.Feature getFeature();
+
+        /**
+         * Gets a log-friendly name for this {@link OperationExecutor}.
+         *
+         * @return The result.
+         */
+        abstract String getOperationName();
+
+        /**
+         * Internally executes this operation. All precondition checks have been performed prior to invoking this.
+         *
+         * @param operation The {@link ProducerOperation} to execute.
+         * @return A CompletableFuture that will be completed when the operation execution completes.
+         */
+        protected abstract CompletableFuture<Void> executeInternal(ProducerOperation operation);
+
+        @SneakyThrows
+        private Void attemptReconcile(Throwable ex, ProducerOperation operation) {
+            if (Producer.this.dataSource.isClosed(operation.getTarget())) {
+                return null;
+            } else {
+                throw Exceptions.unwrap(ex);
+            }
+        }
+    }
+
+    /**
+     * Creates a new Stream Transaction.
+     */
+    private class CreateTransactionExecutor extends OperationExecutor {
+        @Override
+        StoreAdapter.Feature getFeature() {
+            return StoreAdapter.Feature.Transaction;
+        }
+
+        @Override
+        String getOperationName() {
+            return "create transaction";
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
+            return Producer.this.store.createTransaction(operation.getTarget(), Producer.this.config.getTimeout())
+                    .thenAccept(operation::setResult);
+        }
+    }
+
+    /**
+     * Merges an existing Stream Transaction.
+     */
+    private class MergeTransactionExecutor extends OperationExecutor {
+        @Override
+        StoreAdapter.Feature getFeature() {
+            return StoreAdapter.Feature.Transaction;
+        }
+
+        @Override
+        String getOperationName() {
+            return "merge transaction";
+        }
+
+
+        @Override
+        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
+            return Producer.this.store.mergeTransaction(operation.getTarget(), Producer.this.config.getTimeout());
+        }
+    }
+
+    /**
+     * Aborts an existing Stream Transction.
+     */
+    private class AbortTransactionExecutor extends OperationExecutor {
+        @Override
+        StoreAdapter.Feature getFeature() {
+            return StoreAdapter.Feature.Transaction;
+        }
+
+        @Override
+        String getOperationName() {
+            return "abort transaction";
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
+            return Producer.this.store.mergeTransaction(operation.getTarget(), Producer.this.config.getTimeout());
+        }
+    }
+
+    /**
+     * Appends a new Event to an existing Stream.
+     */
+    private class StreamAppendExecutor extends OperationExecutor {
+        @Override
+        StoreAdapter.Feature getFeature() {
+            return StoreAdapter.Feature.Append;
+        }
+
+        @Override
+        String getOperationName() {
+            return "append";
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
+            Event event = Producer.this.dataSource.nextEvent(operation.getTarget(), Producer.this.id);
+            operation.setLength(event.getSerialization().getLength());
+            return Producer.this.store.append(operation.getTarget(), event, Producer.this.config.getTimeout());
+        }
+    }
+
+    /**
+     * Seals an existing Stream.
+     */
+    private class StreamSealExecutor extends OperationExecutor {
+        @Override
+        StoreAdapter.Feature getFeature() {
+            return StoreAdapter.Feature.SealStream;
+        }
+
+        @Override
+        String getOperationName() {
+            return "seal";
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
+            return Producer.this.store.sealStream(operation.getTarget(), Producer.this.config.getTimeout());
         }
     }
 

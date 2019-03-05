@@ -34,11 +34,11 @@ public class TestState {
     //region Members
 
     static final OperationType[] SUMMARY_OPERATION_TYPES = {
-            ProducerOperationType.APPEND,
-            ProducerOperationType.CREATE_TRANSACTION,
-            ProducerOperationType.MERGE_TRANSACTION,
-            ProducerOperationType.ABORT_TRANSACTION,
-            ProducerOperationType.SEAL,
+            ProducerOperationType.STREAM_APPEND,
+            ProducerOperationType.CREATE_STREAM_TRANSACTION,
+            ProducerOperationType.MERGE_STREAM_TRANSACTION,
+            ProducerOperationType.ABORT_STREAM_TRANSACTION,
+            ProducerOperationType.STREAM_SEAL,
             ConsumerOperationType.END_TO_END,
             ConsumerOperationType.CATCHUP_READ};
     private static final double NANOS_PER_SECOND = 1000 * 1000 * 1000.0;

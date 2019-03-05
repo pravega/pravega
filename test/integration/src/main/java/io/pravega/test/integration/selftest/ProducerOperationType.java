@@ -16,27 +16,27 @@ final class ProducerOperationType extends OperationType {
     /**
      * An Event Operation triggered by a Producer.
      */
-    static final ProducerOperationType APPEND = new ProducerOperationType("Append");
+    static final ProducerOperationType STREAM_APPEND = new ProducerOperationType("Append");
 
     /**
      * A Seal Operation triggered by a Producer.
      */
-    static final ProducerOperationType SEAL = new ProducerOperationType("Seal");
+    static final ProducerOperationType STREAM_SEAL = new ProducerOperationType("Seal");
 
     /**
      * A Create Transaction Operation triggered by a Producer.
      */
-    static final ProducerOperationType CREATE_TRANSACTION = new ProducerOperationType("Create Transaction");
+    static final ProducerOperationType CREATE_STREAM_TRANSACTION = new ProducerOperationType("Create Transaction");
 
     /**
      * A Merge Transaction Operation triggered by a Producer.
      */
-    static final ProducerOperationType MERGE_TRANSACTION = new ProducerOperationType("Merge Transaction");
+    static final ProducerOperationType MERGE_STREAM_TRANSACTION = new ProducerOperationType("Merge Transaction");
 
     /**
      * A Transaction Abort Operation triggered by a Producer.
      */
-    static final ProducerOperationType ABORT_TRANSACTION = new ProducerOperationType("Abort Transaction");
+    static final ProducerOperationType ABORT_STREAM_TRANSACTION = new ProducerOperationType("Abort Transaction");
 
     private ProducerOperationType(String name) {
         super(name);

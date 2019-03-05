@@ -84,11 +84,11 @@ class ProducerDataSource {
                 if (si != null) {
                     if (si.isTransaction()) {
                         // Transactions can't be Sealed - abort them instead.
-                        result = new ProducerOperation(ProducerOperationType.ABORT_TRANSACTION, si.getName());
+                        result = new ProducerOperation(ProducerOperationType.ABORT_STREAM_TRANSACTION, si.getName());
                         result.setWaitOn(si.close());
                     } else if (this.sealSupported) {
                         // Seal the Stream.
-                        result = new ProducerOperation(ProducerOperationType.SEAL, si.getName());
+                        result = new ProducerOperation(ProducerOperationType.STREAM_SEAL, si.getName());
                         result.setWaitOn(si.close());
                     }
                 }
@@ -100,13 +100,13 @@ class ProducerDataSource {
             } else if (this.transactionsSupported) {
                 if (operationIndex - this.lastCreatedTransaction >= this.config.getTransactionFrequency()) {
                     // We have exceeded the number of operations since we last created a transaction.
-                    result = new ProducerOperation(ProducerOperationType.CREATE_TRANSACTION, this.state.getNonTransactionStreamName(operationIndex));
+                    result = new ProducerOperation(ProducerOperationType.CREATE_STREAM_TRANSACTION, this.state.getNonTransactionStreamName(operationIndex));
                     this.lastCreatedTransaction = operationIndex;
                 } else {
                     // If any transaction has already exceeded the max number of appends, then merge it.
                     val si = this.state.getStream(s -> s.isTransaction() && !s.isClosed() && s.getCompletedOperationCount() >= this.config.getMaxTransactionAppendCount());
                     if (si != null) {
-                        result = new ProducerOperation(ProducerOperationType.MERGE_TRANSACTION, si.getName());
+                        result = new ProducerOperation(ProducerOperationType.MERGE_STREAM_TRANSACTION, si.getName());
                         result.setWaitOn(si.close());
                     }
                 }
@@ -120,7 +120,7 @@ class ProducerDataSource {
 
                 val si = this.state.getStreamOrTransaction(operationIndex);
                 si.operationStarted();
-                result = new ProducerOperation(ProducerOperationType.APPEND, si.getName());
+                result = new ProducerOperation(ProducerOperationType.STREAM_APPEND, si.getName());
             }
         }
 
@@ -173,9 +173,9 @@ class ProducerDataSource {
         this.state.recordDuration(op.getType(), op.getElapsedMillis());
 
         // OperationType-specific updates.
-        if (op.getType() == ProducerOperationType.MERGE_TRANSACTION) {
+        if (op.getType() == ProducerOperationType.MERGE_STREAM_TRANSACTION) {
             postStreamDeletion(op.getTarget());
-        } else if (op.getType() == ProducerOperationType.CREATE_TRANSACTION) {
+        } else if (op.getType() == ProducerOperationType.CREATE_STREAM_TRANSACTION) {
             Object r = op.getResult();
             if (r == null || !(r instanceof String)) {
                 TestLogger.log(LOG_ID, "Operation %s completed but has result of wrong type.", op);
@@ -189,7 +189,7 @@ class ProducerDataSource {
                 id = -this.lastCreatedTransaction;
             }
             this.eventGenerators.put(transactionName, new EventGenerator(id, false));
-        } else if (op.getType() == ProducerOperationType.APPEND) {
+        } else if (op.getType() == ProducerOperationType.STREAM_APPEND) {
             this.state.recordAppend(op.getLength());
         }
     }
