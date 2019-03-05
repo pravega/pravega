@@ -615,6 +615,7 @@ public class SegmentHelper {
      *
      * @param scope               Stream scope.
      * @param stream              Stream name.
+     * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
      * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
@@ -622,7 +623,7 @@ public class SegmentHelper {
      */
     public CompletableFuture<Boolean> createTableSegment(final String scope,
                                                          final String stream,
-                                                         final String controllerToken,
+                                                         final String delegationToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, 0L);
@@ -666,11 +667,11 @@ public class SegmentHelper {
             public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
                 result.completeExceptionally(
                         new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
-                                type, WireCommandFailedException.Reason.AuthFailed));
+                                                       type, WireCommandFailedException.Reason.AuthFailed));
             }
         };
 
-        WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, qualifiedStreamSegmentName, controllerToken);
+        WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, qualifiedStreamSegmentName, delegationToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -681,6 +682,7 @@ public class SegmentHelper {
      * @param scope               Stream scope.
      * @param stream              Stream name.
      * @param mustBeEmpty         Flag to check if the table segment should be empty before deletion.
+     * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will indicate the table segment deletion completed
      * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
@@ -689,7 +691,7 @@ public class SegmentHelper {
     public CompletableFuture<Boolean> deleteTableSegment(final String scope,
                                                          final String stream,
                                                          final boolean mustBeEmpty,
-                                                         final String controllerToken,
+                                                         final String delegationToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -744,7 +746,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, qualifiedName, mustBeEmpty, controllerToken);
+        WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, qualifiedName, mustBeEmpty, delegationToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -755,6 +757,7 @@ public class SegmentHelper {
      * @param scope               Stream scope.
      * @param stream              Stream name.
      * @param entries             List of {@link TableEntry}s to be updated.
+     * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will contain the current versions of each {@link TableEntry}
      * If the operation failed, the future will be failed with the causing exception. If the exception can be retried
@@ -763,7 +766,7 @@ public class SegmentHelper {
     public CompletableFuture<List<KeyVersion>> updateTableEntries(final String scope,
                                                                   final String stream,
                                                                   final List<TableEntry<byte[], byte[]>> entries,
-                                                                  final String controllerToken,
+                                                                  final String delegationToken,
                                                                   final long clientRequestId) {
         final CompletableFuture<List<KeyVersion>> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -829,7 +832,7 @@ public class SegmentHelper {
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
-        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, controllerToken,
+        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, delegationToken,
                                                                                       new WireCommands.TableEntries(wireCommandEntries));
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
@@ -843,6 +846,7 @@ public class SegmentHelper {
      * @param keys                List of {@link TableKey}s to be removed. Only if all the elements in the list has version as
      *                            {@link KeyVersion#NOT_EXISTS} then an unconditional update/removal is performed. Else an atomic conditional
      *                            update (removal) is performed.
+     * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that will complete normally when the provided keys are deleted.
      * If the operation failed, the future will be failed with the causing exception. If the exception can be
@@ -851,7 +855,7 @@ public class SegmentHelper {
     public CompletableFuture<Void> removeTableKeys(final String scope,
                                                    final String stream,
                                                    final List<TableKey<byte[]>> keys,
-                                                   final String controllerToken,
+                                                   final String delegationToken,
                                                    final long clientRequestId) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -914,7 +918,7 @@ public class SegmentHelper {
 
         List<WireCommands.TableKey> keyList = keys.stream().map(this::convertToWireCommand).collect(Collectors.toList());
 
-        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, controllerToken, keyList);
+        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -926,6 +930,7 @@ public class SegmentHelper {
      * @param stream              Stream name.
      * @param keys                List of {@link TableKey}s to be read. {@link TableKey#getVersion()} is not used
      *                            during this operation and the latest version is read.
+     * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will contain a list of {@link TableEntry} with
      * a value corresponding to the latest version. If the operation failed, the future will be failed with the
@@ -935,7 +940,7 @@ public class SegmentHelper {
     public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
                                                                          final String stream,
                                                                          final List<TableKey<byte[]>> keys,
-                                                                         final String controllerToken,
+                                                                         final String delegationToken,
                                                                          final long clientRequestId) {
         final CompletableFuture<List<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -1011,7 +1016,7 @@ public class SegmentHelper {
                 WireCommands.TableKey.NO_VERSION))
                                                   .collect(Collectors.toList());
 
-        WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, controllerToken, keyList);
+        WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -1022,6 +1027,7 @@ public class SegmentHelper {
      * @param stream Stream name.
      * @param suggestedKeyCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
      * @param state Last known state of the iterator.
+     * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId Request id.
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
@@ -1029,7 +1035,7 @@ public class SegmentHelper {
                                                                                     final String stream,
                                                                                     final int suggestedKeyCount,
                                                                                     final IteratorState state,
-                                                                                        final String controllerToken,
+                                                                                        final String delegationToken,
                                                                                     final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -1090,7 +1096,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, controllerToken, suggestedKeyCount,
+        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, delegationToken, suggestedKeyCount,
                 token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
@@ -1103,6 +1109,7 @@ public class SegmentHelper {
      * @param stream Stream name.
      * @param suggestedEntryCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
      * @param state Last known state of the iterator.
+     * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId Request id.
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
@@ -1110,7 +1117,7 @@ public class SegmentHelper {
                                                                                                      final String stream,
                                                                                                      final int suggestedEntryCount,
                                                                                                      final IteratorState state,
-                                                                                                     final String controllerToken,
+                                                                                                     final String delegationToken,
                                                                                                      final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
@@ -1176,7 +1183,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, controllerToken,
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, delegationToken,
                 suggestedEntryCount, token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
