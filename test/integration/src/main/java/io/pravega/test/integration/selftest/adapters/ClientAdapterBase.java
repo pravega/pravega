@@ -136,7 +136,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
             List<TransactionalEventStreamWriter<byte[]>> txnWriters = new ArrayList<>(writerCount);
             if (this.transactionalWriters.putIfAbsent(streamName, txnWriters) == null) {
                 for (int i = 0; i < writerCount; i++) {
-                    txnWriters.add(getClientFactory().createTransactionalEventWriter(streamName, SERIALIZER, WRITER_CONFIG));
+                    txnWriters.add(getClientFactory().createTransactionalEventWriter("writer", streamName, SERIALIZER, WRITER_CONFIG));
                 }
             }
         }, this.testExecutor);

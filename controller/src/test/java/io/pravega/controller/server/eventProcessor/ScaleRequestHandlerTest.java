@@ -884,5 +884,10 @@ public class ScaleRequestHandlerTest {
         public void close() {
 
         }
+
+        @Override
+        public void noteTime(long timestamp) {
+            
+        }
     }
 }

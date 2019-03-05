@@ -103,7 +103,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                               .transactionTimeoutTime(30000)
                                                               .build();
-            TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("test", new UTF8StringSerializer(), writerConfig);
+            TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", "test", new UTF8StringSerializer(), writerConfig);
 
             // region Successful commit tests
             Transaction<String> txn1 = test.beginTxn();
