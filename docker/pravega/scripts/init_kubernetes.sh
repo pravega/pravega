@@ -45,7 +45,7 @@ init_kubernetes() {
 
         service_type=$( k8 "${ns}" "services" "${podname}" ".spec.type" )
         if [ "${service_type}" == "LoadBalancer" ]; then
-	    export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
+            export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
             export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
             while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
             do
