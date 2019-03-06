@@ -62,15 +62,12 @@ class PravegaConnectionManager {
             ReusableReplyProcessor rp = new ReusableReplyProcessor();
             rp.initialize(processor);
             return clientCF.establishConnection(uri, rp)
-                           .thenApply(connection1 -> {
-                               ConnectionObject p = new ConnectionObject(connection1, rp);
-                               return p;
-                           });
+                           .thenApply(connection -> new ConnectionObject(connection, rp));
         }
     }
-    
+
     /**
-     * Users use this method to return the connection back to the Connection Manager for reuse. 
+     * Users use this method to return the connection back to the Connection Manager for reuse.
      */
     void returnConnection(ConnectionObject pair) {
         pair.processor.uninitialize();
@@ -91,9 +88,9 @@ class PravegaConnectionManager {
     }
 
     /**
-     * Shutdown the connection manager where all returned connections are closed and not put back into the 
-     * available queue of connections.  
-     * It is important to note that even after shutdown is initiated, if `getConnection` is invoked, it will return a connection. 
+     * Shutdown the connection manager where all returned connections are closed and not put back into the
+     * available queue of connections.
+     * It is important to note that even after shutdown is initiated, if `getConnection` is invoked, it will return a connection.
      */
     void shutdown() {
         // as connections are returned we need to shut them down
@@ -112,7 +109,7 @@ class PravegaConnectionManager {
             return availableConnections.poll();
         }
     }
-    
+
     static class ConnectionObject {
         private final ClientConnection connection;
         private final ReusableReplyProcessor processor;
@@ -127,7 +124,7 @@ class PravegaConnectionManager {
                 if (cfe != null) {
                     Throwable cause = Exceptions.unwrap(cfe);
                     if (cause instanceof ConnectionFailedException) {
-                        resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), 
+                        resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(),
                                 WireCommandFailedException.Reason.ConnectionFailed));
                     } else {
                         resultFuture.completeExceptionally(new RuntimeException(cause));
@@ -155,167 +152,266 @@ class PravegaConnectionManager {
 
         @Override
         public void hello(WireCommands.Hello hello) {
-            replyProcessor.get().hello(hello);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.hello(hello);
+            }
         }
 
         @Override
         public void wrongHost(WireCommands.WrongHost wrongHost) {
-            replyProcessor.get().wrongHost(wrongHost);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.wrongHost(wrongHost);
+            }
         }
 
         @Override
         public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-            replyProcessor.get().segmentAlreadyExists(segmentAlreadyExists);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentAlreadyExists(segmentAlreadyExists);
+            }
         }
 
         @Override
         public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
-            replyProcessor.get().segmentIsSealed(segmentIsSealed);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentIsSealed(segmentIsSealed);
+            }
         }
 
         @Override
         public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
-            replyProcessor.get().segmentIsTruncated(segmentIsTruncated);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentIsTruncated(segmentIsTruncated);
+            }
         }
 
         @Override
         public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-            replyProcessor.get().noSuchSegment(noSuchSegment);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.noSuchSegment(noSuchSegment);
+            }
         }
 
         @Override
         public void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty) {
-            replyProcessor.get().tableSegmentNotEmpty(tableSegmentNotEmpty);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.tableSegmentNotEmpty(tableSegmentNotEmpty);
+            }
         }
 
         @Override
         public void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber) {
-            replyProcessor.get().invalidEventNumber(invalidEventNumber);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.invalidEventNumber(invalidEventNumber);
+            }
         }
 
         @Override
         public void appendSetup(WireCommands.AppendSetup appendSetup) {
-            replyProcessor.get().appendSetup(appendSetup);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.appendSetup(appendSetup);
+            }
         }
 
         @Override
         public void dataAppended(WireCommands.DataAppended dataAppended) {
-            replyProcessor.get().dataAppended(dataAppended);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.dataAppended(dataAppended);
+            }
         }
 
         @Override
         public void conditionalCheckFailed(WireCommands.ConditionalCheckFailed dataNotAppended) {
-            replyProcessor.get().conditionalCheckFailed(dataNotAppended);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.conditionalCheckFailed(dataNotAppended);
+            }
         }
 
         @Override
         public void segmentRead(WireCommands.SegmentRead segmentRead) {
-            replyProcessor.get().segmentRead(segmentRead);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentRead(segmentRead);
+            }
         }
 
         @Override
         public void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated) {
-            replyProcessor.get().segmentAttributeUpdated(segmentAttributeUpdated);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentAttributeUpdated(segmentAttributeUpdated);
+            }
         }
 
         @Override
         public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
-            replyProcessor.get().segmentAttribute(segmentAttribute);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentAttribute(segmentAttribute);
+            }
         }
 
         @Override
         public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {
-            replyProcessor.get().streamSegmentInfo(streamInfo);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.streamSegmentInfo(streamInfo);
+            }
         }
 
         @Override
         public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
-            replyProcessor.get().segmentCreated(segmentCreated);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentCreated(segmentCreated);
+            }
         }
 
         @Override
         public void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged) {
-            replyProcessor.get().segmentsMerged(segmentsMerged);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentsMerged(segmentsMerged);
+            }
         }
 
         @Override
         public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
-            replyProcessor.get().segmentSealed(segmentSealed);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentSealed(segmentSealed);
+            }
         }
 
         @Override
         public void segmentTruncated(WireCommands.SegmentTruncated segmentTruncated) {
-            replyProcessor.get().segmentTruncated(segmentTruncated);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentTruncated(segmentTruncated);
+            }
         }
 
         @Override
         public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
-            replyProcessor.get().segmentDeleted(segmentDeleted);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentDeleted(segmentDeleted);
+            }
         }
 
         @Override
         public void operationUnsupported(WireCommands.OperationUnsupported operationUnsupported) {
-            replyProcessor.get().operationUnsupported(operationUnsupported);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.operationUnsupported(operationUnsupported);
+            }
         }
 
         @Override
         public void keepAlive(WireCommands.KeepAlive keepAlive) {
-            replyProcessor.get().keepAlive(keepAlive);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.keepAlive(keepAlive);
+            }
         }
 
         @Override
         public void connectionDropped() {
-            replyProcessor.get().connectionDropped();
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.connectionDropped();
+            }
         }
 
         @Override
         public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated segmentPolicyUpdated) {
-            replyProcessor.get().segmentPolicyUpdated(segmentPolicyUpdated);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.segmentPolicyUpdated(segmentPolicyUpdated);
+            }
         }
 
         @Override
         public void processingFailure(Exception error) {
-            replyProcessor.get().processingFailure(error);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.processingFailure(error);
+            }
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            replyProcessor.get().authTokenCheckFailed(authTokenCheckFailed);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.authTokenCheckFailed(authTokenCheckFailed);
+            }
         }
 
         @Override
         public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
-            replyProcessor.get().tableEntriesUpdated(tableEntriesUpdated);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.tableEntriesUpdated(tableEntriesUpdated);
+            }
         }
 
         @Override
         public void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved) {
-            replyProcessor.get().tableKeysRemoved(tableKeysRemoved);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.tableKeysRemoved(tableKeysRemoved);
+            }
         }
 
         @Override
         public void tableRead(WireCommands.TableRead tableRead) {
-            replyProcessor.get().tableRead(tableRead);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.tableRead(tableRead);
+            }
         }
 
         @Override
         public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-            replyProcessor.get().tableKeyDoesNotExist(tableKeyDoesNotExist);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.tableKeyDoesNotExist(tableKeyDoesNotExist);
+            }
         }
 
         @Override
         public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
-            replyProcessor.get().tableKeyBadVersion(tableKeyBadVersion);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.tableKeyBadVersion(tableKeyBadVersion);
+            }
         }
 
         @Override
         public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
-            replyProcessor.get().tableKeysRead(tableKeysRead);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.tableKeysRead(tableKeysRead);
+            }
         }
 
         @Override
         public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
-            replyProcessor.get().tableEntriesRead(tableEntriesRead);
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                rp.tableEntriesRead(tableEntriesRead);
+            }
         }
     }
 }
