@@ -51,6 +51,7 @@ jobs:
          - CLUSTER_SIZE=5
          - PRAVEGA_IMAGE_NAME=pravega-testimages
          - BOOKKEEPER_IMAGE_NAME=bookkeeper-testimages
+         - OPERATOR_IMAGE=adrianmo/pravega-operator:0.3.0-rc3-30
       install:
          - if [ ! -d "$HOME/google-cloud-sdk/bin" ]; then rm -rf $HOME/google-cloud-sdk; curl https://sdk.cloud.google.com | bash; fi
          - source $HOME/google-cloud-sdk/path.bash.inc
@@ -83,7 +84,7 @@ jobs:
          # Create pravega-tier2 PVC
          - kubectl create -f https://raw.githubusercontent.com/pravega/pravega-operator/master/test/e2e/resources/tier2.yaml
       script:
-         - ./gradlew startK8SystemTests -PpravegaVersion=$VERSION -DimageVersion=$VERSION -DpravegaImageName=$PRAVEGA_IMAGE_NAME -DbookkeeperImageName=$BOOKKEEPER_IMAGE_NAME
+         - ./gradlew startK8SystemTests -PpravegaVersion=$VERSION -DimageVersion=$VERSION -DpravegaImageName=$PRAVEGA_IMAGE_NAME -DbookkeeperImageName=$BOOKKEEPER_IMAGE_NAME -DpravegaOperatorImage=$OPERATOR_IMAGE
       after_script:
          # TODO: collect the logs
          - gcloud --quiet container clusters delete $CLUSTER_NAME --zone $CLUSTER_ZONE

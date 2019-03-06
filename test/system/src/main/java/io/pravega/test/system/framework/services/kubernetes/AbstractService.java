@@ -76,7 +76,7 @@ public abstract class AbstractService implements Service {
     private static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
     private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
-    private static final String PRAVEGA_OPERATOR_VERSION = System.getProperty("pravegaOperatorVersion", "latest");
+    private static final String PRAVEGA_OPERATOR_IMAGE = System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest");
     private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
@@ -267,7 +267,7 @@ public abstract class AbstractService implements Service {
 
     private V1Deployment getPravegaOperatorDeployment() {
         V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
-                                                        .withImage("pravega/pravega-operator:" + PRAVEGA_OPERATOR_VERSION)
+                                                        .withImage(PRAVEGA_OPERATOR_IMAGE)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand(PRAVEGA_OPERATOR)
                                                         // start the pravega-operator in test mode to disable minimum replica count check.

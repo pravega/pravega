@@ -802,7 +802,7 @@ project('test:system') {
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
         systemProperty "execType", "KUBERNETES"
-        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest") // default value is "latest"
+        systemProperty "pravegaOperatorImage", System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest")
         // The below properties are used to to specify the pravega docker image properties
         // e.g: private-docker-repo/pravega-prefix/pravega:version
         if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
