@@ -78,8 +78,10 @@ public class StoreClientFactoryTest {
      * During the Controller restart, a new Zookeeper client will be created with the new parameters.
      */
     @Test
-    public void testZkSessionExpiryWithChangedSettings() throws Exception {
+    public void testZkSessionExpiryWithChangedParameters() throws Exception {
         final String newConnectString = "UnexpectedConnectString";
+        final String testZNode = "/testZNode";
+
         CompletableFuture<Void> sessionExpiry = new CompletableFuture<>();
         AtomicInteger expirationRetryCounter = new AtomicInteger();
 
@@ -103,6 +105,9 @@ public class StoreClientFactoryTest {
                                                                                       .build(),
                 canRetrySupplier, expirationHandler, storeClientFactory);
 
+        // Check that the client works correctly. In this case, it throws a NoNodeException when accessing a non-existent path.
+        AssertExtensions.assertThrows(KeeperException.NoNodeException.class, () -> client.getData().forPath(testZNode));
+
         // Check that the ZKClientFactory contains the appropriate initial connection string.
         assertEquals(storeClientFactory.getConnectString(), zkServer.getConnectString());
 
@@ -114,7 +119,7 @@ public class StoreClientFactoryTest {
         client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
         sessionExpiry.join();
 
-        // Check that close is idempotent, so it could be invoked multiple times without causing issues in the Controller.
-        client.close();
+        // Check that, once closed by the ZKClientFactory, the client throws an expected exception (SessionExpiredException).
+        AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/testpath"));
     }
 }
