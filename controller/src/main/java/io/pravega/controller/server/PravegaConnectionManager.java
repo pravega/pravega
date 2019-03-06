@@ -17,6 +17,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.LinkedList;
@@ -33,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * This class does not guarantee that there will be a limited number of connections to pick from. 
  * However, everytime the number of connections go beyond a certain capacity
  */
+@Slf4j
 class PravegaConnectionManager {
     public static final int MAX_AVAILABLE_CONNECTION = 10;
     private final PravegaNodeUri uri;
@@ -54,10 +56,12 @@ class PravegaConnectionManager {
     CompletableFuture<ConnectionObject> getConnection(ReplyProcessor processor) {
         ConnectionObject obj = poll();
         if (obj != null) {
+            log.debug("Returning existing connection for {}", uri);
             // return the object from the queue
             obj.processor.initialize(processor);
             return CompletableFuture.completedFuture(obj);
         } else {
+            log.debug("Creating new connection for {}", uri);
             // dont create a new one.. return a created one
             ReusableReplyProcessor rp = new ReusableReplyProcessor();
             rp.initialize(processor);
@@ -74,13 +78,16 @@ class PravegaConnectionManager {
         synchronized (lock) {
             if (!isRunning) {
                 // The connection will be closed if returned anytime after the shutdown has been initiated.
+                log.debug("ConnectionManager is shutdown");
                 pair.connection.close();
             } else {
                 // as connections are returned to us, we put them in queue to be reused
                 if (availableConnections.size() < MAX_AVAILABLE_CONNECTION) {
                     // if returned connection increases our available connection count, do not include it
+                    log.debug("Returned connection object is included in the available list");
                     availableConnections.offer(pair);
                 } else {
+                    log.debug("Returned connection object is discarded as available list is full");
                     pair.connection.close();
                 }
             }
@@ -93,6 +100,8 @@ class PravegaConnectionManager {
      * It is important to note that even after shutdown is initiated, if `getConnection` is invoked, it will return a connection.
      */
     void shutdown() {
+        log.debug("ConnectionManager shutdown initiated");
+
         // as connections are returned we need to shut them down
         synchronized (lock) {
             isRunning = false;
@@ -106,17 +115,32 @@ class PravegaConnectionManager {
 
     private ConnectionObject poll() {
         synchronized (lock) {
-            return availableConnections.poll();
+            ConnectionObject polled = availableConnections.poll();
+            while(polled != null) {
+                if (polled.state.get().equals(ConnectionObject.ConnectionState.DISCONNECTED)) {
+                    // discard.. call poll again
+                    polled = availableConnections.poll();
+                } else {
+                    return polled;
+                }
+            }
+            return null;
         }
     }
 
     static class ConnectionObject {
         private final ClientConnection connection;
         private final ReusableReplyProcessor processor;
+        private final AtomicReference<ConnectionState> state;
 
         ConnectionObject(ClientConnection connection, ReusableReplyProcessor processor) {
             this.connection = connection;
             this.processor = processor;
+            state = new AtomicReference<>(ConnectionState.CONNECTED);
+        }
+
+        ConnectionState getState() {
+            return state.get();
         }
 
         <T> void sendAsync(WireCommand request, CompletableFuture<T> resultFuture) {
@@ -126,11 +150,17 @@ class PravegaConnectionManager {
                     if (cause instanceof ConnectionFailedException) {
                         resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(),
                                 WireCommandFailedException.Reason.ConnectionFailed));
+                        state.set(ConnectionState.DISCONNECTED);
                     } else {
                         resultFuture.completeExceptionally(new RuntimeException(cause));
                     }
                 }
             });
+        }
+
+        private enum ConnectionState {
+            CONNECTED,
+            DISCONNECTED
         }
     }
 
@@ -328,6 +358,7 @@ class PravegaConnectionManager {
 
         @Override
         public void connectionDropped() {
+            
             ReplyProcessor rp = replyProcessor.get();
             if (rp != null) {
                 rp.connectionDropped();
