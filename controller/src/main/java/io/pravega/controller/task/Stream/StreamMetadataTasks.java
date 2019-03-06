@@ -871,7 +871,7 @@ public class StreamMetadataTasks extends TaskBase {
                 this.retrieveDelegationToken()), executor);
     }
 
-    public boolean isStreamWriterInitialized() {
+    boolean isStreamWriterInitialized() {
         return streamWritersInitialized.get();    
     }
 

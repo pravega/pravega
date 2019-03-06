@@ -125,7 +125,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         this(streamMetadataStore, segmentHelper, executor, hostId, TimeoutServiceConfig.defaultConfig());
     }
 
-    protected void setReady() {
+    private void setReady() {
         ready = true;
         readyLatch.countDown();
     }
@@ -139,7 +139,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         return readyLatch.await(timeout, timeUnit);
     }
 
-    public void awaitInitialization() throws InterruptedException {
+    void awaitInitialization() throws InterruptedException {
         readyLatch.await();
     }
 
