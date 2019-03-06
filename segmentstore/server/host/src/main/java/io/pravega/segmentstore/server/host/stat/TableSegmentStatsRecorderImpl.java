@@ -36,7 +36,7 @@ public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder 
     @Getter(AccessLevel.PACKAGE)
     private final OpStatsLogger removeUnconditional = createLogger(MetricsNames.TABLE_SEGMENT_REMOVE_LATENCY);
     @Getter(AccessLevel.PACKAGE)
-    private final OpStatsLogger getKeys = createLogger(MetricsNames.TABLE_SEGMENT_GET_KEYS_LATENCY);
+    private final OpStatsLogger getKeys = createLogger(MetricsNames.TABLE_SEGMENT_GET_LATENCY);
     @Getter(AccessLevel.PACKAGE)
     private final OpStatsLogger iterateKeys = createLogger(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS_LATENCY);
     @Getter(AccessLevel.PACKAGE)

@@ -64,21 +64,21 @@ public final class MetricsNames {
     public static final String SEGMENT_WRITE_EVENTS = "segmentstore.segment.write_events";        // Counter and Per-segment Counter
 
     // Table Segment stats
-    public static final String TABLE_SEGMENT_UPDATE_LATENCY = "segmentstore.tablesegment.update_latency_ms";
-    public static final String TABLE_SEGMENT_UPDATE_CONDITIONAL_LATENCY = "segmentstore.tablesegment.update_conditional_latency_ms";
-    public static final String TABLE_SEGMENT_REMOVE_LATENCY = "segmentstore.tablesegment.remove_latency_ms";
-    public static final String TABLE_SEGMENT_REMOVE_CONDITIONAL_LATENCY = "segmentstore.tablesegment.remove_conditional_latency_ms";
-    public static final String TABLE_SEGMENT_GET_KEYS_LATENCY = "segmentstore.tablesegment.get_latency_ms";
-    public static final String TABLE_SEGMENT_ITERATE_KEYS_LATENCY = "segmentstore.tablesegment.iterate_keys_latency_ms";
-    public static final String TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY = "segmentstore.tablesegment.iterate_entries_latency_ms";
+    public static final String TABLE_SEGMENT_UPDATE_LATENCY = "segmentstore.tablesegment.update_latency_ms";                         // Histogram
+    public static final String TABLE_SEGMENT_UPDATE_CONDITIONAL_LATENCY = "segmentstore.tablesegment.update_conditional_latency_ms"; // Histogram
+    public static final String TABLE_SEGMENT_REMOVE_LATENCY = "segmentstore.tablesegment.remove_latency_ms";                         // Histogram
+    public static final String TABLE_SEGMENT_REMOVE_CONDITIONAL_LATENCY = "segmentstore.tablesegment.remove_conditional_latency_ms"; // Histogram
+    public static final String TABLE_SEGMENT_GET_LATENCY = "segmentstore.tablesegment.get_latency_ms";                               // Histogram
+    public static final String TABLE_SEGMENT_ITERATE_KEYS_LATENCY = "segmentstore.tablesegment.iterate_keys_latency_ms";             // Histogram
+    public static final String TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY = "segmentstore.tablesegment.iterate_entries_latency_ms";       // Histogram
 
-    public static final String TABLE_SEGMENT_UPDATE = "segmentstore.tablesegment.update_entries";
-    public static final String TABLE_SEGMENT_UPDATE_CONDITIONAL = "segmentstore.tablesegment.update_entries_conditional";
-    public static final String TABLE_SEGMENT_REMOVE = "segmentstore.tablesegment.remove_keys";
-    public static final String TABLE_SEGMENT_REMOVE_CONDITIONAL = "segmentstore.tablesegment.remove_keys_conditional";
-    public static final String TABLE_SEGMENT_GET = "segmentstore.tablesegment.get_keys";
-    public static final String TABLE_SEGMENT_ITERATE_KEYS = "segmentstore.tablesegment.iterate_keys";
-    public static final String TABLE_SEGMENT_ITERATE_ENTRIES = "segmentstore.tablesegment.iterate_entries";
+    public static final String TABLE_SEGMENT_UPDATE = "segmentstore.tablesegment.update";                         // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_UPDATE_CONDITIONAL = "segmentstore.tablesegment.update_conditional"; // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_REMOVE = "segmentstore.tablesegment.remove";                         // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_REMOVE_CONDITIONAL = "segmentstore.tablesegment.remove_conditional"; // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_GET = "segmentstore.tablesegment.get";                               // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_ITERATE_KEYS = "segmentstore.tablesegment.iterate_keys";             // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_ITERATE_ENTRIES = "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
 
     // Storage stats
     public static final String STORAGE_READ_LATENCY = "segmentstore.storage.read_latency_ms";   // Histogram
