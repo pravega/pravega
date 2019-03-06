@@ -15,6 +15,7 @@ import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -516,6 +517,17 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         return CompletableFuture.completedFuture("");
+    }
+
+    @Override
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp,
+                                                           Position lastWrittenPosition) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> writerShutdown(String writerId, Stream stream) {
+        return CompletableFuture.completedFuture(null);
     }
 }
 
