@@ -71,7 +71,7 @@ import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
 import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
+import static io.pravega.shared.MetricsTags.segmentTags;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -322,8 +322,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 //Don't report segment specific metrics if segment is a transaction
                 //The parent segment metrics will be updated once the transaction is merged
                 if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
-                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
+                    dynamicLogger.incCounterValue(SEGMENT_WRITE_BYTES, append.getDataLength(), segmentTags(append.getSegment()));
+                    dynamicLogger.incCounterValue(SEGMENT_WRITE_EVENTS, append.getEventCount(), segmentTags(append.getSegment()));
                 }
             }
 

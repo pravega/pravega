@@ -41,7 +41,7 @@ import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
+import static io.pravega.shared.MetricsTags.segmentTags;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -60,7 +60,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testAppend() throws Exception {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/0.#epoch.0";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -88,13 +88,13 @@ public class AppendProcessorTest {
 
         verify(mockedDynamicLogger).incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), 8);
         verify(mockedDynamicLogger).incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), 1);
-        verify(mockedDynamicLogger).incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), 8);
-        verify(mockedDynamicLogger).incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), 1);
+        verify(mockedDynamicLogger).incCounterValue(SEGMENT_WRITE_BYTES, 8, segmentTags(streamSegmentName));
+        verify(mockedDynamicLogger).incCounterValue(SEGMENT_WRITE_EVENTS, 1, segmentTags(streamSegmentName));
     }
 
     @Test
     public void testTransactionAppend() throws Exception {
-        String streamSegmentName = "transactionSegment#transaction.01234567890123456789012345678901";
+        String streamSegmentName = "scope/stream/transactionSegment#transaction.01234567890123456789012345678901";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -122,14 +122,14 @@ public class AppendProcessorTest {
 
         verify(mockedDynamicLogger).incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), 8);
         verify(mockedDynamicLogger).incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), 1);
-        verify(mockedDynamicLogger, never()).incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), 8);
-        verify(mockedDynamicLogger, never()).incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), 1);
+        verify(mockedDynamicLogger, never()).incCounterValue(SEGMENT_WRITE_BYTES, 8, segmentTags(streamSegmentName));
+        verify(mockedDynamicLogger, never()).incCounterValue(SEGMENT_WRITE_EVENTS, 1, segmentTags(streamSegmentName));
     }
 
     @Test
     public void testSwitchingSegment() {
-        String streamSegmentName1 = "testAppendSegment1";
-        String streamSegmentName2 = "testAppendSegment2";
+        String streamSegmentName1 = "scope/stream/testAppendSegment1";
+        String streamSegmentName2 = "scope/stream/testAppendSegment2";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -168,7 +168,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testConditionalAppendSuccess() throws Exception {
-        String streamSegmentName = "testConditionalAppendSuccess";
+        String streamSegmentName = "scope/stream/testConditionalAppendSuccess";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -200,13 +200,13 @@ public class AppendProcessorTest {
         verifyNoMoreInteractions(store);
         verify(mockedDynamicLogger, times(2)).incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), 8);
         verify(mockedDynamicLogger, times(2)).incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), 1);
-        verify(mockedDynamicLogger, times(2)).incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), 8);
-        verify(mockedDynamicLogger, times(2)).incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), 1);
+        verify(mockedDynamicLogger, times(2)).incCounterValue(SEGMENT_WRITE_BYTES, 8, segmentTags(streamSegmentName));
+        verify(mockedDynamicLogger, times(2)).incCounterValue(SEGMENT_WRITE_EVENTS, 1, segmentTags(streamSegmentName));
     }
 
     @Test
     public void testConditionalAppendFailure() throws Exception {
-        String streamSegmentName = "testConditionalAppendFailure";
+        String streamSegmentName = "scope/stream/testConditionalAppendFailure";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -238,13 +238,13 @@ public class AppendProcessorTest {
 
         verify(mockedDynamicLogger).incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), 8);
         verify(mockedDynamicLogger).incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), 1);
-        verify(mockedDynamicLogger).incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), 8);
-        verify(mockedDynamicLogger).incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), 1);
+        verify(mockedDynamicLogger).incCounterValue(SEGMENT_WRITE_BYTES, 8, segmentTags(streamSegmentName));
+        verify(mockedDynamicLogger).incCounterValue(SEGMENT_WRITE_EVENTS, 1, segmentTags(streamSegmentName));
     }
 
     @Test
     public void testInvalidOffset() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -268,7 +268,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testSetupSkipped() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -286,8 +286,8 @@ public class AppendProcessorTest {
 
     @Test
     public void testSwitchingStream() {
-        String segment1 = "segment1";
-        String segment2 = "segment2";
+        String segment1 = "scope/stream/segment1";
+        String segment2 = "scope/stream/segment2";
         UUID clientId1 = UUID.randomUUID();
         UUID clientId2 = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
@@ -331,7 +331,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testAppendFails() throws Exception {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -361,13 +361,13 @@ public class AppendProcessorTest {
 
         verify(mockedDynamicLogger, never()).incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), 8);
         verify(mockedDynamicLogger, never()).incCounterValue(globalMetricName(SEGMENT_WRITE_EVENTS), 1);
-        verify(mockedDynamicLogger, never()).incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), 8);
-        verify(mockedDynamicLogger, never()).incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), 1);
+        verify(mockedDynamicLogger, never()).incCounterValue(SEGMENT_WRITE_BYTES, 8, segmentTags(streamSegmentName));
+        verify(mockedDynamicLogger, never()).incCounterValue(SEGMENT_WRITE_EVENTS, 1, segmentTags(streamSegmentName));
     }
 
     @Test
     public void testEventNumbers() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -413,7 +413,7 @@ public class AppendProcessorTest {
         @Cleanup("shutdownNow")
         ScheduledExecutorService nettyExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "Netty-threadPool");
 
-        String streamSegmentName = "testDelayedAppend";
+        String streamSegmentName = "scope/stream/testDelayedAppend";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -476,7 +476,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testEventNumbersOldClient() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -508,7 +508,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testUnsupportedOperation() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);

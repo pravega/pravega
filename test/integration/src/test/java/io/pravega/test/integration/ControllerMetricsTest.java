@@ -59,7 +59,7 @@ import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromStream;
+import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;
 import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
 import static org.mockito.Mockito.mock;
@@ -174,7 +174,8 @@ public class ControllerMetricsTest {
                 streamManager.updateStream(scope, iterationStreamName, streamConfiguration);
                 Counter updatedStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter streamUpdatesCounter = MetricRegistryUtils.getCounter(
-                        getCounterMetricName(nameFromStream(UPDATE_STREAM, scope, iterationStreamName)));
+                        getCounterMetricNameWithoutSuffix(UPDATE_STREAM), streamTags(scope, iterationStreamName));
+
                 Assert.assertTrue(iterations * i + j <= updatedStreamsCounter.count());
                 Assert.assertTrue(j <= streamUpdatesCounter.count());
 
@@ -189,7 +190,7 @@ public class ControllerMetricsTest {
                 streamManager.truncateStream(scope, iterationStreamName, streamCut);
                 Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter perStreamTruncationCounter = MetricRegistryUtils.getCounter(
-                        getCounterMetricName(nameFromStream(UPDATE_STREAM, scope, iterationStreamName)));
+                        getCounterMetricNameWithoutSuffix(UPDATE_STREAM), streamTags(scope, iterationStreamName));
                 Assert.assertTrue(iterations * i + j <= streamTruncationCounter.count());
                 Assert.assertTrue(j <= perStreamTruncationCounter.count());
             }
@@ -207,7 +208,7 @@ public class ControllerMetricsTest {
         checkStatsRegisteredValues(iterations * iterations, UPDATE_STREAM_LATENCY, TRUNCATE_STREAM_LATENCY);
     }
 
-    private void checkStatsRegisteredValues(int minExpectedValues, String...metricNames) {
+    private void checkStatsRegisteredValues(int minExpectedValues, String... metricNames) {
         for (String metricName: metricNames) {
             Timer latencyValues = MetricRegistryUtils.getTimer(getTimerMetricName(metricName));
             Assert.assertNotNull(latencyValues);
@@ -217,6 +218,10 @@ public class ControllerMetricsTest {
 
     private static String getCounterMetricName(String metricName) {
         return "pravega." + metricName + ".Counter";
+    }
+
+    private static String getCounterMetricNameWithoutSuffix(String metricName) {
+        return "pravega." + metricName;
     }
 
     private static String getTimerMetricName(String metricName) {

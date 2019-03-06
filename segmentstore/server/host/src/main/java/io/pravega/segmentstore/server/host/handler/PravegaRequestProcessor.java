@@ -122,7 +122,7 @@ import static io.pravega.shared.MetricsNames.SEGMENT_READ_LATENCY;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
+import static io.pravega.shared.MetricsTags.segmentTags;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -263,7 +263,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
             connection.send(reply);
             dynamicLogger.incCounterValue(globalMetricName(SEGMENT_READ_BYTES), reply.getData().array().length);
-            dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
+            dynamicLogger.incCounterValue(SEGMENT_READ_BYTES, reply.getData().array().length, segmentTags(segment));
         } else if (truncated) {
             // We didn't collect any data, instead we determined that the current read offset was truncated.
             // Determine the current Start Offset and send that back.
@@ -280,7 +280,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                         SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
                         connection.send(reply);
                         dynamicLogger.incCounterValue(globalMetricName(SEGMENT_READ_BYTES), reply.getData().array().length);
-                        dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length);
+                        dynamicLogger.incCounterValue(SEGMENT_READ_BYTES, reply.getData().array().length, segmentTags(segment));
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
@@ -516,8 +516,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     if (e != null) {
                         handleException(sealSegment.getRequestId(), segment, operation, e);
                     } else {
-                        dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
-                        dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
+                        dynamicLogger.freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(segment));
+                        dynamicLogger.freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(segment));
                         if (statsRecorder != null) {
                             statsRecorder.sealSegment(sealSegment.getSegment());
                         }
@@ -555,9 +555,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         segmentStore.deleteStreamSegment(segment, TIMEOUT)
                 .thenRun(() -> {
                     connection.send(new SegmentDeleted(deleteSegment.getRequestId(), segment));
-                    dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segment));
-                    dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segment));
-                    dynamicLogger.freezeCounter(nameFromSegment(SEGMENT_READ_BYTES, segment));
+                    dynamicLogger.freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(segment));
+                    dynamicLogger.freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(segment));
+                    dynamicLogger.freezeCounter(SEGMENT_READ_BYTES, segmentTags(segment));
                 })
                 .exceptionally(e -> handleException(deleteSegment.getRequestId(), segment, operation, e));
     }
@@ -820,8 +820,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
                 // If source segment is a transaction, add its length and event count onto metrics of target segment
                 if (StreamSegmentNameUtils.isTransactionSegment(sourceInfo.getName())) {
-                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, targetSegmentName), sourceInfo.getLength());
-                    dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, targetSegmentName), sourceInfo.getAttributes().get(EVENT_COUNT));
+                    dynamicLogger.incCounterValue(SEGMENT_WRITE_BYTES, sourceInfo.getLength(), segmentTags(targetSegmentName));
+                    dynamicLogger.incCounterValue(SEGMENT_WRITE_EVENTS, sourceInfo.getAttributes().get(EVENT_COUNT), segmentTags(targetSegmentName));
                 }
 
             }
