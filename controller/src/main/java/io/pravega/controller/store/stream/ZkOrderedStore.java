@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.Collection;
@@ -40,6 +41,7 @@ import static io.pravega.controller.store.stream.ZKStreamMetadataStore.DATA_NOT_
  * exhausted. Overall we can create Integer.Max new sets. This means overall we have approximately Long.Max entries that 
  * each ordered set can support in its lifetime. 
  */
+@Slf4j
 public class ZkOrderedStore {
     public static final String SEALED_NODE = "sealed";
     public static final String ENTITIES_NODE = "entities";
@@ -102,7 +104,14 @@ public class ZkOrderedStore {
                                        } else {
                                            return CompletableFuture.completedFuture(Position.toLong(latestQueueNum, position));
                                        }
-                                   }));
+                                   }))
+                .whenComplete((r, e) -> {
+                    if (e != null) {
+                        log.error("error encountered while trying to add entity {} for stream {}/{}", entity, scope, stream, e);
+                    } else {
+                        log.debug("entity {} added for stream {}/{} at position {}", entity, scope, stream, r);
+                    }
+                });
     }
 
     /**
@@ -118,7 +127,14 @@ public class ZkOrderedStore {
                                      .map(entity -> storeHelper.deletePath(getEntityPath(scope, stream, entity), false))
                                      .collect(Collectors.toList()))
                       .thenCompose(v -> Futures.allOf(queues.stream().map(queueNum -> tryDeleteSealedQueuePath(scope, stream, queueNum))
-                                                            .collect(Collectors.toList())));
+                                                            .collect(Collectors.toList())))
+                      .whenComplete((r, e) -> {
+                          if (e != null) {
+                              log.error("error encountered while trying to remove entity positions {} for stream {}/{}", entities, scope, stream, e);
+                          } else {
+                              log.debug("entities at positions {} removed for stream {}/{}", entities, scope, stream);
+                          }
+                      });
     }
 
     /**
@@ -151,7 +167,15 @@ public class ZkOrderedStore {
                                                                     }).collect(Collectors.toList()))
                                                     );
                               }, executor);
-                          }).thenApply(v -> result);
+                          }).thenApply(v -> result)
+                      .whenComplete((r, e) -> {
+                          if (e != null) {
+                              log.error("error encountered while trying to retrieve entities for stream {}/{}", scope, stream, e);
+                          } else {
+                              log.debug("entities at positions {} retrieved for stream {}/{}", r, scope, stream);
+                          }
+                      });
+
     }
 
     private String getStreamPath(String scope, String stream) {
