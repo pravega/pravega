@@ -10,9 +10,12 @@
 package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.google.common.cache.RemovalListener;
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -24,7 +27,6 @@ import io.pravega.client.tables.impl.TableEntryImpl;
 import io.pravega.client.tables.impl.TableKey;
 import io.pravega.client.tables.impl.TableKeyImpl;
 import io.pravega.client.tables.impl.TableSegment;
-import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.TagLogger;
@@ -33,6 +35,7 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -40,23 +43,23 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.slf4j.LoggerFactory;
+
 import java.util.AbstractMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
-import org.slf4j.LoggerFactory;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.*;
 
 public class SegmentHelper {
 
@@ -64,13 +67,29 @@ public class SegmentHelper {
 
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
     private final HostControllerStore hostStore;
-    private final ConnectionFactory clientCF;
     private final AuthHelper authHelper;
+    // cache of connection manager for segment store nodes.
+    // Pravega Connection Manager maintains a pool of connection for a segment store and returns a connection from 
+    // the pool on the need basis. 
+    private final LoadingCache<PravegaNodeUri, PravegaConnectionManager> cache;
 
     public SegmentHelper(HostControllerStore hostControllerStore, ConnectionFactory clientCF, AuthHelper authHelper) {
         this.hostStore = hostControllerStore;
-        this.clientCF = clientCF;
         this.authHelper = authHelper;
+        cache = CacheBuilder.newBuilder()
+                            .maximumSize(Config.HOST_STORE_CONTAINER_COUNT)
+                            // if a host is not accessed for 2 minutes, remove it from the cache
+                            .expireAfterAccess(2, TimeUnit.MINUTES)
+                            .removalListener((RemovalListener<PravegaNodeUri, PravegaConnectionManager>) removalNotification -> {
+                                // Whenever a connection manager is evicted from the cache call shutdown on it. 
+                                removalNotification.getValue().shutdown();
+                            })
+                            .build(new CacheLoader<PravegaNodeUri, PravegaConnectionManager>() {
+                                @Override
+                                public PravegaConnectionManager load(PravegaNodeUri nodeUri) throws Exception {
+                                    return new PravegaConnectionManager(nodeUri, clientCF);
+                                }
+                            });
     }
 
     public Controller.NodeUri getSegmentUri(final String scope,
@@ -1033,11 +1052,11 @@ public class SegmentHelper {
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
     public CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> readTableKeys(final String scope,
-                                                                                    final String stream,
-                                                                                    final int suggestedKeyCount,
-                                                                                    final IteratorState state,
+                                                                                        final String stream,
+                                                                                        final int suggestedKeyCount,
+                                                                                        final IteratorState state,
                                                                                         final String delegationToken,
-                                                                                    final long clientRequestId) {
+                                                                                        final long clientRequestId) {
 
         final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, 0L);
@@ -1211,27 +1230,24 @@ public class SegmentHelper {
     private <ResultT> void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
                                             final CompletableFuture<ResultT> resultFuture,
                                             final PravegaNodeUri uri) {
-        CompletableFuture<ClientConnection> connectionFuture = clientCF.establishConnection(uri, replyProcessor);
+        // get connection manager for the segment store node from the cache. 
+        PravegaConnectionManager connectionManager = cache.getUnchecked(uri);
+        // take a new connection from the connection manager
+        CompletableFuture<PravegaConnectionManager.ConnectionObject> connectionFuture = connectionManager.getConnection(replyProcessor);
         connectionFuture.whenComplete((connection, e) -> {
-            if (connection == null) {
-                resultFuture.completeExceptionally(new WireCommandFailedException(new ConnectionFailedException(e),
+            if (connection == null || e != null) {
+                ConnectionFailedException cause = e != null ? new ConnectionFailedException(e) : new ConnectionFailedException();
+                resultFuture.completeExceptionally(new WireCommandFailedException(cause,
                         request.getType(),
                         WireCommandFailedException.Reason.ConnectionFailed));
             } else {                
-                connection.sendAsync(request, cfe -> {
-                    if (cfe != null) {
-                        Throwable cause = Exceptions.unwrap(cfe);
-                        if (cause instanceof ConnectionFailedException) {
-                            resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
-                        } else {
-                            resultFuture.completeExceptionally(new RuntimeException(cause));
-                        }                        
-                    }
-                });                
+                connection.sendAsync(request, resultFuture);
             }
         });
         resultFuture.whenComplete((result, e) -> {
-            connectionFuture.thenAccept(ClientConnection::close);
+            // when processing completes, return the connection back to connection manager asynchronously.
+            // Note: If result future is complete, connectionFuture is definitely complete. 
+            connectionFuture.thenAccept(connectionManager::returnConnection);
         });
     }
 
