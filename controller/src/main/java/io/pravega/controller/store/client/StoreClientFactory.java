@@ -115,12 +115,31 @@ public class StoreClientFactory {
                 this.client = new ZooKeeper(connectString, sessionTimeout, watcher, canBeReadOnly);
                 return this.client;
             } else {
-                log.info("Former ZK connection string: {}. New ZK connection string {}.", this.connectString, connectString);
-                Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
-                Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
-                Preconditions.checkNotNull(watcher, "watcher");
-                this.client.register(watcher);
+                try {
+                    Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
+                    Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
+                    Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
+                    Preconditions.checkNotNull(watcher, "watcher");
+                    this.client.register(watcher);
+                } catch (IllegalArgumentException e) {
+                    if (watcher != null) {
+                        log.warn("Input argument for new ZooKeeper client ({}, {}, {}) changed with respect to existing client ({}, {}, {}).",
+                            connectString, sessionTimeout, canBeReadOnly, this.connectString, this.sessionTimeout, this.canBeReadOnly, e);
+                    } else {
+                        log.warn("Watcher for Curator client is null.", e);
+                    }
+                    closeClient(client);
+                }
                 return this.client;
+            }
+        }
+
+        private void closeClient(ZooKeeper client) {
+            try {
+                client.close();
+            } catch (Exception e) {
+                // We prevent throwing uncontrolled exceptions here, which may lead Curator to retry indefinitely.
+                log.error("Problems attempting to close ZooKeeper client.", e);
             }
         }
     }
