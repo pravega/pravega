@@ -218,7 +218,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(),
-                    AuthResourceRepresentation.ofAScope(scopeName), READ_UPDATE);
+                    AuthResourceRepresentation.ofScope(scopeName), READ_UPDATE);
         } catch (AuthException e) {
             log.warn("Delete scope for {} failed due to authentication failure.", scopeName);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
@@ -263,7 +263,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         try {
             restAuthHelper.authenticateAuthorize(
                     getAuthorizationHeader(),
-                    AuthResourceRepresentation.ofAStreamInScope(scopeName, streamName),
+                    AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
                     READ_UPDATE);
         } catch (AuthException e) {
             log.warn("Delete stream for {} failed due to authentication failure.", streamName);
@@ -300,7 +300,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         try {
             restAuthHelper.authenticateAuthorize(
-                    getAuthorizationHeader(), AuthResourceRepresentation.ofAReaderGroupInScope(scopeName, readerGroupName), READ);
+                    getAuthorizationHeader(), AuthResourceRepresentation.ofReaderGroupInScope(scopeName, readerGroupName), READ);
         } catch (AuthException e) {
             log.warn("Get reader group for {} failed due to authentication failure.", scopeName + "/" + readerGroupName);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
@@ -351,7 +351,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         try {
             restAuthHelper.authenticateAuthorize(
                     getAuthorizationHeader(),
-                    AuthResourceRepresentation.ofAScope(scopeName), READ);
+                    AuthResourceRepresentation.ofScope(scopeName), READ);
         } catch (AuthException e) {
             log.warn("Get scope for {} failed due to authentication failure.", scopeName);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
@@ -390,7 +390,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(),
-                    AuthResourceRepresentation.ofAStreamInScope(scopeName, streamName), READ);
+                    AuthResourceRepresentation.ofStreamInScope(scopeName, streamName), READ);
         } catch (AuthException e) {
             log.warn("Get stream for {} failed due to authentication failure.", scopeName + "/" + streamName);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
@@ -486,7 +486,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                              scopesList.forEach(scope -> {
                                  try {
                                      if (restAuthHelper.isAuthorized(authHeader,
-                                             AuthResourceRepresentation.ofAScope(scope),
+                                             AuthResourceRepresentation.ofScope(scope),
                                              principal, READ)) {
                                          scopes.addScopesItem(new ScopeProperty().scopeName(scope));
                                      }
@@ -541,7 +541,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
                         try {
                             if (restAuthHelper.isAuthorized(getAuthorizationHeader(),
-                                    AuthResourceRepresentation.ofAStreamInScope(scopeName, stream),
+                                    AuthResourceRepresentation.ofStreamInScope(scopeName, stream),
                                     principal, READ)) {
                                 // If internal streams are requested select only the ones that have the special stream names
                                 // otherwise display the regular user created streams.
@@ -588,7 +588,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(),
-                    AuthResourceRepresentation.ofAStreamInScope(scopeName, streamName),
+                    AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
                     READ_UPDATE);
         } catch (AuthException e) {
             log.warn("Update stream for {} failed due to authentication failure.", scopeName + "/" + streamName);
@@ -636,7 +636,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         try {
             restAuthHelper.authenticateAuthorize(
                     getAuthorizationHeader(),
-                    AuthResourceRepresentation.ofAStreamInScope(scopeName, streamName), READ_UPDATE);
+                    AuthResourceRepresentation.ofStreamInScope(scopeName, streamName), READ_UPDATE);
         } catch (AuthException e) {
             log.warn("Update stream for {} failed due to authentication failure.", scopeName + "/" + streamName);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
@@ -689,7 +689,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
         try {
             restAuthHelper.authenticateAuthorize(
                     getAuthorizationHeader(),
-                    AuthResourceRepresentation.ofAStreamInScope(scopeName, streamName), READ);
+                    AuthResourceRepresentation.ofStreamInScope(scopeName, streamName), READ);
         } catch (AuthException e) {
             log.warn("Get scaling events for {} failed due to authentication failure.", scopeName + "/" + streamName);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());

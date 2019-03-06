@@ -25,7 +25,7 @@ public class AuthResourceRepresentationTest {
 
     @Test
     public void testOfAScopeReturnsValidResourceStrWhenInputIsLegal() {
-        assertEquals("testScopeName", AuthResourceRepresentation.ofAScope("testScopeName"));
+        assertEquals("testScopeName", AuthResourceRepresentation.ofScope("testScopeName"));
     }
 
     @Test
@@ -46,17 +46,17 @@ public class AuthResourceRepresentationTest {
     @Test
     public void testOfAStreamInScopeReturnsValidResourceStrWhenInputIsLegal() {
         assertEquals("testScopeName/testStreamName",
-                AuthResourceRepresentation.ofAStreamInScope("testScopeName", "testStreamName"));
+                AuthResourceRepresentation.ofStreamInScope("testScopeName", "testStreamName"));
     }
 
     @Test (expected = NullPointerException.class)
     public void testOfAStreamInScopeThrowsExceptionWhenStreamNameIsNull() {
-        AuthResourceRepresentation.ofAStreamInScope("testScopeName", null);
+        AuthResourceRepresentation.ofStreamInScope("testScopeName", null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testOfAStreamInScopeThrowsExceptionWhenStreamNameIsEmpty() {
-        AuthResourceRepresentation.ofAStreamInScope("testScopeName", "");
+        AuthResourceRepresentation.ofStreamInScope("testScopeName", "");
     }
 
     @Test
@@ -67,6 +67,6 @@ public class AuthResourceRepresentationTest {
     @Test
     public void testOfAReaderGroupInScopeReturnsValidResourceStrWhenInputIsLegal() {
         assertEquals("scopeName/readerGroupName",
-                AuthResourceRepresentation.ofAReaderGroupInScope("scopeName", "readerGroupName"));
+                AuthResourceRepresentation.ofReaderGroupInScope("scopeName", "readerGroupName"));
     }
 }
