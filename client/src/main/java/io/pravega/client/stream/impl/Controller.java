@@ -309,7 +309,7 @@ public interface Controller extends AutoCloseable {
      * @param timestamp The new timestamp for the writer on the stream.
      * @param lastWrittenPosition The position the writer was at when it noted the time.
      */
-    void noteTimestampFromWriter(String writer, Stream stream, long timestamp, Position lastWrittenPosition);
+    CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, Position lastWrittenPosition);
 
     /**
      * Notifies the controller that the specified writer is shutting down gracefully and no longer
@@ -319,7 +319,7 @@ public interface Controller extends AutoCloseable {
      * @param writerId The name of the writer. (User defined)
      * @param stream The stream the writer was on.
      */
-    void writerShutdown(String writerId, Stream stream);
+    CompletableFuture<Void> writerShutdown(String writerId, Stream stream);
 
     /**
      * Closes controller client.
