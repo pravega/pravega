@@ -585,9 +585,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             TxnStatus status = pair.getKey();
             switch (status) {
                 case COMMITTING:
-                    return writeCommitEvent(scope, stream, pair.getValue(), txnId, status);
+                    return writeCommitEvent(new CommitEvent(scope, stream, pair.getValue())).thenApply(v -> status);
                 case ABORTING:
-                    return writeAbortEvent(scope, stream, pair.getValue(), txnId, status);
+                    return writeAbortEvent(scope, stream, pair.getValue(), txnId).thenApply(v -> status);
                 case ABORTED:
                 case COMMITTED:
                     return CompletableFuture.completedFuture(status);
@@ -613,41 +613,19 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {
-        return TaskStepsRetryHelper.withRetries(() -> commitEventEventStreamWriter.writeEvent(event.getKey(), event), executor);
+        return RetryHelper.withIndefiniteRetriesAsync(() -> commitEventEventStreamWriter.writeEvent(event.getKey(), event), e -> {
+            log.debug("failure writing commit event into commit stream {}", Exceptions.unwrap(e).getClass());
+        }, executor);
     }
-
-    CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
-        String key = scope + stream;
-        CommitEvent event = new CommitEvent(scope, stream, epoch);
-        return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter, commitStreamName,
-                key, event, txnId, status), executor);
-    }
-
-    CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
-        String key = txnId.toString();
+    
+    CompletableFuture<Void> writeAbortEvent(String scope, String stream, int epoch, UUID txnId) {
         AbortEvent event = new AbortEvent(scope, stream, epoch, txnId);
-        return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter, abortStreamName,
-                key, event, txnId, status), executor);
+        return RetryHelper.withIndefiniteRetriesAsync(() -> abortEventEventStreamWriter.writeEvent(event.getKey(), event), 
+                e -> {
+                    log.debug("failure writing abort event into abort stream {}", Exceptions.unwrap(e).getClass());
+                }, executor);
     }
 
-    private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
-                                                        final String streamName,
-                                                        final String key,
-                                                        final T event,
-                                                        final UUID txnId,
-                                                        final TxnStatus txnStatus) {
-        log.debug("Txn={}, state={}, sending request to {}", txnId, txnStatus, streamName);
-        return streamWriter.writeEvent(key, event)
-                .thenApplyAsync(v -> {
-                    log.debug("Transaction {}, sent request to {}", txnId, streamName);
-                    return txnStatus;
-                }, executor)
-                .exceptionally(ex -> {
-                    log.debug("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
-                            .getSimpleName(), streamName);
-                    throw new WriteFailedException(ex);
-                });
-    }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
                                                       final List<Segment> segments, final UUID txnId) {
