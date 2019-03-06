@@ -22,12 +22,15 @@ import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
+
+import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class ReadFromDeletedStreamTest {
@@ -47,7 +50,7 @@ public class ReadFromDeletedStreamTest {
 
         @Cleanup
         PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, tableStore,
-                SegmentStatsRecorder.noOp(), null, null, null, true);
+                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), null, null, null, true);
         server.startListening();
 
         streamManager.createScope("test");

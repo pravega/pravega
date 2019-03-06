@@ -45,13 +45,13 @@ init_kubernetes() {
 
         service_type=$( k8 "${ns}" "services" "${podname}" ".spec.type" )
         if [ "${service_type}" == "LoadBalancer" ]; then
-            export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[].ip" )
+            export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
             export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
             while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
             do
                 echo "LoadBalancer external address and port could not be obtained. Waiting 30 seconds and trying again..."
                 sleep 30
-                export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[].ip" )
+                export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
                 export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
             done
         elif [ "${service_type}" == "NodePort" ]; then
