@@ -258,7 +258,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, "", Long.MIN_VALUE, version, context),
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context),
                     RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
@@ -269,23 +269,14 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param scope      stream scope.
      * @param stream     stream name.
      * @param txId       transaction id.
-     * @param writerId   writer id that issued commit request
-     * @param time       commit time as supplied by writer
      * @param contextOpt optional context
      * @return true/false.
      */
-    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final String writerId, 
-                                                  final long time, final OperationContext contextOpt) {
-        final long commitTime;
-        if (time == Long.MIN_VALUE) {
-            // take current wall clock time. This time will be used transaction commit order for per writer. 
-            commitTime = System.currentTimeMillis();
-        } else {
-            commitTime = time;
-        }
+    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
+                                                  final OperationContext contextOpt) {
         return checkReady().thenComposeAsync(x -> {
             final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, writerId, commitTime, null, context),
+            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, context),
                     RETRYABLE_PREDICATE, 3, executor);
         }, executor);
     }
@@ -558,8 +549,6 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                              final String stream,
                                              final boolean commit,
                                              final UUID txnId,
-                                             final String writerId, 
-                                             final long time, 
                                              final Version version,
                                              final OperationContext ctx) {
         TxnResource resource = new TxnResource(scope, stream, txnId);
@@ -582,7 +571,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
         // Step 2. Seal txn
         CompletableFuture<AbstractMap.SimpleEntry<TxnStatus, Integer>> sealFuture = addIndex.thenComposeAsync(x ->
-                streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, writerId, time, ctx, executor), executor)
+                streamMetadataStore.sealTransaction(scope, stream, txnId, commit, versionOpt, ctx, executor), executor)
                 .whenComplete((v, e) -> {
                     if (e != null) {
                         log.debug("Txn={}, failed sealing txn", txnId);

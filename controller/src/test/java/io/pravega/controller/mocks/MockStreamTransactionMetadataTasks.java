@@ -78,8 +78,7 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return this.streamMetadataStore.sealTransaction(scope, stream, txId, false, Optional.ofNullable(version),
-                "", Long.MIN_VALUE, context, executor)
+        return this.streamMetadataStore.sealTransaction(scope, stream, txId, false, Optional.ofNullable(version), context, executor)
                 .thenApply(pair -> {
                     log.info("Sealed:abort transaction {} with version {}", txId, version);
                     return pair;
@@ -105,12 +104,12 @@ public class MockStreamTransactionMetadataTasks extends StreamTransactionMetadat
 
     @Override
     @Synchronized
-    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId, final String writerId,
-                                                  final long time, final OperationContext contextOpt) {
+    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
+                                                  final OperationContext contextOpt) {
         final OperationContext context =
                 contextOpt == null ? streamMetadataStore.createContext(scope, stream) : contextOpt;
 
-        return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.empty(), writerId, time, context, executor)
+        return this.streamMetadataStore.sealTransaction(scope, stream, txId, true, Optional.empty(), context, executor)
                 .thenApply(pair -> {
                     log.info("Sealed:commit transaction {} with version {}", txId, null);
                     return pair;

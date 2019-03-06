@@ -313,7 +313,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream(), AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId(), request.getWriterId(), request.getTime()),
+                        request.getTxnId()),
                 responseObserver);
     }
 

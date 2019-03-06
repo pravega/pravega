@@ -896,8 +896,6 @@ public class ControllerImpl implements Controller {
                             .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
                                     stream.getStreamName()))
                             .setTxnId(ModelHelper.decode(txId))
-                            .setWriterId("")
-                            .setTime(Long.MIN_VALUE)
                             .build(),
                     callback);
             return callback.getFuture();

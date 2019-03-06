@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -21,7 +22,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class VersionedTransactionData {
     public static final VersionedTransactionData EMPTY = new VersionedTransactionData(Integer.MIN_VALUE, new UUID(0, 0), null,
-            TxnStatus.UNKNOWN, Long.MIN_VALUE, Long.MIN_VALUE, "", Long.MIN_VALUE);
+            TxnStatus.UNKNOWN, Long.MIN_VALUE, Long.MIN_VALUE, Optional.empty(), Optional.empty());
 
     private final int epoch;
     private final UUID id;
@@ -29,6 +30,6 @@ public class VersionedTransactionData {
     private final TxnStatus status;
     private final long creationTime;
     private final long maxExecutionExpiryTime;
-    private final String writerId;
-    private final long commitTime;
+    private final Optional<String> writerId;
+    private final Optional<Long> commitTime;
 }

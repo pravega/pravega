@@ -240,8 +240,6 @@ message CreateTxnResponse {
 message TxnRequest {
     StreamInfo streamInfo = 1;
     TxnId txnId = 2;
-    string writerId = 3;
-    int64 time = 4;
 }
 
 message PingTxnRequest {
@@ -322,4 +320,4 @@ message StreamCutValidityResponse {
 
 message DelegationToken {
     string delegationToken = 1;
-}
+ }

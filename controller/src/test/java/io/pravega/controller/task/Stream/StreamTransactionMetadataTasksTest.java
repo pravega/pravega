@@ -228,8 +228,7 @@ public class StreamTransactionMetadataTasksTest {
         VersionedTransactionData txData2 = txnTasks.createTxn(SCOPE, STREAM, lease, null).join().getKey();
 
         // Commit the first one
-        TxnStatus status = txnTasks.commitTxn(SCOPE, STREAM, txData1.getId(), 
-                "", Long.MIN_VALUE, null).join();
+        TxnStatus status = txnTasks.commitTxn(SCOPE, STREAM, txData1.getId(), null).join();
         Assert.assertEquals(TxnStatus.COMMITTING, status);
 
         // Abort the second one
@@ -291,12 +290,12 @@ public class StreamTransactionMetadataTasksTest {
 
         // Change state of one txn to COMMITTING.
         TxnStatus txnStatus2 = streamStore.sealTransaction(SCOPE, STREAM, tx2.getId(), true, Optional.empty(),
-                "", Long.MIN_VALUE, null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
+                null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.COMMITTING, txnStatus2);
 
         // Change state of another txn to ABORTING.
         TxnStatus txnStatus3 = streamStore.sealTransaction(SCOPE, STREAM, tx3.getId(), false, Optional.empty(),
-                "", Long.MIN_VALUE, null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
+                null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.ABORTING, txnStatus3);
 
         // Create transaction tasks for sweeping txns from failedHost.
@@ -401,8 +400,7 @@ public class StreamTransactionMetadataTasksTest {
         Version tx2Version = txData2.getVersion();
 
         // Commit the first one
-        Assert.assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, STREAM, tx1,
-                "", Long.MIN_VALUE, null).join());
+        Assert.assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, STREAM, tx1, null).join());
 
         // Ensure that transaction state is COMMITTING.
         assertEquals(TxnStatus.COMMITTING, streamStore.transactionStatus(SCOPE, STREAM, tx1, null, executor).join());
@@ -415,8 +413,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Ensure that commit (resp. abort) transaction tasks are idempotent
         // when transaction is in COMMITTING state (resp. ABORTING state).
-        assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, STREAM, tx1,
-                "", Long.MIN_VALUE, null).join());
+        assertEquals(TxnStatus.COMMITTING, txnTasks.commitTxn(SCOPE, STREAM, tx1, null).join());
         assertEquals(TxnStatus.ABORTING, txnTasks.abortTxn(SCOPE, STREAM, tx2, null, null).join());
 
         // Create commit and abort event processors.
@@ -439,8 +436,7 @@ public class StreamTransactionMetadataTasksTest {
 
         // Ensure that commit (resp. abort) transaction tasks are idempotent
         // even after transaction is committed (resp. aborted)
-        assertEquals(TxnStatus.COMMITTED, txnTasks.commitTxn(SCOPE, STREAM, tx1,
-                "", Long.MIN_VALUE, null).join());
+        assertEquals(TxnStatus.COMMITTED, txnTasks.commitTxn(SCOPE, STREAM, tx1, null).join());
         assertEquals(TxnStatus.ABORTED, txnTasks.abortTxn(SCOPE, STREAM, tx2, null, null).join());
     }
 

@@ -956,8 +956,7 @@ public class StreamMetadataTasksTest {
         VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, null)
                 .get().getKey();
         // set transaction to committing
-        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(),
-                "", Long.MIN_VALUE, null, executor).join();
+        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), null, executor).join();
 
         // Mock getActiveTransactions call such that we return committing txn as OPEN txn.
         Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();

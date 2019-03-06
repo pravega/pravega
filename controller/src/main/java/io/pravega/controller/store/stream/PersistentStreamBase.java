@@ -990,7 +990,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                 .build();
         return verifyNotSealed().thenCompose(v -> createNewTransaction(txnId, record.toBytes())
                 .thenApply(version -> new VersionedTransactionData(epoch, txnId, version,
-                        TxnStatus.OPEN, current, maxExecTimestamp, "", Long.MIN_VALUE)));
+                        TxnStatus.OPEN, current, maxExecTimestamp, Optional.empty(), Optional.empty())));
     }
 
     @Override
@@ -1009,7 +1009,7 @@ public abstract class PersistentStreamBase implements Stream {
 
         return updateActiveTx(txnId, data)
                 .thenApply(updatedVersion -> new VersionedTransactionData(epoch, txnId, updatedVersion, status, creationTime, 
-                        maxExecutionExpiryTime, "", Long.MIN_VALUE));
+                        maxExecutionExpiryTime, Optional.empty(), Optional.empty()));
     }
 
     @Override
@@ -1020,8 +1020,8 @@ public abstract class PersistentStreamBase implements Stream {
                     ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.fromBytes(data.getData());
                     return new VersionedTransactionData(epoch, txId, data.getVersion(),
                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
-                            activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(), 
-                            activeTxnRecord.getCommitTime());
+                            activeTxnRecord.getMaxExecutionExpiryTime(), Optional.of(activeTxnRecord.getWriterId()), 
+                            Optional.of(activeTxnRecord.getCommitTime()));
                 });
     }
 
@@ -1057,9 +1057,9 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId, final boolean commit,
-                                                                              final Optional<Version> version, String writerId, long commitTime) {
+                                                                              final Optional<Version> version) {
         int epoch = RecordHelper.getTransactionEpoch(txId);
-        return sealActiveTxn(epoch, txId, commit, writerId, commitTime, version)
+        return sealActiveTxn(epoch, txId, commit, version)
                 .exceptionally(ex -> new SimpleEntry<>(handleDataNotFoundException(ex), null))
                 .thenCompose(pair -> {
                     if (pair.getKey() == TxnStatus.UNKNOWN) {
@@ -1077,16 +1077,12 @@ public abstract class PersistentStreamBase implements Stream {
      * @param epoch   transaction epoch.
      * @param txId    transaction identifier.
      * @param commit  boolean indicating whether to commit or abort the transaction.
-     * @param writerId
-     * @param time
      * @param version optional expected version of transaction node to validate before updating it.
      * @return        a pair containing transaction status and its epoch.
      */
     private CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealActiveTxn(final int epoch,
                                                                              final UUID txId,
                                                                              final boolean commit,
-                                                                             final String writerId, 
-                                                                             final long time, 
                                                                              final Optional<Version> version) {
         return getActiveTx(txId).thenCompose(data -> {
             ActiveTxnRecord txnRecord = ActiveTxnRecord.fromBytes(data.getData());
@@ -1094,7 +1090,7 @@ public abstract class PersistentStreamBase implements Stream {
             TxnStatus status = txnRecord.getTxnStatus();
             switch (status) {
                 case OPEN:
-                    return sealActiveTx(txId, commit, txnRecord, writerId, time, dataVersion).thenApply(y ->
+                    return sealActiveTx(txId, commit, txnRecord, dataVersion).thenApply(y ->
                             new SimpleEntry<>(commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING, epoch));
                 case COMMITTING:
                 case COMMITTED:
@@ -1123,8 +1119,6 @@ public abstract class PersistentStreamBase implements Stream {
 
     private CompletableFuture<Version> sealActiveTx(final UUID txId, final boolean commit,
                                                     final ActiveTxnRecord previous,
-                                                    final String writerId, 
-                                                    long time, 
                                                     final Version version) {
         CompletableFuture<ActiveTxnRecord> future;
         if (commit) {
@@ -1137,8 +1131,8 @@ public abstract class PersistentStreamBase implements Stream {
                                     previous.getLeaseExpiryTime(),
                                     previous.getMaxExecutionExpiryTime(),
                                     TxnStatus.COMMITTING,
-                                    writerId,
-                                    time,
+                                    "",
+                                    Long.MIN_VALUE,
                                     position);
                         });
             } else {
@@ -1148,9 +1142,7 @@ public abstract class PersistentStreamBase implements Stream {
             future = CompletableFuture.completedFuture(new ActiveTxnRecord(previous.getTxCreationTimestamp(),
                     previous.getLeaseExpiryTime(),
                     previous.getMaxExecutionExpiryTime(),
-                    TxnStatus.ABORTING,
-                    writerId,
-                    time, Long.MIN_VALUE));
+                    TxnStatus.ABORTING));
         }
         return future.thenCompose(updated -> {
             final Data data = new Data(updated.toBytes(), version);
@@ -1183,8 +1175,7 @@ public abstract class PersistentStreamBase implements Stream {
                     } else {
                         return CompletableFuture.completedFuture(null); // already committed, do nothing
                     }
-                })
-                .thenCompose(x -> removeActiveTxEntry(txId)).thenApply(x -> TxnStatus.COMMITTED);
+                }).thenCompose(x -> removeActiveTxEntry(txId)).thenApply(x -> TxnStatus.COMMITTED);
     }
 
     @Override

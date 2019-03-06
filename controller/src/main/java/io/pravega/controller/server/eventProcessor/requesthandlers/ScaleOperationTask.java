@@ -139,7 +139,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                             return streamMetadataTasks.notifyNewSegments(scope, stream, segmentIds, context, delegationToken, requestId)
                                     .thenCompose(x -> streamMetadataStore.scaleCreateNewEpochs(scope, stream, record, context, executor))
                                     .thenCompose(x -> streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToSeal, delegationToken, requestId))
-                                    .thenCompose(x -> streamMetadataTasks.getSegmentsSize(scope, stream, segmentsToSeal, delegationToken))
+                                    .thenCompose(x -> streamMetadataTasks.getSealedSegmentsSize(scope, stream, segmentsToSeal, delegationToken))
                                     .thenCompose(map -> streamMetadataStore.scaleSegmentsSealed(scope, stream, map, record, context, executor))
                                     .thenCompose(x -> streamMetadataStore.completeScale(scope, stream, record, context, executor))
                                     .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, updatedState, context, executor))

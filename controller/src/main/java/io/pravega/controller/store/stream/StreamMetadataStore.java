@@ -695,7 +695,7 @@ public interface StreamMetadataStore {
      * @return transaction status.
      */
     CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
-    
+
     /**
      * Update stream store to mark transaction as sealed.
      *
@@ -704,8 +704,6 @@ public interface StreamMetadataStore {
      * @param txId     transaction id
      * @param commit   Boolean indicating whether to change txn state to committing or aborting.
      * @param version  Expected version of the transaction record in the store.
-     * @param writerId writer id that issued commit request
-     * @param commitTime commit time as supplied by writer
      * @param context  operation context
      * @param executor callers executor
      * @return         Pair containing the transaction status after sealing and transaction epoch.
@@ -713,8 +711,6 @@ public interface StreamMetadataStore {
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final String scope, final String stream,
                                                                        final UUID txId, final boolean commit,
                                                                        final Optional<Version> version,
-                                                                       final String writerId, 
-                                                                       final long commitTime,
                                                                        final OperationContext context,
                                                                        final Executor executor);
 

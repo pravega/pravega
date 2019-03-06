@@ -206,8 +206,7 @@ public class RequestHandlersTest {
         // create txn on epoch 1 and set it to committing
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch1 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()),
-                "", Long.MIN_VALUE, null, executor).join();
+        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()), null, executor).join();
 
         // regular commit
         // start commit transactions
@@ -297,8 +296,7 @@ public class RequestHandlersTest {
         // create txn on epoch 0 and set it to committing
         UUID txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch0 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
-        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()),
-                "", Long.MIN_VALUE, null, executor).join();
+        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch0.getVersion()), null, executor).join();
         // perform scale
         ScaleOpEvent event = new ScaleOpEvent(scope, stream, Lists.newArrayList(0L),
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(),
@@ -308,6 +306,7 @@ public class RequestHandlersTest {
         // create transaction on epoch 1 and set it to committing
         txnId = streamStore1.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnEpoch1 = streamStore1.createTransaction(scope, stream, txnId, 1000L, 10000L, null, executor).join();
+        streamStore1.sealTransaction(scope, stream, txnId, true, Optional.of(txnEpoch1.getVersion()), null, executor).join();
 
         // regular commit
         // start commit transactions
