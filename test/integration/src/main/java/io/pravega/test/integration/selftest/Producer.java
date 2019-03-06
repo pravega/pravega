@@ -31,7 +31,7 @@ import lombok.val;
 /**
  * Represents an Operation Producer for the Self Tester.
  */
-class Producer extends Actor {
+class Producer<T extends ProducerUpdate> extends Actor {
     //region Members
 
     private static final Supplier<Long> TIME_PROVIDER = System::nanoTime;
@@ -40,7 +40,7 @@ class Producer extends Actor {
     private final AtomicInteger iterationCount;
     private final AtomicBoolean canContinue;
     private final int id;
-    private final ProducerDataSource dataSource;
+    private final ProducerDataSource<T> dataSource;
     private final Map<ProducerOperationType, OperationExecutor> executors;
 
     //endregion
@@ -56,7 +56,7 @@ class Producer extends Actor {
      * @param store      A StoreAdapter to execute operations on.
      * @param executor   An Executor to use for async operations.
      */
-    Producer(int id, TestConfig config, ProducerDataSource dataSource, StoreAdapter store, ScheduledExecutorService executor) {
+    Producer(int id, TestConfig config, ProducerDataSource<T> dataSource, StoreAdapter store, ScheduledExecutorService executor) {
         super(config, store, executor);
 
         this.id = id;
@@ -75,6 +75,10 @@ class Producer extends Actor {
                 .put(ProducerOperationType.MERGE_STREAM_TRANSACTION, new MergeTransactionExecutor())
                 .put(ProducerOperationType.STREAM_SEAL, new StreamSealExecutor())
                 .put(ProducerOperationType.STREAM_APPEND, new StreamAppendExecutor())
+                .put(ProducerOperationType.TABLE_UPDATE, new TableUpdateExecutor())
+                .put(ProducerOperationType.TABLE_UPDATE_CONDITIONAL, new TableUpdateConditionalExecutor())
+                .put(ProducerOperationType.TABLE_REMOVE, new TableRemoveExecutor())
+                .put(ProducerOperationType.TABLE_REMOVE_CONDITIONAL, new TableRemoveConditionalExecutor())
                 .build();
     }
 
@@ -106,7 +110,7 @@ class Producer extends Actor {
 
         val futures = new ArrayList<CompletableFuture<Void>>();
         for (int i = 0; i < this.config.getProducerParallelism(); i++) {
-            ProducerOperation op = this.dataSource.nextOperation();
+            ProducerOperation<T> op = this.dataSource.nextOperation(this.id);
             if (op == null) {
                 // Nothing more to do.
                 this.canContinue.set(false);
@@ -150,7 +154,7 @@ class Producer extends Actor {
     private boolean handleOperationError(Throwable ex, ProducerOperation op) {
         // Log & throw every exception.
         ex = Exceptions.unwrap(ex);
-        if (ex instanceof ProducerDataSource.UnknownStreamException) {
+        if (ex instanceof StreamProducerDataSource.UnknownStreamException) {
             // This is OK: some other producer deleted the segment after we requested the operation and until we
             // tried to apply it.
             return true;
@@ -176,7 +180,7 @@ class Producer extends Actor {
     /**
      * Executes the given operation.
      */
-    private CompletableFuture<Void> executeOperation(ProducerOperation operation) {
+    private CompletableFuture<Void> executeOperation(ProducerOperation<T> operation) {
         OperationExecutor e = this.executors.get(operation.getType());
         Preconditions.checkArgument(e != null, "Unsupported Operation Type: %s.", operation.getType());
         return e.execute(operation);
@@ -196,7 +200,7 @@ class Producer extends Actor {
          * @param operation The {@link ProducerOperation} to execute.
          * @return A CompletableFuture that will be completed when the operation execution completes.
          */
-        CompletableFuture<Void> execute(ProducerOperation operation) {
+        CompletableFuture<Void> execute(ProducerOperation<T> operation) {
             StoreAdapter.Feature requiredFeature = getFeature();
             if (requiredFeature != null) {
                 requiredFeature.ensureSupported(Producer.this.store, getOperationName());
@@ -228,7 +232,7 @@ class Producer extends Actor {
          * @param operation The {@link ProducerOperation} to execute.
          * @return A CompletableFuture that will be completed when the operation execution completes.
          */
-        protected abstract CompletableFuture<Void> executeInternal(ProducerOperation operation);
+        protected abstract CompletableFuture<Void> executeInternal(ProducerOperation<T> operation);
 
         @SneakyThrows
         private Void attemptReconcile(Throwable ex, ProducerOperation operation) {
@@ -255,7 +259,7 @@ class Producer extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
             return Producer.this.store.createTransaction(operation.getTarget(), Producer.this.config.getTimeout())
                     .thenAccept(operation::setResult);
         }
@@ -277,13 +281,13 @@ class Producer extends Actor {
 
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
             return Producer.this.store.mergeTransaction(operation.getTarget(), Producer.this.config.getTimeout());
         }
     }
 
     /**
-     * Aborts an existing Stream Transction.
+     * Aborts an existing Stream Transaction.
      */
     private class AbortTransactionExecutor extends OperationExecutor {
         @Override
@@ -297,7 +301,7 @@ class Producer extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
             return Producer.this.store.mergeTransaction(operation.getTarget(), Producer.this.config.getTimeout());
         }
     }
@@ -317,8 +321,8 @@ class Producer extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
-            Event event = Producer.this.dataSource.nextEvent(operation.getTarget(), Producer.this.id);
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+            Event event = (Event) operation.getUpdate();
             operation.setLength(event.getSerialization().getLength());
             return Producer.this.store.append(operation.getTarget(), event, Producer.this.config.getTimeout());
         }
@@ -339,8 +343,80 @@ class Producer extends Actor {
         }
 
         @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation operation) {
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
             return Producer.this.store.sealStream(operation.getTarget(), Producer.this.config.getTimeout());
+        }
+    }
+
+    private class TableUpdateExecutor extends OperationExecutor {
+        @Override
+        StoreAdapter.Feature getFeature() {
+            return StoreAdapter.Feature.Tables;
+        }
+
+        @Override
+        String getOperationName() {
+            return "update";
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+            // TODO: implement
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private class TableUpdateConditionalExecutor extends OperationExecutor {
+        @Override
+        StoreAdapter.Feature getFeature() {
+            return StoreAdapter.Feature.Tables;
+        }
+
+        @Override
+        String getOperationName() {
+            return "update conditionally";
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+            // TODO: implement
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private class TableRemoveExecutor extends OperationExecutor {
+        @Override
+        StoreAdapter.Feature getFeature() {
+            return StoreAdapter.Feature.Tables;
+        }
+
+        @Override
+        String getOperationName() {
+            return "remove";
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+            // TODO: implement
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private class TableRemoveConditionalExecutor extends OperationExecutor {
+        @Override
+        StoreAdapter.Feature getFeature() {
+            return StoreAdapter.Feature.Tables;
+        }
+
+        @Override
+        String getOperationName() {
+            return "remove conditionally";
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
+            // TODO: implement
+            return CompletableFuture.completedFuture(null);
         }
     }
 

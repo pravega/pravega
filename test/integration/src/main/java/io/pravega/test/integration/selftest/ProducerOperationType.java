@@ -13,6 +13,8 @@ package io.pravega.test.integration.selftest;
  * Defines various types of Producer Operations.
  */
 final class ProducerOperationType extends OperationType {
+    //region Stream Operations
+
     /**
      * An Event Operation triggered by a Producer.
      */
@@ -37,6 +39,32 @@ final class ProducerOperationType extends OperationType {
      * A Transaction Abort Operation triggered by a Producer.
      */
     static final ProducerOperationType ABORT_STREAM_TRANSACTION = new ProducerOperationType("Abort Transaction");
+
+    //endregion
+
+    //region Table Operations
+
+    /**
+     * An unconditional Table Update Operation.
+     */
+    static final ProducerOperationType TABLE_UPDATE = new ProducerOperationType("Update");
+
+    /**
+     * A conditional Table Update Operation.
+     */
+    static final ProducerOperationType TABLE_UPDATE_CONDITIONAL = new ProducerOperationType("Conditional Update");
+
+    /**
+     * An unconditional Table Remove Operation.
+     */
+    static final ProducerOperationType TABLE_REMOVE = new ProducerOperationType("Remove");
+
+    /**
+     * A conditional Table Remove Operation.
+     */
+    static final ProducerOperationType TABLE_REMOVE_CONDITIONAL = new ProducerOperationType("Conditional Remove");
+
+    //endregion
 
     private ProducerOperationType(String name) {
         super(name);
