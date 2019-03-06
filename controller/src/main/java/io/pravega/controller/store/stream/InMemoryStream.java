@@ -736,7 +736,10 @@ public class InMemoryStream extends PersistentStreamBase {
                                 break;
                             case OPEN:  // do nothing
                                 break;
-                            default:
+                            case COMMITTED:
+                            case ABORTING:
+                            case ABORTED:
+                            case UNKNOWN:
                                 // Aborting, aborted, unknown and committed 
                                 toPurge.add(order);
                                 break;

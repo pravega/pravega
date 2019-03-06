@@ -521,8 +521,14 @@ class ZKStream extends PersistentStreamBase {
                                       }
                                       break;
                                   case OPEN:  // do nothing
+                                      // since we first add reference to transaction order followed by updating transaction
+                                      // metadata record, which may or may not have happened. So we will ignore all open 
+                                      // transactions for which references are found. 
                                       break;
-                                  default:
+                                  case COMMITTED:
+                                  case ABORTING:
+                                  case ABORTED:
+                                  case UNKNOWN:
                                       // Aborting, aborted, unknown and committed 
                                       toPurge.add(order);
                                       break;

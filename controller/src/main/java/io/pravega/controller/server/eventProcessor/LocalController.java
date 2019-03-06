@@ -326,7 +326,6 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Void> commitTransaction(Stream stream, UUID txnId) {
-        // TODO: shivesh: watermarking: should receive writer id and mark with commit request. 
         return controller
                 .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
                 .thenApply(x -> null);
