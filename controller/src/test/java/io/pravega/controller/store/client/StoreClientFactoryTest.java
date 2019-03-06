@@ -70,4 +70,51 @@ public class StoreClientFactoryTest {
         // 3 * (N + 1) times. Hence we are getting expiration counter as `3` instead of `1`.
         assertEquals(3, expirationRetryCounter.get());
     }
+
+    /**
+     * This test verifies that ZKClientFactory correctly handles the situation in which the Controller attempts to
+     * create a new Zookeeper client with different parameters compared to the existing ones. We should not enable to
+     * create a new Zookeeper client and, in fact, we close the existing one to force the restart of the Controller.
+     * During the Controller restart, a new Zookeeper client will be created with the new parameters.
+     */
+    @Test
+    public void testZkSessionExpiryWithChangedSettings() throws Exception {
+        final String newConnectString = "UnexpectedConnectString";
+        CompletableFuture<Void> sessionExpiry = new CompletableFuture<>();
+        AtomicInteger expirationRetryCounter = new AtomicInteger();
+
+        Supplier<Boolean> canRetrySupplier = () -> {
+            if (sessionExpiry.isDone()) {
+                expirationRetryCounter.incrementAndGet();
+            }
+
+            return !sessionExpiry.isDone();
+        };
+        Consumer<Void> expirationHandler = x -> sessionExpiry.complete(null);
+
+        StoreClientFactory.ZKClientFactory storeClientFactory = new StoreClientFactory.ZKClientFactory();
+        CuratorFramework client = StoreClientFactory.createZKClient(ZKClientConfigImpl.builder()
+                                                                                      .connectionString(zkServer.getConnectString())
+                                                                                      .namespace("test")
+                                                                                      .maxRetries(10)
+                                                                                      .initialSleepInterval(10)
+                                                                                      .secureConnectionToZooKeeper(false)
+                                                                                      .sessionTimeoutMs(15000)
+                                                                                      .build(),
+                canRetrySupplier, expirationHandler, storeClientFactory);
+
+        // Check that the ZKClientFactory contains the appropriate initial connection string.
+        assertEquals(storeClientFactory.getConnectString(), zkServer.getConnectString());
+
+        // Update the connection string.
+        storeClientFactory.setConnectString(newConnectString);
+        assertEquals(storeClientFactory.getConnectString(), newConnectString);
+
+        // Induce a session expiration, so we invoke newZooKeeper() and notice about the updated parameter.
+        client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
+        sessionExpiry.join();
+
+        // Check that close is idempotent, so it could be invoked multiple times without causing issues in the Controller.
+        client.close();
+    }
 }

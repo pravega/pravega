@@ -14,6 +14,9 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
@@ -67,6 +70,11 @@ public class StoreClientFactory {
 
     @VisibleForTesting
     static CuratorFramework createZKClient(ZKClientConfig zkClientConfig, Supplier<Boolean> canRetry, Consumer<Void> expiryHandler) {
+        return createZKClient(zkClientConfig, canRetry, expiryHandler, new ZKClientFactory());
+    }
+
+    @VisibleForTesting
+    static CuratorFramework createZKClient(ZKClientConfig zkClientConfig, Supplier<Boolean> canRetry, Consumer<Void> expiryHandler, ZKClientFactory zkClientFactory) {
         if (zkClientConfig.isSecureConnectionToZooKeeper()) {
             ZKTLSUtils.setSecureZKClientProperties(zkClientConfig.getTrustStorePath(), JKSHelper.loadPasswordFrom(zkClientConfig.getTrustStorePasswordPath()));
         }
@@ -78,7 +86,7 @@ public class StoreClientFactory {
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
                 .connectString(zkClientConfig.getConnectionString())
                 .namespace(zkClientConfig.getNamespace())
-                .zookeeperFactory(new ZKClientFactory())
+                .zookeeperFactory(zkClientFactory)
                 .retryPolicy(retryPolicy)
                 .sessionTimeoutMs(zkClientConfig.getSessionTimeoutMs())
                 .build();
@@ -96,6 +104,9 @@ public class StoreClientFactory {
     @VisibleForTesting
     static class ZKClientFactory implements ZookeeperFactory {
         private ZooKeeper client;
+        @VisibleForTesting
+        @Getter(AccessLevel.PACKAGE)
+        @Setter(AccessLevel.PACKAGE)
         private String connectString;
         private int sessionTimeout;
         private boolean canBeReadOnly;
@@ -126,7 +137,7 @@ public class StoreClientFactory {
                         log.warn("Input argument for new ZooKeeper client ({}, {}, {}) changed with respect to existing client ({}, {}, {}).",
                             connectString, sessionTimeout, canBeReadOnly, this.connectString, this.sessionTimeout, this.canBeReadOnly, e);
                     } else {
-                        log.warn("Watcher for Curator client is null.", e);
+                        log.warn("Watcher for ZooKeeper client is null.", e);
                     }
                     closeClient(client);
                 }
