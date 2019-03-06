@@ -49,6 +49,7 @@ jobs:
          - CLUSTER_NAME="pravega-travis-$(date +'%Y%m%d%H%M%S')"
          - CLUSTER_ZONE=us-central1-c
          - CLUSTER_SIZE=5
+         - CLUSTER_NODE_TYPE=n1-standard-2
          - PRAVEGA_IMAGE_NAME=pravega-testimages
          - BOOKKEEPER_IMAGE_NAME=bookkeeper-testimages
          - OPERATOR_IMAGE=adrianmo/pravega-operator:0.3.0-rc3-30
@@ -70,7 +71,7 @@ jobs:
          - echo $GCLOUD_SERVICE_KEY | base64 --decode -i > $HOME/gcloud-service-key.json
          - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
          - gcloud --quiet config set project $PROJECT_NAME
-         - gcloud --quiet container clusters create $CLUSTER_NAME --num-nodes=$CLUSTER_SIZE --zone=$CLUSTER_ZONE
+         - gcloud --quiet container clusters create $CLUSTER_NAME --num-nodes=$CLUSTER_SIZE --zone=$CLUSTER_ZONE --machine-type=$CLUSTER_NODE_TYPE
          - kubectl config view
          - kubectl config current-context
          - kubectl get nodes -o wide
