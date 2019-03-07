@@ -41,17 +41,6 @@ public interface DynamicLogger {
     void freezeCounter(String name, String... tags);
 
     /**
-     * Notifies that the counters will not be updated.
-     *
-     * @param names the names of counters
-     */
-    default void freezeCounters(String... names) {
-        for (String name : names) {
-            freezeCounter(name);
-        }
-    }
-
-    /**
      * Report gauge value.
      *
      * @param <T>   the type of value

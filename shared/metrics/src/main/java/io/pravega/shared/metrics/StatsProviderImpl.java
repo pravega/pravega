@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.metrics;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import io.micrometer.core.instrument.Clock;
@@ -18,6 +19,7 @@ import io.micrometer.core.instrument.binder.jvm.JvmGcMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmMemoryMetrics;
 import io.micrometer.core.instrument.binder.jvm.JvmThreadMetrics;
 import io.micrometer.core.instrument.binder.system.ProcessorMetrics;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.influx.InfluxMeterRegistry;
 import io.micrometer.statsd.StatsdMeterRegistry;
@@ -28,11 +30,17 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class StatsProviderImpl implements StatsProvider {
     @Getter
-    private final MeterRegistry metrics = Metrics.globalRegistry;
+    private final CompositeMeterRegistry metrics;
     private final MetricsConfig conf;
 
     StatsProviderImpl(MetricsConfig conf) {
+        this(conf, Metrics.globalRegistry);
+    }
+
+    @VisibleForTesting
+    StatsProviderImpl(MetricsConfig conf, CompositeMeterRegistry registry) {
         this.conf = Preconditions.checkNotNull(conf, "conf");
+        this.metrics = registry;
     }
 
     @Synchronized
@@ -50,22 +58,22 @@ class StatsProviderImpl implements StatsProvider {
         log.info("Metrics prefix: {}", conf.getMetricsPrefix());
 
         if (conf.isEnableStatsdReporter()) {
-            Metrics.addRegistry(new StatsdMeterRegistry(RegistryConfigUtil.createStatsdConfig(conf), Clock.SYSTEM));
+            metrics.add(new StatsdMeterRegistry(RegistryConfigUtil.createStatsdConfig(conf), Clock.SYSTEM));
         }
 
         if (conf.isEnableInfluxDBReporter()) {
-            Metrics.addRegistry(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
+            metrics.add(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
         }
 
-        Preconditions.checkArgument(Metrics.globalRegistry.getRegistries().size() != 0,
+        Preconditions.checkArgument(metrics.getRegistries().size() != 0,
                 "No meter register bound hence no storage for metrics!");
     }
 
     @Synchronized
     @Override
     public void startWithoutExporting() {
-        for (MeterRegistry registry : Metrics.globalRegistry.getRegistries()) {
-            Metrics.globalRegistry.remove(registry);
+        for (MeterRegistry registry : metrics.getRegistries()) {
+            metrics.remove(registry);
         }
         Metrics.addRegistry(new SimpleMeterRegistry());
     }
@@ -73,9 +81,9 @@ class StatsProviderImpl implements StatsProvider {
     @Synchronized
     @Override
     public void close() {
-        for (MeterRegistry registry : Metrics.globalRegistry.getRegistries()) {
+        for (MeterRegistry registry : metrics.getRegistries()) {
             registry.close();
-            Metrics.globalRegistry.remove(registry);
+            metrics.remove(registry);
         }
     }
 
