@@ -10,10 +10,12 @@
 package io.pravega.controller.server;
 
 import io.pravega.controller.store.client.StoreClient;
+import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
+import java.util.function.BiFunction;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -67,7 +69,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             Assert.fail("Error stopping test zk server");
         }
     }
-    
+
     static class MockControllerServiceStarter extends ControllerServiceStarter {
         @Getter
         private final CompletableFuture<Void> signalShutdownStarted;
@@ -91,105 +93,147 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
         }
     }
 
-    @Test(timeout = 100000)
+    static class MockZKControllerServiceMain extends ControllerServiceMain {
+        @Getter
+        private StoreClientFactory.ZKClientFactory zkClientFactory;
+        private final ControllerServiceConfig serviceConfig;
+
+        public MockZKControllerServiceMain(ControllerServiceConfig serviceConfig, BiFunction<ControllerServiceConfig,
+                                                 StoreClient, ControllerServiceStarter> starterFactory) {
+            super(serviceConfig, starterFactory);
+            this.serviceConfig = serviceConfig;
+            zkClientFactory = new StoreClientFactory.ZKClientFactory();
+        }
+
+        /**
+         * Instantiate a new ZKStoreClient while holding a reference to the ZKClientFactory. This will allow us to
+         * inject a failure that simulates a parameter change in Curator and check if the Controller restarts correctly.
+         *
+         * @return new StoreClient instance.
+         */
+        @Override
+        protected StoreClient createStoreClient() {
+            zkClientFactory = new StoreClientFactory.ZKClientFactory();
+            CompletableFuture<Void> sessionExpiryFuture = new CompletableFuture<>();
+            CuratorFramework zkClient = StoreClientFactory.createZKClient(serviceConfig.getStoreClientConfig().getZkClientConfig().get(),
+                    () -> !sessionExpiryFuture.isDone(), sessionExpiryFuture::complete, zkClientFactory);
+            return StoreClientFactory.createZKStoreClient(zkClient);
+        }
+    }
+
+    /**
+     * This test verifies that the Controller mechanism for handling a ZK session expiration works correctly. Moreover,
+     * this verification is done both assuming that Zookeeper client connection parameters do not change and simulating
+     * a change on them.
+     */
+    @Test(timeout = 120000)
     public void testZKSessionExpiry() throws Exception {
-        CompletableFuture<Void> signalShutdownStarted = new CompletableFuture<>();
-        CompletableFuture<Void> waitingForShutdownSignal = new CompletableFuture<>();
+        for (int iteration = 0; iteration < 2; iteration++) {
+            CompletableFuture<Void> signalShutdownStarted = new CompletableFuture<>();
+            CompletableFuture<Void> waitingForShutdownSignal = new CompletableFuture<>();
 
-        ConcurrentLinkedQueue<StoreClient> clientQueue = new ConcurrentLinkedQueue<>();
-        ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
-                (x, y) -> {
-                    clientQueue.add(y);
-                    return new MockControllerServiceStarter(x, y, signalShutdownStarted, waitingForShutdownSignal);
-                });
+            ConcurrentLinkedQueue<StoreClient> clientQueue = new ConcurrentLinkedQueue<>();
+            MockZKControllerServiceMain controllerServiceMain = new MockZKControllerServiceMain(createControllerServiceConfig(),
+                    (x, y) -> {
+                        clientQueue.add(y);
+                        return new MockControllerServiceStarter(x, y, signalShutdownStarted, waitingForShutdownSignal);
+                    });
 
-        controllerServiceMain.startAsync();
+            controllerServiceMain.startAsync();
 
-        try {
-            controllerServiceMain.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for controllerServiceMain to get ready", e);
-            Assert.fail("Failed waiting for controllerServiceMain to get ready");
-        }
-
-        MockControllerServiceStarter controllerServiceStarter = (MockControllerServiceStarter) controllerServiceMain.awaitServiceStarting();
-        try {
-            controllerServiceStarter.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for controllerServiceStarter to get ready", e);
-            Assert.fail("Failed waiting for controllerServiceStarter to get ready");
-            return;
-        }
-
-        assertEquals(1, clientQueue.size());
-        CuratorFramework curatorClient = (CuratorFramework) clientQueue.poll().getClient();
-        // Simulate ZK session timeout
-        // we will submit zk session expiration and 
-        CompletableFuture.runAsync(() -> {
             try {
-                curatorClient.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
-            } catch (Exception e) {
-                log.error("Failed while simulating client session expiry", e);
-                Assert.fail("Failed while simulating client session expiry");
+                controllerServiceMain.awaitRunning();
+            } catch (IllegalStateException e) {
+                log.error("Failed waiting for controllerServiceMain to get ready", e);
+                Assert.fail("Failed waiting for controllerServiceMain to get ready");
             }
-        });
-        CompletableFuture<Void> callBackCalled = new CompletableFuture<>();
-        // issue a zkClient request.. 
-        CompletableFuture.runAsync(() -> {
+
+            MockControllerServiceStarter controllerServiceStarter = (MockControllerServiceStarter) controllerServiceMain.awaitServiceStarting();
             try {
-                curatorClient.getData().inBackground((client1, event) -> {
-                    callBackCalled.complete(null);
-                }).forPath("/test");
-            } catch (Exception e) {
-                Assert.fail("Failed while trying to submit a background request to curator");
+                controllerServiceStarter.awaitRunning();
+            } catch (IllegalStateException e) {
+                log.error("Failed waiting for controllerServiceStarter to get ready", e);
+                Assert.fail("Failed waiting for controllerServiceStarter to get ready");
+                return;
             }
-        });
 
-        // verify that termination is started. We will first make sure curator calls the callback before we let the 
-        // ControllerServiceStarter to shutdown completely. This simulates grpc behaviour where grpc waits until all 
-        // outstanding calls are complete before shutting down. 
-        signalShutdownStarted.join();
-        callBackCalled.join();
-        
-        // Now that callback has been called we can signal the shutdown of ControllerServiceStarter to complete. 
-        waitingForShutdownSignal.complete(null);
-        
-        // Now, that session has expired, lets wait for starter to start again.
-        try {
-            controllerServiceMain.awaitServicePausing().awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for controllerServiceStarter termination", e);
-            Assert.fail("Failed waiting for controllerServiceStarter termination");
-        }
+            assertEquals(1, clientQueue.size());
+            CuratorFramework curatorClient = (CuratorFramework) clientQueue.poll().getClient();
 
-        try {
-            controllerServiceMain.awaitServiceStarting().awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for starter to get ready again", e);
-            Assert.fail("Failed waiting for controllerServiceStarter to get ready again");
-        }
+            // Simulate that Curator changed the connection parameters for ZKClient and the StoreClientFactory realizes
+            // upon a session expiration.
+            if (iteration % 2 == 1) {
+                controllerServiceMain.getZkClientFactory().injectParameterUpdateFailure();
+            }
 
-        // assert that previous curator client has indeed shutdown. 
-        assertEquals(curatorClient.getState(), CuratorFrameworkState.STOPPED);
+            // Simulate ZK session timeout
+            // we will submit zk session expiration and
+            CompletableFuture.runAsync(() -> {
+                try {
+                    curatorClient.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
+                } catch (Exception e) {
+                    log.error("Failed while simulating client session expiry", e);
+                    Assert.fail("Failed while simulating client session expiry");
+                }
+            });
+            CompletableFuture<Void> callBackCalled = new CompletableFuture<>();
+            // issue a zkClient request..
+            CompletableFuture.runAsync(() -> {
+                try {
+                    curatorClient.getData().inBackground((client1, event) -> {
+                        callBackCalled.complete(null);
+                    }).forPath("/test");
+                } catch (Exception e) {
+                    Assert.fail("Failed while trying to submit a background request to curator");
+                }
+            });
 
-        // assert that a new curator client is added to the queue and it is in started state
-        assertEquals(1, clientQueue.size());
-        assertEquals(((CuratorFramework) clientQueue.peek().getClient()).getState(), CuratorFrameworkState.STARTED);
+            // verify that termination is started. We will first make sure curator calls the callback before we let the
+            // ControllerServiceStarter to shutdown completely. This simulates grpc behaviour where grpc waits until all
+            // outstanding calls are complete before shutting down.
+            signalShutdownStarted.join();
+            callBackCalled.join();
 
-        controllerServiceMain.stopAsync();
+            // Now that callback has been called we can signal the shutdown of ControllerServiceStarter to complete.
+            waitingForShutdownSignal.complete(null);
 
-        try {
-            controllerServiceMain.awaitServicePausing().awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for controllerServiceStarter termination", e);
-            Assert.fail("Failed waiting for controllerServiceStarter termination");
-        }
+            // Now, that session has expired, lets wait for starter to start again.
+            try {
+                controllerServiceMain.awaitServicePausing().awaitTerminated();
+            } catch (IllegalStateException e) {
+                log.error("Failed waiting for controllerServiceStarter termination", e);
+                Assert.fail("Failed waiting for controllerServiceStarter termination");
+            }
 
-        try {
-            controllerServiceMain.awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for termination of controllerServiceMain", e);
-            Assert.fail("Failed waiting for termination of controllerServiceMain");
+            try {
+                controllerServiceMain.awaitServiceStarting().awaitRunning();
+            } catch (IllegalStateException e) {
+                log.error("Failed waiting for starter to get ready again", e);
+                Assert.fail("Failed waiting for controllerServiceStarter to get ready again");
+            }
+
+            // assert that previous curator client has indeed shutdown.
+            assertEquals(curatorClient.getState(), CuratorFrameworkState.STOPPED);
+
+            // assert that a new curator client is added to the queue and it is in started state
+            assertEquals(1, clientQueue.size());
+            assertEquals(((CuratorFramework) clientQueue.peek().getClient()).getState(), CuratorFrameworkState.STARTED);
+
+            controllerServiceMain.stopAsync();
+
+            try {
+                controllerServiceMain.awaitServicePausing().awaitTerminated();
+            } catch (IllegalStateException e) {
+                log.error("Failed waiting for controllerServiceStarter termination", e);
+                Assert.fail("Failed waiting for controllerServiceStarter termination");
+            }
+
+            try {
+                controllerServiceMain.awaitTerminated();
+            } catch (IllegalStateException e) {
+                log.error("Failed waiting for termination of controllerServiceMain", e);
+                Assert.fail("Failed waiting for termination of controllerServiceMain");
+            }
         }
     }
 }

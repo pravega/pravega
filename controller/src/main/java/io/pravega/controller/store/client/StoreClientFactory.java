@@ -14,9 +14,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
@@ -74,7 +71,7 @@ public class StoreClientFactory {
     }
 
     @VisibleForTesting
-    static CuratorFramework createZKClient(ZKClientConfig zkClientConfig, Supplier<Boolean> canRetry, Consumer<Void> expiryHandler, ZKClientFactory zkClientFactory) {
+    public static CuratorFramework createZKClient(ZKClientConfig zkClientConfig, Supplier<Boolean> canRetry, Consumer<Void> expiryHandler, ZKClientFactory zkClientFactory) {
         if (zkClientConfig.isSecureConnectionToZooKeeper()) {
             ZKTLSUtils.setSecureZKClientProperties(zkClientConfig.getTrustStorePath(), JKSHelper.loadPasswordFrom(zkClientConfig.getTrustStorePasswordPath()));
         }
@@ -102,14 +99,12 @@ public class StoreClientFactory {
     }
 
     @VisibleForTesting
-    static class ZKClientFactory implements ZookeeperFactory {
+    public static class ZKClientFactory implements ZookeeperFactory {
         private ZooKeeper client;
-        @VisibleForTesting
-        @Getter(AccessLevel.PACKAGE)
-        @Setter(AccessLevel.PACKAGE)
         private String connectString;
         private int sessionTimeout;
         private boolean canBeReadOnly;
+        private boolean injectParameterUpdateFailure;
 
         @Override
         @Synchronized
@@ -127,6 +122,10 @@ public class StoreClientFactory {
                 return this.client;
             } else {
                 try {
+                    if (injectParameterUpdateFailure) {
+                        injectParameterUpdateFailure = false;
+                        throw new IllegalArgumentException(String.valueOf("Simulating a parameter update in ZooKeeper client."));
+                    }
                     Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
                     Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
                     Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
@@ -152,6 +151,16 @@ public class StoreClientFactory {
                 // We prevent throwing uncontrolled exceptions here, which may lead Curator to retry indefinitely.
                 log.error("Problems attempting to close ZooKeeper client.", e);
             }
+        }
+
+        /**
+         * Simulates an error related to a change in ZooKeeper client parameters. The error is injected only once and
+         * this class automatically sets this flag to false when the exception is thrown.
+         */
+        @VisibleForTesting
+        @Synchronized
+        public void injectParameterUpdateFailure() {
+            this.injectParameterUpdateFailure = true;
         }
     }
 

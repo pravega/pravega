@@ -79,8 +79,7 @@ public class StoreClientFactoryTest {
      */
     @Test
     public void testZkSessionExpiryWithChangedParameters() throws Exception {
-        final String newConnectString = "UnexpectedConnectString";
-        final String testZNode = "/testZNode";
+        final String testZNode = "/test";
 
         CompletableFuture<Void> sessionExpiry = new CompletableFuture<>();
         AtomicInteger expirationRetryCounter = new AtomicInteger();
@@ -108,18 +107,14 @@ public class StoreClientFactoryTest {
         // Check that the client works correctly. In this case, it throws a NoNodeException when accessing a non-existent path.
         AssertExtensions.assertThrows(KeeperException.NoNodeException.class, () -> client.getData().forPath(testZNode));
 
-        // Check that the ZKClientFactory contains the appropriate initial connection string.
-        assertEquals(storeClientFactory.getConnectString(), zkServer.getConnectString());
-
-        // Update the connection string.
-        storeClientFactory.setConnectString(newConnectString);
-        assertEquals(storeClientFactory.getConnectString(), newConnectString);
+        // Simulate and update to the connection parameters.
+        storeClientFactory.injectParameterUpdateFailure();
 
         // Induce a session expiration, so we invoke newZooKeeper() and notice about the updated parameter.
         client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
         sessionExpiry.join();
 
         // Check that, once closed by the ZKClientFactory, the client throws an expected exception (SessionExpiredException).
-        AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/testpath"));
+        AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath(testZNode));
     }
 }
