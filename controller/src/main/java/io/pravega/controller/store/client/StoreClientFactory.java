@@ -122,10 +122,7 @@ public class StoreClientFactory {
                 return this.client;
             } else {
                 try {
-                    if (injectParameterUpdateFailure) {
-                        injectParameterUpdateFailure = false;
-                        throw new IllegalArgumentException(String.valueOf("Simulating a parameter update in ZooKeeper client."));
-                    }
+                    tryInjectFailure();
                     Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
                     Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
                     Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
@@ -161,6 +158,13 @@ public class StoreClientFactory {
         @Synchronized
         public void injectParameterUpdateFailure() {
             this.injectParameterUpdateFailure = true;
+        }
+
+        private void tryInjectFailure() {
+            if (injectParameterUpdateFailure) {
+                injectParameterUpdateFailure = false;
+                throw new IllegalArgumentException(String.valueOf("Simulating a parameter update in ZooKeeper client."));
+            }
         }
     }
 
