@@ -73,12 +73,20 @@ jobs:
          - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
          - gcloud --quiet config set project $PROJECT_NAME
          - gcloud --quiet config set container/use_application_default_credentials True
-         - gcloud --quiet container clusters create $CLUSTER_NAME --num-nodes=$CLUSTER_SIZE --zone=$CLUSTER_ZONE --machine-type=$CLUSTER_NODE_TYPE
+         - gcloud --quiet container clusters create $CLUSTER_NAME --num-nodes=$CLUSTER_SIZE --zone=$CLUSTER_ZONE --machine-type=$CLUSTER_NODE_TYPE --enable-basic-auth
          - gcloud --quiet container clusters get-credentials $CLUSTER_NAME --zone=$CLUSTER_ZONE
-         - while :; do gcloud --quiet container clusters get-credentials $CLUSTER_NAME --zone=$CLUSTER_ZONE; sleep 600; done &
          - kubectl config view
          - kubectl config current-context
          - kubectl get nodes -o wide
+         # Workaround until the Kubernetes Java client supports refreshing tokens on GKE
+         # Use basic authentication until the following issue is resolved and released
+         # https://github.com/kubernetes-client/java/issues/290
+         - export CLUSTER_INFO=$(gcloud --format json container clusters describe $CLUSTER_NAME --zone $CLUSTER_ZONE)
+         - export USER=$(echo $DATA | jq -r ".masterAuth.username")
+         - export PASSWORD=$(echo $DATA | jq -r ".masterAuth.password")
+         - "sed "s/access-token:.*/username: $USER/" $HOME/.kube/config"
+         - "sed "s/expiry:.*/password: $PASSWORD/" $HOME/.kube/config"
+         - kubectl config view
          - kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=pravega-travis-service-account@pravega-dev.iam.gserviceaccount.com
          # Install Helm tiller
          - kubectl create serviceaccount --namespace kube-system tiller
