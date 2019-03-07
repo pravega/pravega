@@ -221,4 +221,15 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         ((CuratorFramework) this.storeClient.getClient()).getZookeeperClient().getZooKeeper()
                                                          .getTestable().injectSessionExpiration();
     }
+
+    @Override
+    protected void shutDown() throws Exception {
+        if (starter != null) {
+            if (starter.isRunning()) {
+                starter.printStatus();
+                starter.stopAsync();
+                starter.awaitTerminated();
+            }
+        }
+    }
 }
