@@ -107,7 +107,9 @@ public class Main {
                 
                 log.info("Controller service shutting down");
                 controllerServiceMain.stopAsync();
+                controllerServiceMain.awaitTerminated();
             }));
+            
             controllerServiceMain.awaitTerminated();
 
             log.info("Controller service exited");

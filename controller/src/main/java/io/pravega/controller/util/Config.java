@@ -98,7 +98,7 @@ public final class Config {
     // Request Stream readerGroup
     public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.internal.scale.readerGroup.name");
 
-    private static final boolean DUMP_STACK_ON_SHUTDOWN = CONFIG.getBoolean("config.controller.server.dumpStackOnShutdown");
+    public static final boolean DUMP_STACK_ON_SHUTDOWN = CONFIG.getBoolean("config.controller.server.dumpStackOnShutdown");
 
     // Metrics
     private static final String METRIC_PATH = "config.controller.metric";
