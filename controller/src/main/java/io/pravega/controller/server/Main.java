@@ -93,6 +93,10 @@ public class Main {
 
             ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
             controllerServiceMain.startAsync();
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                log.info("Controller service shutting down");
+                controllerServiceMain.shutdown();
+            }));
             controllerServiceMain.awaitTerminated();
 
             log.info("Controller service exited");

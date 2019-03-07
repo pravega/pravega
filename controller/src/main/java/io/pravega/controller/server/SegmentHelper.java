@@ -71,7 +71,7 @@ public class SegmentHelper {
     // cache of connection manager for segment store nodes.
     // Pravega Connection Manager maintains a pool of connection for a segment store and returns a connection from 
     // the pool on the need basis. 
-    private final LoadingCache<PravegaNodeUri, PravegaConnectionManager> cache;
+    private final LoadingCache<PravegaNodeUri, SegmentHelperConnectionManager> cache;
 
     public SegmentHelper(HostControllerStore hostControllerStore, ConnectionFactory clientCF, AuthHelper authHelper) {
         this.hostStore = hostControllerStore;
@@ -79,15 +79,15 @@ public class SegmentHelper {
         cache = CacheBuilder.newBuilder()
                             .maximumSize(Config.HOST_STORE_CONTAINER_COUNT)
                             // if a host is not accessed for 2 minutes, remove it from the cache
-                            .expireAfterAccess(2, TimeUnit.MINUTES)
-                            .removalListener((RemovalListener<PravegaNodeUri, PravegaConnectionManager>) removalNotification -> {
+                            .expireAfterAccess(5, TimeUnit.MINUTES)
+                            .removalListener((RemovalListener<PravegaNodeUri, SegmentHelperConnectionManager>) removalNotification -> {
                                 // Whenever a connection manager is evicted from the cache call shutdown on it. 
                                 removalNotification.getValue().shutdown();
                             })
-                            .build(new CacheLoader<PravegaNodeUri, PravegaConnectionManager>() {
+                            .build(new CacheLoader<PravegaNodeUri, SegmentHelperConnectionManager>() {
                                 @Override
-                                public PravegaConnectionManager load(PravegaNodeUri nodeUri) throws Exception {
-                                    return new PravegaConnectionManager(nodeUri, clientCF);
+                                public SegmentHelperConnectionManager load(PravegaNodeUri nodeUri) throws Exception {
+                                    return new SegmentHelperConnectionManager(nodeUri, clientCF);
                                 }
                             });
     }
@@ -606,7 +606,7 @@ public class SegmentHelper {
 
             @Override
             public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {
-                log.info("getSegmentInfo {} got response", qualifiedName);
+                log.debug("getSegmentInfo {} got response", qualifiedName);
                 result.complete(streamInfo);
             }
 
@@ -991,7 +991,7 @@ public class SegmentHelper {
 
             @Override
             public void tableRead(WireCommands.TableRead tableRead) {
-                log.info(requestId, "readTable {} successful.", qualifiedName);
+                log.debug(requestId, "readTable {} successful.", qualifiedName);
                 AtomicBoolean allKeysFound = new AtomicBoolean(true);
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
                                                                          .map(e -> {
@@ -1088,7 +1088,7 @@ public class SegmentHelper {
 
             @Override
             public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
-                log.info(requestId, "readTableKeys {} successful.", qualifiedName);
+                log.debug(requestId, "readTableKeys {} successful.", qualifiedName);
                 final IteratorState state = IteratorState.fromBytes(tableKeysRead.getContinuationToken());
                 final List<TableKey<byte[]>> keys =
                         tableKeysRead.getKeys().stream().map(k -> new TableKeyImpl<>(getArray(k.getData()),
@@ -1170,7 +1170,7 @@ public class SegmentHelper {
 
             @Override
             public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
-                log.info(requestId, "readTableEntries {} successful.", qualifiedName);
+                log.debug(requestId, "readTableEntries {} successful.", qualifiedName);
                 final IteratorState state = IteratorState.fromBytes(tableEntriesRead.getContinuationToken());
                 final List<TableEntry<byte[], byte[]>> entries =
                         tableEntriesRead.getEntries().getEntries().stream()
@@ -1231,9 +1231,9 @@ public class SegmentHelper {
                                             final CompletableFuture<ResultT> resultFuture,
                                             final PravegaNodeUri uri) {
         // get connection manager for the segment store node from the cache. 
-        PravegaConnectionManager connectionManager = cache.getUnchecked(uri);
+        SegmentHelperConnectionManager connectionManager = cache.getUnchecked(uri);
         // take a new connection from the connection manager
-        CompletableFuture<PravegaConnectionManager.ConnectionObject> connectionFuture = connectionManager.getConnection(replyProcessor);
+        CompletableFuture<SegmentHelperConnectionManager.ConnectionObject> connectionFuture = connectionManager.getConnection(replyProcessor);
         connectionFuture.whenComplete((connection, e) -> {
             if (connection == null || e != null) {
                 ConnectionFailedException cause = e != null ? new ConnectionFailedException(e) : new ConnectionFailedException();

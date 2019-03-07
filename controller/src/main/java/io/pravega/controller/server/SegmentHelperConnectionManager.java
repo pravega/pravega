@@ -35,8 +35,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * However, everytime the number of connections go beyond a certain capacity
  */
 @Slf4j
-class PravegaConnectionManager {
-    public static final int MAX_AVAILABLE_CONNECTION = 10;
+class SegmentHelperConnectionManager {
+    public static final int MAX_AVAILABLE_CONNECTION = 100;
     private final PravegaNodeUri uri;
     private final Object lock = new Object();
     @GuardedBy("lock")
@@ -45,7 +45,7 @@ class PravegaConnectionManager {
     private boolean isRunning;
     private final ConnectionFactory clientCF;
 
-    PravegaConnectionManager(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF) {
+    SegmentHelperConnectionManager(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF) {
         this.uri = pravegaNodeUri;
         this.clientCF = clientCF;
         this.availableConnections = new LinkedList<>();
@@ -116,7 +116,7 @@ class PravegaConnectionManager {
     private ConnectionObject poll() {
         synchronized (lock) {
             ConnectionObject polled = availableConnections.poll();
-            while(polled != null) {
+            while (polled != null) {
                 if (polled.state.get().equals(ConnectionObject.ConnectionState.DISCONNECTED)) {
                     // discard.. call poll again
                     polled = availableConnections.poll();
