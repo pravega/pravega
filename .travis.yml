@@ -45,6 +45,8 @@ jobs:
          - HELM_VERSION=v2.12.0
          - KUBECTL_VERSION=v1.13.4
          - CLOUDSDK_CORE_DISABLE_PROMPTS=1
+         - CLOUDSDK_CONTAINER_USE_APPLICATION_DEFAULT_CREDENTIALS=true
+         - GOOGLE_APPLICATION_CREDENTIALS="$HOME/gcloud-service-key.json"
          - PROJECT_NAME=pravega-dev
          - CLUSTER_NAME="pravega-travis-$(date +'%Y%m%d%H%M%S')"
          - CLUSTER_ZONE=us-central1-c
@@ -72,6 +74,7 @@ jobs:
          - gcloud auth activate-service-account --key-file $HOME/gcloud-service-key.json
          - gcloud --quiet config set project $PROJECT_NAME
          - gcloud --quiet container clusters create $CLUSTER_NAME --num-nodes=$CLUSTER_SIZE --zone=$CLUSTER_ZONE --machine-type=$CLUSTER_NODE_TYPE
+         - gcloud --quiet container clusters get-credentials $CLUSTER_NAME --zone=$CLUSTER_ZONE
          - kubectl config view
          - kubectl config current-context
          - kubectl get nodes -o wide
