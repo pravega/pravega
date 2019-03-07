@@ -37,7 +37,16 @@ public class ZKStoreHelper {
         client = cf;
         this.executor = executor;
     }
-    
+
+    /**
+     * List Scopes in the cluster.
+     *
+     * @return A list of scopes.
+     */
+    public CompletableFuture<List<String>> listScopes() {
+        return getChildren("/store");
+    }
+
     CompletableFuture<Void> addNode(final String path) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
         try {
