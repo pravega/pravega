@@ -54,7 +54,6 @@ public class Main {
                     .maxRetries(Config.ZK_MAX_RETRIES)
                     .sessionTimeoutMs(Config.ZK_SESSION_TIMEOUT_MS)
                     .build();
-
             StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
 
             HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
@@ -96,14 +95,16 @@ public class Main {
             ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
             controllerServiceMain.startAsync();
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
-                memoryMXBean.setVerbose(true);
-                log.error("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
-                        memoryMXBean.getNonHeapMemoryUsage());
-                
-                Thread.getAllStackTraces().forEach((key, value) -> 
-                        log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
+                if (Config.DUMP_STACK_ON_SHUTDOWN) {
+                    MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+                    memoryMXBean.setVerbose(true);
+                    log.error("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
+                            memoryMXBean.getNonHeapMemoryUsage());
 
+                    Thread.getAllStackTraces().forEach((key, value) ->
+                            log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
+                }
+                
                 log.info("Controller service shutting down");
                 controllerServiceMain.stopAsync();
             }));

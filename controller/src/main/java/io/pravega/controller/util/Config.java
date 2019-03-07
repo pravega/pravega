@@ -30,10 +30,10 @@ import lombok.val;
 @Slf4j
 public final class Config {
     private final static com.typesafe.config.Config CONFIG = ConfigFactory.defaultApplication()
-            .withFallback(ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true)))
-            .withFallback(ConfigFactory.systemEnvironment())
-            .withFallback(ConfigFactory.defaultReference())
-            .resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true));
+                                                                          .withFallback(ConfigFactory.defaultOverrides().resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true)))
+                                                                          .withFallback(ConfigFactory.systemEnvironment())
+                                                                          .withFallback(ConfigFactory.defaultReference())
+                                                                          .resolve(ConfigResolveOptions.defaults().setAllowUnresolved(true));
 
     //RPC Server configuration
     public static final int RPC_SERVER_PORT = CONFIG.getInt("config.controller.server.port");
@@ -98,9 +98,11 @@ public final class Config {
     // Request Stream readerGroup
     public static final String SCALE_READER_GROUP = CONFIG.getString("config.controller.server.internal.scale.readerGroup.name");
 
+    private static final boolean DUMP_STACK_ON_SHUTDOWN = CONFIG.getBoolean("config.controller.server.dumpStackOnShutdown");
+
     // Metrics
     private static final String METRIC_PATH = "config.controller.metric";
-
+    
     public static GRPCServerConfig getGRPCServerConfig() {
         String publishHost = null;
         try {
