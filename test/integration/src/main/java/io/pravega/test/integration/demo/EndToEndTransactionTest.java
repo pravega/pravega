@@ -28,6 +28,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
+import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
 
@@ -35,7 +36,8 @@ import static org.junit.Assert.assertTrue;
 public class EndToEndTransactionTest {
 
     final static long MAX_LEASE_VALUE = 30000;
-    
+
+    @Test
     public static void main(String[] args) throws Exception {
         @Cleanup
         TestingServer zkTestServer = new TestingServerStarter().start();
@@ -74,7 +76,7 @@ public class EndToEndTransactionTest {
             return;
         }
 
-        final long txnTimeout = 40000;
+        final long txnTimeout = 4000;
 
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(testScope, controller);

@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -67,6 +68,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             @Cleanup
             ControllerWrapper controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
             Controller controller = controllerWrapper.getController();
+            controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
             @Cleanup
             ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
@@ -89,8 +91,6 @@ public class EndToEndAutoScaleUpWithTxnTest {
             server.startListening();
 
             controllerWrapper.awaitRunning();
-            controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
-
             controllerWrapper.getControllerService().createScope("test").get();
 
             controller.createStream("test", "test", CONFIG).get();
@@ -114,6 +114,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             map.put(1.0 / 3.0, 2.0 / 3.0);
             map.put(2.0 / 3.0, 1.0);
             Stream stream = new StreamImpl("test", "test");
+            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
             controller.startScale(stream, Collections.singletonList(0L), map).get();
             Transaction<String> txn2 = test.beginTxn();
 
@@ -122,7 +123,7 @@ public class EndToEndAutoScaleUpWithTxnTest {
             txn2.commit();
             txn1.commit();
 
-            Thread.sleep(10000);
+            Thread.sleep(1000);
 
             @Cleanup
             ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
