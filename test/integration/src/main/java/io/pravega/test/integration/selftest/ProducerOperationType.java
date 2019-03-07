@@ -50,19 +50,9 @@ final class ProducerOperationType extends OperationType {
     static final ProducerOperationType TABLE_UPDATE = new ProducerOperationType("Update");
 
     /**
-     * A conditional Table Update Operation.
-     */
-    static final ProducerOperationType TABLE_UPDATE_CONDITIONAL = new ProducerOperationType("Conditional Update");
-
-    /**
      * An unconditional Table Remove Operation.
      */
     static final ProducerOperationType TABLE_REMOVE = new ProducerOperationType("Remove");
-
-    /**
-     * A conditional Table Remove Operation.
-     */
-    static final ProducerOperationType TABLE_REMOVE_CONDITIONAL = new ProducerOperationType("Conditional Remove");
 
     //endregion
 

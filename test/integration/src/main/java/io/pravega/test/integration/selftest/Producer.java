@@ -76,9 +76,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
                 .put(ProducerOperationType.STREAM_SEAL, new StreamSealExecutor())
                 .put(ProducerOperationType.STREAM_APPEND, new StreamAppendExecutor())
                 .put(ProducerOperationType.TABLE_UPDATE, new TableUpdateExecutor())
-                .put(ProducerOperationType.TABLE_UPDATE_CONDITIONAL, new TableUpdateConditionalExecutor())
                 .put(ProducerOperationType.TABLE_REMOVE, new TableRemoveExecutor())
-                .put(ProducerOperationType.TABLE_REMOVE_CONDITIONAL, new TableRemoveConditionalExecutor())
                 .build();
     }
 
@@ -361,26 +359,10 @@ class Producer<T extends ProducerUpdate> extends Actor {
 
         @Override
         protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
-            // TODO: implement
-            return CompletableFuture.completedFuture(null);
-        }
-    }
-
-    private class TableUpdateConditionalExecutor extends OperationExecutor {
-        @Override
-        StoreAdapter.Feature getFeature() {
-            return StoreAdapter.Feature.Tables;
-        }
-
-        @Override
-        String getOperationName() {
-            return "update conditionally";
-        }
-
-        @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
-            // TODO: implement
-            return CompletableFuture.completedFuture(null);
+            TableUpdate update = (TableUpdate) operation.getUpdate();
+            assert !update.isRemoval() && update.getValue() != null : "bad update args" + update;
+            return Producer.this.store.updateTableEntry(operation.getTarget(), update.getKey(), update.getValue(), update.getCompareVersion(), Producer.this.config.getTimeout())
+                    .thenAccept(operation::setResult);
         }
     }
 
@@ -397,26 +379,10 @@ class Producer<T extends ProducerUpdate> extends Actor {
 
         @Override
         protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
-            // TODO: implement
-            return CompletableFuture.completedFuture(null);
-        }
-    }
-
-    private class TableRemoveConditionalExecutor extends OperationExecutor {
-        @Override
-        StoreAdapter.Feature getFeature() {
-            return StoreAdapter.Feature.Tables;
-        }
-
-        @Override
-        String getOperationName() {
-            return "remove conditionally";
-        }
-
-        @Override
-        protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
-            // TODO: implement
-            return CompletableFuture.completedFuture(null);
+            TableUpdate update = (TableUpdate) operation.getUpdate();
+            assert update.isRemoval() && update.getValue() == null : "bad removal args " + update;
+            return Producer.this.store.removeTableEntry(operation.getTarget(), update.getKey(), update.getCompareVersion(), Producer.this.config.getTimeout())
+                    .thenAccept(operation::setResult);
         }
     }
 

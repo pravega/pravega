@@ -39,6 +39,8 @@ public class TestState {
             ProducerOperationType.MERGE_STREAM_TRANSACTION,
             ProducerOperationType.ABORT_STREAM_TRANSACTION,
             ProducerOperationType.STREAM_SEAL,
+            ProducerOperationType.TABLE_REMOVE,
+            ProducerOperationType.TABLE_UPDATE,
             ConsumerOperationType.END_TO_END,
             ConsumerOperationType.CATCHUP_READ};
     private static final double NANOS_PER_SECOND = 1000 * 1000 * 1000.0;
