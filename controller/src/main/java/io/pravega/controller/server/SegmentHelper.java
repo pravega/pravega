@@ -1203,7 +1203,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, delegationToken,
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, delegationToken,
                                                                         suggestedEntryCount, token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
