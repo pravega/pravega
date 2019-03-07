@@ -82,10 +82,10 @@ jobs:
          # Use basic authentication until the following issue is resolved and released
          # https://github.com/kubernetes-client/java/issues/290
          - export CLUSTER_INFO=$(gcloud --format json container clusters describe $CLUSTER_NAME --zone $CLUSTER_ZONE)
-         - export USER=$(echo $DATA | jq -r ".masterAuth.username")
-         - export PASSWORD=$(echo $DATA | jq -r ".masterAuth.password")
-         - sed "s/access-token:.*/username: $USER/" $HOME/.kube/config
-         - sed "s/expiry:.*/password: $PASSWORD/" $HOME/.kube/config
+         - export USER=" $(echo $DATA | jq -r ".masterAuth.username")"
+         - export PASSWORD=" $(echo $DATA | jq -r ".masterAuth.password")"
+         - sed "s/access-token:.*/username:$USER/" $HOME/.kube/config
+         - sed "s/expiry:.*/password:$PASSWORD/" $HOME/.kube/config
          - kubectl config view
          - kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=pravega-travis-service-account@pravega-dev.iam.gserviceaccount.com
          # Install Helm tiller
