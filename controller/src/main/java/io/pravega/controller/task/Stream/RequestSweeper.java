@@ -8,7 +8,6 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.task.Stream;
-import io.jsonwebtoken.lang.Collections;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -78,7 +77,7 @@ public class RequestSweeper implements FailoverSweeper {
         log.info("Sweeping orphaned tasks for host {}", oldHostId);
         return withRetriesAsync(() -> Futures.doWhileLoop(
                 () -> postRequest(oldHostId),
-                Collections::isEmpty, executor).whenCompleteAsync((result, ex) ->
+                List::isEmpty, executor).whenCompleteAsync((result, ex) ->
                         log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor),
                 RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
     }
