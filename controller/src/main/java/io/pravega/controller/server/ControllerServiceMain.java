@@ -224,8 +224,6 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
 
     void shutdown() {
         log.info("ControllerServiceMain shutdown: service state {}", state());
-
-        Thread.getAllStackTraces().forEach((key, value) -> log.info("Shutdown: Thread {} stackTrace: {} ", key.getName(), value));
         
         if (starter != null) {
             starter.printStatus();
