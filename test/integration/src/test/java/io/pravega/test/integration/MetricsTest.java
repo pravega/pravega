@@ -62,8 +62,6 @@ import org.junit.Test;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-
 
 @Slf4j
 public class MetricsTest extends ThreadPooledTestSuite {

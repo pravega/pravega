@@ -30,8 +30,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
-import static org.mockito.Mockito.mock;
-
 @Slf4j
 public class ReadFromDeletedStreamTest {
     static final StreamConfiguration CONFIG = StreamConfiguration.builder()
