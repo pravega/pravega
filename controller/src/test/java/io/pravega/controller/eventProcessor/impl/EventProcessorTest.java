@@ -473,7 +473,7 @@ public class EventProcessorTest {
         group.stopAsync();
         group.awaitTerminated();
     }
-    
+
     private EventProcessorGroupConfig createEventProcessorGroupConfig(int count) {
         CheckpointConfig.CheckpointPeriod period =
                 CheckpointConfig.CheckpointPeriod.builder()
