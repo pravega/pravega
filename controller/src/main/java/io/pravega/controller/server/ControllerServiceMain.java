@@ -226,8 +226,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     protected void shutDown() throws Exception {
         if (starter != null) {
             if (starter.isRunning()) {
-                starter.printStatus();
-                starter.stopAsync();
+                triggerShutdown();
                 starter.awaitTerminated();
             }
         }

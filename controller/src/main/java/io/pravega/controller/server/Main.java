@@ -95,19 +95,19 @@ public class Main {
             ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
             controllerServiceMain.startAsync();
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                if (Config.DUMP_STACK_ON_SHUTDOWN) {
-                    MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
-                    memoryMXBean.setVerbose(true);
-                    log.error("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
-                            memoryMXBean.getNonHeapMemoryUsage());
-
-                    Thread.getAllStackTraces().forEach((key, value) ->
-                            log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
-                }
+                MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+                memoryMXBean.setVerbose(true);
+                log.error("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
+                        memoryMXBean.getNonHeapMemoryUsage());
                 
                 log.info("Controller service shutting down");
                 controllerServiceMain.stopAsync();
                 controllerServiceMain.awaitTerminated();
+
+                if (Config.DUMP_STACK_ON_SHUTDOWN) {
+                    Thread.getAllStackTraces().forEach((key, value) ->
+                            log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
+                }
             }));
             
             controllerServiceMain.awaitTerminated();
