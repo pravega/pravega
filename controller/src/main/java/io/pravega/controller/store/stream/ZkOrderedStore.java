@@ -20,7 +20,7 @@ import org.apache.curator.utils.ZKPaths;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -150,10 +150,9 @@ public class ZkOrderedStore {
         return Futures.exceptionallyExpecting(storeHelper.getChildren(getStreamPath(scope, stream)), DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
                           .thenCompose(children -> {
                               // start with smallest queue and collect records
-                              Iterator<Integer> iterator = children.stream().mapToInt(Integer::parseInt).iterator();
-
-                              return Futures.loop(iterator::hasNext, () -> {
-                                  Integer queueNumber = iterator.next();
+                              List<Integer> iterable = children.stream().map(Integer::parseInt).collect(Collectors.toList());
+                              
+                              return Futures.loop(iterable, queueNumber -> {
                                   return Futures.exceptionallyExpecting(storeHelper.getChildren(getEntitiesPath(scope, stream, queueNumber)),
                                                     DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
                                                     .thenCompose(entities -> Futures.allOf(
@@ -165,7 +164,7 @@ public class ZkOrderedStore {
                                                                                                       new String(r.getData(), Charsets.UTF_8));
                                                                                           });
                                                                     }).collect(Collectors.toList()))
-                                                    );
+                                                    ).thenApply(v -> true);
                               }, executor);
                           }).thenApply(v -> result)
                       .whenComplete((r, e) -> {

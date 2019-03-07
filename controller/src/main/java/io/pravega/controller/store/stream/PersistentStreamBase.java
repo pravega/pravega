@@ -1702,15 +1702,18 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Version> updateActiveTx(final UUID txId, final Data data);
 
-    // This method is called for adding a transcation to committing order. 
-    // It is important to note that this method is called before marking transaction as committing in active txn record. 
-    // So retrieving a transaction from this ordered list is no guarantee that the transaction has been set to committing. 
-    // Similarly, there could be duplicate entries for the same transaction if retried. 
-    // So the ordered ist merely captures the order in which a request may have been received and is only opportunistic 
-    // and makes no strong claim of its consistency with active txn record. 
-    // 1. we could have duplicate entries for same transaction in commit order.
-    // 2. we could have transcations that are marked for aborting added to commit order
-    // 3. we could have transactions that are no longer in activeTxn list yet present in commit order. 
+    /**
+     * This method is called for adding a transaction to committing order. 
+     * It is important to note that this method is called before marking transaction as committing in active txn record. 
+     * So retrieving a transaction from this ordered list is no guarantee that the transaction has been set to committing. 
+     * Similarly, there could be duplicate entries for the same transaction if retried. 
+     * So the ordered ist merely captures the order in which a request may have been received and is only opportunistic 
+     * and makes no strong claim of its consistency with active txn record. 
+     *      1. we could have duplicate entries for same transaction in commit order.
+     *      2. we could have transactions that are marked for aborting added to commit order
+     *      3. we could have transactions that are no longer in activeTxn list yet present in commit order. 
+     * @return CompletableFuture which when completed will have transactions added to commit order
+    */
     abstract CompletableFuture<Long> addTxnToCommitOrder(final UUID txId);
 
     abstract CompletableFuture<Void> removeTxnsFromCommitOrder(final List<Long> positions);
@@ -1726,6 +1729,7 @@ public abstract class PersistentStreamBase implements Stream {
     /**
      * This method finds transactions to commit in lowest epoch and returns a sorted list of transaction ids, 
      * sorted by their order of commits. 
+     * @return CompletableFuture which when completed will return ordered list of transaction ids and records.
      */
     abstract CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch();
     

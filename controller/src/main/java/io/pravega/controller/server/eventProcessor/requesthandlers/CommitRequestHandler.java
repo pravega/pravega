@@ -111,7 +111,11 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                             log.debug("No transactions found in committing state on stream {}/{}", r, scope, stream);
                         }
                         if (processedEvents != null) {
-                            processedEvents.offer(event);
+                            try {
+                                processedEvents.offer(event);
+                            } catch (Exception ex) {
+                                // ignore, this processed events is only added for enabling unit testing this class
+                            }
                         }
                         future.complete(null);
                     }
