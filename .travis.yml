@@ -82,8 +82,8 @@ jobs:
          # Use basic authentication until the following issue is resolved and released
          # https://github.com/kubernetes-client/java/issues/290
          - export CLUSTER_INFO=$(gcloud --format json container clusters describe $CLUSTER_NAME --zone $CLUSTER_ZONE)
-         - export USER=" $(echo $DATA | jq -r ".masterAuth.username")"
-         - export PASSWORD=" $(echo $DATA | jq -r ".masterAuth.password")"
+         - export USER=" $(echo $CLUSTER_INFO | jq -r ".masterAuth.username")"
+         - export PASSWORD=" $(echo $CLUSTER_INFO | jq -r ".masterAuth.password")"
          - sed -i "s/access-token:.*/username:$USER/" $HOME/.kube/config
          - sed -i "s/expiry:.*/password:$PASSWORD/" $HOME/.kube/config
          - kubectl config view
