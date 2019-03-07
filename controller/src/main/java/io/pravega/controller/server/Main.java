@@ -91,6 +91,10 @@ public class Main {
                     .restServerConfig(Optional.of(restServerConfig))
                     .build();
 
+            Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+                log.error("Thread {} with stackTrace {} failed with uncaught exception", t.getName(), t.getStackTrace(), e);              
+            });
+
             ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
             controllerServiceMain.startAsync();
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
