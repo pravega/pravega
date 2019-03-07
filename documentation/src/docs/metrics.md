@@ -7,12 +7,12 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-In Pravega Metrics Framework, we use [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
+In Pravega Metrics Framework, we use [Micrometer Metrics](https://micrometer.io/docs) as the underlying library, and provide our own API to make it easier to use.
 # 1. Metrics interfaces and examples usage
 There are four basic interfaces: StatsProvider, StatsLogger (short for Statistics Logger), OpStatsLogger (short for Operation Statistics Logger, and it is included in StatsLogger) and Dynamic Logger.
-StatsProvider provides us the whole Metric service; StatsLogger is the place at which we register and get required Metrics ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)); while OpStatsLogger is a sub-metric for complex ones (Timer/Histograms).
+StatsProvider provides us the whole Metric service; StatsLogger is the place at which we register and get required Metrics ([Counter](https://micrometer.io/docs/concepts#_counters)/[Gauge](https://micrometer.io/docs/concepts#_gauges)/[Timer](https://micrometer.io/docs/concepts#_timers)/[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)); while OpStatsLogger is a sub-metric for complex ones (Timer/Distribution Summary).
 ## 1.1. Metrics Service Provider — Interface StatsProvider
-The starting point of Pravega Metric framework is the StatsProvider interface, it provides start and stop method for Metric service. Regarding the reporters, currently we have support for CSV reporter and StatsD reporter.
+The starting point of Pravega Metric framework is the StatsProvider interface, it provides start and stop method for Metric service. Currently we have support StatsD and InfluxDB registries.
 ```java
 public interface StatsProvider {
     void start();
@@ -22,7 +22,7 @@ public interface StatsProvider {
 }
 ```
 
-- start(): Initializes [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and reporters for our Metrics service. 
+- start(): Initializes [MeterRegistry](https://micrometer.io/docs/concepts#_registry) for our Metrics service. 
 - close(): Shutdown of Metrics service.
 - createStatsLogger(): Creates and returns a StatsLogger instance, which is used to retrieve a metric and do metric insertion and collection in Pravega code. 
 - createDynamicLogger(): Create a dynamic logger.
@@ -549,6 +549,5 @@ controller.container.failovers.$containerId.Counter
 ```
 
 # 6. Useful links
-* [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs)
+* [Micrometer Metrics](https://micrometer.io/docs)
 * [Statsd_spec](https://github.com/b/statsd_spec)
-* [etsy_StatsD](https://github.com/etsy/statsd)

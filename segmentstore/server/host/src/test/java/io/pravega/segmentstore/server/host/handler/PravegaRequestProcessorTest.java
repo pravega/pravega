@@ -154,7 +154,7 @@ public class PravegaRequestProcessorTest {
     @Test(timeout = 20000)
     public void testReadSegment() {
         // Set up PravegaRequestProcessor instance to execute read segment request against
-        String streamSegmentName = "testReadSegment";
+        String streamSegmentName = "scope/stream/testReadSegment";
         byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
         int readLength = 1000;
 
@@ -187,7 +187,7 @@ public class PravegaRequestProcessorTest {
     @Test(timeout = 20000)
     public void testReadSegmentEmptySealed() {
         // Set up PravegaRequestProcessor instance to execute read segment request against
-        String streamSegmentName = "testReadSegment";
+        String streamSegmentName = "scope/stream/testReadSegment";
         int readLength = 1000;
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -213,7 +213,7 @@ public class PravegaRequestProcessorTest {
     @Test(timeout = 20000)
     public void testReadSegmentWithCancellationException() {
         // Set up PravegaRequestProcessor instance to execute read segment request against
-        String streamSegmentName = "testReadSegment";
+        String streamSegmentName = "scope/stream/testReadSegment";
         int readLength = 1000;
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -238,7 +238,7 @@ public class PravegaRequestProcessorTest {
     @Test(timeout = 20000)
     public void testReadSegmentTruncated() {
         // Set up PravegaRequestProcessor instance to execute read segment request against
-        String streamSegmentName = "testReadSegment";
+        String streamSegmentName = "scope/stream/testReadSegment";
         int readLength = 1000;
 
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -273,7 +273,7 @@ public class PravegaRequestProcessorTest {
     @Test(timeout = 20000)
     public void testCreateSegment() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
-        String streamSegmentName = "testCreateSegment";
+        String streamSegmentName = "scope/stream/testCreateSegment";
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize();
@@ -299,7 +299,7 @@ public class PravegaRequestProcessorTest {
 
     @Test(timeout = 20000)
     public void testTransaction() throws Exception {
-        String streamSegmentName = "testTxn";
+        String streamSegmentName = "scope/stream/testTxn";
         UUID txnid = UUID.randomUUID();
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -369,7 +369,7 @@ public class PravegaRequestProcessorTest {
 
     @Test(timeout = 20000)
     public void testMergedTransaction() throws Exception {
-        String streamSegmentName = "testMergedTxn";
+        String streamSegmentName = "scope/stream/testMergedTxn";
         UUID txnid = UUID.randomUUID();
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -412,7 +412,7 @@ public class PravegaRequestProcessorTest {
 
     @Test(timeout = 20000)
     public void testMetricsOnSegmentMerge() throws Exception {
-        String streamSegmentName = "txnSegment";
+        String streamSegmentName = "scope/stream/txnSegment";
         UUID txnId = UUID.randomUUID();
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -455,7 +455,7 @@ public class PravegaRequestProcessorTest {
 
     @Test(timeout = 20000)
     public void testSegmentAttribute() throws Exception {
-        String streamSegmentName = "testSegmentAttribute";
+        String streamSegmentName = "scope/stream/testSegmentAttribute";
         UUID attribute = UUID.randomUUID();
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
@@ -496,7 +496,7 @@ public class PravegaRequestProcessorTest {
     @Test(timeout = 20000)
     public void testCreateSealTruncateDelete() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against.
-        String streamSegmentName = "testCreateSealDelete";
+        String streamSegmentName = "scope/stream/testCreateSealDelete";
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize();
@@ -548,7 +548,7 @@ public class PravegaRequestProcessorTest {
     @Test(timeout = 20000)
     public void testUnsupportedOperation() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
-        String streamSegmentName = "testCreateSegment";
+        String streamSegmentName = "scope/stream/testCreateSegment";
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getReadOnlyBuilderConfig());
         serviceBuilder.initialize();
@@ -597,7 +597,7 @@ public class PravegaRequestProcessorTest {
     @Test(timeout = 20000)
     public void testUnimplementedMethods() throws Exception {
         // Set up PravegaRequestProcessor instance to execute requests against
-        String streamSegmentName = "test";
+        String streamSegmentName = "scope/stream/test";
         @Cleanup
         ServiceBuilder serviceBuilder = newInlineExecutionInMemoryBuilder(getBuilderConfig());
         serviceBuilder.initialize();

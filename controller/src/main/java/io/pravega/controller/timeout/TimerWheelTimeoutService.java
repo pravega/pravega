@@ -37,7 +37,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.MetricsNames.TIMEDOUT_TRANSACTIONS;
-import static io.pravega.shared.MetricsNames.nameFromStream;
+import static io.pravega.shared.MetricsTags.streamTags;
 
 /**
  * Transaction ping manager. It maintains a local hashed timer wheel to manage txn timeouts.
@@ -108,7 +108,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                                 hashedWheelTimer.newTimeout(this, 2 * TICK_DURATION, TIME_UNIT);
                             }
                         } else {
-                            DYNAMIC_LOGGER.incCounterValue(nameFromStream(TIMEDOUT_TRANSACTIONS, scope, stream), 1);
+                            DYNAMIC_LOGGER.incCounterValue(TIMEDOUT_TRANSACTIONS, 1, streamTags(scope, stream));
                             log.debug("Successfully executed abort on tx {} ", key);
                             map.remove(key, txnData);
                             notifyCompletion(null);

@@ -193,35 +193,6 @@ public final class MetricsNames {
     public static final String TIMER_SUFFIX = ".Timer";
     public static final String NONE_SUFFIX = "";
 
-    private static String escapeSpecialChar(String name) {
-        return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
-    }
-
-    public static String nameFromStream(String metric, String scope, String stream) {
-        String name = metric + "." + scope + "." + stream;
-        return escapeSpecialChar(name);
-    }
-
-    public static String nameFromTransaction(String metric, String scope, String stream, String txnId) {
-        String name = metric + "." + scope + "." + stream + "." + txnId;
-        return escapeSpecialChar(name);
-    }
-
-    public static String nameFromSegment(String metric, String segmentName) {
-        String name = metric + "." + segmentName;
-        return escapeSpecialChar(name);
-    }
-
-    public static String nameFromHost(String metric, String hostId) {
-        String name = metric + "." + hostId;
-        return escapeSpecialChar(name);
-    }
-
-    public static String nameFromContainer(String metric, int containerId) {
-        String name = metric + "." + containerId;
-        return escapeSpecialChar(name);
-    }
-
     public static String globalMetricName(String stringName) {
         return stringName + "_global";
     }
