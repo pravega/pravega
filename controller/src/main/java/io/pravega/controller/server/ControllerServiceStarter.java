@@ -449,30 +449,4 @@ public class ControllerServiceStarter extends AbstractIdleService {
         }
         return port;
     }
-
-    void printStatus() {
-        if (restServer != null) {
-            log.info("rest service state during shutdown {}", restServer.state());
-        }
-        
-        if (grpcServer != null) {
-            log.info("grpc service state during shutdown {}", grpcServer.state());
-        }
-        
-        if (controllerEventProcessors != null) {
-            log.info("event processors state during shutdown {}", controllerEventProcessors.state());
-        }
-        
-        if (monitor != null) {
-            log.info("monitor state during shutdown {}", monitor.state());
-        }
-        
-        if (controllerClusterListener != null) {
-            log.info("controllerClusterListener state during shutdown {}", controllerClusterListener.state());
-        }
-
-        if (retentionService != null) {
-            log.info("retentionService state during shutdown {}", retentionService.state());
-        }
-    }
 }

@@ -221,17 +221,4 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         ((CuratorFramework) this.storeClient.getClient()).getZookeeperClient().getZooKeeper()
                                                          .getTestable().injectSessionExpiration();
     }
-
-    void shutdown() {
-        log.info("ControllerServiceMain shutdown: service state {}", state());
-        
-        if (starter != null) {
-            starter.printStatus();
-            starter.stopAsync();
-            starter.awaitTerminated();
-        }
-        
-        this.stopAsync();
-        this.awaitTerminated();
-    }
 }

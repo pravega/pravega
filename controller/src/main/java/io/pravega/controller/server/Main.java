@@ -25,9 +25,6 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-
-import java.lang.management.ManagementFactory;
-import java.lang.management.MemoryMXBean;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 
@@ -94,24 +91,8 @@ public class Main {
                     .restServerConfig(Optional.of(restServerConfig))
                     .build();
 
-            Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-                log.error("Thread {} with stackTrace {} failed with uncaught exception", t.getName(), t.getStackTrace(), e);              
-            });
-
             ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
             controllerServiceMain.startAsync();
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
-                memoryMXBean.setVerbose(true);
-                log.error("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
-                        memoryMXBean.getNonHeapMemoryUsage());
-                
-                Thread.getAllStackTraces().forEach((key, value) -> 
-                        log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
-
-                log.info("Controller service shutting down");
-                controllerServiceMain.shutdown();
-            }));
             controllerServiceMain.awaitTerminated();
 
             log.info("Controller service exited");
