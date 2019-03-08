@@ -990,7 +990,7 @@ public abstract class PersistentStreamBase implements Stream {
                                                 .build();
         return verifyNotSealed().thenCompose(v -> createNewTransaction(txnId, record.toBytes())
                 .thenApply(version -> new VersionedTransactionData(epoch, txnId, version,
-                        TxnStatus.OPEN, current, maxExecTimestamp, Optional.empty(), Optional.empty())));
+                        TxnStatus.OPEN, current, maxExecTimestamp, "", Long.MIN_VALUE, Long.MIN_VALUE)));
     }
 
     @Override
@@ -1003,13 +1003,16 @@ public abstract class PersistentStreamBase implements Stream {
         final long creationTime = txnData.getCreationTime();
         final long maxExecutionExpiryTime = txnData.getMaxExecutionExpiryTime();
         final TxnStatus status = txnData.getStatus();
+        final String writerId = txnData.getWriterId();
+        final long commitTime = txnData.getCommitTime();
+        final long position = txnData.getPosition();
         final ActiveTxnRecord newData = new ActiveTxnRecord(creationTime, System.currentTimeMillis() + lease,
                 maxExecutionExpiryTime, status);
         final Data data = new Data(newData.toBytes(), version);
 
         return updateActiveTx(txnId, data)
                 .thenApply(updatedVersion -> new VersionedTransactionData(epoch, txnId, updatedVersion, status, creationTime, 
-                        maxExecutionExpiryTime, Optional.empty(), Optional.empty()));
+                        maxExecutionExpiryTime, writerId, commitTime, position));
     }
 
     @Override
@@ -1020,8 +1023,8 @@ public abstract class PersistentStreamBase implements Stream {
                     ActiveTxnRecord activeTxnRecord = ActiveTxnRecord.fromBytes(data.getData());
                     return new VersionedTransactionData(epoch, txId, data.getVersion(),
                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
-                            activeTxnRecord.getMaxExecutionExpiryTime(), Optional.of(activeTxnRecord.getWriterId()), 
-                            Optional.of(activeTxnRecord.getCommitTime()));
+                            activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(), 
+                            activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder());
                 });
     }
 
