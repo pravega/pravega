@@ -290,8 +290,8 @@ class EventProcessorCell<T extends ControllerEvent> {
     private EventProcessor<T> createEventProcessor(final EventProcessorConfig<T> eventProcessorConfig) {
         EventProcessor<T> eventProcessor = eventProcessorConfig.getSupplier().get();
         eventProcessor.checkpointer = (Position position) -> {
-            checkpoint.set(position);
             checkpointStore.setPosition(process, readerGroupName, readerId, position);
+            checkpoint.set(position);
         };
         eventProcessor.selfWriter = selfWriter::writeEvent;
         return eventProcessor;
