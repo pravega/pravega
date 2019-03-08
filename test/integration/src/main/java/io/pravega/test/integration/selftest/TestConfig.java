@@ -18,7 +18,9 @@ import java.net.InetAddress;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
@@ -325,12 +327,16 @@ public class TestConfig {
 
     //endregion
 
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public enum TestType {
-        SegmentStore,
-        InProcessMock,
-        InProcessStore,
-        OutOfProcess,
-        External,
-        BookKeeper
+        SegmentStore(false),
+        SegmentStoreTable(true),
+        InProcessMock(false),
+        InProcessStore(false),
+        OutOfProcess(false),
+        External(false),
+        BookKeeper(false);
+        @Getter
+        private final boolean tablesTest;
     }
 }

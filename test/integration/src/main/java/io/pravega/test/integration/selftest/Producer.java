@@ -152,7 +152,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
     private boolean handleOperationError(Throwable ex, ProducerOperation op) {
         // Log & throw every exception.
         ex = Exceptions.unwrap(ex);
-        if (ex instanceof StreamProducerDataSource.UnknownStreamException) {
+        if (ex instanceof ProducerDataSource.UnknownTargetException) {
             // This is OK: some other producer deleted the segment after we requested the operation and until we
             // tried to apply it.
             return true;
@@ -163,6 +163,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
         }
 
         TestLogger.log(getLogId(), "Iteration %s FAILED for Op '%s' with %s.", this.iterationCount, op, ex);
+        ex.printStackTrace(System.out);
         this.canContinue.set(false);
         op.failed(ex);
         return false;
@@ -360,8 +361,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
         @Override
         protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
             TableUpdate update = (TableUpdate) operation.getUpdate();
-            assert !update.isRemoval() && update.getValue() != null : "bad update args" + update;
-            return Producer.this.store.updateTableEntry(operation.getTarget(), update.getKey(), update.getValue(), update.getCompareVersion(), Producer.this.config.getTimeout())
+            return Producer.this.store.updateTableEntry(operation.getTarget(), update.getKey(), update.getValue(), update.getVersion(), Producer.this.config.getTimeout())
                     .thenAccept(operation::setResult);
         }
     }
@@ -380,9 +380,7 @@ class Producer<T extends ProducerUpdate> extends Actor {
         @Override
         protected CompletableFuture<Void> executeInternal(ProducerOperation<T> operation) {
             TableUpdate update = (TableUpdate) operation.getUpdate();
-            assert update.isRemoval() && update.getValue() == null : "bad removal args " + update;
-            return Producer.this.store.removeTableEntry(operation.getTarget(), update.getKey(), update.getCompareVersion(), Producer.this.config.getTimeout())
-                    .thenAccept(operation::setResult);
+            return Producer.this.store.removeTableEntry(operation.getTarget(), update.getKey(), update.getVersion(), Producer.this.config.getTimeout());
         }
     }
 

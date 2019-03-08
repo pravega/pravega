@@ -99,6 +99,19 @@ class Reporter extends AbstractScheduledService {
                 ? "(warmup)"
                 : String.format("%s/%s", this.testState.getSuccessfulOperationCount(), this.testConfig.getOperationCount());
 
+        String threadPools = String.format("TPools (Q/T/S): %s, %s, %s",
+                formatSnapshot(storePoolSnapshot, "S"),
+                formatSnapshot(testPoolSnapshot, "T"),
+                formatSnapshot(joinPoolSnapshot, "FJ"));
+
+        if (this.testConfig.getTestType().isTablesTest()) {
+            outputTableState(producedLength, ops, (int) instantOps, instantThroughput, threadPools);
+        } else {
+            outputStreamState(producedLength, ops, (int) instantOps, instantThroughput, threadPools);
+        }
+    }
+
+    private void outputStreamState(long producedLength, String ops, int instantOps, double instantThroughput, String threadPools) {
         String data = String.format(this.testConfig.isReadsEnabled() ? " (P/T/C/S): %.1f/%.1f/%.1f/%.1f" : ": %.1f",
                 toMB(producedLength),
                 toMB(this.testState.getVerifiedTailLength()),
@@ -107,16 +120,27 @@ class Reporter extends AbstractScheduledService {
 
         TestLogger.log(
                 LOG_ID,
-                "%s; Ops = %d/%d; Data%s MB; TPut: %.1f/%.1f MB/s; TPools (Q/T/S): %s, %s, %s.",
+                "%s; Ops = %d/%d; Data%s MB; TPut: %.1f/%.1f MB/s; %s.",
                 ops,
-                (int) instantOps,
+                instantOps,
                 (int) this.testState.getOperationsPerSecond(),
                 data,
                 instantThroughput < 0 ? 0.0 : toMB(instantThroughput),
                 toMB(this.testState.getThroughput()),
-                formatSnapshot(storePoolSnapshot, "S"),
-                formatSnapshot(testPoolSnapshot, "T"),
-                formatSnapshot(joinPoolSnapshot, "FJ"));
+                threadPools);
+    }
+
+    private void outputTableState(long producedLength, String ops, int instantOps, double instantThroughput, String threadPools) {
+        TestLogger.log(
+                LOG_ID,
+                "%s; Ops = %d/%d; Data: %.1f MB; TPut: %.1f/%.1f MB/s; %s.",
+                ops,
+                instantOps,
+                (int) this.testState.getOperationsPerSecond(),
+                toMB(producedLength),
+                instantThroughput < 0 ? 0.0 : toMB(instantThroughput),
+                toMB(this.testState.getThroughput()),
+                threadPools);
     }
 
     private String formatSnapshot(ExecutorServiceHelpers.Snapshot s, String name) {

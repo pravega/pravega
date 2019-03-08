@@ -141,7 +141,7 @@ class StreamProducerDataSource extends ProducerDataSource<Event> {
         if (generator == null) {
             // If the argument is indeed correct, this segment was deleted between the time the operation got generated
             // and when this method was invoked.
-            throw new UnknownStreamException(streamName);
+            throw new UnknownTargetException(streamName);
         }
 
         int maxSize = this.config.getMaxAppendSize();
@@ -259,16 +259,4 @@ class StreamProducerDataSource extends ProducerDataSource<Event> {
     }
 
     //endregion
-
-    /**
-     * Exception that is thrown whenever an unknown Stream/Segment name is passed to this data source (one that was not
-     * created using it).
-     */
-    static class UnknownStreamException extends RuntimeException {
-        private static final long serialVersionUID = 1L;
-
-        private UnknownStreamException(String segmentName) {
-            super(String.format("No such Stream/Segment was created using this DataSource: %s.", segmentName));
-        }
-    }
 }

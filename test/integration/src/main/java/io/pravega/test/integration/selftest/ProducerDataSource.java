@@ -57,4 +57,16 @@ abstract class ProducerDataSource<T extends ProducerUpdate> {
         TestState.StreamInfo si = this.state.getStream(name);
         return si == null || si.isClosed();
     }
+
+    /**
+     * Exception that is thrown whenever an unknown Stream/Segment name is passed to this data source (one that was not
+     * created using it).
+     */
+    static class UnknownTargetException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        UnknownTargetException(String segmentName) {
+            super(String.format("No such Stream/Segment was created using this DataSource: %s.", segmentName));
+        }
+    }
 }

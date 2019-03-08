@@ -64,9 +64,15 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.state = new TestState();
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(testConfig.getThreadPoolSize(), "self-test");
         this.store = StoreAdapter.create(testConfig, builderConfig, this.executor);
-        this.dataSource = new StreamProducerDataSource(this.testConfig, this.state, this.store);
+        this.dataSource = createProducerDataSource(this.testConfig, this.state, this.store);
         Services.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
+    }
+
+    private ProducerDataSource<?> createProducerDataSource(TestConfig config, TestState state, StoreAdapter store) {
+        return config.getTestType().isTablesTest()
+                ? new TableProducerDataSource(config, state, store)
+                : new StreamProducerDataSource(config, state, store);
     }
 
     //endregion
@@ -180,7 +186,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         }
 
         // Create Consumers (based on the number of non-transaction Segments).
-        boolean readsEnabled = this.testConfig.isReadsEnabled();
+        boolean readsEnabled = this.testConfig.isReadsEnabled() && !this.testConfig.getTestType().isTablesTest();
         boolean storeSupportsReads = Consumer.canUseStoreAdapter(this.store);
         if (readsEnabled && storeSupportsReads) {
             for (val si : this.state.getAllStreams()) {
@@ -191,7 +197,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         } else {
             String reason = readsEnabled
                     ? (storeSupportsReads ? "no reason" : "the StoreAdapter does not support all required features")
-                    : "reads are not enabled";
+                    : "reads are not enabled or supported for this type of test";
             TestLogger.log(LOG_ID, "Not creating any consumers because %s.", reason);
         }
     }

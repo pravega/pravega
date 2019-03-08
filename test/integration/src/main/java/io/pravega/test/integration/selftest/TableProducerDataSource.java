@@ -13,54 +13,72 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
-public class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
+class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
+    //region Members
+
     private final ConcurrentHashMap<String, UpdateGenerator> updateGenerators;
     @GuardedBy("lock")
     private final Random random;
     private final Object lock = new Object();
 
-    public TableProducerDataSource(TestConfig config, TestState state, StoreAdapter store) {
+    //endregion
+
+    //region Constructor
+
+    TableProducerDataSource(TestConfig config, TestState state, StoreAdapter store) {
         super(config, state, store);
         Preconditions.checkArgument(store.isFeatureSupported(StoreAdapter.Feature.Tables), "StoreAdapter must support Tables.");
         this.updateGenerators = new ConcurrentHashMap<>();
         this.random = new Random();
     }
 
+    //endregion
+
+    //region ProducerDataSource Implementation
+
     @Override
     ProducerOperation<TableUpdate> nextOperation(int producerId) {
         int operationIndex = this.state.newOperation();
-        ProducerOperation<TableUpdate> result;
-        boolean removal;
-        synchronized (this.lock) {
-            if (operationIndex > this.config.getOperationCount()) {
-                // End of the test.
-                return null;
-            }
-
-            // Decide whether to remove.
-            removal = decide(this.config.getTableRemovePercentage());
-
-            // Choose operation type based on Test Configuration. For simplicity we don't mix conditional and unconditional
-            // updates in this type of test.
-            val opType = removal ? ProducerOperationType.TABLE_REMOVE : ProducerOperationType.TABLE_UPDATE;
-
-            // Choose a Table to update.
-            val si = this.state.getStreamOrTransaction(operationIndex);
-            si.operationStarted();
-            result = new ProducerOperation<>(opType, si.getName());
+        if (operationIndex > this.config.getOperationCount()) {
+            // End of the test.
+            return null;
         }
 
+        if (this.state.isWarmup() && operationIndex == this.config.getWarmupCount()) {
+            this.state.setWarmup(false);
+        }
+
+        boolean removal;
+        synchronized (this.lock) {
+            // Decide whether to remove.
+            removal = decide(this.config.getTableRemovePercentage());
+        }
+
+        // Choose operation type based on Test Configuration. For simplicity we don't mix conditional and unconditional
+        // updates in this type of test.
+        val opType = removal ? ProducerOperationType.TABLE_REMOVE : ProducerOperationType.TABLE_UPDATE;
+
+        // Choose a Table to update.
+        val si = this.state.getStreamOrTransaction(operationIndex);
+        si.operationStarted();
+        ProducerOperation<TableUpdate> result = new ProducerOperation<>(opType, si.getName());
+
         // Generate the update and link callbacks.
-        result.setUpdate(generateUpdate(result.getTarget(), removal, producerId));
+        TableUpdate update = generateUpdate(result.getTarget(), removal);
+        result.setUpdate(update);
+        result.setLength(update.getKey().getLength() + (update.isRemoval() ? 0 : update.getValue().getLength()));
         result.setCompletionCallback(this::operationCompletionCallback);
         result.setFailureCallback(this::operationFailureCallback);
         return result;
@@ -74,12 +92,11 @@ public class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
         TestLogger.log(LOG_ID, "Creating Tables.");
         for (int i = 0; i < this.config.getStreamCount(); i++) {
             // Table Names are of the form: Table<TestId><TableId> - to avoid clashes between different tests.
-            final int tableId = i;
-            String name = String.format("Table%s%s", this.config.getTestId(), tableId);
+            String name = String.format("Table%s%s", this.config.getTestId(), i);
             creationFutures.add(this.store.createTable(name, this.config.getTimeout())
                     .thenRun(() -> {
                         this.state.recordNewStreamName(name);
-                        this.updateGenerators.put(name, new UpdateGenerator(tableId));
+                        this.updateGenerators.put(name, new UpdateGenerator());
                     }));
         }
 
@@ -103,6 +120,8 @@ public class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
         return Futures.allOf(deletionFutures);
     }
 
+    //endregion
+
     private CompletableFuture<Void> deleteStream(String name) {
         return Futures.exceptionallyExpecting(this.store.deleteStream(name, this.config.getTimeout()),
                 ex -> ex instanceof StreamSegmentNotExistsException,
@@ -115,23 +134,25 @@ public class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
         this.state.recordDeletedStream(name);
     }
 
-    private TableUpdate generateUpdate(String target, boolean removal, int producerId) {
-        // Choose whether to pick existing key or not (using configuration).
-        // If conditional, pick a key that has a version defined. If none available, create new key.
+    private TableUpdate generateUpdate(String target, boolean removal) {
+        UpdateGenerator generator = this.updateGenerators.get(target);
+        if (generator == null) {
+            // If the argument is indeed correct, this segment was deleted between the time the operation got generated
+            // and when this method was invoked.
+            throw new UnknownTargetException(target);
+        }
 
-        // Keys are generated based on a sequence number. Every new key will get a new sequence number.
-        // Values are generated as a function of their key, producer and current timestamp.
-        // TODO
-        throw new UnsupportedOperationException("implement me");
+        return removal ? generator.generateRemoval() : generator.generateUpdate();
     }
 
     private void operationCompletionCallback(ProducerOperation<TableUpdate> op) {
         this.state.operationCompleted(op.getTarget());
         this.state.recordDuration(op.getType(), op.getElapsedMillis());
         this.state.recordAppend(op.getLength());
-        if (op.getResult() != null) {
-            Long version = (Long) op.getResult();
-            // TODO: record latest version.
+        UpdateGenerator generator = this.updateGenerators.get(op.getTarget());
+        if (generator != null && !op.getUpdate().isRemoval() && op.getResult() != null) {
+            // Update the generator's knowledge of this key's version so it may reuse that for subsequent operations.
+            generator.recordUpdate(op.getUpdate().getKeyId(), (Long) op.getResult());
         }
     }
 
@@ -144,9 +165,44 @@ public class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
         return random.nextInt(101) <= probabilityPercentage;
     }
 
-    @RequiredArgsConstructor
     private class UpdateGenerator {
-        private final int tableId;
+        @GuardedBy("this")
+        private final ArrayDeque<KeyWithVersion> recentKeys; // Keys to Versions.
 
+        UpdateGenerator() {
+            this.recentKeys = new ArrayDeque<>();
+        }
+
+        synchronized void recordUpdate(UUID keyId, long version) {
+            this.recentKeys.addLast(new KeyWithVersion(keyId, version));
+        }
+
+        TableUpdate generateRemoval() {
+            KeyWithVersion toUpdate = pickKey();
+            return TableUpdate.removal(toUpdate.keyId, toUpdate.version);
+        }
+
+        TableUpdate generateUpdate() {
+            KeyWithVersion toUpdate = pickKey();
+            return TableUpdate.update(toUpdate.keyId, config.getMaxAppendSize(), toUpdate.version);
+        }
+
+        synchronized private KeyWithVersion pickKey() {
+            // Choose whether to pick existing key or not (using configuration).
+            return decide(config.getTableNewKeyPercentage()) || this.recentKeys.isEmpty()
+                    ? new KeyWithVersion(UUID.randomUUID(), config.isTableConditionalUpdates() ? TableKey.NOT_EXISTS : null)
+                    : this.recentKeys.removeFirst();
+        }
+    }
+
+    @RequiredArgsConstructor
+    private static class KeyWithVersion {
+        final UUID keyId;
+        final Long version;
+
+        @Override
+        public String toString() {
+            return String.format("KeyId = %s, Version = %s", this.keyId, this.version);
+        }
     }
 }
