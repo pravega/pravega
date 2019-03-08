@@ -84,8 +84,9 @@ jobs:
          - export CLUSTER_INFO=$(gcloud --format json container clusters describe $CLUSTER_NAME --zone $CLUSTER_ZONE)
          - export USER=" $(echo $CLUSTER_INFO | jq -r ".masterAuth.username")"
          - export PASSWORD=" $(echo $CLUSTER_INFO | jq -r ".masterAuth.password")"
-         - sed -i -e '/user:.*/,+5d' $HOME/.kube/config
+         - sed -i -e '/^  user:$/,+5d' $HOME/.kube/config
          - echo -e "  user:\n    username:$USER\n    password:$PASSWORD" >> $HOME/.kube/config
+         - cat $HOME/.kube/config
          # End of workaround
          - kubectl config view
          - kubectl create clusterrolebinding cluster-admin-binding --clusterrole=cluster-admin --user=pravega-travis-service-account@pravega-dev.iam.gserviceaccount.com
