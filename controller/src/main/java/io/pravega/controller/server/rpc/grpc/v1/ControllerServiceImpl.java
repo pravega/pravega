@@ -414,7 +414,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "deleteScope", request.getScope());
         log.info(requestTag.getRequestId(), "deleteScope called for scope {}.", request.getScope());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
-                AuthResourceRepresentation.ofScope(request.getScope()), AuthHandler.Permissions.READ_UPDATE),
+                AuthResourceRepresentation.ofScopes(), AuthHandler.Permissions.READ_UPDATE),
                delegationToken -> controllerService.deleteScope(request.getScope()),
                 responseObserver, requestTag);
     }

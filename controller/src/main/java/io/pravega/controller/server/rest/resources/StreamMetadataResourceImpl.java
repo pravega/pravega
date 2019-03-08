@@ -218,7 +218,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
 
         try {
             restAuthHelper.authenticateAuthorize(getAuthorizationHeader(),
-                    AuthResourceRepresentation.ofScope(scopeName), READ_UPDATE);
+                    AuthResourceRepresentation.ofScopes(), READ_UPDATE);
         } catch (AuthException e) {
             log.warn("Delete scope for {} failed due to authentication failure.", scopeName);
             asyncResponse.resume(Response.status(Status.fromStatusCode(e.getResponseCode())).build());
