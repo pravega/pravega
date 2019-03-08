@@ -75,6 +75,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         private final UUID id;
         private long lastEventNumber = -1L;
         private int eventCount;
+        private long requestId;
     }
 
     @Override
@@ -84,14 +85,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             Append append = (Append) msg;
             Session session = setupSegments.get(append.segment);
             validateAppend(append, session);
-            if (append.segment != segmentBeingAppendedTo) {
+            if (!append.segment.equals(segmentBeingAppendedTo)) {
                 breakFromAppend(out);
             }
             if (bytesLeftInBlock == 0) {
                 currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
                 bytesLeftInBlock = currentBlockSize;
                 segmentBeingAppendedTo = append.segment;
-                writeMessage(new AppendBlock(session.id), out);
+                writeMessage(new AppendBlock(append.getRequestId(), session.id), out);
                 if (ctx != null) {
                     ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
                                             blockSizeSupplier.getBatchTimeout(),
@@ -117,7 +118,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                                                 dataRemainging,
                                                 session.eventCount,
                                                 session.lastEventNumber,
-                                                0L), out);
+                                                0L, append.getRequestId()), out);
                 bytesLeftInBlock = 0;
                 session.eventCount = 0;
             }
@@ -162,7 +163,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     currentBlockSize - bytesLeftInBlock,
                     null,
                     session.eventCount,
-                    session.lastEventNumber, 0L), out);
+                    session.lastEventNumber, 0L, session.id.getLeastSignificantBits()), out);
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
             session.eventCount = 0;

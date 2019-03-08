@@ -15,6 +15,7 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RequestIdGenerator;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -91,7 +92,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     RawClient getConnection() {
         synchronized (lock) {
             if (client == null || client.isClosed()) {
-                client = new RawClient(controller, connectionFactory, segmentId);
+                client = new RawClient(controller, connectionFactory, segmentId, RequestIdGenerator.getRequestId());
             }
             return client;
         }
@@ -118,7 +119,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         long requestId = requestIdGenerator.get();
         log.debug("Getting segment info for segment: {}", segmentId);
         RawClient connection = getConnection();
-        return connection.sendRequest(requestId, new GetStreamSegmentInfo(requestId, segmentId.getScopedName(), delegationToken))
+        return connection.sendRequest(requestId, new GetStreamSegmentInfo(connection.getRequestId(), segmentId.getScopedName(), delegationToken))
                          .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
     }
     
@@ -127,7 +128,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         log.debug("Getting segment attribute: {}", attributeId);
         RawClient connection = getConnection();
         return connection.sendRequest(requestId,
-                                      new GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, delegationToken))
+                                      new GetSegmentAttribute(connection.getRequestId(), segmentId.getScopedName(), attributeId, delegationToken))
                          .thenApply(r -> transformReply(r, WireCommands.SegmentAttribute.class));
     }
 
@@ -137,7 +138,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         log.trace("Updating segment attribute: {}", attributeId);
         RawClient connection = getConnection();
         return connection.sendRequest(requestId,
-                                      new UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId,
+                                      new UpdateSegmentAttribute(connection.getRequestId(), segmentId.getScopedName(), attributeId,
                                                                  value, expected, delegationToken))
                          .thenApply(r -> transformReply(r, SegmentAttributeUpdated.class));
     }
@@ -146,7 +147,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         long requestId = requestIdGenerator.get();
         log.trace("Truncating segment: {}", segment);
         RawClient connection = getConnection();
-        return connection.sendRequest(requestId, new TruncateSegment(requestId, segment.getScopedName(), offset, delegationToken))
+        return connection.sendRequest(requestId, new TruncateSegment(connection.getRequestId(), segment.getScopedName(), offset, delegationToken))
                          .thenApply(r -> transformReply(r, SegmentTruncated.class));
     }
     
@@ -154,7 +155,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         long requestId = requestIdGenerator.get();
         log.trace("Sealing segment: {}", segment);
         RawClient connection = getConnection();
-        return connection.sendRequest(requestId, new SealSegment(requestId, segment.getScopedName(), delegationToken))
+        return connection.sendRequest(requestId, new SealSegment(connection.getRequestId(), segment.getScopedName(), delegationToken))
                          .thenApply(r -> transformReply(r, SegmentSealed.class));
     }
 

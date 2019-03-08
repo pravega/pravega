@@ -18,6 +18,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RequestIdGenerator;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableFutureLatch;
@@ -80,6 +81,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final RetryWithBackoff retrySchedule;
     private final Object writeOrderLock = new Object();
     private final String delegationToken;
+    private final long requestId = RequestIdGenerator.getRequestId();
 
     /**
      * Internal object that tracks the state of the connection.
@@ -345,7 +347,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              .map(entry -> new Append(segmentName, writerId, entry.getKey(),
                                                                       1,
                                                                       entry.getValue().getData(),
-                                                                      null))
+                                                                      null,
+                                                                      requestId
+                                                                      ))
                                              .collect(Collectors.toList());
             ClientConnection connection = state.getConnection();
             if (connection == null) {
@@ -436,7 +440,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             long eventNumber = state.addToInflight(event);
             try {
-                Append append = new Append(segmentName, writerId, eventNumber, 1, event.getData(), null);
+                Append append = new Append(segmentName, writerId, eventNumber, 1, event.getData(), null, requestId);
                 log.trace("Sending append request: {}", append);
                 connection.send(append);
             } catch (ConnectionFailedException e) {
@@ -536,7 +540,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          return connectionFactory.establishConnection(uri, responseProcessor);
                      }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
-                         SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName, delegationToken);
+                         SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, delegationToken);
                          try {
                              connection.send(cmd);
                          } catch (ConnectionFailedException e1) {

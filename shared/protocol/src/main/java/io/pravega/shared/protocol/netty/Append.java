@@ -22,22 +22,24 @@ public class Append implements Request, Comparable<Append> {
     final int eventCount;
     final ByteBuf data;
     final Long expectedLength;
+    final long requestId;
 
-    public Append(String segment, UUID writerId, long eventNumber, Event event) {
-        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), null);
+    public Append(String segment, UUID writerId, long eventNumber, Event event, long requestId) {
+        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), null, requestId);
     }
     
-    public Append(String segment, UUID writerId, long eventNumber, Event event, long expectedLength) {
-        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), expectedLength);
+    public Append(String segment, UUID writerId, long eventNumber, Event event, long expectedLength, long requestId) {
+        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), expectedLength, requestId);
     }
     
-    public Append(String segment, UUID writerId, long eventNumber, int eventCount, ByteBuf data, Long expectedLength) {
+    public Append(String segment, UUID writerId, long eventNumber, int eventCount, ByteBuf data, Long expectedLength, long requestId) {
         this.segment = segment;
         this.writerId = writerId;
         this.eventNumber = eventNumber;
         this.eventCount = eventCount;
         this.data = data;
         this.expectedLength = expectedLength;
+        this.requestId = requestId;
     }
     
     public int getDataLength() {
@@ -60,6 +62,6 @@ public class Append implements Request, Comparable<Append> {
 
     @Override
     public long getRequestId() {
-        return eventNumber;
+        return requestId;
     }
 }

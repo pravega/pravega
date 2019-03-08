@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.RequestIdGenerator;
 import lombok.RequiredArgsConstructor;
 
 @VisibleForTesting
@@ -42,7 +43,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken, RequestIdGenerator.getRequestId());
         async.getConnection();
         return getEventSegmentReader(async, 0, endOffset, bufferSize);
     }
@@ -60,7 +61,8 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
 
     @Override
     public SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken) {
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken,
+                                                                            RequestIdGenerator.getRequestId());
         async.getConnection();
         return new SegmentInputStreamImpl(async, 0);
     }
