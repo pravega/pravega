@@ -22,7 +22,6 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import java.net.URI;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -67,7 +66,7 @@ public class BookkeeperDockerService extends DockerBasedService {
 
         Mount mount1 = Mount.builder().type("volume").source("index-volume").target("/bk/index")
                 .build();
-        Mount mount2 = Mount.builder().type("volume").source("logs-volume")
+        Mount mount2 = Mount.builder().type("volume").source("bookkeeper-logs")
                 .target("/opt/dl_all/distributedlog-service/logs/")
                 .build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
@@ -80,13 +79,14 @@ public class BookkeeperDockerService extends DockerBasedService {
         stringList.add(env2);
         stringList.add(env3);
         stringList.add(env4);
+
         final TaskSpec taskSpec = TaskSpec
                 .builder().restartPolicy(RestartPolicy.builder().maxAttempts(0).condition("none").build())
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
                         .labels(labels)
                         .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
-                        .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
                         .mounts(Arrays.asList(mount1, mount2))
                         .env(stringList).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())

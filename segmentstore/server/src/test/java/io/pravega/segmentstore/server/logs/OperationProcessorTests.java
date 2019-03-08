@@ -18,7 +18,8 @@ import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.server.ConfigHelpers;
+import io.pravega.segmentstore.server.CacheManager;
+import io.pravega.segmentstore.server.CachePolicy;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.ServiceListeners;
@@ -28,10 +29,8 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
-import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.server.reading.CacheManager;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.CacheFactory;
@@ -46,6 +45,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.AbstractMap;
@@ -59,7 +59,6 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -374,7 +373,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
      * is generated.
      */
     @Test
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public void testWithDataCorruptionFailures() throws Exception {
         // If a DataCorruptionException is thrown for a particular Operation, the OperationQueueProcessor should
         // immediately shut down and stop accepting other ops.
@@ -418,10 +416,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
         boolean encounteredFirstFailure = false;
         for (int i = 0; i < completionFutures.size(); i++) {
             OperationWithCompletion oc = completionFutures.get(i);
-            if (!oc.operation.canSerialize()) {
-                // Non-serializable operations (i.e., ProbeOperations always complete normally).
-                continue;
-            }
 
             // Once an operation failed (in our scenario), no other operation can succeed.
             if (encounteredFirstFailure) {
@@ -446,38 +440,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // There is no point in performing metadata checks. A DataCorruptionException means the Metadata (and the general
         // state of the Container) is in an undefined state.
-    }
-
-    /**
-     * Tests the ability of the OperationProcessor to handle a single ProbeOperation (this is because it's a non-serializable
-     * operation, so there is no commit to DurableDataLog - we need to verify the operation is properly completed in this
-     * case).
-     */
-    @Test
-    public void testWithSingleProbeOperation() throws Exception {
-        @Cleanup
-        TestContext context = new TestContext();
-
-        // Generate some test data.
-        ProbeOperation operation = new ProbeOperation();
-
-        // Setup an OperationProcessor and start it.
-        @Cleanup
-        TestDurableDataLog dataLog = TestDurableDataLog.create(CONTAINER_ID, MAX_DATA_LOG_APPEND_SIZE, executorService());
-        dataLog.initialize(TIMEOUT);
-        @Cleanup
-        OperationProcessor operationProcessor = new OperationProcessor(context.metadata, context.stateUpdater,
-                dataLog, getNoOpCheckpointPolicy(), executorService());
-        operationProcessor.startAsync().awaitRunning();
-
-        // Process all generated operations.
-        OperationWithCompletion completionFuture = processOperations(Collections.singleton(operation), operationProcessor).get(0);
-
-        // Wait for the ProbeOperation to complete (without exception). This is all we need to verify.
-        completionFuture.completion.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-
-        // Stop the processor.
-        operationProcessor.stopAsync().awaitTerminated();
     }
 
     /**
@@ -514,7 +476,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Wait for the operation to complete. The operation should have been cancelled (due to the OperationProcessor
         // shutting down) - no other exception (or successful completion is accepted).
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Operation did not fail with the right exception.",
                 () -> completionFuture.completion,
                 ex -> ex instanceof CancellationException || ex instanceof ObjectClosedException);
@@ -537,7 +499,6 @@ public class OperationProcessorTests extends OperationLogTestBase {
         val successfulOps = operations.stream()
                                       .filter(oc -> !oc.completion.isCompletedExceptionally())
                                       .map(oc -> oc.operation)
-                                      .filter(Operation::canSerialize)
                                       .limit(maxCount)
                                       .collect(Collectors.toList());
 
@@ -547,7 +508,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         if (successfulOps.size() > 0) {
             // Writing to the memory log is asynchronous and we don't have any callbacks to know when it was written to.
             // We check periodically until the last item has been written.
-            await(() -> memoryLog.read(successfulOps.get(successfulOps.size() - 1).getSequenceNumber() - 1, 1).hasNext(), 10);
+            TestUtils.await(() -> memoryLog.read(successfulOps.get(successfulOps.size() - 1).getSequenceNumber() - 1, 1).hasNext(), 10, TIMEOUT.toMillis());
         }
 
         Iterator<Operation> memoryLogIterator = memoryLog.read(-1, operations.size() + 1);
@@ -619,10 +580,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.storage = InMemoryStorageFactory.newStorage(executorService());
             this.storage.initialize(1);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            ReadIndexConfig readIndexConfig = ConfigHelpers
-                    .withInfiniteCachePolicy(ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
-                    .build();
-            this.cacheManager = new CacheManager(readIndexConfig.getCachePolicy(), executorService());
+            ReadIndexConfig readIndexConfig = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
             this.memoryLog = new SequencedItemList<>();
             this.stateUpdater = new MemoryStateUpdater(this.memoryLog, this.readIndex, Runnables.doNothing());

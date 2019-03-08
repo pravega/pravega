@@ -15,6 +15,7 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.stream.Stream;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -39,6 +40,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 public class TransactionTest {
     private Level originalLevel;
@@ -60,6 +62,7 @@ public class TransactionTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException, ReinitializationRequiredException {
         int readTimeout = 5000;
         String readerName = "reader";
@@ -72,7 +75,7 @@ public class TransactionTest {
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -84,7 +87,6 @@ public class TransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                              EventWriterConfig.builder()
                                                                                               .transactionTimeoutTime(60000)
-                                                                                              .transactionTimeoutScaleGracePeriod(60000)
                                                                                               .build());
         producer.writeEvent(routingKey, nonTxEvent);
         Transaction<String> transaction = producer.beginTxn();
@@ -129,6 +131,7 @@ public class TransactionTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -137,7 +140,7 @@ public class TransactionTest {
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -148,7 +151,6 @@ public class TransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                              EventWriterConfig.builder()
                                                                                               .transactionTimeoutTime(60000)
-                                                                                              .transactionTimeoutScaleGracePeriod(60000)
                                                                                               .build());
         Transaction<String> transaction = producer.beginTxn();
         transaction.writeEvent(routingKey, event);
@@ -157,6 +159,7 @@ public class TransactionTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     public void testDrop() throws TxnFailedException, ReinitializationRequiredException {
         String endpoint = "localhost";
         String groupName = "group";
@@ -167,7 +170,7 @@ public class TransactionTest {
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -179,7 +182,6 @@ public class TransactionTest {
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                                                                              EventWriterConfig.builder()
                                                                                               .transactionTimeoutTime(60000)
-                                                                                              .transactionTimeoutScaleGracePeriod(60000)
                                                                                               .build());
 
         Transaction<String> transaction = producer.beginTxn();

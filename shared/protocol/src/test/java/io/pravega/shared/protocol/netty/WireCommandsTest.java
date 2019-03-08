@@ -18,11 +18,16 @@ import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Data;
 import org.junit.Test;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -30,6 +35,7 @@ public class WireCommandsTest {
 
     private final UUID uuid = UUID.randomUUID();
     private final String testString1 = "testString1";
+    private final String testString2 = "testString2";
     private final ByteBuffer buffer = ByteBuffer.wrap(new byte[] { 1, 2, 3, 4, 5 });
     private final ByteBuf buf = Unpooled.wrappedBuffer(buffer);
     private final byte b = -1;
@@ -74,7 +80,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAuthTokenCheckFalied() throws IOException {
-        testCommand(new WireCommands.AuthTokenCheckFailed(l));
+        testCommand(new WireCommands.AuthTokenCheckFailed(l, ""));
         AtomicReference<Boolean> authTokenCheckFailedCalled = new AtomicReference<>(false);
         ReplyProcessor rp = new FailingReplyProcessor() {
             @Override
@@ -93,7 +99,7 @@ public class WireCommandsTest {
             }
         };
 
-        new WireCommands.AuthTokenCheckFailed(0).process(rp);
+        new WireCommands.AuthTokenCheckFailed(0, "").process(rp);
         assertTrue("Process should call the corresponding API", authTokenCheckFailedCalled.get());
     }
 
@@ -130,6 +136,264 @@ public class WireCommandsTest {
         testCommand(new WireCommands.DataAppended(uuid, l, Long.MIN_VALUE));
     }
 
+    /*
+     * Test compatibility in WireCommands error messages between versions 5 and 6 (added serverStackTrace field).
+     */
+    @Data
+    public static final class WrongHostV5 implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.WRONG_HOST;
+        final long requestId;
+        final String segment;
+        final String correctHost;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeUTF(correctHost);
+        }
+
+        @Override
+        public void process(ReplyProcessor cp) {}
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Test
+    public void testCompatibilityWrongHostV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        WrongHostV5 commandV5 = new WrongHostV5(l, "", "");
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.WrongHost(l, "", "", ""));
+    }
+
+    @Data
+    public static final class SegmentIsSealedV5 implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENT_IS_SEALED;
+        final long requestId;
+        final String segment;
+
+        @Override
+        public void process(ReplyProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Test
+    public void testCompatibilitySegmentIsSealedV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        SegmentIsSealedV5 commandV5 = new SegmentIsSealedV5(l, "");
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsSealed(l, "", ""));
+    }
+
+    @Data
+    public static final class SegmentIsTruncatedV5 implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENT_IS_TRUNCATED;
+        final long requestId;
+        final String segment;
+        final long startOffset;
+
+        @Override
+        public void process(ReplyProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+            out.writeLong(startOffset);
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Test
+    public void testCompatibilitySegmentIsTruncatedV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        SegmentIsTruncatedV5 commandV5 = new SegmentIsTruncatedV5(l, "", 0);
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsTruncated(l, "", 0, ""));
+    }
+
+    @Data
+    public static final class SegmentAlreadyExistsV5 implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.SEGMENT_ALREADY_EXISTS;
+        final long requestId;
+        final String segment;
+
+        @Override
+        public void process(ReplyProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+        }
+
+        @Override
+        public String toString() {
+            return "Segment already exists: " + segment;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Test
+    public void testCompatibilitySegmentAlreadyExistsV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        SegmentAlreadyExistsV5 commandV5 = new SegmentAlreadyExistsV5(l, "segment");
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentAlreadyExists(l, "segment",  ""));
+    }
+
+    @Data
+    public static final class NoSuchSegmentV5 implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.NO_SUCH_SEGMENT;
+        final long requestId;
+        final String segment;
+
+        @Override
+        public void process(ReplyProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(segment);
+        }
+
+        @Override
+        public String toString() {
+            return "No such segment: " + segment;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Test
+    public void testCompatibilityNoSuchSegmentV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        NoSuchSegmentV5 commandV5 = new NoSuchSegmentV5(l, "");
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.NoSuchSegment(l, "", ""));
+    }
+
+    @Data
+    public static final class InvalidEventNumberV5 implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.INVALID_EVENT_NUMBER;
+        final UUID writerId;
+        final long eventNumber;
+
+        @Override
+        public void process(ReplyProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+        }
+
+        @Override
+        public String toString() {
+            return "Invalid event number: " + eventNumber + " for writer: " + writerId;
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
+    }
+
+    @Test
+    public void testCompatibilityInvalidEventNumberV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        InvalidEventNumberV5 commandV5 = new InvalidEventNumberV5(uuid, i);
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.InvalidEventNumber(uuid, i, ""));
+    }
+
+    @Data
+    public static final class OperationUnsupportedV5 implements Reply, WireCommand {
+        final WireCommandType type = WireCommandType.OPERATION_UNSUPPORTED;
+        final long requestId;
+        final String operationName;
+
+        @Override
+        public void process(ReplyProcessor cp) {}
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+            out.writeUTF(operationName);
+        }
+
+        @Override
+        public boolean isFailure() {
+            return true;
+        }
+    }
+
+    @Test
+    public void testCompatibilityOperationUnsupportedV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        OperationUnsupportedV5 commandV5 = new OperationUnsupportedV5(l, testString1);
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.OperationUnsupported(l, testString1, ""));
+    }
+
+    @Data
+    public static final class AuthTokenCheckFailedV5 implements WireCommand {
+        final WireCommandType type = WireCommandType.AUTH_TOKEN_CHECK_FAILED;
+        final long requestId;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(requestId);
+        }
+    }
+
+    @Test
+    public void testCompatibilityAuthTokenCheckFailedV5() throws IOException {
+        // Test that we are able to decode a message with a previous version
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        AuthTokenCheckFailedV5 commandV5 = new AuthTokenCheckFailedV5(l);
+        commandV5.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.AuthTokenCheckFailed(l, ""));
+    }
+
     @Test
     public void testConditionalCheckFailed() throws IOException {
         testCommand(new WireCommands.ConditionalCheckFailed(uuid, l));
@@ -163,7 +427,7 @@ public class WireCommandsTest {
     
     @Test
     public void testSegmentAttribute() throws IOException {
-        testCommand(new WireCommands.SegmentAttribute(l, l+1));
+        testCommand(new WireCommands.SegmentAttribute(l, l + 1));
     }
     
     @Test
@@ -177,18 +441,13 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testGetTransactionInfo() throws IOException {
-        testCommand(new WireCommands.GetTransactionInfo(l - 1, testString1, uuid, ""));
-    }
-
-    @Test
-    public void testTransactionInfo() throws IOException {
-        testCommand(new WireCommands.TransactionInfo(l - 1, testString1, uuid, testString1, false, true, l, l + 1));
-    }
-
-    @Test
     public void testCreateSegment() throws IOException {
         testCommand(new WireCommands.CreateSegment(l, testString1, b, i, ""));
+    }
+
+    @Test
+    public void testCreateTableSegment() throws IOException {
+        testCommand(new WireCommands.CreateTableSegment(l, testString1, ""));
     }
 
     @Test
@@ -197,38 +456,28 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testCreateTransaction() throws IOException {
-        testCommand(new WireCommands.CreateTransaction(l, testString1, uuid, ""));
+    public void testMergeSegments() throws IOException {
+        testCommand(new WireCommands.MergeSegments(l, testString1, testString2, ""));
     }
 
     @Test
-    public void testTransactionCreated() throws IOException {
-        testCommand(new WireCommands.TransactionCreated(l, testString1, uuid));
+    public void testMergeTableSegments() throws IOException {
+        testCommand(new WireCommands.MergeTableSegments(l, testString1, testString2, ""));
     }
 
     @Test
-    public void testCommitTransaction() throws IOException {
-        testCommand(new WireCommands.CommitTransaction(l, testString1, uuid, ""));
-    }
-
-    @Test
-    public void testTransactionCommitted() throws IOException {
-        testCommand(new WireCommands.TransactionCommitted(l, testString1, uuid));
-    }
-
-    @Test
-    public void testAbortTransaction() throws IOException {
-        testCommand(new WireCommands.AbortTransaction(l, testString1, uuid, ""));
-    }
-
-    @Test
-    public void testTransactionAborted() throws IOException {
-        testCommand(new WireCommands.TransactionAborted(l, testString1, uuid));
+    public void testSegmentsMerged() throws IOException {
+        testCommand(new WireCommands.SegmentsMerged(l, testString1, testString2));
     }
 
     @Test
     public void testSealSegment() throws IOException {
         testCommand(new WireCommands.SealSegment(l, testString1, ""));
+    }
+
+    @Test
+    public void testSealTableSegment() throws IOException {
+        testCommand(new WireCommands.SealTableSegment(l, testString1, ""));
     }
 
     @Test
@@ -248,12 +497,18 @@ public class WireCommandsTest {
 
     @Test
     public void testSegmentIsTruncated() throws IOException {
-        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1));
+        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1, "SomeException"));
     }
 
     @Test
     public void testDeleteSegment() throws IOException {
         testCommand(new WireCommands.DeleteSegment(l, testString1, ""));
+    }
+
+    @Test
+    public void testDeleteTableSegment() throws IOException {
+        testCommand(new WireCommands.DeleteTableSegment(l, testString1, true, ""));
+        testCommand(new WireCommands.DeleteTableSegment(l, testString1, false, ""));
     }
 
     @Test
@@ -273,38 +528,137 @@ public class WireCommandsTest {
 
     @Test
     public void testWrongHost() throws IOException {
-        testCommand(new WireCommands.WrongHost(l, "Foo", testString1));
+        testCommand(new WireCommands.WrongHost(l, "Foo", testString1, "SomeException"));
     }
 
     @Test
     public void testSegmentIsSealed() throws IOException {
-        testCommand(new WireCommands.SegmentIsSealed(l, testString1));
+        testCommand(new WireCommands.SegmentIsSealed(l, testString1, "SomeException"));
     }
 
     @Test
     public void testSegmentAlreadyExists() throws IOException {
-        testCommand(new WireCommands.SegmentAlreadyExists(l, testString1));
+        testCommand(new WireCommands.SegmentAlreadyExists(l, testString1, "SomeException"));
     }
 
     @Test
     public void testNoSuchSegment() throws IOException {
-        testCommand(new WireCommands.NoSuchSegment(l, testString1));
+        testCommand(new WireCommands.NoSuchSegment(l, testString1, "SomeException"));
     }
 
     @Test
-    public void testNoSuchTransaction() throws IOException {
-        testCommand(new WireCommands.NoSuchTransaction(l, testString1));
+    public void testNotEmptyTableSegment() throws IOException {
+        WireCommands.TableSegmentNotEmpty cmd = new WireCommands.TableSegmentNotEmpty(l, testString1, "SomeException");
+        testCommand(cmd);
+        assertTrue(cmd.isFailure());
     }
-    
+
     @Test
     public void testInvalidEventNumber() throws IOException {
-        testCommand(new WireCommands.InvalidEventNumber(uuid, i));
+        testCommand(new WireCommands.InvalidEventNumber(uuid, i, "SomeException"));
     }
 
     @Test
     public void testKeepAlive() throws IOException {
         testCommand(new WireCommands.KeepAlive());
     }
+
+    @Test
+    public void testUpdateTableEntries() throws IOException {
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(WireCommands.TableKey.EMPTY, WireCommands.TableValue.EMPTY),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), WireCommands.TableValue.EMPTY));
+        testCommand(new WireCommands.UpdateTableEntries(l, testString1, "", new WireCommands.TableEntries(entries)));
+    }
+
+    @Test
+    public void testTableEntriesUpdated() throws IOException {
+        testCommand(new WireCommands.TableEntriesUpdated(l, Arrays.asList(1L, 2L, 3L)));
+    }
+
+    @Test
+    public void testRemoveTableKeys() throws IOException {
+        testCommand(new WireCommands.RemoveTableKeys(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
+                                                                                       new WireCommands.TableKey(buf, 2L))));
+    }
+
+    @Test
+    public void testTableKeysRemoved() throws IOException {
+        testCommand(new WireCommands.TableKeysRemoved(l, testString1));
+    }
+
+    @Test
+    public void testReadTable() throws IOException {
+        testCommand(new WireCommands.ReadTable(l, testString1, "", Arrays.asList(new WireCommands.TableKey(buf, 1L),
+                                                                                 new WireCommands.TableKey(buf, 2L))));
+    }
+
+    @Test
+    public void testTableRead() throws IOException {
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, 1L), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, 2L), new WireCommands.TableValue(buf))
+        );
+
+        testCommand(new WireCommands.TableRead(l, testString1, new WireCommands.TableEntries(entries)));
+    }
+
+    @Test
+    public void testKeyDoesNotExist() throws IOException {
+        WireCommands.TableKeyDoesNotExist cmd = new WireCommands.TableKeyDoesNotExist(l, testString1, "");
+        testCommand(cmd);
+        assertTrue(cmd.isFailure());
+    }
+
+    @Test
+    public void testKeyBadVersion() throws IOException {
+        WireCommands.TableKeyBadVersion cmd = new WireCommands.TableKeyBadVersion(l, testString1, "");
+        testCommand(cmd);
+        assertTrue(cmd.isFailure());
+    }
+
+    @Test
+    public void testGetTableKeys() throws IOException {
+        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, buf);
+        testCommand(cmd);
+        cmd = new WireCommands.ReadTableKeys(l, testString1, "", 100, wrappedBuffer(new byte[0]));
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testGetTableEntries() throws IOException {
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, buf);
+        testCommand(cmd);
+        cmd = new WireCommands.ReadTableEntries(l, testString1, "", 10, wrappedBuffer(new byte[0]));
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testTableKeysIteratorItem() throws IOException {
+        List<WireCommands.TableKey> keys = Arrays.asList(new WireCommands.TableKey(buf, 1L), new WireCommands.TableKey(buf, 2L));
+        WireCommands.TableKeysRead cmd = new WireCommands.TableKeysRead(l, testString1, keys, buf);
+        testCommand(cmd);
+        cmd = new WireCommands.TableKeysRead(l, testString1, keys, wrappedBuffer(new byte[0]));
+        testCommand(cmd);
+    }
+
+    @Test
+    public void testTableEntriesIteratorItem() throws IOException {
+
+        List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),
+                new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)));
+        WireCommands.TableEntries tableEntries = new WireCommands.TableEntries(entries);
+
+        WireCommands.TableEntriesRead cmd = new WireCommands.TableEntriesRead(l, testString1, tableEntries, buf);
+        testCommand(cmd);
+        cmd = new WireCommands.TableEntriesRead(l, testString1, tableEntries, wrappedBuffer(new byte[0]));
+        testCommand(cmd);
+    }
+
+
 
     private void testCommand(WireCommand command) throws IOException {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();

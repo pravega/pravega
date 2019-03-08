@@ -20,8 +20,6 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
-
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
@@ -63,8 +61,7 @@ public class ZookeeperDockerService extends DockerBasedService {
                 .containerSpec(ContainerSpec.builder().image(ZK_IMAGE)
                         .hostname(serviceName)
                         .labels(labels)
-                        .healthcheck(ContainerConfig.Healthcheck.create(null,
-                                Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3)).build())
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(ZKSERVICE_ZKPORT)).build()).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())

@@ -10,14 +10,16 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
+import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.state.Update;
 import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.Position;
@@ -30,7 +32,6 @@ import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
-import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateUpdate;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
 import io.pravega.client.stream.notifications.NotificationSystem;
 import io.pravega.client.stream.notifications.NotifierFactory;
@@ -40,6 +41,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -49,6 +51,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -64,6 +67,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
 @Data
 public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
+    static final String SILENT = "_SILENT_";
     private final String scope;
     private final String groupName;
     private final Controller controller;
@@ -72,8 +76,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     private final NotifierFactory notifierFactory;
 
     public ReaderGroupImpl(String scope, String groupName, SynchronizerConfig synchronizerConfig,
-                           Serializer<ReaderGroupStateInit> initSerializer, Serializer<ReaderGroupStateUpdate> updateSerializer,
-                           ClientFactory clientFactory, Controller controller, ConnectionFactory connectionFactory) {
+                           Serializer<InitialUpdate<ReaderGroupState>> initSerializer, Serializer<Update<ReaderGroupState>> updateSerializer,
+                           SynchronizerClientFactory clientFactory, Controller controller, ConnectionFactory connectionFactory) {
         Preconditions.checkNotNull(synchronizerConfig);
         Preconditions.checkNotNull(initSerializer);
         Preconditions.checkNotNull(updateSerializer);
@@ -107,7 +111,41 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
 
     @Override
     public CompletableFuture<Checkpoint> initiateCheckpoint(String checkpointName, ScheduledExecutorService backgroundExecutor) {
-        synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointName));
+
+        String rejectMessage = "rejecting checkpoint request since pending checkpoint reaches max allowed limit";
+
+        boolean canPerformCheckpoint = synchronizer.updateState((state, updates) -> {
+            ReaderGroupConfig config = state.getConfig();
+            CheckpointState checkpointState = state.getCheckpointState();
+            int maxOutstandingCheckpointRequest = config.getMaxOutstandingCheckpointRequest();
+            int currentOutstandingCheckpointRequest = checkpointState.getOutstandingCheckpoints();
+            if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
+                log.warn("maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}",
+                        maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest);
+                return false;
+            } else {
+                updates.add(new CreateCheckpoint(checkpointName));
+                return true;
+            }
+
+        });
+
+        if (!canPerformCheckpoint) {
+            return Futures.failedFuture(new MaxNumberOfCheckpointsExceededException(rejectMessage));
+        }
+
+        return waitForCheckpointComplete(checkpointName, backgroundExecutor)
+                .thenApply(v -> completeCheckpoint(checkpointName));
+    }
+
+    /**
+     * Periodically check the state synchronizer if the given Checkpoint is complete.
+     * @param checkpointName Checkpoint name.
+     * @param backgroundExecutor Executor on which the asynchronous task will run.
+     * @return A CompletableFuture will be complete once the Checkpoint is complete.
+     */
+    private CompletableFuture<Void> waitForCheckpointComplete(String checkpointName,
+                                                              ScheduledExecutorService backgroundExecutor) {
         AtomicBoolean checkpointPending = new AtomicBoolean(true);
 
         return Futures.loop(checkpointPending::get, () -> {
@@ -119,8 +157,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 }
                 return null;
             }, Duration.ofMillis(500), backgroundExecutor);
-        }, backgroundExecutor)
-                      .thenApply(v -> completeCheckpoint(checkpointName));
+        }, backgroundExecutor);
     }
 
     @SneakyThrows(CheckpointFailedException.class)
@@ -281,6 +318,34 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
 
         return cuts;
+    }
+
+    @Override
+    public CompletableFuture<Map<Stream, StreamCut>> generateStreamCuts(ScheduledExecutorService backgroundExecutor) {
+        String checkpointId = generateSilientCheckpointId();
+        log.debug("Fetching the current StreamCut using id {}", checkpointId);
+        synchronizer.updateStateUnconditionally(new CreateCheckpoint(checkpointId));
+
+        return waitForCheckpointComplete(checkpointId, backgroundExecutor)
+                      .thenApply(v -> completeCheckpointAndFetchStreamCut(checkpointId));
+    }
+
+    /**
+     * Generate an internal Checkpoint Id. It is appended with a suffix {@link ReaderGroupImpl#SILENT} which ensures
+     * that the readers do not generate an event where {@link io.pravega.client.stream.EventRead#isCheckpoint()} is true.
+     */
+    private String generateSilientCheckpointId() {
+        byte[] randomBytes = new byte[32];
+        ThreadLocalRandom.current().nextBytes(randomBytes);
+        return Base64.getEncoder().encodeToString(randomBytes) + SILENT;
+    }
+
+    @SneakyThrows(CheckpointFailedException.class)
+    private Map<Stream, StreamCut> completeCheckpointAndFetchStreamCut(String checkPointId) {
+        ReaderGroupState state = synchronizer.getState();
+        Optional<Map<Stream, StreamCut>> cuts = state.getStreamCutsForCompletedCheckpoint(checkPointId);
+        synchronizer.updateStateUnconditionally(new ClearCheckpointsBefore(checkPointId));
+        return cuts.orElseThrow(() -> new CheckpointFailedException("Internal CheckPoint was cleared before results could be read."));
     }
 
     @Override

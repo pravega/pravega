@@ -10,7 +10,7 @@
 version: '2'
 services:
   zookeeper:
-    image: jplock/zookeeper:3.5.2-alpha
+    image: zookeeper:3.5.4-beta
     ports:
       - "2181:2181"
 
@@ -52,10 +52,10 @@ services:
     command: controller
     environment:
       WAIT_FOR: zookeeper:2181
-      REST_SERVER_PORT: 10080
-      CONTROLLER_SERVER_PORT: 9090
-      ZK_URL: zookeeper:2181
       JAVA_OPTS: |
+        -Dcontroller.service.port=9090
+        -Dcontroller.service.restPort=10080
+        -Dcontroller.zk.url=zookeeper:2181
         -Dconfig.controller.metricenableCSVReporter=false
         -Xmx512m
         -XX:OnError="kill -9 p%"
@@ -84,6 +84,9 @@ services:
       JAVA_OPTS: |
         -Dmetrics.enableCSVReporter=false
         -Dpravegaservice.publishedIPAddress=${HOST_IP}
+        -Dbookkeeper.bkEnsembleSize=2
+        -Dbookkeeper.bkAckQuorumSize=2
+        -Dbookkeeper.bkWriteQuorumSize=2
         -Xmx900m
         -XX:OnError="kill -9 p%"
         -XX:+ExitOnOutOfMemoryError

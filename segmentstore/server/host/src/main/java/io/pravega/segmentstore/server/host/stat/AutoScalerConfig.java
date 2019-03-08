@@ -29,9 +29,9 @@ public class AutoScalerConfig {
     public static final Property<Boolean> TLS_ENABLED = Property.named("tlsEnabled", false);
     public static final Property<String> TLS_CERT_FILE = Property.named("tlsCertFile", "");
     public static final Property<Boolean> AUTH_ENABLED = Property.named("authEnabled", false);
-    public static final Property<String> AUTH_USERNAME = Property.named("authUsername", "");
-    public static final Property<String> AUTH_PASSWORD = Property.named("authPassword", "");
     public static final Property<String> TOKEN_SIGNING_KEY = Property.named("tokenSigningKey", "secret");
+    public static final Property<Boolean> VALIDATE_HOSTNAME = Property.named("validateHostName", true);
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 10);
 
     public static final String COMPONENT_CODE = "autoScale";
 
@@ -93,20 +93,22 @@ public class AutoScalerConfig {
     private final boolean authEnabled;
 
     /**
-     * Password for connection to Controller.
-     */
-    @Getter
-    private final String authPassword;
-    /**
-     * Username for connection to Controller.
-     */
-    @Getter
-    private final String authUsername;
-    /**
-     *
+     * Signing key for the auth token.
      */
     @Getter
     private final String tokenSigningKey;
+
+    /**
+     * Flag indicating whether to validate the hostname when TLS is enabled.
+     */
+    @Getter
+    private final boolean validateHostName;
+
+    /**
+     * The number of threads for the {@link AutoScaleMonitor}.
+     */
+    @Getter
+    private final int threadPoolSize;
 
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
         this.internalRequestStream = properties.get(REQUEST_STREAM);
@@ -117,10 +119,13 @@ public class AutoScalerConfig {
         this.controllerUri = URI.create(properties.get(CONTROLLER_URI));
         this.tlsEnabled = properties.getBoolean(TLS_ENABLED);
         this.authEnabled = properties.getBoolean(AUTH_ENABLED);
-        this.authUsername = properties.get(AUTH_USERNAME);
-        this.authPassword = properties.get(AUTH_PASSWORD);
         this.tlsCertFile = properties.get(TLS_CERT_FILE);
         this.tokenSigningKey = properties.get(TOKEN_SIGNING_KEY);
+        this.validateHostName = properties.getBoolean(VALIDATE_HOSTNAME);
+        this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
+        if (this.threadPoolSize <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", THREAD_POOL_SIZE));
+        }
     }
 
     public static ConfigBuilder<AutoScalerConfig> builder() {

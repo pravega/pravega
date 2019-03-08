@@ -21,6 +21,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.group.ChannelGroup;
@@ -45,44 +46,59 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
-import java.io.File;
-import java.security.NoSuchAlgorithmException;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
-import lombok.extern.slf4j.Slf4j;
+import java.io.File;
+import java.security.NoSuchAlgorithmException;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
     private EventLoopGroup group;
-    private boolean nio = false;
     private final ClientConfig clientConfig;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final ScheduledExecutorService executor;
-    private final ChannelGroup allChannels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+    @Getter(AccessLevel.PACKAGE)
+    private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
     /**
      * Actual implementation of ConnectionFactory interface.
      * @param clientConfig Configuration object holding details about connection to the segmentstore.
      */
     public ConnectionFactoryImpl(ClientConfig clientConfig) {
-        this(clientConfig, null);
+        this(clientConfig, (Integer) null);
     }
 
     @VisibleForTesting
     public ConnectionFactoryImpl(ClientConfig clientConfig, Integer numThreadsInPool) {
-        executor = ExecutorServiceHelpers.newScheduledThreadPool(getNumThreads(numThreadsInPool), "clientInternal");
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(getNumThreads(numThreadsInPool), "clientInternal");
         this.clientConfig = clientConfig;
-        try {
-            this.group = new EpollEventLoopGroup();
-        } catch (ExceptionInInitializerError | UnsatisfiedLinkError | NoClassDefFoundError e) {
+        this.group = getEventLoopGroup();
+    }
+
+    @VisibleForTesting
+    public ConnectionFactoryImpl(ClientConfig clientConfig, ScheduledExecutorService executor) {
+        this.executor = executor;
+        this.clientConfig = clientConfig;
+        this.group = getEventLoopGroup();
+    }
+
+    private EventLoopGroup getEventLoopGroup() {
+        if (Epoll.isAvailable()) {
+            return new EpollEventLoopGroup();
+        } else {
             log.warn("Epoll not available. Falling back on NIO.");
-            nio = true;
-            this.group = new NioEventLoopGroup();
+            return new NioEventLoopGroup();
         }
     }
 
@@ -104,15 +120,16 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         final SslContext sslCtx;
         if (clientConfig.isEnableTls()) {
             try {
-                SslContextBuilder sslCtxFactory = SslContextBuilder.forClient();
+                SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();
                 if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
-                    sslCtxFactory = sslCtxFactory.trustManager(FingerprintTrustManagerFactory
+                    clientSslCtxBuilder = clientSslCtxBuilder.trustManager(FingerprintTrustManagerFactory
                                                       .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
+                    log.debug("SslContextBuilder was set to an instance of {}", FingerprintTrustManagerFactory.class);
                 } else {
-                    sslCtxFactory = SslContextBuilder.forClient()
+                    clientSslCtxBuilder = SslContextBuilder.forClient()
                                               .trustManager(new File(clientConfig.getTrustStore()));
                 }
-                sslCtx = sslCtxFactory.build();
+                sslCtx = clientSslCtxBuilder.build();
             } catch (SSLException | NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
@@ -123,7 +140,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         ClientConnectionInboundHandler handler = new ClientConnectionInboundHandler(location.getEndpoint(), rp, batchSizeTracker);
         Bootstrap b = new Bootstrap();
         b.group(group)
-         .channel(nio ? NioSocketChannel.class : EpollSocketChannel.class)
+         .channel(Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class)
          .option(ChannelOption.TCP_NODELAY, true)
          .handler(new ChannelInitializer<SocketChannel>() {
              @Override
@@ -160,7 +177,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
                         Channel ch = future.channel();
                         log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
                                 ch.id(), ch.localAddress(), ch.remoteAddress());
-                        allChannels.add(ch); // Once a channel is closed the channel group implementation removes it.
+                        channelGroup.add(ch); // Once a channel is closed the channel group implementation removes it.
                         connectionComplete.complete(handler);
                     } else {
                         connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
@@ -193,11 +210,16 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     public int getActiveChannelCount() {
-        return allChannels.size();
+        return (int) channelGroup.stream()
+                                 .filter(Channel::isActive)
+                                 .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.",
+                                                      ch.id(), ch.localAddress(), ch.remoteAddress()))
+                                 .count();
+    }
+    
+    @VisibleForTesting
+    public List<Channel> getActiveChannels() {
+        return channelGroup.stream().filter(Channel::isActive).collect(Collectors.toList());
     }
 
-    @Override
-    protected void finalize() {
-        close();
-    }
 }

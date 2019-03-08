@@ -17,19 +17,21 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.SegmentMetadata;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
-import io.pravega.segmentstore.server.logs.operations.SegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -44,11 +46,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     //region Members
 
     private final boolean recoveryMode;
-    private final Map<UUID, Long> attributeValues;
+    private final Map<UUID, Long> baseAttributeValues;
+    private final Map<UUID, Long> attributeUpdates;
     @Getter
     private final long id;
-    @Getter
-    private final long parentId;
     @Getter
     private final String name;
     @Getter
@@ -65,6 +66,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     private boolean sealedInStorage;
     @Getter
     private boolean merged;
+    @Getter
+    private boolean deletedInStorage;
+    @Getter
+    private boolean pinned;
     @Getter
     private boolean deleted;
     @Getter
@@ -84,7 +89,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     SegmentMetadataUpdateTransaction(SegmentMetadata baseMetadata, boolean recoveryMode) {
         this.recoveryMode = recoveryMode;
         this.id = baseMetadata.getId();
-        this.parentId = baseMetadata.getParentId();
         this.name = baseMetadata.getName();
         this.containerId = baseMetadata.getContainerId();
         this.startOffset = baseMetadata.getStartOffset();
@@ -94,8 +98,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         this.sealed = baseMetadata.isSealed();
         this.sealedInStorage = baseMetadata.isSealedInStorage();
         this.merged = baseMetadata.isMerged();
+        this.deletedInStorage = baseMetadata.isDeletedInStorage();
         this.deleted = baseMetadata.isDeleted();
-        this.attributeValues = new HashMap<>(baseMetadata.getAttributes());
+        this.baseAttributeValues = baseMetadata.getAttributes();
+        this.attributeUpdates = new HashMap<>();
         this.lastUsed = baseMetadata.getLastUsed();
     }
 
@@ -112,7 +118,6 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     //region SegmentMetadata Implementation
 
-
     @Override
     public long getStorageLength() {
         return this.storageLength < 0 ? this.baseStorageLength : this.storageLength;
@@ -124,8 +129,15 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public SegmentProperties getSnapshot() {
+        throw new UnsupportedOperationException("getSnapshot() is not supported on " + getClass().getName());
+    }
+
+    @Override
     public Map<UUID, Long> getAttributes() {
-        return Collections.unmodifiableMap(this.attributeValues);
+        HashMap<UUID, Long> result = new HashMap<>(this.baseAttributeValues);
+        result.putAll(this.attributeUpdates);
+        return result;
     }
 
     //endregion
@@ -170,15 +182,28 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public void markDeletedInStorage() {
+        this.deletedInStorage = true;
+        this.deleted = true;
+        this.isChanged = true;
+    }
+
+    @Override
     public void markMerged() {
         this.merged = true;
         this.isChanged = true;
     }
 
     @Override
+    public void markPinned() {
+        this.pinned = true;
+        this.isChanged = true;
+    }
+
+    @Override
     public void updateAttributes(Map<UUID, Long> attributeValues) {
-        this.attributeValues.clear();
-        this.attributeValues.putAll(attributeValues);
+        this.attributeUpdates.clear();
+        this.attributeUpdates.putAll(attributeValues);
         this.isChanged = true;
     }
 
@@ -308,15 +333,9 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * @param operation The Operation.
      * @throws BadOffsetException              If the operation's Offset is not between the current StartOffset and current
      *                                         EndOffset (SegmentLength - 1).
-     * @throws MetadataUpdateException         If the operation cannot be processed because of the current state of the
-     *                                         StreamSegment or Container (ex: Segment is a Transaction).
      */
-    void preProcessOperation(StreamSegmentTruncateOperation operation) throws BadOffsetException, MetadataUpdateException {
+    void preProcessOperation(StreamSegmentTruncateOperation operation) throws BadOffsetException {
         ensureSegmentId(operation);
-        if (isTransaction()) {
-            throw new MetadataUpdateException(this.containerId, "Cannot truncate a Transaction Segment: " + operation);
-        }
-
         if (operation.getStreamSegmentOffset() < this.startOffset || operation.getStreamSegmentOffset() > this.length) {
             String msg = String.format("Truncation Offset must be at least %d and at most %d, given %d.",
                                        this.startOffset, this.length, operation.getStreamSegmentOffset());
@@ -325,17 +344,26 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Pre-processes the given MergeTransactionOperation as a Parent Segment.
-     * After this method returns, the operation will have its TargetSegmentOffset set to the length of the Parent Segment.
+     * Pre-processes a DeleteSegmentOperation.
      *
-     * @param operation           The operation to pre-process.
-     * @param transactionMetadata The metadata for the Transaction Stream Segment to merge.
-     * @throws StreamSegmentSealedException    If the parent stream is already sealed.
-     * @throws StreamSegmentNotSealedException If the transaction segment is not sealed.
-     * @throws MetadataUpdateException If the operation cannot be processed because of the current state of the metadata.
+     * @param operation The Operation.
+     */
+    void preProcessOperation(DeleteSegmentOperation operation) {
+        ensureSegmentId(operation);
+    }
+
+    /**
+     * Pre-processes the given MergeSegmentOperation as a Target Segment (where it will be merged into).
+     * After this method returns, the operation will have its TargetSegmentOffset set to the length of the Target Segment.
+     *
+     * @param operation      The operation to pre-process.
+     * @param sourceMetadata The metadata for the Stream Segment to merge.
+     * @throws StreamSegmentSealedException    If the target Segment is already sealed.
+     * @throws StreamSegmentNotSealedException If the source Segment is not sealed.
+     * @throws MetadataUpdateException         If the operation cannot be processed because of the current state of the metadata.
      * @throws IllegalArgumentException        If the operation is for a different Segment.
      */
-    void preProcessAsParentSegment(MergeTransactionOperation operation, SegmentMetadataUpdateTransaction transactionMetadata)
+    void preProcessAsTargetSegment(MergeSegmentOperation operation, SegmentMetadataUpdateTransaction sourceMetadata)
             throws StreamSegmentSealedException, StreamSegmentNotSealedException, MetadataUpdateException {
         ensureSegmentId(operation);
 
@@ -344,20 +372,15 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
             throw new StreamSegmentSealedException(this.name);
         }
 
-        if (isTransaction()) {
-            throw new MetadataUpdateException(this.containerId,
-                    "Cannot merge a StreamSegment into a Transaction Segment: " + operation.toString());
-        }
-
-        // Check that the Transaction has been properly sealed and has its length set.
-        if (!transactionMetadata.isSealed()) {
+        // Check that the Source has been properly sealed and has its length set.
+        if (!sourceMetadata.isSealed()) {
             throw new StreamSegmentNotSealedException(this.name);
         }
 
         long transLength = operation.getLength();
         if (transLength < 0) {
             throw new MetadataUpdateException(this.containerId,
-                    "MergeTransactionOperation does not have its Transaction Segment Length set: " + operation.toString());
+                    "MergeSegmentOperation does not have its Source Segment Length set: " + operation.toString());
         }
 
         if (!this.recoveryMode) {
@@ -367,16 +390,18 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Pre-processes the given operation as a Transaction Segment.
+     * Pre-processes the given operation as a Source Segment.
      *
-     * @param operation The operation
-     * @throws IllegalArgumentException        If the operation is for a different stream segment.
+     * @param operation The operation.
+     * @throws IllegalArgumentException        If the operation is for a different Segment.
      * @throws StreamSegmentNotSealedException If the Segment is not sealed.
      * @throws StreamSegmentMergedException    If the Segment is already merged.
+     * @throws StreamSegmentTruncatedException If the Segment is truncated.
      */
-    void preProcessAsTransactionSegment(MergeTransactionOperation operation) throws StreamSegmentNotSealedException, StreamSegmentMergedException {
-        Exceptions.checkArgument(this.id == operation.getTransactionSegmentId(),
-                "operation", "Invalid Operation Transaction Segment Id.");
+    void preProcessAsSourceSegment(MergeSegmentOperation operation) throws StreamSegmentNotSealedException,
+            StreamSegmentMergedException, StreamSegmentTruncatedException {
+        Exceptions.checkArgument(this.id == operation.getSourceSegmentId(),
+                "operation", "Invalid Operation Source Segment Id.");
 
         if (this.merged) {
             throw new StreamSegmentMergedException(this.name);
@@ -384,6 +409,10 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (!this.sealed) {
             throw new StreamSegmentNotSealedException(this.name);
+        }
+
+        if (this.startOffset > 0) {
+            throw new StreamSegmentTruncatedException(this.name, "Segment cannot be merged because it is truncated.", null);
         }
 
         if (!this.recoveryMode) {
@@ -407,8 +436,15 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         for (AttributeUpdate u : attributeUpdates) {
             AttributeUpdateType updateType = u.getUpdateType();
-            boolean hasValue = this.attributeValues.containsKey(u.getAttributeId());
-            long previousValue = hasValue ? this.attributeValues.get(u.getAttributeId()) : Attributes.NULL_ATTRIBUTE_VALUE;
+            boolean hasValue = false;
+            long previousValue = Attributes.NULL_ATTRIBUTE_VALUE;
+            if (this.attributeUpdates.containsKey(u.getAttributeId())) {
+                hasValue = true;
+                previousValue = this.attributeUpdates.get(u.getAttributeId());
+            } else if (this.baseAttributeValues.containsKey(u.getAttributeId())) {
+                hasValue = true;
+                previousValue = this.baseAttributeValues.get(u.getAttributeId());
+            }
 
             // Perform validation, and set the AttributeUpdate.value to the updated value, if necessary.
             switch (updateType) {
@@ -517,26 +553,37 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Accepts the given MergeTransactionOperation as a Parent Segment.
+     * Accepts a DeleteSegmentOperation in the metadata.
      *
-     * @param operation           The operation to accept.
-     * @param transactionMetadata The metadata for the Transaction Stream Segment to merge.
+     * @param operation The operation to accept.
+     */
+    void acceptOperation(DeleteSegmentOperation operation) {
+        ensureSegmentId(operation);
+        this.deleted = true;
+        this.isChanged = true;
+    }
+
+    /**
+     * Accepts the given MergeSegmentOperation as a Target Segment (where it will be merged into).
+     *
+     * @param operation      The operation to accept.
+     * @param sourceMetadata The metadata for the Source Segment to merge.
      * @throws MetadataUpdateException  If the operation cannot be processed because of the current state of the metadata.
      * @throws IllegalArgumentException If the operation is for a different Segment.
      */
-    void acceptAsParentSegment(MergeTransactionOperation operation, SegmentMetadataUpdateTransaction transactionMetadata) throws MetadataUpdateException {
+    void acceptAsTargetSegment(MergeSegmentOperation operation, SegmentMetadataUpdateTransaction sourceMetadata) throws MetadataUpdateException {
         ensureSegmentId(operation);
 
         if (operation.getStreamSegmentOffset() != this.length) {
             throw new MetadataUpdateException(containerId,
-                    String.format("MergeTransactionOperation target offset mismatch. Expected %d, actual %d.",
+                    String.format("MergeSegmentOperation target offset mismatch. Expected %d, actual %d.",
                             this.length, operation.getStreamSegmentOffset()));
         }
 
         long transLength = operation.getLength();
-        if (transLength < 0 || transLength != transactionMetadata.length) {
+        if (transLength < 0 || transLength != sourceMetadata.length) {
             throw new MetadataUpdateException(containerId,
-                    "MergeTransactionOperation does not seem to have been pre-processed: " + operation.toString());
+                    "MergeSegmentOperation does not seem to have been pre-processed: " + operation.toString());
         }
 
         this.length += transLength;
@@ -544,14 +591,14 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     }
 
     /**
-     * Accepts the given operation as a Transaction Stream Segment.
+     * Accepts the given operation as a Source Segment.
      *
-     * @param operation The operation
+     * @param operation The operation.
      * @throws IllegalArgumentException If the operation is for a different Segment.
      */
-    void acceptAsTransactionSegment(MergeTransactionOperation operation) {
-        Exceptions.checkArgument(this.id == operation.getTransactionSegmentId(),
-                "operation", "Invalid Operation Transaction Segment Id.");
+    void acceptAsSourceSegment(MergeSegmentOperation operation) {
+        Exceptions.checkArgument(this.id == operation.getSourceSegmentId(),
+                "operation", "Invalid Operation Source Segment Id.");
 
         this.sealed = true;
         this.merged = true;
@@ -569,7 +616,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
         }
 
         for (AttributeUpdate au : attributeUpdates) {
-            this.attributeValues.put(au.getAttributeId(), au.getValue());
+            this.attributeUpdates.put(au.getAttributeId(), au.getValue());
         }
     }
 
@@ -583,14 +630,16 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
      * This method is only meant to be used during recovery mode when we need to restore the state of a segment.
      * During normal operations, these values are set asynchronously by the Writer.
      *
-     * @param storageLength The value to set as StorageLength.
-     * @param storageSealed The value to set as SealedInStorage.
-     * @param deleted       The value to set as Deleted.
+     * @param storageLength  The value to set as StorageLength.
+     * @param storageSealed  The value to set as SealedInStorage.
+     * @param deleted        The value to set as Deleted.
+     * @param storageDeleted The value to set as DeletedInStorage.
      */
-    void updateStorageState(long storageLength, boolean storageSealed, boolean deleted) {
+    void updateStorageState(long storageLength, boolean storageSealed, boolean deleted, boolean storageDeleted) {
         this.storageLength = storageLength;
         this.sealedInStorage = storageSealed;
         this.deleted = deleted;
+        this.deletedInStorage = storageDeleted;
         this.isChanged = true;
     }
 
@@ -610,7 +659,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         // Apply to base metadata.
         target.setLastUsed(this.lastUsed);
-        target.updateAttributes(this.attributeValues);
+        target.updateAttributes(this.attributeUpdates);
         target.setLength(this.length);
 
         // Update StartOffset after (potentially) updating the length, since he Start Offset must be less than or equal to Length.
@@ -634,6 +683,13 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
         if (this.deleted) {
             target.markDeleted();
+            if (this.deletedInStorage) {
+                target.markDeletedInStorage();
+            }
+        }
+
+        if (this.pinned) {
+            target.markPinned();
         }
     }
 

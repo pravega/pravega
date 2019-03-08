@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -63,22 +64,6 @@ public class FutureReadResultEntryCollectionTests {
     }
 
     /**
-     * Tests the ability for all the pending reads to be canceled.
-     */
-    @Test
-    public void testCancelAll() {
-        @Cleanup
-        FutureReadResultEntryCollection c = new FutureReadResultEntryCollection();
-        List<FutureReadResultEntry> entries = generateEntries();
-        entries.forEach(c::add);
-        c.cancelAll();
-
-        for (FutureReadResultEntry e : entries) {
-            Assert.assertTrue("StorageReadResultEntry is not canceled.", e.getContent().isCancelled());
-        }
-    }
-
-    /**
      * Tests the ability for all the pending reads to be canceled when the Collection is closed.
      */
     @Test
@@ -86,11 +71,13 @@ public class FutureReadResultEntryCollectionTests {
         FutureReadResultEntryCollection c = new FutureReadResultEntryCollection();
         List<FutureReadResultEntry> entries = generateEntries();
         entries.forEach(c::add);
-        c.close();
+        val result = c.close();
 
         for (FutureReadResultEntry e : entries) {
-            Assert.assertTrue("StorageReadResultEntry is not canceled.", e.getContent().isCancelled());
+            Assert.assertFalse("StorageReadResultEntry is completed.", e.getContent().isCancelled());
         }
+
+        AssertExtensions.assertListEquals("Unexpected result from close().", entries, result, Object::equals);
     }
 
     private List<FutureReadResultEntry> generateEntries() {

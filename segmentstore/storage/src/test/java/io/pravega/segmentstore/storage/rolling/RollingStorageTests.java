@@ -12,6 +12,7 @@ package io.pravega.segmentstore.storage.rolling;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
@@ -79,6 +80,33 @@ public class RollingStorageTests extends RollingStorageTestBase {
     }
 
     /**
+     * Tests the ability to auto-refresh a Write Handle upon offset disagreement.
+     */
+    @Test
+    public void testRefreshHandleBadOffset() throws Exception {
+        // Write small and large writes, alternatively.
+        @Cleanup
+        val baseStorage = new InMemoryStorage();
+        @Cleanup
+        val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
+        s.initialize(1);
+        s.create(SEGMENT_NAME);
+        val h1 = s.openWrite(SEGMENT_NAME);
+        val h2 = s.openWrite(SEGMENT_NAME); // Open now, before writing, so we force a refresh.
+
+        byte[] data = "data".getBytes();
+        s.write(h1, 0, new ByteArrayInputStream(data), data.length);
+        s.write(h2, data.length, new ByteArrayInputStream(data), data.length);
+
+        // Check that no file has exceeded its maximum length.
+        byte[] expectedData = new byte[data.length * 2];
+        System.arraycopy(data, 0, expectedData, 0, data.length);
+        System.arraycopy(data, 0, expectedData, data.length, data.length);
+
+        checkWrittenData(expectedData, h2, s);
+    }
+
+    /**
      * Tests the ability to truncate Segments.
      */
     @Test
@@ -142,6 +170,38 @@ public class RollingStorageTests extends RollingStorageTestBase {
 
         // Test that truncate works in this scenario.
         testProgressiveTruncate(truncateHandle, truncateHandle, writtenData, s, baseStorage);
+    }
+
+    /**
+     * Tests the ability to (not) execute modify operations on already sealed segments. Verifies appropriate exceptions
+     * are being thrown.
+     */
+    @Test
+    public void testSealedSegment() {
+        final String segmentName = "Segment";
+        final String sourceSegmentName = "SourceSegment";
+        try (Storage s = createStorage()) {
+            s.initialize(DEFAULT_EPOCH);
+
+            // Create and seal the segment.
+            s.create(segmentName, TIMEOUT).thenCompose(h -> s.seal(h, TIMEOUT)).join();
+            val handle = s.openWrite(segmentName).join();
+
+            // Modify operations should not succeed.
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "write() worked on previously sealed segment.",
+                    () -> s.write(handle, 0, new ByteArrayInputStream(new byte[0]), 0, TIMEOUT),
+                    ex -> ex instanceof StreamSegmentSealedException);
+
+            s.create(sourceSegmentName, TIMEOUT).thenCompose(h -> s.seal(h, TIMEOUT)).join();
+            AssertExtensions.assertSuppliedFutureThrows(
+                    "concat() worked on previously sealed segment.",
+                    () -> s.concat(handle, 0, sourceSegmentName, TIMEOUT),
+                    ex -> ex instanceof StreamSegmentSealedException);
+
+            // Seal is idempotent.
+            s.seal(handle, TIMEOUT).join();
+        }
     }
 
     /**

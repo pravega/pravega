@@ -61,6 +61,7 @@ public class ServiceBuilderConfig {
      *
      * @param constructor A Supplier for a ConfigBuilder for the given Configuration.
      * @param <T>         The type of the Configuration to instantiate.
+     * @return The new instance of a Configuration for this builder.
      */
     public <T> T getConfig(Supplier<? extends ConfigBuilder<? extends T>> constructor) {
         return constructor.get()
@@ -95,6 +96,7 @@ public class ServiceBuilderConfig {
      * Gets a default set of configuration values, in absence of any real configuration.
      * These configuration values are the default ones from all component configurations, except that it will
      * create only one container to host segments.
+     * @return The default set of configuration values.
      */
     public static ServiceBuilderConfig getDefaultConfig() {
         // All component configs should have defaults built-in, so no need to override them here.
@@ -109,12 +111,22 @@ public class ServiceBuilderConfig {
 
     /**
      * Represents a Builder for the ServiceBuilderConfig.
+     * @return The new instance of a Configuration.
      */
     public static class Builder {
         private final Properties properties;
 
         private Builder() {
             this.properties = new Properties();
+        }
+
+        /**
+         * Creates a new instance of this class containing a copy of the existing configuration.
+         *
+         * @return A new instance of this class.
+         */
+        public Builder makeCopy() {
+            return new Builder().include(this.properties);
         }
 
         /**

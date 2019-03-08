@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
@@ -147,8 +148,15 @@ public class ContainerReadIndex implements ReadIndex {
         Exceptions.checkNotClosed(this.closed.get(), this);
         log.debug("{}: completeMerge (TargetId = {}, SourceId = {}.", this.traceObjectId, targetStreamSegmentId, sourceStreamSegmentId);
 
+        SegmentMetadata sourceMetadata;
+        synchronized (this.lock) {
+            sourceMetadata = this.metadata.getStreamSegmentMetadata(sourceStreamSegmentId);
+        }
+
+        Preconditions.checkState(sourceMetadata != null, "No Metadata found for Segment Id %s.", sourceStreamSegmentId);
+
         StreamSegmentReadIndex targetIndex = getOrCreateIndex(targetStreamSegmentId);
-        targetIndex.completeMerge(sourceStreamSegmentId);
+        targetIndex.completeMerge(sourceMetadata);
         synchronized (this.lock) {
             // Do not clear the Cache after merger - we are reusing the cache entries from the source index in the target one.
             closeIndex(sourceStreamSegmentId, false);

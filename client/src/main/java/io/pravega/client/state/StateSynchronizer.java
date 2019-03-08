@@ -54,11 +54,11 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * A function which given a state object populates a list of updates that should be applied.
      * 
      * For example:
-     * <code>
-     * stateSynchronizer.updateState((state, updates) -> {
+     * <pre><code>
+     * stateSynchronizer.updateState((state, updates) {@literal ->} {
      *      updates.addAll(findUpdatesForState(state));
      * });
-     * </code>
+     * </code></pre>
      * @param <StateT> The type of state it generates updates for.
      */
     @FunctionalInterface
@@ -69,15 +69,17 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     /**
      * Similar to {@link UpdateGenerator} but it also returns a result for the caller.
      * For example:
-     * <code>
-     * boolean updated = stateSynchronizer.updateState((state, updates) -> {
+
+     * <pre><code>
+     * boolean updated = stateSynchronizer.updateState((state, updates) {@literal ->} {
+
      *      if (!shouldUpdate(state)) {
      *          return false;
      *      }
      *      updates.addAll(findUpdatesForState(state));
      *      return true;
      * });
-     * </code>
+     * </code></pre>
      * @param <StateT> The type of state it generates updates for.
      * @param <ReturnT> The type of the result returned.
      */
@@ -111,14 +113,15 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * 
      * As an example suppose the update type was MyUpdate and each update and an associated key.
      * Then it might be useful to return the updated keys:
-     * <code>
+     * <pre>
+     * {@code
      * List<String> updated = stateSynchronizer.updateState((state, updates) -> {
      *      List<MyUpdate> toAdd = findUpdatesForState(state);
      *      updates.addAll(toAdd);
      *      return toAdd.stream().map(a -> a.getKey()).collect(Collectors.toList());
      * });
-     * </code>
-     * 
+     * }
+     * </pre>
      * @param updateGenerator A function which give the state can supply updates that should be
      *            applied.
      * @param <ReturnT> They type of the result returned by the updateGenerator

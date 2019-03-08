@@ -10,6 +10,7 @@
 package io.pravega.client.batch;
 
 import com.google.common.annotations.Beta;
+import io.pravega.client.BatchClientFactory;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Serializer;
@@ -27,16 +28,22 @@ import java.util.concurrent.CompletableFuture;
  * Events within a segment are strictly ordered, but as this API allows for reading from multiple
  * segments in parallel without adhering to time ordering. This allows for events greater
  * parallelization at the expense of the ordering guarantees provided by {@link EventStreamReader}.
+ * 
+ * @deprecated {@link BatchClientFactory} instead. 
  */
 @Beta
+@Deprecated
 public interface BatchClient {
 
     /**
      * Get information about a given Stream, {@link StreamInfo}.
+     * @deprecated
+     *   Use {@link io.pravega.client.admin.StreamManager#getStreamInfo(String, String)} to fetch StreamInfo.
      *
      * @param stream the stream.
      * @return stream information.
      */
+    @Deprecated
     CompletableFuture<StreamInfo> getStreamInfo(Stream stream);
 
     /**

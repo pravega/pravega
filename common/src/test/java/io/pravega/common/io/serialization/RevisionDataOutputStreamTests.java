@@ -9,6 +9,7 @@
  */
 package io.pravega.common.io.serialization;
 
+import com.google.common.base.Charsets;
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.io.FixedByteArrayOutputStream;
 import io.pravega.common.io.SerializationException;
@@ -31,6 +32,7 @@ import org.junit.Test;
  * RevisionDataStreamCommonTests, in combination with RevisionDataInputStream).
  */
 public class RevisionDataOutputStreamTests {
+    
     /**
      * Tests the RandomRevisionDataOutput class with an expandable RandomAccessOutputStream.
      */
@@ -186,8 +188,9 @@ public class RevisionDataOutputStreamTests {
         final int n = 123456;
         final long l = (long) Integer.MAX_VALUE + 1;
         final String s = getUTFString();
-        final byte[] array = s.getBytes();
-        int expectedLength = Byte.BYTES + Short.BYTES + Integer.BYTES + Long.BYTES + impl.getUTFLength(s) + array.length;
+        final byte[] array = s.getBytes(Charsets.UTF_8);
+        int expectedLength = Byte.BYTES + Short.BYTES + Integer.BYTES + Long.BYTES + impl.getUTFLength(s) + array.length
+                + impl.getCompactIntLength(array.length) + array.length;
 
         if (impl.requiresExplicitLength()) {
             // Verify a few methods that shouldn't be allowed to run without setting length beforehand.
@@ -211,6 +214,7 @@ public class RevisionDataOutputStreamTests {
         impl.writeLong(l);
         impl.writeUTF(s);
         impl.write(array);
+        impl.writeArray(new ByteArraySegment(array));
 
         // Need to close so we flush any remaining stuff to the underlying stream.
         impl.close();
@@ -227,6 +231,9 @@ public class RevisionDataOutputStreamTests {
         byte[] readArray = new byte[array.length];
         int readBytes = inputStream.read(readArray);
         Assert.assertEquals("Unexpected number of bytes read for array.", readArray.length, readBytes);
+        Assert.assertArrayEquals("Unexpected array read back.", array, readArray);
+        readArray = inputStream.readArray();
+        Assert.assertEquals("Unexpected number of bytes read for array.", array.length, readArray.length);
         Assert.assertArrayEquals("Unexpected array read back.", array, readArray);
 
         Assert.assertEquals("Not expecting any more data. ", -1, inputStream.read());

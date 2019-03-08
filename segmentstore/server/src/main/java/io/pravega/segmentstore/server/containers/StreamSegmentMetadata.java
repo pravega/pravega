@@ -11,17 +11,27 @@ package io.pravega.segmentstore.server.containers;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.ImmutableDate;
+import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import java.util.Collections;
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * Metadata for a particular Stream Segment.
@@ -34,10 +44,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private final String traceObjectId;
     private final String name;
     private final long streamSegmentId;
-    private final long parentStreamSegmentId;
     private final int containerId;
     @GuardedBy("this")
-    private final Map<UUID, Long> attributes;
+    private final Map<UUID, Long> coreAttributes;
+    @GuardedBy("this")
+    private final Map<UUID, ExtendedAttributeValue> extendedAttributes;
     @GuardedBy("this")
     private long storageLength;
     @GuardedBy("this")
@@ -51,6 +62,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private boolean deleted;
     @GuardedBy("this")
+    private boolean deletedInStorage;
+    @GuardedBy("this")
     private boolean merged;
     @GuardedBy("this")
     private ImmutableDate lastModified;
@@ -58,13 +71,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private long lastUsed;
     @GuardedBy("this")
     private boolean active;
+    @GuardedBy("this")
+    private boolean pinned;
 
     //endregion
 
     //region Constructor
 
     /**
-     * Creates a new instance of the StreamSegmentMetadata class for a stand-alone StreamSegment.
+     * Creates a new instance of the StreamSegmentMetadata class for a StreamSegment.
      *
      * @param streamSegmentName The name of the StreamSegment.
      * @param streamSegmentId   The Id of the StreamSegment.
@@ -72,19 +87,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
      * @throws IllegalArgumentException If either of the arguments are invalid.
      */
     public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, int containerId) {
-        this(streamSegmentName, streamSegmentId, ContainerMetadata.NO_STREAM_SEGMENT_ID, containerId);
-    }
-
-    /**
-     * Creates a new instance of the StreamSegmentMetadata class for a child (Transaction) StreamSegment.
-     *
-     * @param streamSegmentName     The name of the StreamSegment.
-     * @param streamSegmentId       The Id of the StreamSegment.
-     * @param parentStreamSegmentId The Id of the Parent StreamSegment.
-     * @param containerId           The Id of the Container this StreamSegment belongs to.
-     * @throws IllegalArgumentException If any of the arguments are invalid.
-     */
-    public StreamSegmentMetadata(String streamSegmentName, long streamSegmentId, long parentStreamSegmentId, int containerId) {
         Exceptions.checkNotNullOrEmpty(streamSegmentName, "streamSegmentName");
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
         Preconditions.checkArgument(containerId >= 0, "containerId");
@@ -92,16 +94,17 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         this.traceObjectId = String.format("StreamSegment[%d]", streamSegmentId);
         this.name = streamSegmentName;
         this.streamSegmentId = streamSegmentId;
-        this.parentStreamSegmentId = parentStreamSegmentId;
         this.containerId = containerId;
         this.sealed = false;
         this.sealedInStorage = false;
         this.deleted = false;
+        this.deletedInStorage = false;
         this.merged = false;
         this.startOffset = 0;
         this.storageLength = -1;
         this.length = -1;
-        this.attributes = new HashMap<>();
+        this.coreAttributes = new HashMap<>();
+        this.extendedAttributes = new HashMap<>();
         this.lastModified = new ImmutableDate();
         this.lastUsed = 0;
         this.active = true;
@@ -141,11 +144,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public long getParentId() {
-        return this.parentStreamSegmentId;
-    }
-
-    @Override
     public int getContainerId() {
         return this.containerId;
     }
@@ -153,6 +151,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized boolean isMerged() {
         return this.merged;
+    }
+
+    @Override
+    public synchronized boolean isDeletedInStorage() {
+        return this.deletedInStorage;
     }
 
     @Override
@@ -177,7 +180,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized Map<UUID, Long> getAttributes() {
-        return Collections.unmodifiableMap(this.attributes);
+        return new AttributesView();
     }
 
     @Override
@@ -214,7 +217,6 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
             return;
         }
 
-        Preconditions.checkState(!isTransaction(), "Cannot set Start Offset for a Transaction.");
         Exceptions.checkArgument(value >= 0, "value", "StartOffset must be a non-negative number.");
         Exceptions.checkArgument(value >= this.startOffset, "value", "New StartOffset cannot be smaller than the previous one.");
         Exceptions.checkArgument(value <= this.length, "value", "New StartOffset cannot be larger than Length.");
@@ -239,9 +241,15 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized void markSealedInStorage() {
-        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
+        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in Metadata.");
         log.debug("{}: SealedInStorage = true.", this.traceObjectId);
         this.sealedInStorage = true;
+    }
+
+    @Override
+    public synchronized void markMerged() {
+        log.debug("{}: Merged = true.", this.traceObjectId);
+        this.merged = true;
     }
 
     @Override
@@ -251,11 +259,16 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
-    public synchronized void markMerged() {
-        Preconditions.checkState(this.parentStreamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "Cannot merge a non-Transaction StreamSegment.");
+    public synchronized void markDeletedInStorage() {
+        Preconditions.checkState(this.deleted, "Cannot mark DeletedInStorage if not Deleted in Metadata.");
+        log.debug("{}: DeletedInStorage = true.", this.traceObjectId);
+        this.deletedInStorage = true;
+    }
 
-        log.debug("{}: Merged = true.", this.traceObjectId);
-        this.merged = true;
+    @Override
+    public synchronized void markPinned() {
+        log.debug("{}: Pinned = true.", this.traceObjectId);
+        this.pinned = true;
     }
 
     @Override
@@ -266,14 +279,19 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized void updateAttributes(Map<UUID, Long> attributes) {
-        attributes.forEach(this.attributes::put);
+        attributes.forEach((id, value) -> {
+            if (Attributes.isCoreAttribute(id)) {
+                this.coreAttributes.put(id, value);
+            } else {
+                this.extendedAttributes.put(id, new ExtendedAttributeValue(value));
+            }
+        });
     }
 
     @Override
     public synchronized void copyFrom(SegmentMetadata base) {
         Exceptions.checkArgument(this.getId() == base.getId(), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentId).");
         Exceptions.checkArgument(this.getName().equals(base.getName()), "base", "Given SegmentMetadata refers to a different StreamSegment than this one (SegmentName).");
-        Exceptions.checkArgument(this.getParentId() == base.getParentId(), "base", "Given SegmentMetadata has a different parent StreamSegment than this one.");
 
         log.debug("{}: copyFrom {}.", this.traceObjectId, base.getClass().getSimpleName());
         setStorageLength(base.getStorageLength());
@@ -297,6 +315,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         if (base.isDeleted()) {
             markDeleted();
+            if (base.isDeletedInStorage()) {
+                markDeletedInStorage();
+            }
+        }
+
+        if (base.isPinned()) {
+            markPinned();
         }
 
         setLastUsed(base.getLastUsed());
@@ -317,8 +342,200 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         return this.active;
     }
 
+    @Override
+    public synchronized SegmentProperties getSnapshot() {
+        return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
+    }
+
+    @Override
+    public synchronized boolean isPinned() {
+        return this.pinned;
+    }
+
+    /**
+     * Marks this SegmentMetadata as inactive.
+     */
     synchronized void markInactive() {
         this.active = false;
+    }
+
+    /**
+     * Evicts those Extended Attributes from memory that have a LastUsed value prior to the given cutoff.
+     *
+     * @param maximumAttributeCount The maximum number of Extended Attributes per Segment. Cleanup will only be performed
+     *                              if there are at least this many Extended Attributes in memory.
+     * @param lastUsedCutoff        The cutoff value for LastUsed. Any Extended attributes with a value smaller than this
+     *                              will be removed.
+     * @return The number of removed attributes.
+     */
+    synchronized int cleanupAttributes(int maximumAttributeCount, long lastUsedCutoff) {
+        if (this.extendedAttributes.size() <= maximumAttributeCount) {
+            // Haven't reached the limit yet.
+            return 0;
+        }
+
+        // Collect candidates and order them by lastUsed (oldest to newest).
+        val candidates = this.extendedAttributes.entrySet().stream()
+                                                .filter(e -> e.getValue().lastUsed < lastUsedCutoff)
+                                                .sorted(Comparator.comparingLong(e -> e.getValue().lastUsed))
+                                                .collect(Collectors.toList());
+
+        // Start evicting candidates, beginning from the oldest, until we have either evicted all of them or brought the
+        // total count to an acceptable limit.
+        int count = 0;
+        for (val e : candidates) {
+            if (this.extendedAttributes.size() <= maximumAttributeCount) {
+                break;
+            }
+
+            this.extendedAttributes.remove(e.getKey());
+            count++;
+        }
+
+        log.debug("{}: Evicted {} attribute(s).", this.traceObjectId, count);
+        return count;
+    }
+
+    //endregion
+
+    //region ExtendedAttributeValue
+
+    /**
+     * Wrapper for the value of an Extended Attribute, which also keeps track of the last time this Attribute was used
+     * (updated or retrieved).
+     */
+    private class ExtendedAttributeValue {
+        private final long value;
+
+        // We fetch the value from the SegmentMetadata's LastUsed field, which accurately keeps track of the Sequence Number
+        // of the last Operation that either touched this Segment or requested information about it.
+        @GuardedBy("StreamSegmentMetadata.this")
+        private long lastUsed;
+
+        ExtendedAttributeValue(long value) {
+            this.value = value;
+            this.lastUsed = StreamSegmentMetadata.this.getLastUsed();
+        }
+
+        @GuardedBy("StreamSegmentMetadata.this")
+        long getValueAndTouch() {
+            this.lastUsed = StreamSegmentMetadata.this.getLastUsed();
+            return this.value;
+        }
+
+        @Override
+        public String toString() {
+            synchronized (StreamSegmentMetadata.this) {
+                return String.format("%d (LastUsed=%d)", this.value, this.lastUsed);
+            }
+        }
+    }
+
+    //endregion
+
+    //region AttributesView
+
+    /**
+     * Read-only view of this SegmentMetadata's Attributes (combines Core and Extended Attributes into one single Map).
+     */
+    private class AttributesView implements Map<UUID, Long> {
+        @Override
+        public int size() {
+            synchronized (StreamSegmentMetadata.this) {
+                return coreAttributes.size() + extendedAttributes.size();
+            }
+        }
+
+        @Override
+        public boolean isEmpty() {
+            synchronized (StreamSegmentMetadata.this) {
+                return coreAttributes.isEmpty() && extendedAttributes.isEmpty();
+            }
+        }
+
+        @Override
+        public boolean containsKey(Object o) {
+            synchronized (StreamSegmentMetadata.this) {
+                return coreAttributes.containsKey(o) || extendedAttributes.containsKey(o);
+            }
+        }
+
+        @Override
+        public Long get(Object o) {
+            synchronized (StreamSegmentMetadata.this) {
+                Long result = coreAttributes.get(o);
+                if (result == null) {
+                    ExtendedAttributeValue r = extendedAttributes.get(o);
+                    if (r != null) {
+                        result = r.getValueAndTouch();
+                    }
+                }
+
+                return result;
+            }
+        }
+
+        @Override
+        public Set<UUID> keySet() {
+            synchronized (StreamSegmentMetadata.this) {
+                return CollectionHelpers.joinSets(coreAttributes.keySet(), extendedAttributes.keySet());
+            }
+        }
+
+        @Override
+        public Collection<Long> values() {
+            synchronized (StreamSegmentMetadata.this) {
+                return CollectionHelpers.joinCollections(
+                        coreAttributes.values(), Callbacks::identity,
+                        extendedAttributes.values(), e -> e.value);
+            }
+        }
+
+        @Override
+        public Set<Map.Entry<UUID, Long>> entrySet() {
+            synchronized (StreamSegmentMetadata.this) {
+                return CollectionHelpers.joinSets(
+                        coreAttributes.entrySet(), Callbacks::identity,
+                        extendedAttributes.entrySet(), e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey(), e.getValue().value));
+            }
+        }
+
+        @Override
+        public String toString() {
+            synchronized (StreamSegmentMetadata.this) {
+                return String.format("Core: %s, Extended: %s", coreAttributes, extendedAttributes);
+            }
+        }
+
+        //region Unsupported Methods
+
+        @Override
+        public boolean containsValue(Object o) {
+            // Not a very useful one anyway.
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Long put(UUID uuid, Long aLong) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Long remove(Object o) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void putAll(Map<? extends UUID, ? extends Long> map) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void clear() {
+            throw new UnsupportedOperationException();
+        }
+
+        //endregion
     }
 
     //endregion

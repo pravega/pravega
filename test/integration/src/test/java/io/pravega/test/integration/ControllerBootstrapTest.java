@@ -9,6 +9,8 @@
  */
 package io.pravega.test.integration;
 
+import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -30,6 +32,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
@@ -90,22 +94,19 @@ public class ControllerBootstrapTest {
         // Try creating a stream. It should not complete until Pravega host has started.
         // After Pravega host starts, stream should be successfully created.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scope(SCOPE)
-                .streamName(STREAM)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
-        CompletableFuture<Boolean> streamStatus = controller.createStream(streamConfiguration);
+        CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
 
         // Create transaction should fail.
-        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM),
-                10000, 30000);
+        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
 
         try {
             txIdFuture.join();
             Assert.fail();
         } catch (CompletionException ce) {
-            Assert.assertEquals(IllegalStateException.class, ce.getCause().getClass());
+            Assert.assertEquals(IllegalStateException.class, Exceptions.unwrap(ce).getClass());
             Assert.assertTrue("Expected failure", true);
         }
 
@@ -114,7 +115,7 @@ public class ControllerBootstrapTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
 
         // Ensure that create stream succeeds.
@@ -130,7 +131,7 @@ public class ControllerBootstrapTest {
         Assert.assertTrue(initialized);
 
         // Now create transaction should succeed.
-        txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000, 30000);
+        txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
 
         try {
             TxnSegments id = txIdFuture.join();

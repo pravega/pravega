@@ -43,8 +43,22 @@ public interface ZKClientConfig {
 
     /**
      * Fetches the session timeout in milli seconds.
-     * @return
+     * @return session timeout in milli seconds.
      */
     int getSessionTimeoutMs();
 
+    /**
+     * Fetches whether the connection is secure.
+     */
+    boolean isSecureConnectionToZooKeeper();
+
+    /**
+     * Fetches the trust store location.
+     */
+    String getTrustStorePath();
+
+    /**
+     * Fetches the trust store password path.
+     */
+    String getTrustStorePasswordPath();
 }

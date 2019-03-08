@@ -27,14 +27,17 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
@@ -67,11 +70,12 @@ public class EndToEndStatsTest {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
         statsRecorder = new TestStatsRecorder();
 
-        server = new PravegaConnectionListener(false, "localhost", servicePort, store,
-                statsRecorder, null, null, null);
+        server = new PravegaConnectionListener(false, "localhost", servicePort, store, tableStore,
+                statsRecorder, TableSegmentStatsRecorder.noOp(), null, null, null, true);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -92,39 +96,38 @@ public class EndToEndStatsTest {
     }
 
     @Test(timeout = 10000)
+    @SuppressWarnings("deprecation")
     public void testStatsCount() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("test")
-                .streamName("test")
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl("test", controller);
 
         @Cleanup
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
-                EventWriterConfig.builder().transactionTimeoutScaleGracePeriod(10000).transactionTimeoutTime(10000).build());
+                EventWriterConfig.builder().transactionTimeoutTime(10000).build());
 
         for (int i = 0; i < 10; i++) {
             test.writeEvent("test").get();
         }
-        assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 10);
+        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10);
 
         Transaction<String> transaction = test.beginTxn();
         for (int i = 0; i < 10; i++) {
             transaction.writeEvent("0", "txntest1");
         }
-        assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 10);
+        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10);
 
         transaction.commit();
         Stream stream = new StreamImpl("test", "test");
         while (!controller.checkTransactionStatus(stream, transaction.getTxnId()).get().equals(Transaction.Status.COMMITTED)) {
             Thread.sleep(100);
         }
-        assertEquals(statsRecorder.getSegments().get("test/test/0").get(), 20);
+        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 20);
     }
 
     private static class TestStatsRecorder implements SegmentStatsRecorder {
@@ -132,11 +135,16 @@ public class EndToEndStatsTest {
         HashMap<String, AtomicInteger> segments = new HashMap<>();
 
         @Override
-        public void createSegment(String streamSegmentName, byte type, int targetRate) {
+        public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
             String parent = StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName);
             if (parent == null) {
                 segments.put(streamSegmentName, new AtomicInteger());
             }
+        }
+
+        @Override
+        public void deleteSegment(String segmentName) {
+
         }
 
         @Override
@@ -150,7 +158,7 @@ public class EndToEndStatsTest {
         }
 
         @Override
-        public void record(String streamSegmentName, long dataLength, int numOfEvents) {
+        public void recordAppend(String streamSegmentName, long dataLength, int numOfEvents, Duration elapsed) {
             segments.computeIfPresent(streamSegmentName, (x, y) -> {
                 y.addAndGet(numOfEvents);
                 return y;
@@ -163,6 +171,20 @@ public class EndToEndStatsTest {
                 y.addAndGet(numOfEvents);
                 return y;
             });
+        }
+
+        @Override
+        public void readComplete(Duration elapsed) {
+
+        }
+
+        @Override
+        public void read(String segment, int length) {
+
+        }
+
+        @Override
+        public void close() {
         }
     }
 }

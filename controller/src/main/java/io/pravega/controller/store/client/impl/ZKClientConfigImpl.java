@@ -24,13 +24,19 @@ public class ZKClientConfigImpl implements ZKClientConfig {
     private final int initialSleepInterval;
     private final int maxRetries;
     private final int sessionTimeoutMs;
+    private final boolean secureConnectionToZooKeeper;
+    private final String trustStorePath;
+    private final String trustStorePasswordPath;
 
     @Builder
     ZKClientConfigImpl(final String connectionString,
-                   final String namespace,
-                   final int initialSleepInterval,
-                   final int maxRetries,
-                   final int sessionTimeoutMs) {
+                       final String namespace,
+                       final int initialSleepInterval,
+                       final int maxRetries,
+                       final int sessionTimeoutMs,
+                       final boolean secureConnectionToZooKeeper,
+                       final String trustStorePath,
+                       final String trustStorePasswordPath) {
         Exceptions.checkNotNullOrEmpty(connectionString, "connectionString");
         Exceptions.checkNotNullOrEmpty(namespace, "namespace");
         Exceptions.checkArgument(initialSleepInterval > 0, "retryInterval", "Should be a positive integer");
@@ -42,5 +48,8 @@ public class ZKClientConfigImpl implements ZKClientConfig {
         this.initialSleepInterval = initialSleepInterval;
         this.maxRetries = maxRetries;
         this.sessionTimeoutMs = sessionTimeoutMs;
+        this.secureConnectionToZooKeeper = secureConnectionToZooKeeper;
+        this.trustStorePath = trustStorePath;
+        this.trustStorePasswordPath = trustStorePasswordPath;
     }
 }

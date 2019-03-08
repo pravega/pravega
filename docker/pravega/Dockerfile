@@ -7,17 +7,23 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-FROM java:8
+FROM openjdk:8-jre-alpine
 
-RUN apt-get update && apt-get install -y -q rpcbind nfs-common \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --update \
+    rpcbind \
+    nfs-utils \
+    gcompat \
+    python \
+    jq \
+    curl \
+  && rm -rf /var/cache/apk/*
 
 EXPOSE 9090 9091 10000 12345
+
 WORKDIR /opt/pravega
+
 COPY pravega/ /opt/pravega/
-COPY entrypoint.sh /opt/pravega/scripts/
-COPY wait_for /opt/pravega/scripts/
+COPY scripts/ /opt/pravega/scripts/
+RUN chmod +x -R /opt/pravega/scripts/
 
 ENTRYPOINT [ "/opt/pravega/scripts/entrypoint.sh" ]
-
-

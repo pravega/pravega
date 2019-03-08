@@ -39,14 +39,13 @@ public class ConfigTest {
         Assert.assertEquals("0.0.0.0", Config.REST_SERVER_IP);
         Assert.assertEquals(9091, Config.REST_SERVER_PORT);
         Assert.assertEquals(30000, Config.MAX_LEASE_VALUE);
-        Assert.assertEquals(30000, Config.MAX_SCALE_GRACE_PERIOD);
         Assert.assertEquals("_requeststream", Config.SCALE_STREAM_NAME);
         Assert.assertEquals("scaleGroup", Config.SCALE_READER_GROUP);
     }
 
     @Test
     public void testGRPCConfig() {
-        GRPCServerConfig grpcServerConfig = Config.getGRPCServerConfig();
+        GRPCServerConfig grpcServerConfig = Config.GRPC_SERVER_CONFIG;
         Assert.assertEquals(9090, grpcServerConfig.getPort());
         Assert.assertEquals(9090, (int) grpcServerConfig.getPublishedRPCPort().orElse(12345));
         Assert.assertFalse(grpcServerConfig.getPublishedRPCHost().isPresent());

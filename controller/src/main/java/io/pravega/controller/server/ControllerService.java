@@ -13,15 +13,19 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
+import io.pravega.common.Timer;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -39,17 +43,18 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.NameUtils;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.Lombok;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -69,6 +74,22 @@ public class ControllerService {
     private final SegmentHelper segmentHelper;
     private final Executor executor;
     private final Cluster cluster;
+    private final StreamMetrics streamMetrics;
+    private final TransactionMetrics transactionMetrics;
+
+    public ControllerService(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks,
+                             StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
+                             Executor executor, Cluster cluster) {
+        this.streamStore = streamStore;
+        this.hostStore = hostStore;
+        this.streamMetadataTasks = streamMetadataTasks;
+        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
+        this.segmentHelper = segmentHelper;
+        this.executor = executor;
+        this.cluster = cluster;
+        this.streamMetrics = new StreamMetrics();
+        this.transactionMetrics = new TransactionMetrics();
+    }
 
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
@@ -82,43 +103,56 @@ public class ControllerService {
                         .collect(Collectors.toList());
             } catch (ClusterException e) {
                 // cluster implementation throws checked exceptions which cannot be thrown inside completable futures.
-                throw Lombok.sneakyThrow(e);
+                throw Exceptions.sneakyThrow(e);
             }
         }, executor);
     }
 
-    public CompletableFuture<CreateStreamStatus> createStream(final StreamConfiguration streamConfig,
+    public CompletableFuture<CreateStreamStatus> createStream(String scope, String stream, final StreamConfiguration streamConfig,
             final long createTimestamp) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Preconditions.checkArgument(createTimestamp >= 0);
+        Timer timer = new Timer();
         try {
-            NameUtils.validateStreamName(streamConfig.getStreamName());
+            NameUtils.validateStreamName(stream);
         } catch (IllegalArgumentException | NullPointerException e) {
-            log.warn("Create stream failed due to invalid stream name {}", streamConfig.getStreamName());
+            log.warn("Create stream failed due to invalid stream name {}", stream);
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
-        return streamMetadataTasks.createStream(streamConfig.getScope(),
-                                                streamConfig.getStreamName(),
+
+        return streamMetadataTasks.createStream(scope,
+                                                stream,
                                                 streamConfig,
                                                 createTimestamp)
-                .thenApplyAsync(status -> CreateStreamStatus.newBuilder().setStatus(status).build(), executor);
+                  .thenApplyAsync(status -> {
+                       reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
+                                timer.getElapsed());
+                       return CreateStreamStatus.newBuilder().setStatus(status).build();
+                  }, executor);
     }
 
-    public CompletableFuture<UpdateStreamStatus> updateStream(final StreamConfiguration streamConfig) {
+    public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
-        return streamMetadataTasks.updateStream(
-                streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, null)
-                .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
+        Timer timer = new Timer();
+        return streamMetadataTasks.updateStream(scope, stream, streamConfig, null)
+                  .thenApplyAsync(status -> {
+                      reportUpdateStreamMetrics(scope, stream, status, timer.getElapsed());
+                      return UpdateStreamStatus.newBuilder().setStatus(status).build();
+                  }, executor);
     }
 
     public CompletableFuture<UpdateStreamStatus> truncateStream(final String scope, final String stream,
-                                                                final Map<Integer, Long> streamCut) {
+                                                                final Map<Long, Long> streamCut) {
         Preconditions.checkNotNull(scope, "scope");
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(streamCut, "streamCut");
+        Timer timer = new Timer();
         return streamMetadataTasks.truncateStream(scope, stream, streamCut, null)
-                .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
+                .thenApplyAsync(status -> {
+                    reportTruncateStreamMetrics(scope, stream, status, timer.getElapsed());
+                    return UpdateStreamStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     public CompletableFuture<StreamConfiguration> getStream(final String scopeName, final String streamName) {
@@ -128,15 +162,23 @@ public class ControllerService {
     public CompletableFuture<UpdateStreamStatus> sealStream(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Timer timer = new Timer();
         return streamMetadataTasks.sealStream(scope, stream, null)
-                .thenApplyAsync(status -> UpdateStreamStatus.newBuilder().setStatus(status).build(), executor);
+                .thenApplyAsync(status -> {
+                    reportSealStreamMetrics(scope, stream, status, timer.getElapsed());
+                    return UpdateStreamStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     public CompletableFuture<DeleteStreamStatus> deleteStream(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Timer timer = new Timer();
         return streamMetadataTasks.deleteStream(scope, stream, null)
-                .thenApplyAsync(status -> DeleteStreamStatus.newBuilder().setStatus(status).build(), executor);
+                .thenApplyAsync(status -> {
+                    reportDeleteStreamMetrics(scope, stream, status, timer.getElapsed());
+                    return DeleteStreamStatus.newBuilder().setStatus(status).build();
+                }, executor);
     }
 
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
@@ -148,57 +190,65 @@ public class ControllerService {
                 .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, stream), executor);
     }
 
-    public CompletableFuture<Map<SegmentId, Long>> getSegmentsAtTime(final String scope, final String stream, final long timestamp) {
+    public CompletableFuture<Map<SegmentId, Long>> getSegmentsAtHead(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
 
         // First fetch segments active at specified timestamp from the specified stream.
         // Divide current segments in segmentFutures into at most count positions.
-        return streamStore.getActiveSegments(scope, stream, timestamp, null, executor).thenApply(segments -> {
-            return segments.stream()
-                           .map(number -> ModelHelper.createSegmentId(scope, stream, number))
-                           .collect(Collectors.toMap(id -> id, id -> 0L));
-            //TODO: Implement https://github.com/pravega/pravega/issues/191  (Which will supply a value besides 0)
+        return streamStore.getSegmentsAtHead(scope, stream, null, executor).thenApply(segments -> {
+            return segments.entrySet().stream()
+                           .collect(Collectors.toMap(entry -> ModelHelper.createSegmentId(scope, stream, entry.getKey().segmentId()),
+                                   Map.Entry::getValue));
         });
     }
 
-    public CompletableFuture<Map<SegmentRange, List<Integer>>> getSegmentsImmediatelyFollowing(SegmentId segment) {
+    public CompletableFuture<Map<SegmentRange, List<Long>>> getSegmentsImmediatelyFollowing(SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
         OperationContext context = streamStore.createContext(segment.getStreamInfo().getScope(), segment
                 .getStreamInfo().getStream());
         return streamStore.getSuccessors(segment.getStreamInfo().getScope(),
                 segment.getStreamInfo().getStream(),
-                segment.getSegmentNumber(),
+                segment.getSegmentId(),
                 context,
                 executor)
-                .thenComposeAsync(successors -> Futures.keysAllOfWithResults(successors.entrySet().stream()
-                                                                                       .collect(Collectors.toMap(
-                        entry -> streamStore.getSegment(segment.getStreamInfo().getScope(),
-                                segment.getStreamInfo().getStream(),
-                                entry.getKey(),
-                                context,
-                                executor)
-                                .thenApply(seg -> ModelHelper.createSegmentRange(segment.getStreamInfo().getScope(),
-                                        segment.getStreamInfo().getStream(),
-                                        seg.getNumber(),
-                                        seg.getKeyStart(),
-                                        seg.getKeyEnd())),
-                        Map.Entry::getValue))), executor);
+                .thenApply(successors -> successors.entrySet().stream()
+                        .collect(Collectors.toMap(
+                                entry -> ModelHelper.createSegmentRange(segment.getStreamInfo().getScope(),
+                                                segment.getStreamInfo().getStream(), entry.getKey().segmentId(),
+                                                entry.getKey().getKeyStart(),
+                                                entry.getKey().getKeyEnd()),
+                                Map.Entry::getValue)));
+    }
+
+    public CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(Controller.StreamCutRange range) {
+        Preconditions.checkNotNull(range, "segment");
+        Preconditions.checkArgument(!(range.getFromMap().isEmpty() && range.getToMap().isEmpty()));
+
+        String scope = range.getStreamInfo().getScope();
+        String stream = range.getStreamInfo().getStream();
+        OperationContext context = streamStore.createContext(scope, stream);
+        return streamStore.getSegmentsBetweenStreamCuts(scope,
+                stream,
+                range.getFromMap(),
+                range.getToMap(),
+                context,
+                executor);
     }
 
     public CompletableFuture<ScaleResponse> scale(final String scope,
                                                   final String stream,
-                                                  final List<Integer> sealedSegments,
+                                                  final List<Long> segmentsToSeal,
                                                   final Map<Double, Double> newKeyRanges,
                                                   final long scaleTimestamp) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        Preconditions.checkNotNull(sealedSegments, "sealedSegments");
+        Preconditions.checkNotNull(segmentsToSeal, "sealedSegments");
         Preconditions.checkNotNull(newKeyRanges, "newKeyRanges");
 
         return streamMetadataTasks.manualScale(scope,
                                          stream,
-                                         new ArrayList<>(sealedSegments),
+                                         segmentsToSeal,
                                          new ArrayList<>(ModelHelper.encode(newKeyRanges)),
                                          scaleTimestamp,
                                          null);
@@ -212,20 +262,18 @@ public class ControllerService {
         return streamMetadataTasks.checkScale(scope, stream, epoch, null);
     }
 
-    public CompletableFuture<List<ScaleMetadata>> getScaleRecords(final String scope,
-                                                                  final String stream) {
+    public CompletableFuture<List<ScaleMetadata>> getScaleRecords(final String scope, final String stream, final long from, final long to) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return streamStore.getScaleMetadata(scope, stream,
-                null,
-                executor);
+        return streamStore.getScaleMetadata(scope, stream, from, to, null, executor);
     }
 
     public CompletableFuture<NodeUri> getURI(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
+
         return CompletableFuture.completedFuture(
                 segmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
-                                            segment.getSegmentNumber(), hostStore)
+                        segment.getSegmentId(), hostStore)
         );
     }
 
@@ -236,30 +284,44 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(segment, "segment");
         return ModelHelper.createSegmentRange(
-                scope, stream, segment.getNumber(), segment.getKeyStart(), segment.getKeyEnd());
+                scope, stream, segment.segmentId(), segment.getKeyStart(), segment.getKeyEnd());
     }
 
     public CompletableFuture<Boolean> isSegmentValid(final String scope,
                                                      final String stream,
-                                                     final int segmentNumber) {
+                                                     final long segmentId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return streamStore.getActiveSegments(scope, stream, null, executor)
-                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.getNumber() == segmentNumber), executor);
+                .thenApplyAsync(x -> x.stream().anyMatch(z -> z.segmentId() == segmentId), executor);
+    }
+
+    public CompletableFuture<Boolean> isStreamCutValid(final String scope,
+                                                     final String stream,
+                                                     final Map<Long, Long> streamCut) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        return streamStore.isStreamCutValid(scope, stream, streamCut, null, executor);
     }
 
     @SuppressWarnings("ReturnCount")
     public CompletableFuture<Pair<UUID, List<SegmentRange>>> createTransaction(final String scope, final String stream,
-                                                                               final long lease,
-                                                                               final long scaleGracePeriod) {
+                                                                               final long lease) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-
-        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, scaleGracePeriod, null)
+        Timer timer = new Timer();
+        return streamTransactionMetadataTasks.createTxn(scope, stream, lease, null)
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
                     List<Segment> segments = pair.getValue();
                     return new ImmutablePair<>(data.getId(), getSegmentRanges(segments, scope, stream));
+                }).handle((result, ex) -> {
+                    if (ex != null) {
+                        transactionMetrics.createTransactionFailed(scope, stream);
+                        throw new CompletionException(ex);
+                    }
+                    transactionMetrics.createTransaction(scope, stream, timer.getElapsed());
+                    return result;
                 });
     }
 
@@ -277,15 +339,17 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
-
+        Timer timer = new Timer();
         UUID txId = ModelHelper.encode(txnId);
         return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction commit failed", ex);
                         // TODO: return appropriate failures to user.
+                        transactionMetrics.commitTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
+                        transactionMetrics.commitTransaction(scope, stream, timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
@@ -295,14 +359,17 @@ public class ControllerService {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
+        Timer timer = new Timer();
         UUID txId = ModelHelper.encode(txnId);
         return streamTransactionMetadataTasks.abortTxn(scope, stream, txId, null, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction abort failed", ex);
                         // TODO: return appropriate failures to user.
+                        transactionMetrics.abortTransactionFailed(scope, stream, txId.toString());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                     } else {
+                        transactionMetrics.abortTransaction(scope, stream, timer.getElapsed());
                         return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                     }
                 });
@@ -364,9 +431,22 @@ public class ControllerService {
      * @param scope Name of the scope.
      * @return List of streams in scope.
      */
-    public CompletableFuture<List<StreamConfiguration>> listStreamsInScope(final String scope) {
+    public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         return streamStore.listStreamsInScope(scope);
+    }
+
+    /**
+     * List existing streams in scopes.
+     *
+     * @param scope Name of the scope.
+     * @param token continuation token
+     * @param limit limit for number of streams to return. 
+     * @return List of streams in scope.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listStreams(final String scope, final String token, final int limit) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        return streamStore.listStream(scope, token, limit, executor);
     }
 
     /**
@@ -388,4 +468,49 @@ public class ControllerService {
         Preconditions.checkNotNull(scopeName);
         return streamStore.getScopeConfiguration(scopeName);
     }
+
+    // Metrics reporting region
+
+    private void reportCreateStreamMetrics(String scope, String streamName, int initialSegments, CreateStreamStatus.Status status,
+                                           Duration latency) {
+        if (status.equals(CreateStreamStatus.Status.SUCCESS)) {
+            streamMetrics.createStream(scope, streamName, initialSegments, latency);
+        } else if (status.equals(CreateStreamStatus.Status.FAILURE)) {
+            streamMetrics.createStreamFailed(scope, streamName);
+        }
+    }
+
+    private void reportUpdateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
+        if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
+            streamMetrics.updateStream(scope, streamName, latency);
+        } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
+            streamMetrics.updateStreamFailed(scope, streamName);
+        }
+    }
+
+    private void reportTruncateStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
+        if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
+            streamMetrics.truncateStream(scope, streamName, latency);
+        } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
+            streamMetrics.truncateStreamFailed(scope, streamName);
+        }
+    }
+
+    private void reportSealStreamMetrics(String scope, String streamName, UpdateStreamStatus.Status status, Duration latency) {
+        if (status.equals(UpdateStreamStatus.Status.SUCCESS)) {
+            streamMetrics.sealStream(scope, streamName, latency);
+        } else if (status.equals(UpdateStreamStatus.Status.FAILURE)) {
+            streamMetrics.sealStreamFailed(scope, streamName);
+        }
+    }
+
+    private void reportDeleteStreamMetrics(String scope, String streamName, DeleteStreamStatus.Status status, Duration latency) {
+        if (status.equals(DeleteStreamStatus.Status.SUCCESS)) {
+            streamMetrics.deleteStream(scope, streamName, latency);
+        } else if (status.equals(DeleteStreamStatus.Status.FAILURE)) {
+            streamMetrics.deleteStreamFailed(scope, streamName);
+        }
+    }
+
+    // End metrics reporting region
 }

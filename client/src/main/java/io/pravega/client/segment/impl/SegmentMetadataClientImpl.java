@@ -22,7 +22,9 @@ import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.GetSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.GetStreamSegmentInfo;
+import io.pravega.shared.protocol.netty.WireCommands.SealSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
@@ -71,7 +73,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
-        log.info("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
+        log.debug("Closing connection with exception: {}", exceptionToInflightRequests.getMessage());
         RawClient c;
         synchronized (lock) {
             c = client;
@@ -147,6 +149,14 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         return connection.sendRequest(requestId, new TruncateSegment(requestId, segment.getScopedName(), offset, delegationToken))
                          .thenApply(r -> transformReply(r, SegmentTruncated.class));
     }
+    
+    private CompletableFuture<SegmentSealed> sealSegmentAsync(Segment segment, String delegationToken) {
+        long requestId = requestIdGenerator.get();
+        log.trace("Sealing segment: {}", segment);
+        RawClient connection = getConnection();
+        return connection.sendRequest(requestId, new SealSegment(requestId, segment.getScopedName(), delegationToken))
+                         .thenApply(r -> transformReply(r, SegmentSealed.class));
+    }
 
     @Override
     public long fetchCurrentSegmentLength() {
@@ -190,16 +200,25 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
                                    .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());
-        StreamSegmentInfo info = future.join();
+        StreamSegmentInfo info = Futures.getThrowingException(future);
         return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(),
                                info.getLastModified());
     }
 
     @Override
-    public void truncateSegment(Segment segment, long offset) {
+    public void truncateSegment(long offset) {
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> truncateSegmentAsync(segment, offset, delegationToken),
+                                   .runAsync(() -> truncateSegmentAsync(segmentId, offset, delegationToken),
+                                             connectionFactory.getInternalExecutor());
+        future.join();
+    }
+
+    @Override
+    public void sealSegment() {
+        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+                                   .throwingOn(NoSuchSegmentException.class)
+                                   .runAsync(() -> sealSegmentAsync(segmentId, delegationToken),
                                              connectionFactory.getInternalExecutor());
         future.join();
     }

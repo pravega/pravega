@@ -33,6 +33,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
@@ -188,16 +189,21 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
         ensureRunning();
-        return this.streamSegmentStore.createTransaction(parentStream, UUID.randomUUID(), null, timeout);
+
+        // Generate a transaction name. This need not be the same as what the Client would do, but we need a unique
+        // name for the new segment. In mergeTransaction, we need a way to extract the original Segment's name out of this
+        // txnName, so best if we use the StreamSegmentNameUtils class.
+        String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentStream, UUID.randomUUID());
+        return this.streamSegmentStore.createStreamSegment(txnName, null, timeout)
+                                      .thenApply(v -> txnName);
     }
 
     @Override
     public CompletableFuture<Void> mergeTransaction(String transactionName, Duration timeout) {
         ensureRunning();
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.streamSegmentStore
-                .sealStreamSegment(transactionName, timer.getRemaining())
-                .thenCompose(v -> this.streamSegmentStore.mergeTransaction(transactionName, timer.getRemaining()));
+        String parentSegment = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
+        return Futures.toVoid(this.streamSegmentStore.mergeStreamSegment(parentSegment, transactionName, timer.getRemaining()));
     }
 
     @Override
@@ -249,7 +255,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         if (isPossibleEndOfSegment(ex)) {
             // If we get a Sealed/Merged/NotExists exception, verify that the segment really is in that state.
             try {
-                SegmentProperties sp = this.streamSegmentStore.getStreamSegmentInfo(segmentName, false, timeout)
+                SegmentProperties sp = this.streamSegmentStore.getStreamSegmentInfo(segmentName, timeout)
                                                               .get(timeout.toMillis(), TimeUnit.MILLISECONDS);
                 reconciled = sp.isSealed() || sp.isDeleted();
             } catch (Throwable ex2) {

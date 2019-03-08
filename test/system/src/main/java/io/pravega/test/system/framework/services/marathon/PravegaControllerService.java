@@ -34,8 +34,8 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Inter
 @Slf4j
 public class PravegaControllerService extends MarathonBasedService {
 
-    private static final int CONTROLLER_PORT = 9092;
-    private static final int REST_PORT = 10080;
+    public static final int CONTROLLER_PORT = 9092;
+    public static final int REST_PORT = 10080;
     private final URI zkUri;
     private int instances = 1;
     private double cpu = 0.5;
@@ -121,17 +121,16 @@ public class PravegaControllerService extends MarathonBasedService {
 
         //set env
         String controllerSystemProperties = "-Xmx512m" +
-                setSystemProperty("ZK_URL", zk) +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_HOST", this.id + ".marathon.mesos") +
-                setSystemProperty("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("CONTROLLER_SERVER_PORT", String.valueOf(CONTROLLER_PORT)) +
-                setSystemProperty("REST_SERVER_PORT", String.valueOf(REST_PORT)) +
+                setSystemProperty("controller.zk.url", zk) +
+                setSystemProperty("controller.service.publishedRPCHost", this.id + ".marathon.mesos") +
+                setSystemProperty("controller.service.publishedRPCPort", String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty("controller.service.port", String.valueOf(CONTROLLER_PORT)) +
+                setSystemProperty("controller.service.restPort", String.valueOf(REST_PORT)) +
                 setSystemProperty("log.level", "DEBUG") +
                 setSystemProperty("log.dir", "$MESOS_SANDBOX/pravegaLogs") +
                 setSystemProperty("curator-default-session-timeout", String.valueOf(10 * 1000)) +
-                setSystemProperty("MAX_LEASE_VALUE", String.valueOf(60 * 1000)) +
-                setSystemProperty("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000)) +
-                setSystemProperty("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
+                setSystemProperty("controller.transaction.maxLeaseValue", String.valueOf(60 * 1000)) +
+                setSystemProperty("controller.retention.frequencyMinutes", String.valueOf(2));
         Map<String, Object> map = new HashMap<>();
         map.put("PRAVEGA_CONTROLLER_OPTS", controllerSystemProperties);
         app.setEnv(map);

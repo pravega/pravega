@@ -10,9 +10,8 @@
 package io.pravega.client.stream.mock;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
-import io.pravega.client.batch.BatchClient;
-import io.pravega.client.batch.impl.BatchClientImpl;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
@@ -25,11 +24,12 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import java.util.function.Supplier;
 
-public class MockClientFactory implements ClientFactory, AutoCloseable {
+public class MockClientFactory implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
 
     private final ConnectionFactoryImpl connectionFactory;
     private final Controller controller;
@@ -50,6 +50,11 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         return impl.createEventWriter(streamName, s, config);
+    }
+    
+    @Override
+    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+        return impl.createTransactionalEventWriter(streamName, s, config);
     }
 
     @Override
@@ -80,10 +85,5 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     @Override
     public void close() {
         this.connectionFactory.close();
-    }
-
-    @Override
-    public BatchClient createBatchClient() {
-        return new BatchClientImpl(controller, connectionFactory);
     }
 }

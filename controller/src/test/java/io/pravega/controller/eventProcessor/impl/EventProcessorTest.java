@@ -10,7 +10,7 @@
 package io.pravega.controller.eventProcessor.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventPointer;
@@ -20,26 +20,25 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReinitializationRequiredException;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
+import io.pravega.controller.eventProcessor.EventSerializer;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.RequestProcessor;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-
-import io.pravega.shared.controller.event.RequestProcessor;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -253,7 +252,7 @@ public class EventProcessorTest {
 
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false))
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
@@ -264,7 +263,7 @@ public class EventProcessorTest {
 
         eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(true))
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) ->
                         (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Resume : ExceptionHandler.Directive.Stop)
                 .config(config)
@@ -276,7 +275,7 @@ public class EventProcessorTest {
 
         eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(true))
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) ->
                         (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Restart : ExceptionHandler.Directive.Stop)
                 .config(config)
@@ -288,7 +287,7 @@ public class EventProcessorTest {
 
         eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new RestartFailingEventProcessor(true))
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) ->
                         (e instanceof IllegalArgumentException) ? ExceptionHandler.Directive.Restart : ExceptionHandler.Directive.Stop)
                 .config(config)
@@ -298,7 +297,7 @@ public class EventProcessorTest {
         // Test case 5. startup fails for an event processor
         eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(StartFailingEventProcessor::new)
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
@@ -336,7 +335,7 @@ public class EventProcessorTest {
 
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new StartWritingEventProcessor(false, input))
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
@@ -382,7 +381,7 @@ public class EventProcessorTest {
 
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new StartWritingEventProcessor(false, input))
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
@@ -417,7 +416,7 @@ public class EventProcessorTest {
 
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(StartFailingEventProcessor::new)
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
@@ -449,7 +448,7 @@ public class EventProcessorTest {
 
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false))
-                .serializer(new JavaSerializer<>())
+                .serializer(new EventSerializer<>())
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(config)
                 .build();
@@ -498,7 +497,7 @@ public class EventProcessorTest {
                                                       final SequenceAnswer<EventStreamReader<TestEvent>> readers,
                                                       final EventStreamWriter<TestEvent> writer,
                                                       final String readerGroupName) {
-        ClientFactory clientFactory = Mockito.mock(ClientFactory.class);
+        EventStreamClientFactory clientFactory = Mockito.mock(EventStreamClientFactory.class);
         Mockito.when(clientFactory.createReader(anyString(), anyString(), any(), any()))
                 .thenAnswer(readers);
 

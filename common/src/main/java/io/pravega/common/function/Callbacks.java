@@ -28,6 +28,17 @@ public final class Callbacks {
     }
 
     /**
+     * Identity Function.
+     *
+     * @param input The input.
+     * @param <T>   Type of the input.
+     * @return The input.
+     */
+    public static <T> T identity(T input) {
+        return input;
+    }
+
+    /**
      * Invokes the given Consumer with the given argument, and catches any exceptions that it may throw.
      *
      * @param consumer       The consumer to invoke.

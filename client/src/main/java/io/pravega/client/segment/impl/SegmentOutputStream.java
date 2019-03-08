@@ -27,9 +27,7 @@ public interface SegmentOutputStream extends AutoCloseable {
     public abstract String getSegmentName();
     
     /**
-     * Writes the provided data to the SegmentOutputStream. If
-     * {@link PendingEvent#getExpectedOffset()} the data will be written only if the
-     * SegmentOutputStream is currently of expectedLength.
+     * Writes the provided data to the SegmentOutputStream.
      * 
      * The associated callback will be invoked when the operation is complete.
      * 

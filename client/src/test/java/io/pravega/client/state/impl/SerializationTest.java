@@ -32,7 +32,7 @@ public class SerializationTest {
         assertEquals(Segment.fromScopedName("Foo/Bar/1"), revision2.asImpl().getSegment());
         assertEquals(2, revision2.asImpl().getOffsetInSegment());
         assertEquals(3, revision2.asImpl().getEventAtOffset());
-        
+
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         @Cleanup
         ObjectOutputStream oout = new ObjectOutputStream(bout);

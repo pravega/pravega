@@ -14,7 +14,6 @@ import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import java.time.Duration;
-
 import lombok.Getter;
 
 /**
@@ -26,27 +25,41 @@ public class ContainerConfig {
     public static final int MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS = 60; // Minimum possible value for segmentExpiration
     public static final Property<Integer> SEGMENT_METADATA_EXPIRATION_SECONDS = Property.named("segmentMetadataExpirationSeconds",
             5 * MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS);
+    public static final Property<Integer> METADATA_STORE_INIT_TIMEOUT_SECONDS = Property.named("metadataStoreInitTimeoutSeconds", 30);
     public static final Property<Integer> MAX_ACTIVE_SEGMENT_COUNT = Property.named("maxActiveSegmentCount", 10000);
     public static final Property<Integer> MAX_CONCURRENT_SEGMENT_EVICTION_COUNT = Property.named("maxConcurrentSegmentEvictionCount", 250);
+    public static final Property<Integer> MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT = Property.named("maxCachedExtendedAttributeCount", 4096);
     private static final String COMPONENT_CODE = "containers";
 
     /**
      * The amount of time after which Segments are eligible for eviction from the metadata.
      */
     @Getter
-    private Duration segmentMetadataExpiration;
+    private final Duration segmentMetadataExpiration;
+
+    /**
+     * The amount of time to wait for the Metadata Store to initialize.
+     */
+    @Getter
+    private final Duration metadataStoreInitTimeout;
 
     /**
      * The maximum number of segments that can be active at any given time in a container.
      */
     @Getter
-    private int maxActiveSegmentCount;
+    private final int maxActiveSegmentCount;
 
     /**
      * The maximum number of segments to evict at once.
      */
     @Getter
-    private int maxConcurrentSegmentEvictionCount;
+    private final int maxConcurrentSegmentEvictionCount;
+
+    /**
+     * The maximum number of cached Extended Attributes that are allowed.
+     */
+    @Getter
+    private final int maxCachedExtendedAttributeCount;
 
     //endregion
 
@@ -65,6 +78,13 @@ public class ContainerConfig {
         }
         this.segmentMetadataExpiration = Duration.ofSeconds(segmentMetadataExpirationSeconds);
 
+        int metadataStoreInitSeconds = properties.getInt(METADATA_STORE_INIT_TIMEOUT_SECONDS);
+        if (metadataStoreInitSeconds <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.",
+                    METADATA_STORE_INIT_TIMEOUT_SECONDS));
+        }
+        this.metadataStoreInitTimeout = Duration.ofSeconds(metadataStoreInitSeconds);
+
         this.maxActiveSegmentCount = properties.getInt(MAX_ACTIVE_SEGMENT_COUNT);
         if (this.maxActiveSegmentCount <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_ACTIVE_SEGMENT_COUNT));
@@ -73,6 +93,11 @@ public class ContainerConfig {
         this.maxConcurrentSegmentEvictionCount = properties.getInt(MAX_CONCURRENT_SEGMENT_EVICTION_COUNT);
         if (this.maxConcurrentSegmentEvictionCount <= 0) {
             throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_CONCURRENT_SEGMENT_EVICTION_COUNT));
+        }
+
+        this.maxCachedExtendedAttributeCount = properties.getInt(MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT);
+        if (this.maxCachedExtendedAttributeCount <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a positive integer.", MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT));
         }
     }
 

@@ -10,8 +10,10 @@
 package io.pravega.segmentstore.server.host.handler;
 
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.WireCommands;
-import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,7 +30,8 @@ public class PravegaRequestProcessorAuthFailedTest {
     public void setUp() throws Exception {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
-        processor = new PravegaRequestProcessor(store, connection, null, (resource, token, expectedLevel) -> false);
+        processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, SegmentStatsRecorder.noOp(),
+                TableSegmentStatsRecorder.noOp(), (resource, token, expectedLevel) -> false, false);
     }
 
     @After
@@ -38,81 +41,63 @@ public class PravegaRequestProcessorAuthFailedTest {
     @Test
     public void readSegment() {
         processor.readSegment(new WireCommands.ReadSegment("segment", 0, 10, ""));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(0));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(0, ""));
     }
 
     @Test
     public void updateSegmentAttribute() {
         processor.updateSegmentAttribute(new WireCommands.UpdateSegmentAttribute(100L, "segment",
                 null, 0, 0, "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 
     @Test
     public void getSegmentAttribute() {
         processor.getSegmentAttribute(new WireCommands.GetSegmentAttribute(100L, "segment",
                 null, "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 
     @Test
     public void getStreamSegmentInfo() {
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(100L,
                 "segment", "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
-    }
-
-    @Test
-    public void getTransactionInfo() {
-        processor.getTransactionInfo(new WireCommands.GetTransactionInfo(100L, "segment", UUID.randomUUID(), "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 
     @Test
     public void createSegment() {
         processor.createSegment(new WireCommands.CreateSegment(100L, "segment", (byte) 0, 0, "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 
     @Test
-    public void createTransaction() {
-        processor.createTransaction(new WireCommands.CreateTransaction(100L, "segment", UUID.randomUUID(), "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
-    }
-
-    @Test
-    public void commitTransaction() {
-        processor.commitTransaction(new WireCommands.CommitTransaction(100L, "segment", UUID.randomUUID(), "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
-    }
-
-    @Test
-    public void abortTransaction() {
-        processor.abortTransaction(new WireCommands.AbortTransaction(100L, "segment", UUID.randomUUID(), "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
+    public void mergeSegments() {
+        processor.mergeSegments(new WireCommands.MergeSegments(100L, "segment", "segment2", "token"));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 
     @Test
     public void sealSegment() {
         processor.sealSegment(new WireCommands.SealSegment(100L, "segment", "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 
     @Test
     public void truncateSegment() {
         processor.truncateSegment(new WireCommands.TruncateSegment(100L, "segment", 0, "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 
     @Test
     public void deleteSegment() {
         processor.deleteSegment(new WireCommands.DeleteSegment(100L, "segment", "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 
     @Test
     public void updateSegmentPolicy() {
         processor.updateSegmentPolicy(new WireCommands.UpdateSegmentPolicy(100L, "segment", (byte) 0, 0, "token"));
-        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L));
+        verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 }

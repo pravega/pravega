@@ -10,12 +10,12 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
-import io.pravega.common.auth.AuthenticationException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -33,7 +33,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -162,7 +161,11 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
         return backoffSchedule.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
-            log.warn("Exception while reading from Segment : {}", segmentId, ex);
+            if (closed.get()) {
+                log.debug("Exception while reading from Segment : {}", segmentId, ex);
+            } else {
+                log.warn("Exception while reading from Segment : {}", segmentId, ex);
+            }
             return ex instanceof Exception && !(ex instanceof ConnectionClosedException) && !(ex instanceof SegmentTruncatedException);
         }).runAsync(() -> {
             return getConnection()
@@ -175,18 +178,26 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                     }).thenCompose(c -> sendRequestOverConnection(request, c));
         }, connectionFactory.getInternalExecutor());
     }
-    
-    @SneakyThrows(ConnectionFailedException.class)
+        
     private CompletableFuture<SegmentRead> sendRequestOverConnection(WireCommands.ReadSegment request, ClientConnection c) {
         CompletableFuture<WireCommands.SegmentRead> result = new CompletableFuture<>();            
+        if (closed.get()) {
+            result.completeExceptionally(new ConnectionClosedException());
+            return result;
+        }
         synchronized (lock) {
             outstandingRequests.put(request.getOffset(), result);
         }
-        if (closed.get()) {
-            throw new ConnectionClosedException();
-        }
         log.trace("Sending read request {}", request);
-        c.sendAsync(request);
+        c.sendAsync(request, cfe -> {
+            if (cfe != null) {
+                log.error("Error while sending request {}", request, cfe);
+                synchronized (lock) {
+                    outstandingRequests.remove(request.getOffset());
+                }
+                result.completeExceptionally(cfe);                
+            }
+        });
         return result;
     }
 

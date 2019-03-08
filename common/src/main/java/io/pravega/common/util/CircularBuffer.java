@@ -138,4 +138,9 @@ public class CircularBuffer {
             }
         }
     }
+    
+    @Override
+    public String toString() {
+        return "Buffer { capacityAvailable:" + capacityAvailable() + " dataAvailable: " + dataAvailable() + "}";
+    }
 }

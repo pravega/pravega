@@ -14,10 +14,9 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
-import io.pravega.segmentstore.server.logs.operations.MergeTransactionOperation;
+import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
@@ -26,6 +25,7 @@ import io.pravega.segmentstore.storage.LogAddress;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -46,6 +46,7 @@ public class OperationMetadataUpdaterTests {
     private static final int CONTAINER_ID = 1;
     private static final int MAX_ACTIVE_SEGMENT_COUNT = TRANSACTION_COUNT * 100;
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
+    private static final UUID PARENT_ID = new UUID(1234, 1234);
     @Rule
     public Timeout globalTimeout = Timeout.seconds(30);
     private final Supplier<Integer> nextAppendLength = () -> Math.max(1, (int) System.nanoTime() % 1000);
@@ -53,10 +54,9 @@ public class OperationMetadataUpdaterTests {
     /**
      * Tests the basic functionality of the class, when no UpdateTransactions are explicitly created. Operations tested:
      * * StreamSegmentMapOperation
-     * * TransactionMapOperation
      * * StreamSegmentAppendOperation
      * * StreamSegmentSealOperation
-     * * MergeTransactionOperation
+     * * MergeSegmentOperation
      */
     @Test
     public void testSingleTransaction() throws Exception {
@@ -281,25 +281,17 @@ public class OperationMetadataUpdaterTests {
     private UpdateableContainerMetadata clone(ContainerMetadata base) {
         val metadata = createBlankMetadata();
 
-        // First clone stand-alone (parent) Segments (since there may be Transactions mapped to them).
         base.getAllStreamSegmentIds().stream()
             .map(base::getStreamSegmentMetadata)
-            .filter(sm -> !sm.isTransaction())
             .forEach(bsm -> metadata.mapStreamSegmentId(bsm.getName(), bsm.getId()).copyFrom(bsm));
-
-        // Then clone transactions.
-        base.getAllStreamSegmentIds().stream()
-            .map(base::getStreamSegmentMetadata)
-            .filter(SegmentMetadata::isTransaction)
-            .forEach(bsm -> metadata.mapStreamSegmentId(bsm.getName(), bsm.getId(), bsm.getParentId()).copyFrom(bsm));
 
         return metadata;
     }
 
     private void mergeTransaction(long transactionId, OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata)
             throws Exception {
-        long parentSegmentId = updater.getStreamSegmentMetadata(transactionId).getParentId();
-        val op = new MergeTransactionOperation(parentSegmentId, transactionId);
+        long parentSegmentId = updater.getStreamSegmentMetadata(transactionId).getAttributes().get(PARENT_ID);
+        val op = new MergeSegmentOperation(parentSegmentId, transactionId);
         process(op, updater);
         if (referenceMetadata != null) {
             referenceMetadata.getStreamSegmentMetadata(transactionId).markMerged();
@@ -358,12 +350,17 @@ public class OperationMetadataUpdaterTests {
     private long mapTransaction(long parentSegmentId, OperationMetadataUpdater updater, UpdateableContainerMetadata referenceMetadata) throws Exception {
         String segmentName = "Transaction_" + updater.nextOperationSequenceNumber();
 
-        val mapOp = new StreamSegmentMapOperation(parentSegmentId, StreamSegmentInformation.builder().name(segmentName).build());
+        val mapOp = new StreamSegmentMapOperation(StreamSegmentInformation
+                .builder()
+                .name(segmentName)
+                .attributes(Collections.singletonMap(PARENT_ID, parentSegmentId))
+                .build());
         process(mapOp, updater);
         if (referenceMetadata != null) {
-            val rsm = referenceMetadata.mapStreamSegmentId(segmentName, mapOp.getStreamSegmentId(), parentSegmentId);
+            val rsm = referenceMetadata.mapStreamSegmentId(segmentName, mapOp.getStreamSegmentId());
             rsm.setLength(0);
             rsm.setStorageLength(0);
+            rsm.updateAttributes(mapOp.getAttributes());
         }
 
         return mapOp.getStreamSegmentId();

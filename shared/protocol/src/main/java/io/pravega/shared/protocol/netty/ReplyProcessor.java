@@ -32,8 +32,8 @@ public interface ReplyProcessor {
 
     void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment);
 
-    void noSuchTransaction(WireCommands.NoSuchTransaction noSuchTransaction);
-    
+    void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty);
+
     void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber);
 
     void appendSetup(WireCommands.AppendSetup appendSetup);
@@ -50,15 +50,9 @@ public interface ReplyProcessor {
     
     void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo);
     
-    void transactionInfo(WireCommands.TransactionInfo transactionInfo);
-
     void segmentCreated(WireCommands.SegmentCreated segmentCreated);
 
-    void transactionCreated(WireCommands.TransactionCreated transactionCreated);
-
-    void transactionCommitted(WireCommands.TransactionCommitted transactionCommitted);
-    
-    void transactionAborted(WireCommands.TransactionAborted transactionAborted);
+    void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged);
 
     void segmentSealed(WireCommands.SegmentSealed segmentSealed);
 
@@ -77,4 +71,18 @@ public interface ReplyProcessor {
     void processingFailure(Exception error);
 
     void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed);
+
+    void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated);
+
+    void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved);
+
+    void tableRead(WireCommands.TableRead tableRead);
+
+    void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist);
+
+    void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion);
+
+    void tableKeysRead(WireCommands.TableKeysRead tableKeysRead);
+
+    void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead);
 }

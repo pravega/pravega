@@ -21,7 +21,6 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import java.net.URI;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -67,20 +66,19 @@ public class PravegaControllerDockerService extends DockerBasedService {
     }
 
     private ServiceSpec setServiceSpec() {
-        Mount mount = Mount.builder().type("Volume").source("volume-logs").target("/tmp/logs").build();
+        Mount mount = Mount.builder().type("Volume").source("controller-logs").target("/opt/pravega/logs").build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         Map<String, String> stringBuilderMap = new HashMap<>();
-        stringBuilderMap.put("ZK_URL", zk);
-        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_HOST", serviceName);
-        stringBuilderMap.put("CONTROLLER_RPC_PUBLISHED_PORT", String.valueOf(controllerPort));
-        stringBuilderMap.put("CONTROLLER_SERVER_PORT", String.valueOf(controllerPort));
-        stringBuilderMap.put("REST_SERVER_PORT", String.valueOf(restPort));
+        stringBuilderMap.put("controller.zk.url", zk);
+        stringBuilderMap.put("controller.service.publishedRPCHost", serviceName);
+        stringBuilderMap.put("controller.service.publishedRPCPort", String.valueOf(controllerPort));
+        stringBuilderMap.put("controller.service.port", String.valueOf(controllerPort));
+        stringBuilderMap.put("controller.service.restPort", String.valueOf(restPort));
         stringBuilderMap.put("log.level", "DEBUG");
         stringBuilderMap.put("curator-default-session-timeout", String.valueOf(10 * 1000));
-        stringBuilderMap.put("ZK_SESSION_TIMEOUT_MS", String.valueOf(30 * 1000));
-        stringBuilderMap.put("MAX_LEASE_VALUE", String.valueOf(60 * 1000));
-        stringBuilderMap.put("MAX_SCALE_GRACE_PERIOD", String.valueOf(60 * 1000));
-        stringBuilderMap.put("RETENTION_FREQUENCY_MINUTES", String.valueOf(2));
+        stringBuilderMap.put("controller.zk.sessionTimeoutMillis", String.valueOf(30 * 1000));
+        stringBuilderMap.put("controller.transaction.maxLeaseValue", String.valueOf(60 * 1000));
+        stringBuilderMap.put("controller.retention.frequencyMinutes", String.valueOf(2));
         StringBuilder systemPropertyBuilder = new StringBuilder();
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
             systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
@@ -91,11 +89,12 @@ public class PravegaControllerDockerService extends DockerBasedService {
         String env2 = "JAVA_OPTS=-Xmx512m";
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.task.name", serviceName);
+
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "nautilus/pravega:" + PRAVEGA_VERSION)
-                        .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(controllerPort)).build())
                         .mounts(Arrays.asList(mount))
                         .hostname(serviceName)
                         .labels(labels)

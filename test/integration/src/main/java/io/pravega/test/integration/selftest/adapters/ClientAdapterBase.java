@@ -10,13 +10,14 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -50,14 +51,13 @@ abstract class ClientAdapterBase extends StoreAdapter {
     static final ByteArraySerializer SERIALIZER = new ByteArraySerializer();
     private static final long TXN_TIMEOUT = 30 * 1000;
     private static final long TXN_MAX_EXEC_TIME = TXN_TIMEOUT;
-    private static final long TXN_SCALE_GRACE_PERIOD = TXN_TIMEOUT;
     private static final EventWriterConfig WRITER_CONFIG = EventWriterConfig.builder()
                                                                             .transactionTimeoutTime(TXN_MAX_EXEC_TIME)
-                                                                            .transactionTimeoutScaleGracePeriod(TXN_SCALE_GRACE_PERIOD)
                                                                             .build();
     final TestConfig testConfig;
     private final ScheduledExecutorService testExecutor;
     private final ConcurrentHashMap<String, List<EventStreamWriter<byte[]>>> streamWriters;
+    private final ConcurrentHashMap<String, List<TransactionalEventStreamWriter<byte[]>>> transactionalWriters;
     private final ConcurrentHashMap<String, UUID> transactionIds;
     private final AtomicReference<ClientReader> clientReader;
 
@@ -75,6 +75,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
         this.testConfig = Preconditions.checkNotNull(testConfig, "testConfig");
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.streamWriters = new ConcurrentHashMap<>();
+        this.transactionalWriters = new ConcurrentHashMap<>();
         this.transactionIds = new ConcurrentHashMap<>();
         this.clientReader = new AtomicReference<>();
     }
@@ -105,6 +106,8 @@ abstract class ClientAdapterBase extends StoreAdapter {
 
         this.streamWriters.values().forEach(l -> l.forEach(EventStreamWriter::close));
         this.streamWriters.clear();
+        this.transactionalWriters.values().forEach(l -> l.forEach(TransactionalEventStreamWriter::close));
+        this.transactionalWriters.clear();
     }
 
     @Override
@@ -116,10 +119,8 @@ abstract class ClientAdapterBase extends StoreAdapter {
             }
 
             StreamConfiguration config = StreamConfiguration
-                    .builder()
-                    .streamName(streamName)
-                    .scalingPolicy(ScalingPolicy.fixed(this.testConfig.getSegmentsPerStream()))
-                    .scope(SCOPE)
+            .builder()
+            .scalingPolicy(ScalingPolicy.fixed(this.testConfig.getSegmentsPerStream()))
                     .build();
             if (!getStreamManager().createStream(SCOPE, streamName, config)) {
                 throw new CompletionException(new StreamingException(String.format("Unable to create Stream '%s'.", streamName)));
@@ -130,6 +131,12 @@ abstract class ClientAdapterBase extends StoreAdapter {
             if (this.streamWriters.putIfAbsent(streamName, writers) == null) {
                 for (int i = 0; i < writerCount; i++) {
                     writers.add(getClientFactory().createEventWriter(streamName, SERIALIZER, WRITER_CONFIG));
+                }
+            }
+            List<TransactionalEventStreamWriter<byte[]>> txnWriters = new ArrayList<>(writerCount);
+            if (this.transactionalWriters.putIfAbsent(streamName, txnWriters) == null) {
+                for (int i = 0; i < writerCount; i++) {
+                    txnWriters.add(getClientFactory().createTransactionalEventWriter(streamName, SERIALIZER, WRITER_CONFIG));
                 }
             }
         }, this.testExecutor);
@@ -165,7 +172,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
             return CompletableFuture.runAsync(() -> {
                 try {
                     UUID txnId = getTransactionId(streamName);
-                    getWriter(parentName, event.getRoutingKey()).getTxn(txnId).writeEvent(routingKey, payload);
+                    getTransactionalWriter(parentName, event.getRoutingKey()).getTxn(txnId).writeEvent(routingKey, payload);
                 } catch (Exception ex) {
                     this.transactionIds.remove(streamName);
                     throw new CompletionException(ex);
@@ -196,7 +203,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     public CompletableFuture<String> createTransaction(String parentStream, Duration timeout) {
         ensureRunning();
         return CompletableFuture.supplyAsync(() -> {
-            EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
+            TransactionalEventStreamWriter<byte[]> writer = getTransactionalWriter(parentStream, 0);
             UUID txnId = writer.beginTxn().getTxnId();
             String txnName = StreamSegmentNameUtils.getTransactionNameFromId(parentStream, txnId);
             this.transactionIds.put(txnName, txnId);
@@ -210,7 +217,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
         String parentStream = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
         return CompletableFuture.runAsync(() -> {
             try {
-                EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
+                TransactionalEventStreamWriter<byte[]> writer = getTransactionalWriter(parentStream, 0);
                 UUID txnId = getTransactionId(transactionName);
                 Transaction<byte[]> txn = writer.getTxn(txnId);
                 txn.commit();
@@ -228,7 +235,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
         String parentStream = StreamSegmentNameUtils.getParentStreamSegmentName(transactionName);
         return CompletableFuture.runAsync(() -> {
             try {
-                EventStreamWriter<byte[]> writer = getDefaultWriter(parentStream);
+                TransactionalEventStreamWriter<byte[]> writer = getTransactionalWriter(parentStream, 0);
                 UUID txnId = getTransactionId(transactionName);
                 Transaction<byte[]> txn = writer.getTxn(txnId);
                 txn.abort();
@@ -265,7 +272,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     /**
      * Gets a reference to the ClientFactory used to create EventStreamWriters and EventStreamReaders.
      */
-    protected abstract ClientFactory getClientFactory();
+    protected abstract EventStreamClientFactory getClientFactory();
 
     /**
      * Gets a String representing the URL to the Controller.
@@ -276,6 +283,10 @@ abstract class ClientAdapterBase extends StoreAdapter {
         List<EventStreamWriter<byte[]>> writers = this.streamWriters.remove(streamName);
         if (writers != null) {
             writers.forEach(EventStreamWriter::close);
+        }
+        List<TransactionalEventStreamWriter<byte[]>> txnWriters = this.transactionalWriters.remove(streamName);
+        if (txnWriters != null) {
+            txnWriters.forEach(TransactionalEventStreamWriter::close);
         }
     }
 
@@ -289,8 +300,14 @@ abstract class ClientAdapterBase extends StoreAdapter {
         return txnId;
     }
 
-    private EventStreamWriter<byte[]> getDefaultWriter(String streamName) {
-        return getWriter(streamName, 0);
+    @SneakyThrows(StreamSegmentNotExistsException.class)
+    private TransactionalEventStreamWriter<byte[]> getTransactionalWriter(String streamName, int routingKey) {
+        List<TransactionalEventStreamWriter<byte[]>> writers = this.transactionalWriters.getOrDefault(streamName, null);
+        if (writers == null) {
+            throw new StreamSegmentNotExistsException(streamName);
+        }
+
+        return writers.get(routingKey % writers.size());
     }
 
     @SneakyThrows(StreamSegmentNotExistsException.class)

@@ -26,6 +26,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -60,8 +61,8 @@ public final class ModelHelper {
     public static final Segment encode(final SegmentId segment) {
         Preconditions.checkNotNull(segment, "segment");
         return new Segment(segment.getStreamInfo().getScope(),
-                           segment.getStreamInfo().getStream(),
-                           segment.getSegmentNumber());
+                segment.getStreamInfo().getStream(),
+                segment.getSegmentId());
     }
 
     public static final ScalingPolicy encode(final Controller.ScalingPolicy policy) {
@@ -102,8 +103,6 @@ public final class ModelHelper {
     public static final StreamConfiguration encode(final StreamConfig config) {
         Preconditions.checkNotNull(config, "config");
         return StreamConfiguration.builder()
-                .scope(config.getStreamInfo().getScope())
-                .streamName(config.getStreamInfo().getStream())
                 .scalingPolicy(encode(config.getScalingPolicy()))
                 .retentionPolicy(encode(config.getRetentionPolicy()))
                 .build();
@@ -126,7 +125,7 @@ public final class ModelHelper {
      * @param keyRanges List of Key Value pairs.
      * @return Collection of key ranges available.
      */
-    public static final List<AbstractMap.SimpleEntry<Double, Double>> encode(final Map<Double, Double> keyRanges) {
+    public static final List<Map.Entry<Double, Double>> encode(final Map<Double, Double> keyRanges) {
         Preconditions.checkNotNull(keyRanges, "keyRanges");
 
         return keyRanges
@@ -189,7 +188,7 @@ public final class ModelHelper {
      * @param streamCut Stream cut
      * @return map of segment to position
      */
-    public static Map<Integer, Long> encode(Controller.StreamCut streamCut) {
+    public static Map<Long, Long> encode(Controller.StreamCut streamCut) {
         return streamCut.getCutMap();
     }
 
@@ -215,7 +214,7 @@ public final class ModelHelper {
      */
     public static final SegmentId decode(final Segment segment) {
         Preconditions.checkNotNull(segment, "segment");
-        return createSegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentNumber());
+        return createSegmentId(segment.getScope(), segment.getStreamName(), segment.getSegmentId());
     }
 
     /**
@@ -253,14 +252,16 @@ public final class ModelHelper {
 
     /**
      * Converts StreamConfiguration into StreamConfig.
-     *
+     * 
+     * @param scope the stream's scope 
+     * @param streamName The Stream Name
      * @param configModel The stream configuration.
      * @return StreamConfig instance.
      */
-    public static final StreamConfig decode(final StreamConfiguration configModel) {
+    public static final StreamConfig decode(String scope, String streamName, final StreamConfiguration configModel) {
         Preconditions.checkNotNull(configModel, "configModel");
         final StreamConfig.Builder builder = StreamConfig.newBuilder()
-                .setStreamInfo(createStreamInfo(configModel.getScope(), configModel.getStreamName()))
+                .setStreamInfo(createStreamInfo(scope, streamName))
                 .setScalingPolicy(decode(configModel.getScalingPolicy()));
         if (configModel.getRetentionPolicy() != null) {
             builder.setRetentionPolicy(decode(configModel.getRetentionPolicy()));
@@ -287,23 +288,31 @@ public final class ModelHelper {
      * @param streamCut map of segment to position
      * @return stream cut
      */
-    public static Controller.StreamCut decode(final String scope, final String stream, Map<Integer, Long> streamCut) {
+    public static Controller.StreamCut decode(final String scope, final String stream, Map<Long, Long> streamCut) {
         return Controller.StreamCut.newBuilder().setStreamInfo(createStreamInfo(scope, stream)).putAllCut(streamCut).build();
     }
 
-    public static final Set<Integer> getSegmentsFromPositions(final List<PositionInternal> positions) {
+    public static Controller.StreamCutRange decode(final String scope, final String stream, Map<Long, Long> from, Map<Long, Long> to) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+
+        return Controller.StreamCutRange.newBuilder().setStreamInfo(createStreamInfo(scope, stream)).putAllFrom(from)
+                .putAllTo(to).build();
+    }
+
+    public static final Set<Long> getSegmentsFromPositions(final List<PositionInternal> positions) {
         Preconditions.checkNotNull(positions, "positions");
         return positions.stream()
-            .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentNumber))
+            .flatMap(position -> position.getCompletedSegments().stream().map(Segment::getSegmentId))
             .collect(Collectors.toSet());
     }
     
-    public static final Map<Integer, Long> toSegmentOffsetMap(final PositionInternal position) {
+    public static final Map<Long, Long> toSegmentOffsetMap(final PositionInternal position) {
         Preconditions.checkNotNull(position, "position");
         return position.getOwnedSegmentsWithOffsets()
             .entrySet()
             .stream()
-            .map(e -> new SimpleEntry<>(e.getKey().getSegmentNumber(), e.getValue()))
+            .map(e -> new SimpleEntry<>(e.getKey().getSegmentId(), e.getValue()))
             .collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
@@ -318,27 +327,40 @@ public final class ModelHelper {
         return StreamInfo.newBuilder().setScope(scope).setStream(stream).build();
     }
 
-    public static final SegmentId createSegmentId(final String scope, final String stream, final int segmentNumber) {
+    public static final SegmentId createSegmentId(final String scope, final String stream, final long segmentId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return SegmentId.newBuilder()
                 .setStreamInfo(createStreamInfo(scope, stream))
-                .setSegmentNumber(segmentNumber)
+                .setSegmentId(segmentId)
                 .build();
     }
 
     public static final SegmentRange createSegmentRange(final String scope, final String stream,
-            final int segmentNumber, final double rangeMinKey, final double rangeMaxKey) {
+            final long segmentId, final double rangeMinKey, final double rangeMaxKey) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return SegmentRange.newBuilder()
-                .setSegmentId(createSegmentId(scope, stream, segmentNumber))
+                .setSegmentId(createSegmentId(scope, stream, segmentId))
                 .setMinKey(rangeMinKey)
                 .setMaxKey(rangeMaxKey)
                 .build();
     }
 
-    public static final SuccessorResponse.Builder createSuccessorResponse(Map<SegmentRange, List<Integer>> segments) {
+    public static final Controller.StreamCutRangeResponse createStreamCutRangeResponse(final String scope, final String stream,
+                                                                                       final List<SegmentId> segments, String delegationToken) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        Exceptions.checkArgument(segments.stream().allMatch(x -> x.getStreamInfo().getScope().equals(scope) &&
+                        x.getStreamInfo().getStream().equals(stream)),
+                "streamInfo", "stream info does not match segment id", scope, stream, segments);
+        return Controller.StreamCutRangeResponse.newBuilder()
+                .addAllSegments(segments)
+                .setDelegationToken(delegationToken)
+                .build();
+    }
+
+    public static final SuccessorResponse.Builder createSuccessorResponse(Map<SegmentRange, List<Long>> segments) {
         Preconditions.checkNotNull(segments);
         return SuccessorResponse.newBuilder()
                 .addAllSegments(

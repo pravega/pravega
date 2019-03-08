@@ -19,18 +19,15 @@ import lombok.Getter;
 @Getter
 public class TimeoutServiceConfig {
     private final long maxLeaseValue;
-    private final long maxScaleGracePeriod;
 
     @Builder
-    TimeoutServiceConfig(final long maxLeaseValue, final long maxScaleGracePeriod) {
+    TimeoutServiceConfig(final long maxLeaseValue) {
         Preconditions.checkArgument(maxLeaseValue > 0, "maxLeaseValue should be positive integer");
-        Preconditions.checkArgument(maxScaleGracePeriod > 0, "maxScaleGracePeriod should be positive integer");
 
         this.maxLeaseValue = maxLeaseValue;
-        this.maxScaleGracePeriod = maxScaleGracePeriod;
     }
 
     public static TimeoutServiceConfig defaultConfig() {
-        return new TimeoutServiceConfig(30000, 30000);
+        return new TimeoutServiceConfig(30000);
     }
 }

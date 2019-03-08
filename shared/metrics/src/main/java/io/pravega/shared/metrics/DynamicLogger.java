@@ -23,7 +23,7 @@ public interface DynamicLogger {
     void incCounterValue(String name, long delta);
 
     /**
-     * Get the value of counter.
+     * Updates the counter with value <i>value</i>.
      *
      * @param name              the name of counter
      * @param value             the value to be updated
@@ -36,6 +36,17 @@ public interface DynamicLogger {
      * @param name              the name of counter
      */
     void freezeCounter(String name);
+
+    /**
+     * Notifies that the counters will not be updated.
+     *
+     * @param names the names of counters
+     */
+    default void freezeCounters(String... names) {
+        for (String name : names) {
+            freezeCounter(name);
+        }
+    }
 
     /**
      * Report gauge value.

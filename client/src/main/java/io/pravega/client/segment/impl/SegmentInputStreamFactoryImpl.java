@@ -12,43 +12,56 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import java.util.concurrent.ExecutionException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
 @VisibleForTesting
 @RequiredArgsConstructor
 public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory {
 
     private final Controller controller;
     private final ConnectionFactory cf;
-    
+
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment) {
-        return createInputStreamForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    public EventSegmentReader createEventReaderForSegment(Segment segment) {
+        return createEventReaderForSegment(segment, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, long endOffset) {
-        return getSegmentInputStream(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
+    public EventSegmentReader createEventReaderForSegment(Segment segment, long endOffset) {
+        return getEventSegmentReader(segment, endOffset, SegmentInputStreamImpl.DEFAULT_BUFFER_SIZE);
     }
 
     @Override
-    public SegmentInputStream createInputStreamForSegment(Segment segment, int bufferSize) {
-        return getSegmentInputStream(segment, Long.MAX_VALUE, bufferSize);
+    public EventSegmentReader createEventReaderForSegment(Segment segment, int bufferSize) {
+        return getEventSegmentReader(segment, Long.MAX_VALUE, bufferSize);
     }
 
-    private SegmentInputStream getSegmentInputStream(Segment segment, long endOffset, int bufferSize) {
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStream().getStreamName()), RuntimeException::new);
-        AsyncSegmentInputStreamImpl result = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
-        try {
-            Exceptions.handleInterrupted(() -> result.getConnection().get());
-        } catch (ExecutionException e) {
-            log.warn("Initial connection attempt failure. Suppressing.", e);
-        }
-        return new SegmentInputStreamImpl(result, 0, endOffset,  bufferSize);
+    private EventSegmentReader getEventSegmentReader(Segment segment, long endOffset, int bufferSize) {
+        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
+                                                                                                          segment.getStream()
+                                                                                                                 .getStreamName()),
+                                                                RuntimeException::new);
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
+        async.getConnection();
+        return getEventSegmentReader(async, 0, endOffset, bufferSize);
+    }
+
+    @VisibleForTesting
+    static EventSegmentReaderImpl getEventSegmentReader(AsyncSegmentInputStream async, long startOffset,
+                                                                  long endOffset, int bufferSize) {
+        return new EventSegmentReaderImpl(new SegmentInputStreamImpl(async, startOffset, endOffset, bufferSize));
+    }
+
+    @VisibleForTesting
+    static EventSegmentReaderImpl getEventSegmentReader(AsyncSegmentInputStream async, long startOffset) {
+        return new EventSegmentReaderImpl(new SegmentInputStreamImpl(async, startOffset));
+    }
+
+    @Override
+    public SegmentInputStream createInputStreamForSegment(Segment segment, String delegationToken) {
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
+        async.getConnection();
+        return new SegmentInputStreamImpl(async, 0);
     }
 }

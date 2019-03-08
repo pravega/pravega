@@ -11,9 +11,12 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
+import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
@@ -22,19 +25,26 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.test.common.InlineExecutor;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.IntStream;
+import lombok.Cleanup;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
@@ -50,7 +60,7 @@ public class ReaderGroupImplTest {
     @Mock
     private SynchronizerConfig synchronizerConfig;
     @Mock
-    private ClientFactory clientFactory;
+    private SynchronizerClientFactory clientFactory;
     @Mock
     private Controller controller;
     @Mock
@@ -59,9 +69,11 @@ public class ReaderGroupImplTest {
     private StateSynchronizer<ReaderGroupState> synchronizer;
     @Mock
     private ReaderGroupState state;
+    @Mock
+    private ScheduledThreadPoolExecutor scheduledThreadPoolExecutor;
 
-    private Serializer<ReaderGroupState.ReaderGroupStateInit> initSerializer = new JavaSerializer<>();
-    private Serializer<ReaderGroupState.ReaderGroupStateUpdate> updateSerializer = new JavaSerializer<>();
+    private Serializer<InitialUpdate<ReaderGroupState>> initSerializer = new ReaderGroupStateInitSerializer();
+    private Serializer<Update<ReaderGroupState>> updateSerializer = new ReaderGroupStateUpdatesSerializer();
 
     @SuppressWarnings("unchecked")
     @Before
@@ -142,6 +154,51 @@ public class ReaderGroupImplTest {
                 .thenReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(r, "")));
 
         assertEquals(40L, readerGroup.unreadBytes());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void initiateCheckpointFailure() {
+        when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(false);
+        CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);
+        assertTrue("expecting a checkpoint failure", result.isCompletedExceptionally());
+        try {
+            result.get();
+        } catch (InterruptedException | ExecutionException e) {
+            assertTrue("expecting MaxNumberOfCheckpointsExceededException", e.getCause() instanceof MaxNumberOfCheckpointsExceededException);
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void initiateCheckpointSuccess() {
+        when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(true);
+        CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", scheduledThreadPoolExecutor);
+        assertFalse("not expecting a checkpoint failure", result.isCompletedExceptionally());
+    }
+
+    @Test(timeout = 10000)
+    public void generateStreamCutSuccess() {
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.isCheckpointComplete(any(String.class))).thenReturn(false).thenReturn(true);
+        when(state.getStreamCutsForCompletedCheckpoint(anyString())).thenReturn(Optional.of(ImmutableMap.of(createStream("s1"),
+                                                                                                                            createStreamCut("s1", 2))));
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
+        CompletableFuture<Map<Stream, StreamCut>> result = readerGroup.generateStreamCuts(executor);
+        assertEquals(createStreamCut("s1", 2), result.join().get(createStream("s1")));
+    }
+
+    @Test(timeout = 10000)
+    public void generateStreamCutsError() {
+        when(synchronizer.getState()).thenReturn(state);
+        when(state.isCheckpointComplete(any(String.class))).thenReturn(true);
+        when(state.getStreamCutsForCompletedCheckpoint(anyString())).thenReturn(Optional.empty()); //mock empty.
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
+        CompletableFuture<Map<Stream, StreamCut>> result = readerGroup.generateStreamCuts(executor);
+        assertSuppliedFutureThrows("CheckpointFailedException is expected", () -> readerGroup.generateStreamCuts(executor),
+                     t -> t instanceof CheckpointFailedException);
     }
 
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {

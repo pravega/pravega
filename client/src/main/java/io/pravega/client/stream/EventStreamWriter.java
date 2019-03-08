@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream;
 
+import io.pravega.client.EventStreamClientFactory;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -58,13 +59,15 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      *         exponential backoff. So there is no need to attempt to retry in the event of an exception.
      */
     CompletableFuture<Void> writeEvent(String routingKey, Type event);
-
     /**
      * Start a new transaction on this stream. This allows events written to the transaction be written an committed atomically.
-     * Note that transactions can only be open for {@link EventWriterConfig#getTransactionTimeoutTime()}.
-     * 
+     * Note that transactions can only be open for {@link EventWriterConfig#transactionTimeoutTime}
+     *
      * @return A transaction through which multiple events can be written atomically.
+     * @deprecated Use {@link EventStreamClientFactory#createTransactionalEventWriter(String, Serializer, EventWriterConfig)} instead
      */
+
+    @Deprecated
     Transaction<Type> beginTxn();
 
     /**
@@ -72,7 +75,9 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * 
      * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
      * @return Transaction object with given UUID
+     * @deprecated Use {@link EventStreamClientFactory#createTransactionalEventWriter(String, Serializer, EventWriterConfig)} instead
      */
+    @Deprecated
     Transaction<Type> getTxn(UUID transactionId);
 
     /**

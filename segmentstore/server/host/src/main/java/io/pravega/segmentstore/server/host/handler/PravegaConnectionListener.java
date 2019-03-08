@@ -32,9 +32,11 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
@@ -54,6 +56,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final String host;
     private final int port;
     private final StreamSegmentStore store;
+    private final TableStore tableStore;
     private final DelegationTokenVerifier tokenVerifier;
     private final String certFile;
     private final String keyFile;
@@ -61,6 +64,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private final SegmentStatsRecorder statsRecorder;
+    private final TableSegmentStatsRecorder tableStatsRecorder;
+    private final boolean replyWithStackTraceOnError;
 
     //endregion
 
@@ -72,10 +77,12 @@ public final class PravegaConnectionListener implements AutoCloseable {
      * @param ssl                Whether to use SSL.
      * @param port               The port to listen on.
      * @param streamSegmentStore The SegmentStore to delegate all requests to.
+     * @param tableStore         The SegmentStore to delegate all requests to.
      */
     @VisibleForTesting
-    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore) {
-        this(ssl, "localhost", port, streamSegmentStore, null, new PassingTokenVerifier(), null, null);
+    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore) {
+        this(ssl, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
+                new PassingTokenVerifier(), null, null, true);
     }
 
     /**
@@ -84,18 +91,24 @@ public final class PravegaConnectionListener implements AutoCloseable {
      * @param host               The name of the host to listen to.
      * @param port               The port to listen on.
      * @param streamSegmentStore The SegmentStore to delegate all requests to.
-     * @param statsRecorder      (Optional) A StatsRecorder for Metrics.
+     * @param tableStore         The TableStore to delegate all requests to.
+     * @param statsRecorder      (Optional) A StatsRecorder for Metrics for Stream Segments.
+     * @param tableStatsRecorder (Optional) A Table StatsRecorder for Metrics for Table Segments.
      * @param tokenVerifier      The object to verify delegation token.
      * @param certFile           Path to the certificate file to be used for TLS.
-     * @param keyFile            PAth to be key file to be used for TLS.
+     * @param keyFile            Path to be key file to be used for TLS.
+     * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
      */
-    public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore,
-                                     SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier, String certFile, String keyFile) {
+    public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
+                                     SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
+                                     DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, boolean replyWithStackTraceOnError) {
         this.ssl = ssl;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
-        this.statsRecorder = statsRecorder;
+        this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
+        this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");
+        this.tableStatsRecorder = Preconditions.checkNotNull(tableStatsRecorder, "tableStatsRecorder");
         this.certFile = certFile;
         this.keyFile = keyFile;
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
@@ -104,6 +117,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
         } else {
             this.tokenVerifier = new PassingTokenVerifier();
         }
+        this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
     //endregion
@@ -144,7 +158,6 @@ public final class PravegaConnectionListener implements AutoCloseable {
                      p.addLast(handler);
                  }
                  ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
-                 // p.addLast(new LoggingHandler(LogLevel.INFO));
                  p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
                          new CommandEncoder(null),
                          new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
@@ -153,9 +166,10 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          lsh);
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
-                         new PravegaRequestProcessor(store, lsh, statsRecorder, tokenVerifier),
+                         new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
                          statsRecorder,
-                         tokenVerifier));
+                         tokenVerifier,
+                         replyWithStackTraceOnError));
              }
          });
 

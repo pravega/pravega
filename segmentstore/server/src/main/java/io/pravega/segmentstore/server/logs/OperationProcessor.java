@@ -41,7 +41,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
-import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -329,7 +328,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
                     // But first, fail any Operations that we did not have a chance to process yet.
                     cancelIncompleteOperations(operations, ex);
-                    throw Lombok.sneakyThrow(ex);
+                    throw Exceptions.sneakyThrow(ex);
                 }
             }
         }
@@ -353,11 +352,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         Preconditions.checkState(!operation.isDone(), "The Operation has already been processed.");
 
         Operation entry = operation.getOperation();
-        if (!entry.canSerialize()) {
-            // This operation cannot be serialized, so don't bother doing anything with it.
-            return;
-        }
-
         synchronized (this.stateLock) {
             // Update Metadata and Operations with any missing data (offsets, lengths, etc) - the Metadata Updater
             // has all the knowledge for that task.
@@ -470,18 +464,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
          * @param operation The operation to append.
          */
         void addPending(CompletableOperation operation) {
-            boolean autoComplete = false;
             synchronized (stateLock) {
-                if (this.nextFrameOperations.isEmpty() && !operation.getOperation().canSerialize()) {
-                    autoComplete = true;
-                } else {
-                    this.nextFrameOperations.add(operation);
-                    this.pendingOperationCount++;
-                }
-            }
-
-            if (autoComplete) {
-                operation.complete();
+                this.nextFrameOperations.add(operation);
+                this.pendingOperationCount++;
             }
         }
 
@@ -567,7 +552,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     toAck.stream().flatMap(Collection::stream).forEach(CompletableOperation::complete);
                     metrics.operationsCompleted(toAck, timer.getElapsed());
                 }
-                autoCompleteIfNeeded();
                 this.checkpointPolicy.recordCommit(commitArgs.getDataFrameLength());
             }
         }
@@ -596,8 +580,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     toFail.forEach(o -> failOperation(o, ex));
                     metrics.operationsFailed(toFail);
                 }
-
-                autoCompleteIfNeeded();
             }
 
             // All exceptions are final. If we cannot write to DurableDataLog, the safest way out is to shut down and
@@ -645,7 +627,17 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                 }
             }
 
-            assert checkpointExists : "No Metadata UpdateTransaction found for " + commitArgs;
+            if (!checkpointExists) {
+                // Under normal circumstances, there should always be an UpdateTransaction that matches our argument;
+                // however if we had just processed a failure, collectFailureCandidates() may have cleared (and failed)
+                // all of them, so, only in that case, would it be OK not to find one.
+                log.warn("{}: No Metadata UpdateTransaction found for '{}' (Count={}). This is expected after a critical failure or when OperationProcessor is shutting down.",
+                        traceObjectId, this.metadataTransactions.size(), commitArgs);
+
+                // If a failure did happen, then there should be no other entries in metadataTransactions at this point.
+                assert this.metadataTransactions.isEmpty() : "No Metadata UpdateTransaction found for given CommitArgs, "
+                        + "but there are still entries in metadataTransaction.";
+            }
             return toAck;
         }
 
@@ -679,32 +671,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
             candidates.addAll(this.nextFrameOperations);
             this.nextFrameOperations.clear();
             return candidates;
-        }
-
-        /**
-         * Auto-completes any non-serialization operations at the beginning of the Pending Operations queue. Due to their
-         * nature, these operations are at risk of never being completed, and, if there are no more pending operations
-         * before that, they can be completed without further delay.
-         */
-        private void autoCompleteIfNeeded() {
-            Collection<CompletableOperation> toComplete = null;
-            synchronized (stateLock) {
-                for (CompletableOperation o : this.nextFrameOperations) {
-                    if (o.getOperation().canSerialize()) {
-                        break;
-                    }
-
-                    if (toComplete == null) {
-                        toComplete = new ArrayList<>();
-                    }
-
-                    toComplete.add(o);
-                }
-            }
-
-            if (toComplete != null) {
-                toComplete.forEach(CompletableOperation::complete);
-            }
         }
     }
 

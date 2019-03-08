@@ -10,28 +10,23 @@
 package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.auth.JKSHelper;
+import io.pravega.common.auth.ZKTLSUtils;
 import io.pravega.common.cluster.Host;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.TokenVerifierImpl;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsFactory;
-import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageConfig;
-import io.pravega.segmentstore.storage.impl.extendeds3.ExtendedS3StorageFactory;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
@@ -40,6 +35,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+
+import static org.apache.zookeeper.client.ZKClientConfig.SECURE_CLIENT;
+import static org.apache.zookeeper.client.ZKClientConfig.ZOOKEEPER_CLIENT_CNXN_SOCKET;
+import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_LOCATION;
+import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_PASSWD;
 
 /**
  * Starts the Pravega Service.
@@ -53,7 +53,7 @@ public final class ServiceStarter {
     private final ServiceBuilder serviceBuilder;
     private StatsProvider statsProvider;
     private PravegaConnectionListener listener;
-    private SegmentStatsFactory segmentStatsFactory;
+    private AutoScaleMonitor autoScaleMonitor;
     private CuratorFramework zkClient;
     private boolean closed;
 
@@ -97,14 +97,18 @@ public final class ServiceStarter {
         log.info("Creating StreamSegmentService ...");
         StreamSegmentStore service = this.serviceBuilder.createStreamSegmentService();
 
+        log.info("Creating TableStoreService ...");
+        TableStore tableStoreService = this.serviceBuilder.createTableStoreService();
+
         log.info("Creating Segment Stats recorder ...");
-        segmentStatsFactory = new SegmentStatsFactory();
-        SegmentStatsRecorder statsRecorder = segmentStatsFactory
-                .createSegmentStatsRecorder(service, builderConfig.getConfig(AutoScalerConfig::builder));
+        autoScaleMonitor = new AutoScaleMonitor(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
         TokenVerifierImpl tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
         this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
-                this.serviceConfig.getListeningPort(), service, statsRecorder, tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile());
+                                                      this.serviceConfig.getListeningPort(), service, tableStoreService,
+                                                      autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
+                                                      tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
+                                                      this.serviceConfig.isReplyWithStackTraceOnError());
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");
@@ -132,10 +136,15 @@ public final class ServiceStarter {
                 log.info("ZooKeeper Client shut down.");
             }
 
-            if (this.segmentStatsFactory != null) {
-                segmentStatsFactory.close();
+            if (this.autoScaleMonitor != null) {
+                autoScaleMonitor.close();
+                autoScaleMonitor = null;
+                log.info("AutoScaleMonitor shut down.");
             }
 
+            if (this.serviceConfig.isSecureZK()) {
+                ZKTLSUtils.unsetSecureZKClientProperties();
+            }
             this.closed = true;
         }
     }
@@ -159,21 +168,9 @@ public final class ServiceStarter {
 
     private void attachStorage(ServiceBuilder builder) {
         builder.withStorageFactory(setup -> {
-            switch (this.serviceConfig.getStorageImplementation()) {
-                case HDFS:
-                    HDFSStorageConfig hdfsConfig = setup.getConfig(HDFSStorageConfig::builder);
-                    return new HDFSStorageFactory(hdfsConfig, setup.getStorageExecutor());
-                case FILESYSTEM:
-                    FileSystemStorageConfig fsConfig = setup.getConfig(FileSystemStorageConfig::builder);
-                    return new FileSystemStorageFactory(fsConfig, setup.getStorageExecutor());
-                case EXTENDEDS3:
-                    ExtendedS3StorageConfig extendedS3Config = setup.getConfig(ExtendedS3StorageConfig::builder);
-                    return new ExtendedS3StorageFactory(extendedS3Config, setup.getStorageExecutor());
-                case INMEMORY:
-                    return new InMemoryStorageFactory(setup.getStorageExecutor());
-                default:
-                    throw new IllegalStateException("Unsupported storage implementation: " + this.serviceConfig.getStorageImplementation());
-            }
+            StorageLoader loader = new StorageLoader();
+            return loader.load(setup, this.serviceConfig.getStorageImplementation().toString(), setup.getStorageExecutor());
+
         });
     }
 
@@ -187,6 +184,12 @@ public final class ServiceStarter {
     }
 
     private CuratorFramework createZKClient() {
+        if (this.serviceConfig.isSecureZK()) {
+            System.setProperty(SECURE_CLIENT, Boolean.toString(this.serviceConfig.isSecureZK()));
+            System.setProperty(ZOOKEEPER_CLIENT_CNXN_SOCKET, "org.apache.zookeeper.ClientCnxnSocketNetty");
+            System.setProperty(SSL_TRUSTSTORE_LOCATION, this.serviceConfig.getZkTrustStore());
+            System.setProperty(SSL_TRUSTSTORE_PASSWD, JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
+        }
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString(this.serviceConfig.getZkURL())

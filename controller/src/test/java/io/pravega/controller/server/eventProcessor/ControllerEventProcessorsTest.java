@@ -14,11 +14,11 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
-import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.store.host.HostControllerStore;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -53,7 +53,7 @@ public class ControllerEventProcessorsTest {
         String scope = "test";
         String stream = "test";
         AbortEvent abortEvent = new AbortEvent(scope, stream, 0, txid);
-        CommitEvent commitEvent = new CommitEvent(scope, stream, 0, txid);
+        CommitEvent commitEvent = new CommitEvent(scope, stream, 0);
         assertEquals(abortEvent.getKey(), "test/test");
         assertEquals(commitEvent.getKey(), "test/test");
     }
@@ -63,6 +63,7 @@ public class ControllerEventProcessorsTest {
         Controller localController = mock(Controller.class);
         CheckpointStore checkpointStore = mock(CheckpointStore.class);
         StreamMetadataStore streamStore = mock(StreamMetadataStore.class);
+        BucketStore bucketStore = mock(BucketStore.class);
         HostControllerStore hostStore = mock(HostControllerStore.class);
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamMetadataTasks streamMetadataTasks = mock(StreamMetadataTasks.class);
@@ -149,8 +150,8 @@ public class ControllerEventProcessorsTest {
         }
 
         ControllerEventProcessors processors = new ControllerEventProcessors("host1",
-                config, localController, checkpointStore, streamStore,
-                hostStore, SegmentHelperMock.getSegmentHelperMock(), connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                config, localController, checkpointStore, streamStore, bucketStore, 
+                connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
                 system, executor);
         processors.startAsync();
         processors.awaitRunning();

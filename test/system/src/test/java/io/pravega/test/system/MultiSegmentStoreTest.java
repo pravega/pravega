@@ -10,7 +10,7 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.EventStreamReader;
@@ -40,7 +40,9 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 /**
@@ -48,49 +50,20 @@ import org.junit.runner.RunWith;
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MultiSegmentStoreTest {
+public class MultiSegmentStoreTest extends AbstractSystemTest {
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10 * 60);
 
     private Service segmentServiceInstance = null;
     private Service controllerInstance = null;
 
     @Environment
     public static void initialize() throws MarathonException {
-
-        // 1. Check if zk is running, if not start it.
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.info("zookeeper service details: {}", zkUris);
-        URI zkUri = zkUris.get(0);
-        // 2. Check if bk is running, otherwise start it.
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.info("bookkeeper service details: {}", bkUris);
-
-        // 3. Start controller.
-        Service controllerService = Utils.createPravegaControllerService(zkUri);
-        if (!controllerService.isRunning()) {
-            controllerService.start(true);
-        }
-
-        List<URI> conUris = controllerService.getServiceDetails();
-        log.info("Pravega Controller service instance details: {}", conUris);
-
-        // 4. Start segment store.
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.info("pravega host service details: {}", segUris);
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before
@@ -119,7 +92,7 @@ public class MultiSegmentStoreTest {
         Futures.getAndHandleExceptions(this.segmentServiceInstance.scaleService(1), ExecutionException::new);
     }
 
-    @Test(timeout = 600000)
+    @Test
     public void testMultiSegmentStores() throws InterruptedException, ExecutionException {
         // Test Sanity.
         log.info("Test with 1 segment store running");
@@ -160,13 +133,11 @@ public class MultiSegmentStoreTest {
 
         // Create stream with large number of segments so that most segment containers are used.
         Assert.assertTrue(streamManager.createStream(scope, stream, StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(stream)
                 .scalingPolicy(ScalingPolicy.fixed(10))
                 .build()));
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(scope,
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope,
                 ClientConfig.builder().controllerURI(controllerUri).build());
 
         log.info("Invoking writer with controller URI: {}", controllerUri);

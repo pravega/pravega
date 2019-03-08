@@ -29,10 +29,10 @@
 - hosts: pravega-controller
   environment:
     JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
-    REST_SERVER_PORT: 10080
-    CONTROLLER_SERVER_PORT: 9090
-    ZK_URL: ZKNODE:2181
     JAVA_OPTS: |
+      -Dcontroller.service.port=9090
+      -Dcontroller.service.restPort=10080
+      -Dcontroller.zk.url=ZKNODE:2181
       -Dconfig.controller.metricenableCSVReporter=false
       -Xmx512m
       -XX:OnError="kill -9 p%"

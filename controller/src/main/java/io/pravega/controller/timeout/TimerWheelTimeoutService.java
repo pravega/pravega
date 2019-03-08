@@ -19,6 +19,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.metrics.DynamicLogger;
@@ -62,8 +63,6 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     private final ConcurrentHashMap<String, TxnData> map;
     @Getter
     private final long maxLeaseValue;
-    @Getter
-    private final long maxScaleGracePeriod;
 
     @Getter(value = AccessLevel.PACKAGE)
     @VisibleForTesting
@@ -131,22 +130,20 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
 
     @Data
     private class TxnData {
-        private final int version;
+        private final Version version;
         private final long maxExecutionTimeExpiry;
-        private final long scaleGracePeriod;
         private final Timeout timeout;
 
-        TxnData(final String scope, final String stream, final UUID txnId, final int version,
-                final long lease, final long maxExecutionTimeExpiry, final long scaleGracePeriod) {
+        TxnData(final String scope, final String stream, final UUID txnId, final Version version,
+                final long lease, final long maxExecutionTimeExpiry) {
             this.version = version;
             this.maxExecutionTimeExpiry = maxExecutionTimeExpiry;
-            this.scaleGracePeriod = scaleGracePeriod;
             TxnTimeoutTask task = new TxnTimeoutTask(scope, stream, txnId, this);
             this.timeout = hashedWheelTimer.newTimeout(task, lease, TimeUnit.MILLISECONDS);
         }
 
-        public TxnData updateLease(final String scope, final String stream, final UUID txnId, int version, final long lease) {
-            return new TxnData(scope, stream, txnId, version, lease, this.maxExecutionTimeExpiry, this.scaleGracePeriod);
+        public TxnData updateLease(final String scope, final String stream, final UUID txnId, Version version, final long lease) {
+            return new TxnData(scope, stream, txnId, version, lease, this.maxExecutionTimeExpiry);
         }
     }
 
@@ -164,7 +161,6 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
                 LEAK_DETECTION);
         this.map = new ConcurrentHashMap<>();
         this.maxLeaseValue = timeoutServiceConfig.getMaxLeaseValue();
-        this.maxScaleGracePeriod = timeoutServiceConfig.getMaxScaleGracePeriod();
         this.taskCompletionQueue = taskCompletionQueue;
         this.startAsync();
     }
@@ -191,12 +187,12 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     @Override
-    public void addTxn(final String scope, final String stream, final UUID txnId, final int version,
-                       final long lease, final long maxExecutionTimeExpiry, final long scaleGracePeriod) {
+    public void addTxn(final String scope, final String stream, final UUID txnId, final Version version,
+                       final long lease, final long maxExecutionTimeExpiry) {
 
         if (this.isRunning()) {
             final String key = getKey(scope, stream, txnId);
-            map.put(key, new TxnData(scope, stream, txnId, version, lease, maxExecutionTimeExpiry, scaleGracePeriod));
+            map.put(key, new TxnData(scope, stream, txnId, version, lease, maxExecutionTimeExpiry));
         }
 
     }
@@ -212,7 +208,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
     }
 
     @Override
-    public PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, int version, long lease) {
+    public PingTxnStatus pingTxn(final String scope, final String stream, final UUID txnId, Version version, long lease) {
 
         if (!this.isRunning()) {
             return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.DISCONNECTED).build();
@@ -227,7 +223,7 @@ public class TimerWheelTimeoutService extends AbstractService implements Timeout
             throw new IllegalStateException(String.format("Transaction %s not added to timerWheelTimeoutService", txnId));
         }
 
-        if (lease > maxLeaseValue || lease > txnData.getScaleGracePeriod()) {
+        if (lease > maxLeaseValue) {
             return PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.LEASE_TOO_LARGE).build();
         }
 

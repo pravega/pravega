@@ -11,7 +11,6 @@ package io.pravega.test.integration.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventStreamWriter;
@@ -21,35 +20,45 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.ObjectBuilder;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroup;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
 import io.pravega.controller.eventProcessor.EventProcessorSystem;
+import io.pravega.controller.eventProcessor.EventSerializer;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.impl.EventProcessor;
 import io.pravega.controller.eventProcessor.impl.EventProcessorGroupConfigImpl;
 import io.pravega.controller.eventProcessor.impl.EventProcessorSystemImpl;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.ControllerEventSerializer;
 import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Cleanup;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.mockito.Mockito.mock;
 
 /**
  * End-to-end tests for event processor.
@@ -87,6 +96,7 @@ public class EventProcessorTest {
 
     @Data
     @AllArgsConstructor
+    @Builder
     public static class TestEvent implements ControllerEvent {
         private static final long serialVersionUID = 1L;
         int number;
@@ -99,6 +109,35 @@ public class EventProcessorTest {
         @Override
         public CompletableFuture<Void> process(RequestProcessor processor) {
             return Futures.failedFuture(new RuntimeException("This should not be called"));
+        }
+
+        static class TestEventBuilder implements ObjectBuilder<TestEvent> {
+
+        }
+
+        static class Serializer extends VersionedSerializer.WithBuilder<TestEvent, TestEventBuilder> {
+            @Override
+            protected TestEventBuilder newBuilder() {
+                return TestEvent.builder();
+            }
+
+            @Override
+            protected byte getWriteVersion() {
+                return 0;
+            }
+
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0, this::write00, this::read00);
+            }
+
+            private void write00(TestEvent e, RevisionDataOutput target) throws IOException {
+                target.writeInt(e.number);
+            }
+
+            private void read00(RevisionDataInput source, TestEventBuilder b) throws IOException {
+                b.number(source.readInt());
+            }
         }
     }
 
@@ -117,7 +156,7 @@ public class EventProcessorTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup
@@ -146,13 +185,11 @@ public class EventProcessorTest {
         }
 
         final StreamConfiguration config = StreamConfiguration.builder()
-                .scope(scope)
-                .streamName(streamName)
                 .scalingPolicy(ScalingPolicy.fixed(1))
                 .build();
 
         System.err.println(String.format("Creating stream (%s, %s)", scope, streamName));
-        CompletableFuture<Boolean> createStatus = controller.createStream(config);
+        CompletableFuture<Boolean> createStatus = controller.createStream(scope, streamName, config);
         if (!createStatus.get()) {
             System.err.println("Stream alrady existed, exiting");
             return;
@@ -161,11 +198,12 @@ public class EventProcessorTest {
         @Cleanup
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
 
+        EventSerializer<TestEvent> eventSerializer = new EventSerializer<>(new TestSerializer());
         @Cleanup
         EventStreamWriter<TestEvent> producer = clientFactory.createEventWriter(streamName,
-                new JavaSerializer<>(), EventWriterConfig.builder().build());
+                eventSerializer, EventWriterConfig.builder().build());
 
         int[] input = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
         int expectedSum = input.length * (input.length + 1) / 2;
@@ -203,7 +241,7 @@ public class EventProcessorTest {
         // Test case 1. Actor does not throw any exception during normal operation.
         EventProcessorConfig<TestEvent> eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
                 .supplier(() -> new TestEventProcessor(false, result))
-                .serializer(new JavaSerializer<>())
+                .serializer(eventSerializer)
                 .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
                 .config(eventProcessorGroupConfig)
                 .build();
@@ -214,5 +252,13 @@ public class EventProcessorTest {
         Long value = result.join();
         Assert.assertEquals(expectedSum, value.longValue());
         log.info("SUCCESS: received expected sum = " + expectedSum);
+    }
+
+    private static class TestSerializer extends ControllerEventSerializer {
+        @Override
+        protected void declareSerializers(Builder builder) {
+            super.declareSerializers(builder);
+            builder.serializer(TestEvent.class, 127, new TestEvent.Serializer());
+        }
     }
 }

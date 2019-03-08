@@ -12,6 +12,8 @@ package io.pravega.common.hash;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
+import io.pravega.common.util.ArrayView;
+import java.util.Arrays;
 import java.util.UUID;
 
 public class HashHelper {
@@ -34,6 +36,10 @@ public class HashHelper {
 
     public long hash(String str) {
         return hash.hashUnencodedChars(str).asLong();
+    }
+
+    public int hash(byte[] array, int offset, int length) {
+        return hash.hashBytes(array, offset, length).asInt();
     }
     
     public UUID toUUID(String str) {
@@ -61,6 +67,20 @@ public class HashHelper {
 
     public int hashToBucket(String str, int numBuckets) {
         return Hashing.consistentHash(hash.hashUnencodedChars(str), numBuckets);
+    }
+
+    public int hashToBucket(UUID uuid, int numBuckets) {
+        return Hashing.consistentHash(
+                Hashing.combineOrdered(Arrays.asList(hash.hashLong(uuid.getMostSignificantBits()), hash.hashLong(uuid.getLeastSignificantBits()))),
+                numBuckets);
+    }
+
+    public int hashToBucket(byte[] array, int numBuckets) {
+        return Hashing.consistentHash(hash.hashBytes(array), numBuckets);
+    }
+
+    public int hashToBucket(ArrayView array, int numBuckets) {
+        return Hashing.consistentHash(hash.hashBytes(array.array(), array.arrayOffset(), array.getLength()), numBuckets);
     }
 
     /**

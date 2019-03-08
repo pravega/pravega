@@ -9,19 +9,31 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableList;
+import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.stream.EventWriterConfig;
+
+import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
+import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 public class SegmentSelectorTest {
 
@@ -35,14 +47,14 @@ public class SegmentSelectorTest {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
         SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
-        TreeMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(0.25, new Segment(scope, streamName, 0));
-        segments.put(0.5, new Segment(scope, streamName, 1));
-        segments.put(0.75, new Segment(scope, streamName, 2));
-        segments.put(1.0, new Segment(scope, streamName, 3));
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.25);
+        addNewSegment(segments, 1, 0.25, 0.5);
+        addNewSegment(segments, 2, 0.5, 0.75);
+        addNewSegment(segments, 3, 0.75, 1.0);
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
-        Mockito.when(controller.getCurrentSegments(scope, streamName))
+        when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
         selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
@@ -50,11 +62,15 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("" + i);
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
         }
+    }
+
+    private void addNewSegment(TreeMap<Double, SegmentWithRange> segments, int number, double low, double high) {
+        segments.put(high, new SegmentWithRange(new Segment(scope, streamName, number), low, high));
     }
 
     @Test
@@ -62,14 +78,14 @@ public class SegmentSelectorTest {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
         SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
-        TreeMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(0.25, new Segment(scope, streamName, 0));
-        segments.put(0.5, new Segment(scope, streamName, 1));
-        segments.put(0.75, new Segment(scope, streamName, 2));
-        segments.put(1.0, new Segment(scope, streamName, 3));
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.25);
+        addNewSegment(segments, 1, 0.25, 0.5);
+        addNewSegment(segments, 2, 0.5, 0.75);
+        addNewSegment(segments, 3, 0.75, 1.0);
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
-        Mockito.when(controller.getCurrentSegments(scope, streamName))
+        when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
         selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
@@ -77,7 +93,7 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 100; i++) {
             Segment segment = selector.getSegmentForEvent(null);
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         for (int count : counts) {
             assertTrue(count > 1);
@@ -89,14 +105,14 @@ public class SegmentSelectorTest {
         Controller controller = Mockito.mock(Controller.class);
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
         SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
-        TreeMap<Double, Segment> segments = new TreeMap<>();
-        segments.put(0.25, new Segment(scope, streamName, 0));
-        segments.put(0.5, new Segment(scope, streamName, 1));
-        segments.put(0.75, new Segment(scope, streamName, 2));
-        segments.put(1.0, new Segment(scope, streamName, 3));
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.25);
+        addNewSegment(segments, 1, 0.25, 0.5);
+        addNewSegment(segments, 2, 0.5, 0.75);
+        addNewSegment(segments, 3, 0.75, 1.0);
         StreamSegments streamSegments = new StreamSegments(segments, "");
 
-        Mockito.when(controller.getCurrentSegments(scope, streamName))
+        when(controller.getCurrentSegments(scope, streamName))
                .thenReturn(CompletableFuture.completedFuture(streamSegments));
         selector.refreshSegmentEventWriters(segmentSealedCallback);
         int[] counts = new int[4];
@@ -104,9 +120,53 @@ public class SegmentSelectorTest {
         for (int i = 0; i < 20; i++) {
             Segment segment = selector.getSegmentForEvent("Foo");
             assertNotNull(segment);
-            counts[segment.getSegmentNumber()]++;
+            counts[StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId())]++;
         }
         assertArrayEquals(new int[] { 20, 0, 0, 0 }, counts);
+    }
+
+    @Test
+    public void testStreamDeletion() {
+        final Segment segment0 = new Segment(scope, streamName, 0);
+        final Segment segment1 = new Segment(scope, streamName, 1);
+        final CompletableFuture<Void> writerFuture = new CompletableFuture<>();
+
+        // Setup Mock.
+        SegmentOutputStream s0Writer = Mockito.mock(SegmentOutputStream.class);
+        SegmentOutputStream s1Writer = Mockito.mock(SegmentOutputStream.class);
+        when(s0Writer.getUnackedEventsOnSeal())
+                .thenReturn(ImmutableList.of(PendingEvent.withHeader("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
+
+        SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
+        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+                .thenReturn(s0Writer);
+        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+                .thenReturn(s1Writer);
+
+        Controller controller = Mockito.mock(Controller.class);
+        SegmentSelector selector = new SegmentSelector(new StreamImpl(scope, streamName), controller, factory, config);
+        TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
+        addNewSegment(segments, 0, 0.0, 0.5);
+        addNewSegment(segments, 1, 0.5, 1.0);
+        StreamSegments streamSegments = new StreamSegments(segments, "");
+
+        when(controller.getCurrentSegments(scope, streamName))
+                .thenReturn(CompletableFuture.completedFuture(streamSegments));
+        //trigger refresh.
+        selector.refreshSegmentEventWriters(segmentSealedCallback);
+
+        //simulate stream deletion where controller.getSuccessors() is completed exceptionally.
+        when(controller.getSuccessors(segment0))
+                .thenAnswer(i -> {
+                    CompletableFuture<StreamSegmentsWithPredecessors> result = new CompletableFuture<>();
+                    // Controller throws io.pravega.controller.store.stream.StoreException$DataNotFoundException which is type RuntimeException.
+                    // Using RunTimeException here as the controller exception is not visible.
+                    result.completeExceptionally(new RuntimeException());
+                    return result;
+                });
+
+        assertEquals(Collections.emptyList(), selector.refreshSegmentEventWritersUponSealed(segment0, segmentSealedCallback));
+        assertFutureThrows("Writer Future", writerFuture, t -> t instanceof NoSuchSegmentException);
     }
 
 }

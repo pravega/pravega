@@ -9,10 +9,12 @@
  */
 package io.pravega.client.stream;
 
+import com.google.common.base.Preconditions;
 import java.io.Serializable;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -24,19 +26,23 @@ import lombok.RequiredArgsConstructor;
 public class ScalingPolicy implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public enum ScaleType {
         /**
          * No scaling, there will only ever be {@link ScalingPolicy#minNumSegments} at any given time.
          */
-        FIXED_NUM_SEGMENTS,
+        FIXED_NUM_SEGMENTS(io.pravega.shared.segment.ScaleType.NoScaling.getValue()),
         /**
          * Scale based on the rate in bytes specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_KBYTES_PER_SEC,
+        BY_RATE_IN_KBYTES_PER_SEC(io.pravega.shared.segment.ScaleType.NoScaling.getValue()),
         /**
          * Scale based on the rate in events specified in {@link ScalingPolicy#targetRate}.
          */
-        BY_RATE_IN_EVENTS_PER_SEC,
+        BY_RATE_IN_EVENTS_PER_SEC(io.pravega.shared.segment.ScaleType.NoScaling.getValue());
+
+        @Getter
+        private final byte value;
     }
 
     private final ScaleType scaleType;
@@ -51,6 +57,7 @@ public class ScalingPolicy implements Serializable {
      * @return Scaling policy object.
      */
     public static ScalingPolicy fixed(int numSegments) {
+        Preconditions.checkArgument(numSegments > 0, "Number of segments should be > 0.");
         return new ScalingPolicy(ScaleType.FIXED_NUM_SEGMENTS, 0, 0, numSegments);
     }
 
@@ -88,6 +95,9 @@ public class ScalingPolicy implements Serializable {
      * @return Scaling policy object.
      */
     public static ScalingPolicy byEventRate(int targetRate, int scaleFactor, int minNumSegments) {
+        Preconditions.checkArgument(targetRate > 0, "Target rate should be > 0.");
+        Preconditions.checkArgument(scaleFactor > 0, "Scale factor should be > 0. Otherwise use fixed scaling policy.");
+        Preconditions.checkArgument(minNumSegments > 0, "Minimum number of segments should be > 0.");
         return new ScalingPolicy(ScaleType.BY_RATE_IN_EVENTS_PER_SEC, targetRate, scaleFactor, minNumSegments);
     }
 
@@ -124,6 +134,9 @@ public class ScalingPolicy implements Serializable {
      * @return Scaling policy object.
      */
     public static ScalingPolicy byDataRate(int targetKBps, int scaleFactor, int minNumSegments) {
+        Preconditions.checkArgument(targetKBps > 0, "KBps should be > 0.");
+        Preconditions.checkArgument(scaleFactor > 0, "Scale factor should be > 0. Otherwise use fixed scaling policy.");
+        Preconditions.checkArgument(minNumSegments > 0, "Minimum number of segments should be > 0.");
         return new ScalingPolicy(ScaleType.BY_RATE_IN_KBYTES_PER_SEC, targetKBps, scaleFactor, minNumSegments);
     }
 }

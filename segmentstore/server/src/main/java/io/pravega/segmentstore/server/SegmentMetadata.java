@@ -10,8 +10,6 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
-import io.pravega.segmentstore.contracts.StreamSegmentInformation;
-import java.util.HashMap;
 
 /**
  * Defines an immutable StreamSegment Metadata.
@@ -19,38 +17,46 @@ import java.util.HashMap;
 public interface SegmentMetadata extends SegmentProperties {
     /**
      * Gets a value indicating the id of this StreamSegment.
+     * @return The StreamSegment Id.
      */
     long getId();
 
     /**
-     * Gets a value indicating the id of this StreamSegment's parent.
-     */
-    long getParentId();
-
-    /**
      * Gets a value indicating the id of the Container this StreamSegment belongs to.
+     * @return The Container Id.
      */
     int getContainerId();
 
     /**
      * Gets a value indicating whether this StreamSegment has been merged into another.
+     * @return true if StreamSegment is merged, false otherwise.
      */
     boolean isMerged();
 
     /**
      * Gets a value indicating whether this StreamSegment has been sealed in Storage.
-     * This is different from isSealed(), which returns true if the StreamSegment has been sealed in DurableLog or in Storage.
+     * This is different from isSealed(), which returns true if the StreamSegment has been sealed in the Metadata or in Storage.
+     * @return true if this StreamSegment has been sealed in Storage, false otherwise.
      */
     boolean isSealedInStorage();
 
     /**
+     * Gets a value indicating whether this StreamSegment has been deleted in Storage.
+     * This is different from isDeleted(), which returns true if the StreamSegment has been deleted in the Metadata or in Storage.
+     * @return true if this StreamSegment has been deleted in Storage, false otherwise.
+     */
+    boolean isDeletedInStorage();
+
+    /**
      * Gets a value indicating the length of this StreamSegment for the part that exists in Storage Only.
+     * @return The length of the StreamSegment.
      */
     long getStorageLength();
 
     /**
      * Gets a value representing the when the Segment was last used. The meaning of this value is implementation specific,
      * however higher values should indicate it was used more recently.
+     * @return The value representing when the Segment last used.
      */
     long getLastUsed();
 
@@ -69,16 +75,18 @@ public interface SegmentMetadata extends SegmentProperties {
      * @return The new SegmentProperties instance. This object is completely detached from the SegmentMetadata from which
      * it was created (changes to the base object will not be reflected in the result).
      */
-    default SegmentProperties getSnapshot() {
-        return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
-    }
+    SegmentProperties getSnapshot();
 
     /**
-     * Determines whether the Segment represented by this SegmentMetadata is a Transaction.
+     * Gets a value indicating whether this {@link SegmentMetadata} instance is pinned to memory. If pinned, this metadata
+     * will never be evicted by the owning metadata (even if there is eviction pressure and this Segment meets all other
+     * eviction criteria).
      *
-     * @return True if Transaction, False otherwise.
+     * Notes:
+     * - This will still be cleared out of the metadata if {@link UpdateableContainerMetadata#reset()} is invoked.
+     * - This has no bearing on the eviction of the Segment's Extended Attributes.
+     *
+     * @return True if pinned, false otherwise.
      */
-    default boolean isTransaction() {
-        return getParentId() != ContainerMetadata.NO_STREAM_SEGMENT_ID;
-    }
+    boolean isPinned();
 }

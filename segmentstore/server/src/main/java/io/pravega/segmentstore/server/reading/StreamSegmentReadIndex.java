@@ -22,7 +22,7 @@ import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
-import io.pravega.segmentstore.server.CacheKey;
+import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
@@ -33,7 +33,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
@@ -66,7 +68,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private final Cache cache;
     private final FutureReadResultEntryCollection futureReads;
     @GuardedBy("lock")
-    private final HashMap<Long, Long> mergeOffsets; //Key = StreamSegmentId (Merged), Value = Merge offset.
+    private final HashMap<Long, PendingMerge> pendingMergers; //Key = Source Segment Id, Value = Pending Merge Info.
     private final StorageReadManager storageReadManager;
     private final ReadIndexSummary summary;
     private final ScheduledExecutorService executor;
@@ -107,7 +109,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.recoveryMode = recoveryMode;
         this.indexEntries = new AvlTreeIndex<>();
         this.futureReads = new FutureReadResultEntryCollection();
-        this.mergeOffsets = new HashMap<>();
+        this.pendingMergers = new HashMap<>();
         this.lastAppendedOffset = -1;
         this.storageReadManager = new StorageReadManager(metadata, storage, executor);
         this.executor = executor;
@@ -138,8 +140,14 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // Close storage reader (and thus cancel those reads).
             this.storageReadManager.close();
 
-            // Cancel future reads.
-            this.futureReads.close();
+            // Cancel registered future reads and any reads pertaining to incomplete mergers.
+            ArrayList<Iterator<FutureReadResultEntry>> futureReads = new ArrayList<>();
+            futureReads.add(this.futureReads.close().iterator());
+            synchronized (this.lock) {
+                this.pendingMergers.values().forEach(pm -> futureReads.add(pm.seal().iterator()));
+            }
+            cancelFutureReads(Iterators.concat(futureReads.iterator()));
+
             if (cleanCache) {
                 this.executor.execute(() -> {
                     removeAllEntries();
@@ -147,6 +155,16 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 });
             } else {
                 log.info("{}: Closed (no cache cleanup).", this.traceObjectId);
+            }
+        }
+    }
+
+    private void cancelFutureReads(Iterator<FutureReadResultEntry> toCancel) {
+        CancellationException ce = new CancellationException();
+        while (toCancel.hasNext()) {
+            FutureReadResultEntry e = toCancel.next();
+            if (!e.getContent().isDone()) {
+                e.fail(ce);
             }
         }
     }
@@ -354,16 +372,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     void beginMerge(long offset, StreamSegmentReadIndex sourceStreamSegmentIndex) {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "beginMerge", offset, sourceStreamSegmentIndex.traceObjectId);
         Exceptions.checkNotClosed(this.closed, this);
-        Preconditions.checkState(!this.metadata.isTransaction(), "Cannot merge a StreamSegment into a Transaction.");
         Exceptions.checkArgument(!sourceStreamSegmentIndex.isMerged(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged.");
 
         SegmentMetadata sourceMetadata = sourceStreamSegmentIndex.metadata;
-        Exceptions.checkArgument(sourceMetadata.getParentId() == this.metadata.getId(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex refers to a StreamSegment that does not have this ReadIndex's StreamSegment as a parent.");
         Exceptions.checkArgument(sourceMetadata.isSealed(), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex refers to a StreamSegment that is not sealed.");
 
         long sourceLength = sourceStreamSegmentIndex.getSegmentLength();
+        RedirectIndexEntry newEntry = new RedirectIndexEntry(offset, sourceStreamSegmentIndex);
         if (sourceLength == 0) {
-            // Nothing to do.
+            // Nothing to do. Just record that there is a merge for this source Segment id.
             return;
         }
 
@@ -375,10 +392,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(endOffset <= ourLength, "offset", "The given range of bytes(%d-%d) is beyond the StreamSegment Length (%d).", offset, endOffset, ourLength);
 
         // Check and record the merger (optimistically).
-        RedirectIndexEntry newEntry = new RedirectIndexEntry(offset, sourceStreamSegmentIndex);
         synchronized (this.lock) {
-            Exceptions.checkArgument(!this.mergeOffsets.containsKey(sourceMetadata.getId()), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged or in the process of being merged into this one.");
-            this.mergeOffsets.put(sourceMetadata.getId(), newEntry.key());
+            Exceptions.checkArgument(!this.pendingMergers.containsKey(sourceMetadata.getId()), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged or in the process of being merged into this one.");
+            this.pendingMergers.put(sourceMetadata.getId(), new PendingMerge(newEntry.key()));
         }
 
         try {
@@ -386,7 +402,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         } catch (Exception ex) {
             // If the merger failed, roll back the markers.
             synchronized (this.lock) {
-                this.mergeOffsets.remove(sourceMetadata.getId());
+                this.pendingMergers.remove(sourceMetadata.getId());
             }
 
             throw ex;
@@ -400,38 +416,53 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * The StreamSegments are physically merged in the Storage. The Source StreamSegment does not exist anymore.
      * The ReadIndex entries of the two Streams are actually joined together.
      *
-     * @param sourceStreamSegmentId The Id of the StreamSegment that was merged into this one.
+     * @param sourceMetadata The SegmentMetadata of the Segment that was merged into this one.
      */
-    void completeMerge(long sourceStreamSegmentId) {
-        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "completeMerge", sourceStreamSegmentId);
+    void completeMerge(SegmentMetadata sourceMetadata) {
+        long traceId = LoggerHelpers.traceEnterWithContext(log, this.traceObjectId, "completeMerge", sourceMetadata.getId());
         Exceptions.checkNotClosed(this.closed, this);
+        Exceptions.checkArgument(sourceMetadata.isDeleted(), "sourceSegmentStreamId",
+                "Given StreamSegmentReadIndex refers to a StreamSegment that has not been deleted yet.");
+
+        if (sourceMetadata.getLength() == 0) {
+            // beginMerge() does not take any action when the source Segment is empty, so there is nothing for us to do either.
+            return;
+        }
 
         // Find the appropriate redirect entry.
         RedirectIndexEntry redirectEntry;
-        long mergeKey;
+        PendingMerge pendingMerge;
         synchronized (this.lock) {
-            mergeKey = this.mergeOffsets.getOrDefault(sourceStreamSegmentId, -1L);
-            Exceptions.checkArgument(mergeKey >= 0, "sourceSegmentStreamId", "Given StreamSegmentReadIndex's merger with this one has not been initiated using beginMerge. Cannot finalize the merger.");
+            pendingMerge = this.pendingMergers.getOrDefault(sourceMetadata.getId(), null);
+            Exceptions.checkArgument(pendingMerge != null, "sourceSegmentStreamId",
+                    "Given StreamSegmentReadIndex's merger with this one has not been initiated using beginMerge. Cannot finalize the merger.");
 
             // Get the RedirectIndexEntry. These types of entries are sticky in the cache and DO NOT contribute to the
             // cache Stats. They are already accounted for in the other Segment's ReadIndex.
-            ReadIndexEntry indexEntry = this.indexEntries.get(mergeKey);
-            assert indexEntry != null && !indexEntry.isDataEntry() : String.format("mergeOffsets points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.", sourceStreamSegmentId, mergeKey, indexEntry);
+            ReadIndexEntry indexEntry = this.indexEntries.get(pendingMerge.getMergeOffset());
+            assert indexEntry != null && !indexEntry.isDataEntry() :
+                    String.format("pendingMergers points to a ReadIndexEntry that does not exist or is of the wrong type. sourceStreamSegmentId = %d, offset = %d, treeEntry = %s.",
+                            sourceMetadata.getId(), pendingMerge.getMergeOffset(), indexEntry);
             redirectEntry = (RedirectIndexEntry) indexEntry;
         }
 
         StreamSegmentReadIndex sourceIndex = redirectEntry.getRedirectReadIndex();
-        SegmentMetadata sourceMetadata = sourceIndex.metadata;
-        Exceptions.checkArgument(sourceMetadata.isDeleted(), "sourceSegmentStreamId", "Given StreamSegmentReadIndex refers to a StreamSegment that has not been deleted yet.");
 
         // Get all the entries from the source index and append them here.
         List<MergedIndexEntry> sourceEntries = sourceIndex.getAllEntries(redirectEntry.getStreamSegmentOffset());
 
         synchronized (this.lock) {
             // Remove redirect entry (again, no need to update the Cache Stats, as this is a RedirectIndexEntry).
-            this.indexEntries.remove(mergeKey);
-            this.mergeOffsets.remove(sourceStreamSegmentId);
+            this.indexEntries.remove(pendingMerge.getMergeOffset());
+            this.pendingMergers.remove(sourceMetadata.getId());
             sourceEntries.forEach(this::addToIndex);
+        }
+
+        List<FutureReadResultEntry> pendingReads = pendingMerge.seal();
+        if (pendingReads.size() > 0) {
+            log.debug("{}: triggerFutureReads for Pending Merge (Count = {}, MergeOffset = {}, MergeLength = {}).",
+                    this.traceObjectId, pendingReads.size(), pendingMerge.getMergeOffset(), sourceIndex.getSegmentLength());
+            triggerFutureReads(pendingReads);
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "completeMerge", traceId);
@@ -510,30 +541,39 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!this.recoveryMode, "StreamSegmentReadIndex is in Recovery Mode.");
 
-        // Get all eligible Future Reads which wait for data prior to the end offset.
-        // Since we are not actually using this entry's data, there is no need to 'touch' it.
-        ReadIndexEntry lastEntry;
-        synchronized (this.lock) {
-            lastEntry = this.indexEntries.getLast();
-        }
-
-        if (lastEntry == null) {
-            // Nothing to do.
-            return;
-        }
-
-        Collection<FutureReadResultEntry> futureReads;
         boolean sealed = this.metadata.isSealed();
+        Collection<FutureReadResultEntry> futureReads;
         if (sealed) {
             // Get everything, even if some Future Reads are in the future - those will eventually return EndOfSegment.
             futureReads = this.futureReads.pollAll();
+            log.debug("{}: triggerFutureReads (Count = {}, Offset = {}, Sealed = True).", this.traceObjectId, futureReads.size(), this.metadata.getLength());
         } else {
+            // Get all eligible Future Reads which wait for data prior to the end offset.
+            // Since we are not actually using this entry's data, there is no need to 'touch' it.
+            ReadIndexEntry lastEntry;
+            synchronized (this.lock) {
+                lastEntry = this.indexEntries.getLast();
+            }
+
+            if (lastEntry == null) {
+                // Nothing to do.
+                return;
+            }
+
             // Get only those up to the last offset of the last append.
             futureReads = this.futureReads.poll(lastEntry.getLastStreamSegmentOffset());
+            log.debug("{}: triggerFutureReads (Count = {}, Offset = {}, Sealed = False).", this.traceObjectId, futureReads.size(), lastEntry.getLastStreamSegmentOffset());
         }
 
-        log.debug("{}: triggerFutureReads (Count = {}, Offset = {}, Sealed = {}).", this.traceObjectId, futureReads.size(), lastEntry.getLastStreamSegmentOffset(), sealed);
+        triggerFutureReads(futureReads);
+    }
 
+    /**
+     * Triggers all the Future Reads in the given collection.
+     *
+     * @param futureReads The Future Reads to trigger.
+     */
+    private void triggerFutureReads(Collection<FutureReadResultEntry> futureReads) {
         for (FutureReadResultEntry r : futureReads) {
             ReadResultEntry entry = getSingleReadResultEntry(r.getStreamSegmentOffset(), r.getRequestedReadLength());
             assert entry != null : "Serving a StorageReadResultEntry with a null result";
@@ -682,9 +722,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     /**
      * Returns the first ReadResultEntry that matches the specified search parameters.
-     * <p>
+     *
      * Compared to getMultiReadResultEntry(), this method returns exactly one ReadResultEntry.
-     * <p>
+     *
      * Compared to getSingleMemoryReadResultEntry(), this method will return a CompletableReadResultEntry regardless of
      * whether the data is cached or not. This may involve registering a future read or triggering a Storage read if necessary,
      * as well as redirecting the read to a Transaction if necessary.
@@ -833,7 +873,39 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             // yield the right result. However, in order to recover from this without the caller's intervention, we pass
             // a pointer to getSingleReadResultEntry to the RedirectedReadResultEntry in case it fails with such an exception;
             // that class has logic in it to invoke it if needed and get the right entry.
-            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getSingleReadResultEntry, this.executor);
+            result = new RedirectedReadResultEntry(result, entry.getStreamSegmentOffset(), this::getOrRegisterRedirectedRead, redirectedIndex.metadata.getId());
+        }
+
+        return result;
+    }
+
+    private CompletableReadResultEntry getOrRegisterRedirectedRead(long resultStartOffset, int maxLength, long sourceSegmentId) {
+        CompletableReadResultEntry result = getSingleReadResultEntry(resultStartOffset, maxLength);
+        if (result instanceof RedirectedReadResultEntry) {
+            // The merger isn't completed yet. Register the read so that it is completed when the merger is done.
+            PendingMerge pendingMerge;
+            synchronized (this.lock) {
+                pendingMerge = this.pendingMergers.getOrDefault(sourceSegmentId, null);
+            }
+
+            // Transform the read result entry into a Future Read, instead of adding it to futureReads, associate it
+            // with this pendingMerge, so that a completeMerge() would finalize it.
+            FutureReadResultEntry futureResult = new FutureReadResultEntry(result.getStreamSegmentOffset(), result.getRequestedReadLength());
+            if (pendingMerge != null && pendingMerge.register(futureResult)) {
+                // We were able to register the result.
+                result = futureResult;
+                log.debug("{}: Registered Pending Merge Future Read {}.", this.traceObjectId, result);
+            } else {
+                // The merge has been unregistered. Our only hope now is that the index has settled and re-invoking this
+                // will yield the sought-after result.
+                if (pendingMerge == null) {
+                    log.debug("{}: Could not find Pending Merge for Id {} for {}; re-issuing.", this.traceObjectId, sourceSegmentId, result);
+                } else {
+                    log.debug("{}: Pending Merge for id {} was sealed for {}; re-issuing.", this.traceObjectId, sourceSegmentId, result);
+                }
+
+                result = getSingleReadResultEntry(resultStartOffset, maxLength);
+            }
         }
 
         return result;

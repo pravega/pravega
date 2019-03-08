@@ -9,9 +9,19 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
-import java.io.Serializable;
+import io.pravega.common.ObjectBuilder;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.io.serialization.RevisionDataInput.ElementDeserializer;
+import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
+import io.pravega.common.util.ByteArraySegment;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -22,11 +32,19 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
+import lombok.Builder;
+import lombok.EqualsAndHashCode;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.client.stream.impl.ReaderGroupImpl.SILENT;
 
 @NotThreadSafe
-public class CheckpointState implements Serializable {
-
-    private static final long serialVersionUID = 1L;
+@EqualsAndHashCode
+@Slf4j
+public class CheckpointState {
+    
+    private static final CheckpointStateSerializer SERIALIZER = new CheckpointStateSerializer();
     
     private final List<String> checkpoints;
     /**
@@ -45,6 +63,7 @@ public class CheckpointState implements Serializable {
         this(new ArrayList<>(), new HashMap<>(), new HashMap<>(), null);
     }
     
+    @Builder
     private CheckpointState(List<String> checkpoints, Map<String, List<String>> uncheckpointedHosts,
             Map<String, Map<Segment, Long>> checkpointPositions, Map<Segment, Long> lastCheckpointPosition) {
         Preconditions.checkNotNull(checkpoints);
@@ -55,7 +74,7 @@ public class CheckpointState implements Serializable {
         this.checkpointPositions = checkpointPositions;
         this.lastCheckpointPosition = lastCheckpointPosition;
     }
-    
+
     void beginNewCheckpoint(String checkpointId, Set<String> currentReaders, Map<Segment, Long> knownPositions) {
         if (!checkpointPositions.containsKey(checkpointId)) {
             if (!currentReaders.isEmpty()) {
@@ -90,6 +109,7 @@ public class CheckpointState implements Serializable {
     }
     
     void readerCheckpointed(String checkpointId, String readerName, Map<Segment, Long> position) {
+        log.debug("Reader : {} completed checkpointing for Checkpoint : {}", readerName, checkpointId);
         List<String> readers = uncheckpointedHosts.get(checkpointId);
         if (readers != null) {
             boolean removed = readers.remove(readerName);
@@ -107,6 +127,10 @@ public class CheckpointState implements Serializable {
     boolean isCheckpointComplete(String checkpointId) {
         return !uncheckpointedHosts.containsKey(checkpointId);
     }
+
+    boolean isCheckpointSilent(String checkpointId) {
+        return checkpointId.contains(SILENT);
+    }
     
     Map<Segment, Long> getPositionsForCompletedCheckpoint(String checkpointId) {
         if (uncheckpointedHosts.containsKey(checkpointId)) {
@@ -121,6 +145,16 @@ public class CheckpointState implements Serializable {
     
     boolean hasOngoingCheckpoint() {
         return !uncheckpointedHosts.isEmpty();
+    }
+
+    /**
+     * Get the number of outstanding Checkpoints. It should not take silent Checkpoints into account.
+     * @return the number of outstanding Checkpoints.
+     */
+    int getOutstandingCheckpoints() {
+        return (int) checkpoints.stream()
+                                .filter(checkpoint -> !(isCheckpointSilent(checkpoint) || isCheckpointComplete(checkpoint)))
+                                .count();
     }
     
     void clearCheckpointsBefore(String checkpointId) {
@@ -159,5 +193,59 @@ public class CheckpointState implements Serializable {
         sb.append(uncheckpointedHosts.toString());
         sb.append(" }");
         return sb.toString();
-    }    
+    }
+
+    @VisibleForTesting
+    static class CheckpointStateBuilder implements ObjectBuilder<CheckpointState> {
+
+    }
+
+    private static class CheckpointStateSerializer
+            extends VersionedSerializer.WithBuilder<CheckpointState, CheckpointStateBuilder> {
+        @Override
+        protected CheckpointStateBuilder newBuilder() {
+            return builder();
+        }
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+        
+        private void read00(RevisionDataInput input, CheckpointStateBuilder builder) throws IOException {
+            ElementDeserializer<String> stringDeserializer = RevisionDataInput::readUTF;
+            ElementDeserializer<Long> longDeserializer = RevisionDataInput::readLong;
+            ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
+            builder.checkpoints(input.readCollection(stringDeserializer, ArrayList::new));
+            builder.uncheckpointedHosts(input.readMap(stringDeserializer, in -> in.readCollection(stringDeserializer, ArrayList::new)));
+            builder.checkpointPositions(input.readMap(stringDeserializer, in -> in.readMap(segmentDeserializer, longDeserializer)));
+            builder.lastCheckpointPosition(input.readMap(segmentDeserializer, longDeserializer));
+        }
+
+        private void write00(CheckpointState object, RevisionDataOutput output) throws IOException {
+            ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
+            ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
+            ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
+            output.writeCollection(object.checkpoints, stringSerializer);
+            output.writeMap(object.uncheckpointedHosts, stringSerializer, (out, hosts) -> out.writeCollection(hosts, stringSerializer));
+            output.writeMap(object.checkpointPositions, stringSerializer, (out, map) -> out.writeMap(map, segmentSerializer, longSerializer));
+            output.writeMap(object.lastCheckpointPosition, segmentSerializer, longSerializer);
+        }
+    }
+
+    @SneakyThrows(IOException.class)
+    public ByteBuffer toBytes() {
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
+    }
+
+    @SneakyThrows(IOException.class)
+    public static CheckpointState fromBytes(ByteBuffer buff) {
+        return SERIALIZER.deserialize(new ByteArraySegment(buff));
+    }
 }

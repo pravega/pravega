@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -57,7 +56,9 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import static javax.ws.rs.core.Response.Status.CREATED;
@@ -69,7 +70,10 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class ControllerRestApiTest {
+public class ControllerRestApiTest extends AbstractSystemTest {
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(5 * 60);
 
     private final Client client;
     private WebTarget webTarget;
@@ -91,47 +95,14 @@ public class ControllerRestApiTest {
      * @throws URISyntaxException   If URI is invalid
      */
     @Environment
-    public static void setup() throws MarathonException {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("zookeeper service details: {}", zkUris);
-        //get the zk ip details and pass it to bk, host, controller
-        URI zkUri = zkUris.get(0);
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService =  Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("bookkeeper service details: {}", bkUris);
-
-        //3. start controller
-        Service conService = Utils.createPravegaControllerService(zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service details: {}", conUris);
-
-        //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("pravega host service details: {}", segUris);
+    public static void initialize() throws MarathonException {
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
-    @Test(timeout = 300000)
+    @Test
     public void restApiTests() {
 
         Service conService = Utils.createPravegaControllerService(null);
@@ -212,14 +183,15 @@ public class ControllerRestApiTest {
         log.info("List streams successful");
 
         // Test getScope
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+scope1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1).toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get scope status", OK.getStatusCode(), response.getStatus());
         assertEquals("Get scope scope1 response", scope1, response.readEntity(ScopeProperty.class).getScopeName());
         log.info("Get scope successful");
 
         // Test updateStream
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1)
+                                                      .toString();
 
         UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
         ScalingConfig scalingConfig1 = new ScalingConfig();
@@ -238,15 +210,16 @@ public class ControllerRestApiTest {
         log.info("Update stream successful");
 
         // Test getStream
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1)
+                                                      .toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get stream status", OK.getStatusCode(), response.getStatus());
         assertEquals("Get stream stream1 response", stream1, response.readEntity(StreamProperty.class).getStreamName());
         log.info("Get stream successful");
 
         // Test updateStreamState
-        resourceURl = new StringBuilder(restServerURI)
-                .append("/v1/scopes/"+ scope1 + "/streams/"+stream1+"/state").toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1 + "/state")
+                                                      .toString();
         StreamState streamState = new StreamState();
         streamState.setStreamState(StreamState.StreamStateEnum.SEALED);
         response = client.target(resourceURl).request(MediaType.APPLICATION_JSON_TYPE)
@@ -257,13 +230,14 @@ public class ControllerRestApiTest {
         log.info("Update stream state successful");
 
         // Test deleteStream
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ scope1 + "/streams/"+stream1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1 + "/streams/" + stream1)
+                                                      .toString();
         response = client.target(resourceURl).request().delete();
         assertEquals("DeleteStream status", NO_CONTENT.getStatusCode(), response.getStatus());
         log.info("Delete stream successful");
 
         // Test deleteScope
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+scope1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + scope1).toString();
         response = client.target(resourceURl).request().delete();
         assertEquals("Get scope status", NO_CONTENT.getStatusCode(), response.getStatus());
         log.info("Delete Scope successful");
@@ -279,13 +253,11 @@ public class ControllerRestApiTest {
             streamManager.createScope(testScope);
 
             log.info("Creating stream: {}", testStream1);
-            StreamConfiguration streamConf1 = StreamConfiguration.builder().scope(testScope)
-                    .streamName(testStream1).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            StreamConfiguration streamConf1 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
             streamManager.createStream(testScope, testStream1, streamConf1);
 
             log.info("Creating stream: {}", testStream2);
-            StreamConfiguration streamConf2 = StreamConfiguration.builder().scope(testScope)
-                    .streamName(testStream2).scalingPolicy(ScalingPolicy.fixed(1)).build();
+            StreamConfiguration streamConf2 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
             streamManager.createStream(testScope, testStream2, streamConf2);
         }
 
@@ -298,7 +270,7 @@ public class ControllerRestApiTest {
         Controller controller = new ControllerImpl(ControllerImplConfig.builder()
                                      .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
                                      .build(), executor);
-        try (ClientFactory clientFactory = new ClientFactoryImpl(testScope, controller);
+        try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, controller);
              ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
                      ClientConfig.builder().controllerURI(controllerUri).build())) {
             final ReaderGroupConfig config = ReaderGroupConfig.builder()
@@ -314,7 +286,7 @@ public class ControllerRestApiTest {
         }
 
         // Verify the reader group info using REST APIs.
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups").toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + testScope + "/readergroups").toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get readergroups status", OK.getStatusCode(), response.getStatus());
         ReaderGroupsList readerGroupsList = response.readEntity(ReaderGroupsList.class);
@@ -326,16 +298,17 @@ public class ControllerRestApiTest {
         log.info("Get readergroups successful");
 
         // Test fetching readergroup info.
-        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/"+ testScope + "/readergroups/" +
-                readerGroupName1).toString();
+        resourceURl = new StringBuilder(restServerURI).append("/v1/scopes/" + testScope + "/readergroups/"
+                + readerGroupName1).toString();
         response = client.target(resourceURl).request().get();
         assertEquals("Get readergroup properties status", OK.getStatusCode(), response.getStatus());
         ReaderGroupProperty readerGroupProperty = response.readEntity(ReaderGroupProperty.class);
+        log.debug("ReaderGroup properties {}", readerGroupProperty);
         assertEquals("Get readergroup name", readerGroupName1, readerGroupProperty.getReaderGroupName());
         assertEquals("Get readergroup scope name", testScope, readerGroupProperty.getScopeName());
         assertEquals("Get readergroup streams size", 2, readerGroupProperty.getStreamList().size());
-        assertTrue(readerGroupProperty.getStreamList().contains(testStream1));
-        assertTrue(readerGroupProperty.getStreamList().contains(testStream2));
+        assertTrue(readerGroupProperty.getStreamList().contains(Stream.of(testScope, testStream1).getScopedName()));
+        assertTrue(readerGroupProperty.getStreamList().contains(Stream.of(testScope, testStream2).getScopedName()));
         assertEquals("Get readergroup onlinereaders size", 2, readerGroupProperty.getOnlineReaderIds().size());
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader1));
         assertTrue(readerGroupProperty.getOnlineReaderIds().contains(reader2));

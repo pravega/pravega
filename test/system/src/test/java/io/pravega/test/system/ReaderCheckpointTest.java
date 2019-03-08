@@ -9,7 +9,8 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.Checkpoint;
@@ -22,8 +23,11 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
@@ -36,15 +40,16 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.IntSummaryStatistics;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Before;
+import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -57,14 +62,16 @@ import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class ReaderCheckpointTest {
+public class ReaderCheckpointTest extends AbstractSystemTest {
 
     private static final long READ_TIMEOUT = SECONDS.toMillis(30);
     private static final int RANDOM_SUFFIX = RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private static final String SCOPE = "scope" + RANDOM_SUFFIX;
+    private static final String SCOPE_1 = "scope1" + RANDOM_SUFFIX;
+    private static final String SCOPE_2 = "scope2" + RANDOM_SUFFIX;
     private static final String STREAM = "checkPointTestStream";
     private static final String READER_GROUP_NAME = "checkpointTest" + RANDOM_SUFFIX;
     private static final int NUMBER_OF_READERS = 3; //this matches the number of segments in the stream
+    private static final int GROUP_REFRESH_TIME_MILLIS = 1000;
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(7 * 60);
@@ -80,63 +87,36 @@ public class ReaderCheckpointTest {
 
     @Environment
     public static void initialize() {
-
-        //1. check if zk is running, if not start it
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("Zookeeper service details: {}", zkUris);
-
-        //get the zk ip details and pass it to bk, host, controller
-        //2, check if bk is running, otherwise start, get the zk ip
-        Service bkService = Utils.createBookkeeperService(zkUris.get(0));
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-        log.debug("Bookkeeper service details: {}", bkService.getServiceDetails());
-
-        //3. start controller
-        Service conService = Utils.createPravegaControllerService(zkUris.get(0));
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega Controller service details: {}", conUris);
-
-        //4.start host
-        Service segService = Utils.createPravegaSegmentStoreService(zkUris.get(0), conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-        log.debug("Pravega segment store details: {}", segService.getServiceDetails());
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
-    @Before
-    public void setup() {
-        controllerURI = fetchControllerURI();
-        StreamManager streamManager = StreamManager.create(controllerURI);
-        assertTrue("Creating Scope", streamManager.createScope(SCOPE));
-        assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, streamConfig));
+    @After
+    public void tearDown() {
+        ExecutorServiceHelpers.shutdown(readerExecutor);
     }
 
     @Test
     public void readerCheckpointTest() {
+        controllerURI = fetchControllerURI();
+        StreamManager streamManager = StreamManager.create(controllerURI);
+        assertTrue("Creating Scope", streamManager.createScope(SCOPE_1));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM, streamConfig));
 
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_1, controllerURI);
         readerGroupManager.createReaderGroup(READER_GROUP_NAME,
-                ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(SCOPE, STREAM)).build());
+                ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(SCOPE_1, STREAM)).build());
         @Cleanup
         ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_NAME);
 
         int startInclusive = 1;
         int endExclusive = 100;
         log.info("Write events with range [{},{})", startInclusive, endExclusive);
-        writeEvents(IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()));
-        readEventsAndVerify(startInclusive, endExclusive);
+        writeEvents(SCOPE_1, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()));
+        readEventsAndVerify(SCOPE_1, startInclusive, endExclusive);
 
         //initiate checkpoint100
         Checkpoint checkPoint100 = createCheckPointAndVerify(readerGroup, "batch100");
@@ -145,12 +125,12 @@ public class ReaderCheckpointTest {
         startInclusive = 100;
         endExclusive = 200;
         log.info("Write events with range [{},{})", startInclusive, endExclusive);
-        writeEvents(IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()));
-        readEventsAndVerify(startInclusive, endExclusive);
+        writeEvents(SCOPE_1, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()));
+        readEventsAndVerify(SCOPE_1, startInclusive, endExclusive);
 
         //reset to check point 100
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkPoint100).build());
-        readEventsAndVerify(100, endExclusive);
+        readEventsAndVerify(SCOPE_1, 100, endExclusive);
 
         //initiate checkpoint200
         Checkpoint checkPoint200 = createCheckPointAndVerify(readerGroup, "batch200");
@@ -159,16 +139,74 @@ public class ReaderCheckpointTest {
         startInclusive = 200;
         endExclusive = 300;
         log.info("Write events with range [{},{})", startInclusive, endExclusive);
-        writeEvents(IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()));
-        readEventsAndVerify(startInclusive, endExclusive);
+        writeEvents(SCOPE_1, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()));
+        readEventsAndVerify(SCOPE_1, startInclusive, endExclusive);
 
         //reset back to checkpoint 200
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkPoint200).build());
-        readEventsAndVerify(200, endExclusive);
+        readEventsAndVerify(SCOPE_1, 200, endExclusive);
 
         //reset back to checkpoint 100
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromCheckpoint(checkPoint100).build());
-        readEventsAndVerify(100, endExclusive);
+        readEventsAndVerify(SCOPE_1, 100, endExclusive);
+
+        readerGroupManager.deleteReaderGroup(READER_GROUP_NAME); //clean up
+    }
+
+    @Test
+    public void generateStreamCutsTest() {
+        controllerURI = fetchControllerURI();
+        StreamManager streamManager = StreamManager.create(controllerURI);
+        assertTrue("Creating Scope", streamManager.createScope(SCOPE_2));
+        assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM, streamConfig));
+
+        @Cleanup
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, controllerURI);
+        readerGroupManager.createReaderGroup(READER_GROUP_NAME,
+                                             ReaderGroupConfig.builder()
+                                                              .stream(io.pravega.client.stream.Stream.of(SCOPE_2, STREAM))
+                                                              .groupRefreshTimeMillis(GROUP_REFRESH_TIME_MILLIS)
+                                                              .build());
+        @Cleanup
+        ReaderGroup readerGroup = readerGroupManager.getReaderGroup(READER_GROUP_NAME);
+
+        int startInclusive = 1;
+        int endExclusive = 100;
+        log.info("Write events with range [{},{})", startInclusive, endExclusive);
+        writeEvents(SCOPE_2, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()));
+        readEventsAndVerify(SCOPE_2, startInclusive, endExclusive);
+
+        // Obtain StreamCuts at 100th event.
+        Map<Stream, StreamCut> cutAt100 = generateStreamCuts(readerGroup);
+
+        // Write and read events 100 to 200
+        startInclusive = 100;
+        endExclusive = 200;
+        log.info("Write events with range [{},{})", startInclusive, endExclusive);
+        writeEvents(SCOPE_2, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()));
+        readEventsAndVerify(SCOPE_2, startInclusive, endExclusive);
+
+        // Reset to stream cut pointing to 100th event.
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(cutAt100).build());
+        readEventsAndVerify(SCOPE_2, 100, endExclusive);
+
+        // Obtain stream cut at 200th event.
+        Map<Stream, StreamCut> cutAt200 = generateStreamCuts(readerGroup);
+
+        // Write and read events 200 to 300.
+        startInclusive = 200;
+        endExclusive = 300;
+        log.info("Write events with range [{},{})", startInclusive, endExclusive);
+        writeEvents(SCOPE_2, IntStream.range(startInclusive, endExclusive).boxed().collect(Collectors.toList()));
+        readEventsAndVerify(SCOPE_2, startInclusive, endExclusive);
+
+        // Reset back to stream cut pointing to 200th event.
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(cutAt200).build());
+        readEventsAndVerify(SCOPE_2, 200, endExclusive);
+
+        // Reset back to stream cut pointing to 100th event.
+        readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(cutAt100).build());
+        readEventsAndVerify(SCOPE_2, 100, endExclusive);
 
         readerGroupManager.deleteReaderGroup(READER_GROUP_NAME); //clean up
     }
@@ -178,7 +216,7 @@ public class ReaderCheckpointTest {
         String readerId = "checkPointReader";
         CompletableFuture<Checkpoint> checkpoint = null;
 
-        try (ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_1, ClientConfig.builder().controllerURI(controllerURI).build());
              EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP_NAME,
                      new JavaSerializer<Integer>(), readerConfig)) {
 
@@ -195,13 +233,37 @@ public class ReaderCheckpointTest {
         return checkpoint.join();
     }
 
-    private void readEventsAndVerify(int startInclusive, int endExclusive) {
+    private Map<Stream, StreamCut> generateStreamCuts(final ReaderGroup readerGroup) {
+        log.info("Generate StreamCuts");
+        String readerId = "streamCut";
+        CompletableFuture<Map<io.pravega.client.stream.Stream, StreamCut>> streamCuts = null;
+
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_2, ClientConfig.builder().controllerURI(controllerURI).build());
+             EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP_NAME,
+                                                                            new JavaSerializer<Integer>(), readerConfig)) {
+
+            streamCuts = readerGroup.generateStreamCuts(executor); //create checkpoint
+
+            Exceptions.handleInterrupted(() -> TimeUnit.MILLISECONDS.sleep(GROUP_REFRESH_TIME_MILLIS)); // sleep for group refresh.
+            //read the next event, this causes the reader to update its latest offset.
+            EventRead<Integer> event = reader.readNextEvent(READ_TIMEOUT);
+            assertTrue("No events expected as all events are read", (event.getEvent() == null) && (!event.isCheckpoint()));
+            Futures.exceptionListener(streamCuts, t -> log.error("StreamCut generation failed", t));
+            assertTrue("Stream cut generation should be completed", Futures.await(streamCuts));
+        } catch (ReinitializationRequiredException e) {
+            log.error("Exception while reading event using readerId: {}", readerId, e);
+            fail("Reinitialization Exception is not expected");
+        }
+        return streamCuts.join();
+    }
+
+    private void readEventsAndVerify(final String scope, int startInclusive, int endExclusive) {
         log.info("Read and Verify events between [{},{})", startInclusive, endExclusive);
         final List<CompletableFuture<List<EventRead<Integer>>>> readResults = new ArrayList<>();
 
         //start reading using configured number of readers
         for (int i = 0; i < NUMBER_OF_READERS; i++) {
-            readResults.add(asyncReadEvents("reader-" + i));
+            readResults.add(asyncReadEvents(scope, "reader-" + i));
         }
 
         //results from all readers
@@ -211,9 +273,9 @@ public class ReaderCheckpointTest {
         verifyEvents(eventsRead, startInclusive, endExclusive);
     }
 
-    private CompletableFuture<List<EventRead<Integer>>> asyncReadEvents(final String readerId) {
+    private CompletableFuture<List<EventRead<Integer>>> asyncReadEvents(final String scope, final String readerId) {
         CompletableFuture<List<EventRead<Integer>>> result = CompletableFuture.supplyAsync(
-                () -> readEvents(readerId), readerExecutor);
+                () -> readEvents(scope, readerId), readerExecutor);
         Futures.exceptionListener(result,
                 t -> log.error("Error observed while reading events for reader id :{}", readerId, t));
         return result;
@@ -221,7 +283,7 @@ public class ReaderCheckpointTest {
 
     private void verifyEvents(final List<EventRead<Integer>> events, int startInclusive, int endExclusive) {
 
-        Supplier<Stream<Integer>> streamSupplier = () -> events.stream().map(i -> i.getEvent()).sorted();
+        Supplier<java.util.stream.Stream<Integer>> streamSupplier = () -> events.stream().map(EventRead::getEvent).sorted();
         IntSummaryStatistics stats = streamSupplier.get().collect(Collectors.summarizingInt(value -> value));
 
         assertTrue(String.format("Check for first event: %d, %d", stats.getMin(), startInclusive),
@@ -235,15 +297,15 @@ public class ReaderCheckpointTest {
                 endExclusive - startInclusive, streamSupplier.get().distinct().count());
     }
 
-    private <T extends Serializable> List<EventRead<T>> readEvents(final String readerId) {
+    private <T extends Serializable> List<EventRead<T>> readEvents(final String scope, final String readerId) {
         List<EventRead<T>> events = new ArrayList<>();
 
-        try (ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
              EventStreamReader<T> reader = clientFactory.createReader(readerId,
                      READER_GROUP_NAME,
                      new JavaSerializer<T>(),
                      readerConfig)) {
-            log.info("Reading events from {}/{} with readerId: {}", SCOPE, STREAM, readerId);
+            log.info("Reading events from {}/{} with readerId: {}", scope, STREAM, readerId);
             EventRead<T> event = null;
             do {
                 try {
@@ -261,13 +323,13 @@ public class ReaderCheckpointTest {
                 }
             } while (event.isCheckpoint() || event.getEvent() != null);
             //stop reading if event read(non-checkpoint) is null.
-            log.info("No more events from {}/{} for readerId: {}", SCOPE, STREAM, readerId);
+            log.info("No more events from {}/{} for readerId: {}", scope, STREAM, readerId);
         } //reader.close() will automatically invoke ReaderGroup#readerOffline(String, Position)
         return events;
     }
 
-    private <T extends Serializable> void writeEvents(final List<T> events) {
-        try (ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerURI);
+    private <T extends Serializable> void writeEvents(final String scope, final List<T> events) {
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
              EventStreamWriter<T> writer = clientFactory.createEventWriter(STREAM,
                      new JavaSerializer<T>(),
                      EventWriterConfig.builder().build())) {
