@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.rest.v1;
 
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.grpc.ServerBuilder;
 import io.pravega.client.ClientConfig;
@@ -64,7 +66,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -86,6 +90,23 @@ public class StreamMetaDataAuthFocusedTests {
     private final static int HTTP_STATUS_NOCONTENT = 204;
     private final static int HTTP_STATUS_UNAUTHORIZED = 401;
     private final static int HTTP_STATUS_FORBIDDEN = 403;
+
+    private final static String USER_PRIVILEGED = "superUser";
+    private final static String USER_SCOPE_CREATOR = "scopeCreator";
+    private final static String USER_SCOPE_LISTER = "scopeLister";
+    private final static String USER_SCOPE_MANAGER = "scopeManager";
+    private final static String USER_STREAMS_IN_A_SCOPE_CREATOR = "streamsinScopeCreater";
+    private final static String USER_USER1 = "user1";
+    private final static String USER_WITH_NO_ROOT_ACCESS = "userWithNoAccessToRoot";
+    private final static String USER_UNAUTHORIZED = "unauthorizedUser";
+    private final static String USER_ACCESS_TO_SUBSET_OF_SCOPES = "userAccessToSubsetOfScopes";
+    private final static String USER_WITH_NO_AUTHORIZATIONS = "userWithNoAuthorizations";
+    private final static String USER_WITH_READ_UPDATE_ROOT = "userWithReadUpdatePermissionOnRoot";
+    private final static String USER_ACCESS_TO_SCOPES_BUT_NOSTREAMS = "userAuthOnScopeButNotOnStreams";
+    private final static String USER_ACCESS_TO_SCOPES_READ_ALLSTREAMS = "userAuthOnScopeAndReadOnAllStreams";
+    private final static String USER_ACCESS_TO_SCOPES_READUPDATE_ALLSTREAMS = "userAuthOnScopeAndWriteOnAllStreams";
+    private final static String USER_ACCESS_TO_SCOPE_WRITE_SPECIFIC_STREAM = "userAuthOnScopeAndWriteOnSpecificStream";
+    private final static String DEFAULT_PASSWORD = "1111_aaaa";
 
     // Suppressing the checkstyle errors below, as we are using a class initializer (a method with @BeforeClass
     // annotation) for efficiency, and we cannot make these members final.
@@ -110,7 +131,6 @@ public class StreamMetaDataAuthFocusedTests {
     // for ensuring the desired behavior.
     Lock sequential = new ReentrantLock();
 
-
     //region Test class initializer and cleanup
 
     @BeforeClass
@@ -121,25 +141,36 @@ public class StreamMetaDataAuthFocusedTests {
         StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
 
         try (FileWriter writer = new FileWriter(passwordHandlerInputFile.getAbsolutePath())) {
-            String encryptedPassword = passwordEncryptor.encryptPassword("1111_aaaa");
+            String encryptedPassword = passwordEncryptor.encryptPassword(DEFAULT_PASSWORD);
 
-            // Admin has READ_WRITE permission to everything
-            writer.write("privilegedUser:" + encryptedPassword + ":*,READ_UPDATE\n");
-            writer.write("scopeCreator:" + encryptedPassword + ":/,READ_UPDATE\n");
-            writer.write("scopeLister:" + encryptedPassword + ":/,READ;/*,READ\n");
-            writer.write("scopeManager:" + encryptedPassword + ":/,READ_UPDATE;/*,READ_UPDATE\n");
-            writer.write("streamsinascopecreater:" + encryptedPassword + ":sisc-scope,READ_UPDATE;\n");
-            writer.write("user1:" + encryptedPassword + ":/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
-            writer.write("unauthorizedUser:" + encryptedPassword + ":/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
-            writer.write("userAccessToSubsetOfScopes:" + encryptedPassword + ":/,READ;scope3,READ_UPDATE;\n");
-            writer.write("userWithNoAuthorizations:" + encryptedPassword + ":;\n");
-            writer.write("userWithDeletePermission:" + encryptedPassword + ":scopeToDelete,READ_UPDATE;\n");
-            writer.write("userAuthOnScopeButNotOnStreams:" + encryptedPassword + ":myscope,READ_UPDATE;\n");
-            writer.write("userAuthOnScopeAndReadOnAllStreams:" + encryptedPassword
-                    + ":myscope,READ_UPDATE;myscope/*,READ;\n");
-            writer.write("userAuthOnScopeAndWriteOnAllStreams:" + encryptedPassword + ":myscope,READ_UPDATE;myscope/*,READ_UPDATE;\n");
-            writer.write("userAuthOnScopeAndWriteOnSpecificStream:" + encryptedPassword
-                    + ":myscope,READ_UPDATE;myscope/stream1,READ_UPDATE;\n");
+            // This user can do anything in the system.
+            writer.write(credentialsAndAclAsString(USER_PRIVILEGED, encryptedPassword, "*,READ_UPDATE"));
+
+            // This user can list, get, update and delete all scopes
+            writer.write(credentialsAndAclAsString(USER_SCOPE_CREATOR, encryptedPassword, "/,READ_UPDATE"));
+
+            // This user can list scopes and upon listing will see all scopes (/*).
+            writer.write(credentialsAndAclAsString(USER_SCOPE_LISTER, encryptedPassword, "/,READ;/*,READ"));
+
+            // This user can list, read, update, delete all scopes. Upon listing scopes, this user will see all scopes.
+            writer.write(credentialsAndAclAsString(USER_SCOPE_MANAGER, encryptedPassword, "/,READ_UPDATE;/*,READ_UPDATE"));
+
+            // This user can create, update, delete all child objects of a scope (streams, reader groups, etc.)
+            writer.write(credentialsAndAclAsString(USER_STREAMS_IN_A_SCOPE_CREATOR, encryptedPassword, "sisc-scope,READ_UPDATE;"));
+
+            writer.write(credentialsAndAclAsString(USER_USER1, encryptedPassword, "/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_WITH_NO_ROOT_ACCESS, encryptedPassword, "scope1,READ_UPDATE;scope2,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_UNAUTHORIZED, encryptedPassword, "/,READ_UPDATE;scope1,READ_UPDATE;scope2,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SUBSET_OF_SCOPES, encryptedPassword, "/,READ;scope3,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_WITH_NO_AUTHORIZATIONS, encryptedPassword, ";"));
+            writer.write(credentialsAndAclAsString(USER_WITH_READ_UPDATE_ROOT, encryptedPassword, "scopeToDelete,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SCOPES_BUT_NOSTREAMS, encryptedPassword, "myscope,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SCOPES_READ_ALLSTREAMS, encryptedPassword,
+                    "myscope,READ_UPDATE;myscope/*,READ;"));
+            writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SCOPES_READUPDATE_ALLSTREAMS, encryptedPassword,
+                    "myscope,READ_UPDATE;myscope/*,READ_UPDATE;"));
+            writer.write(credentialsAndAclAsString(USER_ACCESS_TO_SCOPE_WRITE_SPECIFIC_STREAM, encryptedPassword,
+                    "myscope,READ_UPDATE;myscope/stream1,READ_UPDATE;"));
         }
 
         PravegaAuthManager authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
@@ -197,7 +228,7 @@ public class StreamMetaDataAuthFocusedTests {
         final String resourceURI = getURI() + "v1/scopes";
         when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(
                 Arrays.asList("scopea", "scopeb", "scopec")));
-        Invocation requestInvocation = this.invocationBuilder(resourceURI, "scopeLister", "1111_aaaa")
+        Invocation requestInvocation = this.invocationBuilder(resourceURI, USER_SCOPE_LISTER, DEFAULT_PASSWORD)
                 .buildGet();
 
         // Act
@@ -216,7 +247,7 @@ public class StreamMetaDataAuthFocusedTests {
         final String resourceURI = getURI() + "v1/scopes";
         when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(
                 Arrays.asList("scope1", "scope2", "scope3")));
-        Invocation requestInvocation = this.invocationBuilder(resourceURI, "userAccessToSubsetOfScopes", "1111_aaaa")
+        Invocation requestInvocation = this.invocationBuilder(resourceURI, USER_ACCESS_TO_SUBSET_OF_SCOPES, DEFAULT_PASSWORD)
                 .buildGet();
 
         // Act
@@ -255,7 +286,7 @@ public class StreamMetaDataAuthFocusedTests {
         when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(
                 Arrays.asList("scope1", "scope2", "scope3")));
         Invocation requestInvocation = this.invocationBuilder(resourceURI,
-                "userWithNoAuthorizations", "1111_aaaa")
+                USER_WITH_NO_AUTHORIZATIONS, DEFAULT_PASSWORD)
                 .buildGet();
 
         // Act
@@ -273,14 +304,14 @@ public class StreamMetaDataAuthFocusedTests {
 
     @Test
     public void testPrivilegedUserCanCreateScope() {
-        Response response = createScope("newScope1", "privilegedUser", "1111_aaaa");
+        Response response = createScope("newScope1", USER_PRIVILEGED, DEFAULT_PASSWORD);
         assertEquals(HTTP_STATUS_CREATED, response.getStatus());
         response.close();
     }
 
     @Test
     public void testUserWithPermissionOnRootCanCreateScope() {
-        Response response = createScope("newScope", "scopeCreator", "1111_aaaa");
+        Response response = createScope("newScope", USER_SCOPE_CREATOR, DEFAULT_PASSWORD);
         assertEquals(HTTP_STATUS_CREATED, response.getStatus());
         response.close();
     }
@@ -294,7 +325,7 @@ public class StreamMetaDataAuthFocusedTests {
         // Arrange
         String scopeName = "scopeToDelete";
 
-        createScope(scopeName, "privilegedUser", "1111_aaaa");
+        createScope(scopeName, "privilegedUser", DEFAULT_PASSWORD);
 
         final String resourceUri = getURI() + "v1/scopes/" + scopeName;
         when(mockControllerService.deleteScope(scopeName)).thenReturn(
@@ -303,7 +334,7 @@ public class StreamMetaDataAuthFocusedTests {
                                 Controller.DeleteScopeStatus.Status.SUCCESS).build()));
 
         // Act
-        Response response = invocationBuilder(resourceUri, "userWithDeletePermission", "1111_aaaa")
+        Response response = invocationBuilder(resourceUri, USER_SCOPE_MANAGER, DEFAULT_PASSWORD)
                 .buildDelete().invoke();
 
         // Assert
@@ -316,11 +347,11 @@ public class StreamMetaDataAuthFocusedTests {
         String scopeName = "scopeForAdminToDelete";
 
         // The special thing about this user is that the user is assigned a wildcard permission: "*,READ_UPDATE"
-        String userName = "privilegedUser";
-        String password = "1111_aaaa";
+        String username = USER_PRIVILEGED;
+        String password = DEFAULT_PASSWORD;
 
-        createScope(scopeName, userName, password);
-        Response response = deleteScope(scopeName, userName, password);
+        createScope(scopeName, username, password);
+        Response response = deleteScope(scopeName, username, password);
         assertEquals(HTTP_STATUS_NOCONTENT, response.getStatus());
         response.close();
     }
@@ -329,10 +360,10 @@ public class StreamMetaDataAuthFocusedTests {
     public void testDeleteScopeIsForbiddenForUnauthorizedUser() {
         String scopeName = "scope-ud";
 
-        Response createScopeResponse = createScope(scopeName, "privilegedUser", "1111_aaaa");
+        Response createScopeResponse = createScope(scopeName, USER_PRIVILEGED, DEFAULT_PASSWORD);
         createScopeResponse.close();
 
-        Response response = deleteScope(scopeName, "unauthorizedUser", "1111_aaaa");
+        Response response = deleteScope(scopeName, USER_WITH_NO_ROOT_ACCESS, DEFAULT_PASSWORD);
         assertEquals(HTTP_STATUS_FORBIDDEN, response.getStatus());
         response.close();
     }
@@ -342,8 +373,8 @@ public class StreamMetaDataAuthFocusedTests {
     //region Stream creation tests
     @Test
     public void testCreateStreamsSucceedsForUserHavingWriteAccessToTheScope() {
-        String username = "streamsinascopecreater";
-        String password = "1111_aaaa";
+        String username = USER_STREAMS_IN_A_SCOPE_CREATOR;
+        String password = DEFAULT_PASSWORD;
         String scopeName = "sisc-scope";
         String streamName = "stream1";
         String streamResourceURI = getURI() + "v1/scopes/" + scopeName + "/streams";
@@ -390,7 +421,7 @@ public class StreamMetaDataAuthFocusedTests {
 
         // Act
         Response response = this.invocationBuilder(resourceURI,
-                "userAuthOnScopeButNotOnStreams", "1111_aaaa").buildGet().invoke();
+                USER_ACCESS_TO_SCOPES_BUT_NOSTREAMS, DEFAULT_PASSWORD).buildGet().invoke();
         StreamsList listedStreams = response.readEntity(StreamsList.class);
 
         // Assert
@@ -413,7 +444,7 @@ public class StreamMetaDataAuthFocusedTests {
 
         // Act
         Response response = this.invocationBuilder(resourceURI,
-                "userAuthOnScopeAndReadOnAllStreams", "1111_aaaa").buildGet().invoke();
+                USER_ACCESS_TO_SCOPES_READ_ALLSTREAMS, DEFAULT_PASSWORD).buildGet().invoke();
         StreamsList listedStreams = response.readEntity(StreamsList.class);
 
         // Assert
@@ -436,7 +467,7 @@ public class StreamMetaDataAuthFocusedTests {
 
         // Act
         Response response = this.invocationBuilder(resourceURI,
-                "privilegedUser", "1111_aaaa").buildGet().invoke();
+                USER_PRIVILEGED, DEFAULT_PASSWORD).buildGet().invoke();
         StreamsList listedStreams = response.readEntity(StreamsList.class);
 
         // Assert
@@ -457,7 +488,7 @@ public class StreamMetaDataAuthFocusedTests {
         when(mockControllerService.sealStream("myscope", "stream1")).thenReturn(CompletableFuture.completedFuture(
                 Controller.UpdateStreamStatus.newBuilder().setStatus(Controller.UpdateStreamStatus.Status.SUCCESS).build()));
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
-        Response response = this.invocationBuilder(resourceURI, "privilegedUser", "1111_aaaa")
+        Response response = this.invocationBuilder(resourceURI, USER_PRIVILEGED, DEFAULT_PASSWORD)
                 .buildPut(Entity.json(streamState)).invoke();
 
         assertEquals("Update Stream State response code", HTTP_STATUS_OK, response.getStatus());
@@ -472,7 +503,7 @@ public class StreamMetaDataAuthFocusedTests {
         when(mockControllerService.sealStream("myscope", "stream1")).thenReturn(CompletableFuture.completedFuture(
                 Controller.UpdateStreamStatus.newBuilder().setStatus(Controller.UpdateStreamStatus.Status.SUCCESS).build()));
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
-        Response response = this.invocationBuilder(resourceURI, "userAuthOnScopeAndWriteOnSpecificStream", "1111_aaaa")
+        Response response = this.invocationBuilder(resourceURI, USER_ACCESS_TO_SCOPE_WRITE_SPECIFIC_STREAM, DEFAULT_PASSWORD)
                 .buildPut(Entity.json(streamState)).invoke();
 
         assertEquals("Update Stream State response code", HTTP_STATUS_OK, response.getStatus());
@@ -489,7 +520,7 @@ public class StreamMetaDataAuthFocusedTests {
                 Controller.UpdateStreamStatus.newBuilder().setStatus(Controller.UpdateStreamStatus.Status.SUCCESS).build()));
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         Response response = this.invocationBuilder(resourceURI,
-                "userAuthOnScopeAndWriteOnAllStreams", "1111_aaaa")
+                USER_ACCESS_TO_SCOPES_READUPDATE_ALLSTREAMS, DEFAULT_PASSWORD)
                 .buildPut(Entity.json(streamState)).invoke();
 
         assertEquals("Update Stream State response code", HTTP_STATUS_OK, response.getStatus());
@@ -506,7 +537,7 @@ public class StreamMetaDataAuthFocusedTests {
                 Controller.UpdateStreamStatus.newBuilder().setStatus(Controller.UpdateStreamStatus.Status.SUCCESS).build()));
         StreamState streamState = new StreamState().streamState(StreamState.StreamStateEnum.SEALED);
         Response response = this.invocationBuilder(resourceURI,
-                "userAuthOnScopeAndReadOnAllStreams", "1111_aaaa")
+                USER_ACCESS_TO_SCOPES_READ_ALLSTREAMS, DEFAULT_PASSWORD)
                 .buildPut(Entity.json(streamState)).invoke();
 
         assertEquals("Update Stream State response code", HTTP_STATUS_FORBIDDEN, response.getStatus());
@@ -519,14 +550,14 @@ public class StreamMetaDataAuthFocusedTests {
     @Test
     public void testUserWithReadWriteOnAllScopesCanCreateListAndDeleteScopes() {
         List<String> scopes = Arrays.asList("sm-scope1", "sm-scope2", "sm-scope3");
-        boolean isCreateSuccessful = createScopes(scopes, "scopeManager", "1111_aaaa");
+        boolean isCreateSuccessful = createScopes(scopes, USER_SCOPE_MANAGER, DEFAULT_PASSWORD);
         assertTrue(isCreateSuccessful);
 
-        ScopesList listedScopes = listScopes(scopes, "scopeManager", "1111_aaaa");
+        ScopesList listedScopes = listScopes(scopes, USER_SCOPE_MANAGER, DEFAULT_PASSWORD);
         assertNotNull(listedScopes.getScopes());
         assertEquals(3, listedScopes.getScopes().size());
 
-        boolean isDeleteSuccessful = deleteScopes(scopes, "scopeManager", "1111_aaaa");
+        boolean isDeleteSuccessful = deleteScopes(scopes, USER_SCOPE_MANAGER, DEFAULT_PASSWORD);
         assertTrue(isDeleteSuccessful);
     }
 
@@ -534,10 +565,20 @@ public class StreamMetaDataAuthFocusedTests {
 
     //region Private methods
 
-    private boolean createScopes(List<String> scopeNames, String userName, String password) {
+    private static String credentialsAndAclAsString(String username, String password, String acl) {
+        Preconditions.checkArgument(!Strings.isNullOrEmpty(username)
+                && !Strings.isNullOrEmpty(password)
+                && acl != null
+                && !acl.startsWith(":"));
+
+        // This will return a string that looks like this:"<username>:<pasword>:acl\n"
+        return String.format("%s:%s:%s%n", username, password, acl);
+    }
+
+    private boolean createScopes(List<String> scopeNames, String username, String password) {
         boolean result = true;
         for (String scopeName : scopeNames) {
-            Response response = createScope(scopeName, userName, password);
+            Response response = createScope(scopeName, username, password);
             if (response.getStatus() != HTTP_STATUS_CREATED) {
                 result = false;
             }
@@ -558,10 +599,10 @@ public class StreamMetaDataAuthFocusedTests {
         return invocationBuilder(resourceURI, username, password).buildPost(Entity.json(createScopeRequest)).invoke();
     }
 
-    private boolean deleteScopes(List<String> scopeNames, String userName, String password) {
+    private boolean deleteScopes(List<String> scopeNames, String username, String password) {
        boolean result = true;
        for (String scopeName : scopeNames) {
-           Response response = deleteScope(scopeName, userName, password);
+           Response response = deleteScope(scopeName, username, password);
            if (response.getStatus() != HTTP_STATUS_NOCONTENT) {
                result = false;
            }
@@ -570,7 +611,7 @@ public class StreamMetaDataAuthFocusedTests {
        return result;
     }
 
-    private Response deleteScope(String scopeName, String userName, String password) {
+    private Response deleteScope(String scopeName, String username, String password) {
         final String resourceUri = getURI() + "v1/scopes/" + scopeName;
 
         when(mockControllerService.deleteScope(scopeName)).thenReturn(
@@ -578,15 +619,15 @@ public class StreamMetaDataAuthFocusedTests {
                         Controller.DeleteScopeStatus.newBuilder().setStatus(
                                 Controller.DeleteScopeStatus.Status.SUCCESS).build()));
 
-        return invocationBuilder(resourceUri, userName, password)
+        return invocationBuilder(resourceUri, username, password)
                 .buildDelete().invoke();
     }
 
-    private ScopesList listScopes(List<String> scopeNames, String userName, String password) {
+    private ScopesList listScopes(List<String> scopeNames, String username, String password) {
         final String resourceURI = getURI() + "v1/scopes";
         when(mockControllerService.listScopes())
                 .thenReturn(CompletableFuture.completedFuture(scopeNames));
-        Invocation requestInvocation = this.invocationBuilder(resourceURI, userName, password)
+        Invocation requestInvocation = this.invocationBuilder(resourceURI, username, password)
                 .buildGet();
 
         Response response = requestInvocation.invoke();
