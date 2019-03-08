@@ -203,4 +203,5 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
             testState.checkForAnomalies();
         }
     }
+
 }
