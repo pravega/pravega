@@ -112,7 +112,7 @@ public abstract class BucketServiceTest {
         bucketStore.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor).join();
 
         // verify that at least one of the buckets got the notification
-        int bucketId = stream.getScopedName().hashCode() % 3;
+        int bucketId = BucketStore.getBucket(scope, streamName, 3);
         Set<String> streams = bucketStore.getStreamsForBucket(BucketStore.ServiceType.RetentionService, bucketId, executor).join();
         
         BucketService bucketService = bucketServices.get(bucketId);

@@ -114,7 +114,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         // verify that at least one of the buckets got the notification
         Map<Integer, BucketService> bucketServices = service.getBucketServices();
 
-        int bucketId = stream.getScopedName().hashCode() % 3;
+        int bucketId = BucketStore.getBucket(scope, streamName, 3);
         BucketService bucketService = bucketServices.get(bucketId);
         AtomicBoolean added = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
