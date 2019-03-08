@@ -73,7 +73,7 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndTransactionOrderTest {
-    final StreamConfiguration CONFIG = StreamConfiguration.builder()
+    final StreamConfiguration config = StreamConfiguration.builder()
                                                           .scalingPolicy(ScalingPolicy.fixed(1))
                                                           .build();
 
@@ -125,7 +125,7 @@ public class EndToEndTransactionOrderTest {
         controllerWrapper.awaitRunning();
         controllerWrapper.getControllerService().createScope("test").get();
 
-        controller.createStream("test", "test", CONFIG).get();
+        controller.createStream("test", "test", config).get();
 
         clientFactory = new MockClientFactory("test", controller);
         readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
