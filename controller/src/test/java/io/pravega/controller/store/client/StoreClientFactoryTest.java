@@ -107,7 +107,7 @@ public class StoreClientFactoryTest {
         // Check that the client works correctly. In this case, it throws a NoNodeException when accessing a non-existent path.
         AssertExtensions.assertThrows(KeeperException.NoNodeException.class, () -> client.getData().forPath(testZNode));
 
-        // Simulate and update to the connection parameters.
+        // Simulate an update of the connection parameters.
         storeClientFactory.setConnectString("changedConnectString");
 
         // Induce a session expiration, so we invoke newZooKeeper() and notice about the updated parameter.
