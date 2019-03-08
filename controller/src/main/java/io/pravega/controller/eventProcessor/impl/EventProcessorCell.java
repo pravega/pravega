@@ -58,7 +58,7 @@ class EventProcessorCell<T extends ControllerEvent> {
     @Getter(AccessLevel.PACKAGE)
     private final String readerId;
     private final String objectId;
-    private final AtomicReference<Position> checkpoint;
+    private final AtomicReference<Position> lastCheckpoint;
 
     @VisibleForTesting
     @Getter(value = AccessLevel.PACKAGE)
@@ -247,7 +247,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         this.objectId = String.format("EventProcessor[%s:%s]", this.readerGroupName, index);
         this.actor = createEventProcessor(eventProcessorConfig);
         this.delegate = new Delegate(eventProcessorConfig);
-        this.checkpoint = new AtomicReference<>();
+        this.lastCheckpoint = new AtomicReference<>();
     }
 
     final void startAsync() {
@@ -291,14 +291,14 @@ class EventProcessorCell<T extends ControllerEvent> {
         EventProcessor<T> eventProcessor = eventProcessorConfig.getSupplier().get();
         eventProcessor.checkpointer = (Position position) -> {
             checkpointStore.setPosition(process, readerGroupName, readerId, position);
-            checkpoint.set(position);
+            lastCheckpoint.set(position);
         };
         eventProcessor.selfWriter = selfWriter::writeEvent;
         return eventProcessor;
     }
 
     Position getCheckpoint() {
-        return checkpoint.get();    
+        return lastCheckpoint.get();    
     }
     
     @Override
