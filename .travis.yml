@@ -100,7 +100,7 @@ jobs:
          # ping stdout every 5 minutes or Travis kills build
          # ref: https://docs.travis-ci.com/user/common-build-problems/#build-times-out-because-no-output-was-received
          - while sleep 5m; do kubectl get pods; done &
-         - ./gradlew --info startK8SystemTests -PpravegaVersion=$VERSION -DimageVersion=$VERSION -DpravegaImageName=$PRAVEGA_IMAGE_NAME -DbookkeeperImageName=$BOOKKEEPER_IMAGE_NAME -DpravegaOperatorImage=$OPERATOR_IMAGE
+         - ./gradlew startK8SystemTests -PpravegaVersion=$VERSION -DimageVersion=$VERSION -DpravegaImageName=$PRAVEGA_IMAGE_NAME -DbookkeeperImageName=$BOOKKEEPER_IMAGE_NAME -DpravegaOperatorImage=$OPERATOR_IMAGE
          # kill background echo loop
          - echo "killing while sleep loop" && kill %1
       after_script:
