@@ -45,7 +45,7 @@ public class ConfigTest {
 
     @Test
     public void testGRPCConfig() {
-        GRPCServerConfig grpcServerConfig = Config.getGRPCServerConfig();
+        GRPCServerConfig grpcServerConfig = Config.GRPC_SERVER_CONFIG;
         Assert.assertEquals(9090, grpcServerConfig.getPort());
         Assert.assertEquals(9090, (int) grpcServerConfig.getPublishedRPCPort().orElse(12345));
         Assert.assertFalse(grpcServerConfig.getPublishedRPCHost().isPresent());

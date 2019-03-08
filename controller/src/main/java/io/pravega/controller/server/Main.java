@@ -42,7 +42,7 @@ public class Main {
         StatsProvider statsProvider = null;
         try {
             //0. Initialize metrics provider
-            MetricsProvider.initialize(Config.getMetricsConfig());
+            MetricsProvider.initialize(Config.METRICS_CONFIG);
             statsProvider = MetricsProvider.getMetricsProvider();
             statsProvider.start();
 
@@ -70,7 +70,7 @@ public class Main {
 
             ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
-            GRPCServerConfig grpcServerConfig = Config.getGRPCServerConfig();
+            GRPCServerConfig grpcServerConfig = Config.GRPC_SERVER_CONFIG;
 
             RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
                     .host(Config.REST_SERVER_IP)
@@ -101,12 +101,14 @@ public class Main {
                         memoryMXBean.getNonHeapMemoryUsage());
                 
                 log.info("Controller service shutting down");
-                controllerServiceMain.stopAsync();
-                controllerServiceMain.awaitTerminated();
-
-                if (Config.DUMP_STACK_ON_SHUTDOWN) {
-                    Thread.getAllStackTraces().forEach((key, value) ->
-                            log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
+                try {
+                    controllerServiceMain.stopAsync();
+                    controllerServiceMain.awaitTerminated();
+                } finally {
+                    if (Config.DUMP_STACK_ON_SHUTDOWN) {
+                        Thread.getAllStackTraces().forEach((key, value) ->
+                                log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
+                    }
                 }
             }));
             
