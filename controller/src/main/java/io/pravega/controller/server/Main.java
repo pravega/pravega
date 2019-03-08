@@ -39,7 +39,7 @@ public class Main {
         StatsProvider statsProvider = null;
         try {
             //0. Initialize metrics provider
-            MetricsProvider.initialize(Config.getMetricsConfig());
+            MetricsProvider.initialize(Config.METRICS_CONFIG);
             statsProvider = MetricsProvider.getMetricsProvider();
             statsProvider.start();
 
@@ -68,7 +68,7 @@ public class Main {
 
             ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
-            GRPCServerConfig grpcServerConfig = Config.getGRPCServerConfig();
+            GRPCServerConfig grpcServerConfig = Config.GRPC_SERVER_CONFIG;
 
             RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
                     .host(Config.REST_SERVER_IP)
