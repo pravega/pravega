@@ -335,21 +335,12 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     }
 
     void createWriters(EventStreamClientFactory clientFactory, final int writers, String scope, String stream) {
-        createWritersInternal(clientFactory, writers, scope, stream, testState.writersComplete, false);
+        createWritersInternal(clientFactory, writers, scope, stream, testState.writersComplete, testState.txnWrite);
     }
 
     void addNewWriters(EventStreamClientFactory clientFactory, final int writers, String scope, String stream) {
         Preconditions.checkNotNull(testState.writersListComplete.get(0));
-        createWritersInternal(clientFactory, writers, scope, stream, testState.newWritersComplete, false);
-    }
-
-    void createTransactionalWriters(EventStreamClientFactory clientFactory, final int writers, String scope, String stream) {
-        createWritersInternal(clientFactory, writers, scope, stream, testState.writersComplete, true);
-    }
-
-    void addNewTransactionalWriters(EventStreamClientFactory clientFactory, final int writers, String scope, String stream) {
-        Preconditions.checkNotNull(testState.writersListComplete.get(0));
-        createWritersInternal(clientFactory, writers, scope, stream, testState.newWritersComplete, true);
+        createWritersInternal(clientFactory, writers, scope, stream, testState.newWritersComplete, testState.txnWrite);
     }
 
     void waitForTxnsToComplete() {
