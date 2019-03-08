@@ -133,7 +133,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     @Test
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
         try {
-            createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
+            createTransactionalWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
             createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
             //run the failover test
