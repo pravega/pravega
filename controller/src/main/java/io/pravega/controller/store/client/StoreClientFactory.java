@@ -14,6 +14,9 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
+import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
@@ -104,7 +107,9 @@ public class StoreClientFactory {
         private String connectString;
         private int sessionTimeout;
         private boolean canBeReadOnly;
-        private boolean injectParameterUpdateFailure;
+        @VisibleForTesting
+        @Getter(AccessLevel.PUBLIC)
+        private final AtomicBoolean injectParameterUpdateFailure = new AtomicBoolean(false);
 
         @Override
         @Synchronized
@@ -122,19 +127,15 @@ public class StoreClientFactory {
                 return this.client;
             } else {
                 try {
-                    tryInjectFailure();
+                    // Simulates an error related to a change in ZooKeeper client parameters.
+                    Preconditions.checkArgument(this.injectParameterUpdateFailure.get(), "Simulating a parameter update in ZooKeeper client.");
                     Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
                     Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
                     Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
-                    Preconditions.checkNotNull(watcher, "watcher");
                     this.client.register(watcher);
-                } catch (IllegalArgumentException | NullPointerException e) {
-                    if (watcher != null) {
-                        log.warn("Input argument for new ZooKeeper client ({}, {}, {}) changed with respect to existing client ({}, {}, {}).",
-                            connectString, sessionTimeout, canBeReadOnly, this.connectString, this.sessionTimeout, this.canBeReadOnly, e);
-                    } else {
-                        log.warn("Watcher for ZooKeeper client is null.", e);
-                    }
+                } catch (IllegalArgumentException e) {
+                    log.warn("Input argument for new ZooKeeper client ({}, {}, {}) changed with respect to existing client ({}, {}, {}).",
+                        connectString, sessionTimeout, canBeReadOnly, this.connectString, this.sessionTimeout, this.canBeReadOnly, e);
                     closeClient(client);
                 }
                 return this.client;
@@ -147,23 +148,6 @@ public class StoreClientFactory {
             } catch (Exception e) {
                 // We prevent throwing uncontrolled exceptions here, which may lead Curator to retry indefinitely.
                 log.error("Problems attempting to close ZooKeeper client.", e);
-            }
-        }
-
-        /**
-         * Simulates an error related to a change in ZooKeeper client parameters. The error is injected only once and
-         * this class automatically sets this flag to false when the exception is thrown.
-         */
-        @VisibleForTesting
-        @Synchronized
-        public void injectParameterUpdateFailure() {
-            this.injectParameterUpdateFailure = true;
-        }
-
-        private void tryInjectFailure() {
-            if (injectParameterUpdateFailure) {
-                injectParameterUpdateFailure = false;
-                throw new IllegalArgumentException(String.valueOf("Simulating a parameter update in ZooKeeper client."));
             }
         }
     }

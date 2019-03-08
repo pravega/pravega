@@ -163,7 +163,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             // Simulate that Curator changed the connection parameters for ZKClient and the StoreClientFactory realizes
             // upon a session expiration.
             if (iteration % 2 == 1) {
-                controllerServiceMain.getZkClientFactory().injectParameterUpdateFailure();
+                controllerServiceMain.getZkClientFactory().getInjectParameterUpdateFailure().set(true);
             }
 
             // Simulate ZK session timeout
