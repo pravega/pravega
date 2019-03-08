@@ -104,7 +104,8 @@ public final class Config {
     // Request Stream readerGroup
     public static final String SCALE_READER_GROUP;
 
-    private static final boolean DUMP_STACK_ON_SHUTDOWN;
+    // Print stack trace for all threads during shutdown
+    public static final boolean DUMP_STACK_ON_SHUTDOWN;
     
     public static final MetricsConfig METRICS_CONFIG;
     public static final GRPCServerConfig GRPC_SERVER_CONFIG;
