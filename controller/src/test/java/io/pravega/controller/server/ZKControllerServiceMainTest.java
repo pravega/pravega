@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import io.pravega.controller.mocks.StoreClientFactoryMock;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.test.common.TestingServerStarter;
@@ -95,14 +96,14 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
 
     static class MockZKControllerServiceMain extends ControllerServiceMain {
         @Getter
-        private StoreClientFactory.ZKClientFactory zkClientFactory;
+        private StoreClientFactoryMock.ZKClientFactoryMock zkClientFactory;
         private final ControllerServiceConfig serviceConfig;
 
         public MockZKControllerServiceMain(ControllerServiceConfig serviceConfig, BiFunction<ControllerServiceConfig,
                                                  StoreClient, ControllerServiceStarter> starterFactory) {
             super(serviceConfig, starterFactory);
             this.serviceConfig = serviceConfig;
-            zkClientFactory = new StoreClientFactory.ZKClientFactory();
+            zkClientFactory = new StoreClientFactoryMock.ZKClientFactoryMock();
         }
 
         /**
@@ -113,7 +114,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
          */
         @Override
         protected StoreClient createStoreClient() {
-            zkClientFactory = new StoreClientFactory.ZKClientFactory();
+            zkClientFactory = new StoreClientFactoryMock.ZKClientFactoryMock();
             CompletableFuture<Void> sessionExpiryFuture = new CompletableFuture<>();
             CuratorFramework zkClient = StoreClientFactory.createZKClient(serviceConfig.getStoreClientConfig().getZkClientConfig().get(),
                     () -> !sessionExpiryFuture.isDone(), sessionExpiryFuture::complete, zkClientFactory);
@@ -160,11 +161,9 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             assertEquals(1, clientQueue.size());
             CuratorFramework curatorClient = (CuratorFramework) clientQueue.poll().getClient();
 
-            // Simulate that Curator changed the connection parameters for ZKClient and the StoreClientFactory realizes
-            // upon a session expiration.
-            if (iteration % 2 == 1) {
-                controllerServiceMain.getZkClientFactory().getInjectParameterUpdateFailure().set(true);
-            }
+            // Simulate the 2 situations that may occur upon a session expiration: i) Curator changes the connection
+            // parameters for ZK client (so ZK client gets closed), and ii) connection parameters remain the same.
+            controllerServiceMain.getZkClientFactory().getCloseZKClient().set(iteration % 2 == 1);
 
             // Simulate ZK session timeout
             // we will submit zk session expiration and

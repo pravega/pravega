@@ -108,7 +108,7 @@ public class StoreClientFactoryTest {
         AssertExtensions.assertThrows(KeeperException.NoNodeException.class, () -> client.getData().forPath(testZNode));
 
         // Simulate and update to the connection parameters.
-        storeClientFactory.getInjectParameterUpdateFailure().set(true);
+        storeClientFactory.setConnectString("changedConnectString");
 
         // Induce a session expiration, so we invoke newZooKeeper() and notice about the updated parameter.
         client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();

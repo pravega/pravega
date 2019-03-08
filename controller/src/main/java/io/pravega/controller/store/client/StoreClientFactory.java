@@ -14,9 +14,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
-import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.AccessLevel;
-import lombok.Getter;
+import lombok.Setter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
@@ -102,14 +101,13 @@ public class StoreClientFactory {
     }
 
     @VisibleForTesting
-    public static class ZKClientFactory implements ZookeeperFactory {
+    protected static class ZKClientFactory implements ZookeeperFactory {
         private ZooKeeper client;
+        @VisibleForTesting
+        @Setter(AccessLevel.PACKAGE)
         private String connectString;
         private int sessionTimeout;
         private boolean canBeReadOnly;
-        @VisibleForTesting
-        @Getter(AccessLevel.PUBLIC)
-        private final AtomicBoolean injectParameterUpdateFailure = new AtomicBoolean(false);
 
         @Override
         @Synchronized
@@ -124,11 +122,8 @@ public class StoreClientFactory {
                 this.sessionTimeout = sessionTimeout;
                 this.canBeReadOnly = canBeReadOnly;
                 this.client = new ZooKeeper(connectString, sessionTimeout, watcher, canBeReadOnly);
-                return this.client;
             } else {
                 try {
-                    // Simulates an error related to a change in ZooKeeper client parameters.
-                    Preconditions.checkArgument(this.injectParameterUpdateFailure.get(), "Simulating a parameter update in ZooKeeper client.");
                     Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
                     Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
                     Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
@@ -138,8 +133,8 @@ public class StoreClientFactory {
                         connectString, sessionTimeout, canBeReadOnly, this.connectString, this.sessionTimeout, this.canBeReadOnly, e);
                     closeClient(client);
                 }
-                return this.client;
             }
+            return this.client;
         }
 
         private void closeClient(ZooKeeper client) {
