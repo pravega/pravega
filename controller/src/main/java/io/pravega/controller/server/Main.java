@@ -97,7 +97,7 @@ public class Main {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
                 memoryMXBean.setVerbose(true);
-                log.error("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
+                log.info("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
                         memoryMXBean.getNonHeapMemoryUsage());
                 
                 log.info("Controller service shutting down");
