@@ -97,7 +97,7 @@ The configurations, `singlenode.enableTls` and `singlenode.enableauth` can be us
 
 In case `enableTls` is set to true, the default certificates provided in the `conf` directory are used for setting up TLS. These can be overridden by specifying in the properties file.
 
-1. Ensure that the server's certificate is trusted. If you run `/gradlew startStandalone` without it, you'll encounter the following error:
+1. Ensure that the server's certificate is trusted. If you run `./gradlew startStandalone` without it, you'll encounter the following error:
 
 ```java
 Caused by: sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
