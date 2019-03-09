@@ -123,6 +123,7 @@ public final class Config {
     private static final Property<Integer> PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS = Property.named("minRebalanceIntervalSeconds", 10);
     private static final Property<Boolean> PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
     private static final Property<Boolean> PROPERTY_REQUEST_TRACING_ENABLED = Property.named("requestTracingEnabled", true);
+    private static final Property<Boolean> PROPERTY_DUMP_STACK_ON_SHUTDOWN = Property.named("dumpStackOnShutdown", false);
     private static final Property<Integer> PROPERTY_SERVICE_PORT = Property.named("service.port", 9090);
     private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("service.asyncTaskPoolSize", 80);
     private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named("service.hostIp", "localhost");
@@ -152,7 +153,6 @@ public final class Config {
     private static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named("transaction.ttlHours", 24);
     private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("scale.streamName", "_requeststream");
     private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("scale.ReaderGroup", "scaleGroup");
-    private static final Property<Boolean> PROPERTY_DUMP_STACK_ON_SHUTDOWN = Property.named("dumpStackOnShutdown", false);
     private static final String COMPONENT_CODE = "controller";
 
     //endregion
