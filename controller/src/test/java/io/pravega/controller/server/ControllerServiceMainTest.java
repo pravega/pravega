@@ -60,7 +60,7 @@ public abstract class ControllerServiceMainTest {
         }
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testUncaughtException() {
         Main.setUncaughtExceptionHandler(Main::logUncaughtException);
         
