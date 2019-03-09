@@ -9,11 +9,14 @@
  */
 package io.pravega.controller.task.Stream;
 
+import io.pravega.common.Exceptions;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.retryable.RetryableException;
 
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
@@ -27,6 +30,13 @@ class TaskStepsRetryHelper {
             .retryWhen(RetryableException::isRetryable);
 
     static <U> CompletableFuture<U> withRetries(Supplier<CompletableFuture<U>> futureSupplier, ScheduledExecutorService executor) {
-        return RETRY.runAsync(futureSupplier, executor);
+        return RETRY.runAsync(futureSupplier, executor)
+                    .exceptionally(e -> {
+                        Throwable cause = Exceptions.unwrap(e);
+                        if (cause instanceof RetriesExhaustedException) {
+                            cause = cause.getCause();
+                        }
+                        throw new CompletionException(cause);
+                    });
     }
 }
