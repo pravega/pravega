@@ -60,6 +60,17 @@ public abstract class ControllerServiceMainTest {
         }
     }
 
+    @Test
+    public void testUncaughtException() {
+        Main.setUncaughtExceptionHandler(Main::logUncaughtException);
+        
+        Thread t = new Thread(() -> {
+            throw new RuntimeException();
+        });
+        
+        t.start();
+    }
+    
     @Test(timeout = 10000)
     public void mainShutdownTest() {
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),

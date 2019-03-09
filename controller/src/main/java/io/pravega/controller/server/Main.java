@@ -30,6 +30,8 @@ import io.pravega.shared.metrics.StatsProvider;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -55,6 +57,7 @@ public class Main {
                     .maxRetries(Config.ZK_MAX_RETRIES)
                     .sessionTimeoutMs(Config.ZK_SESSION_TIMEOUT_MS)
                     .build();
+
             StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
 
             HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
@@ -89,9 +92,7 @@ public class Main {
                     .restServerConfig(Optional.of(restServerConfig))
                     .build();
 
-            Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-                log.error("Thread {} with stackTrace {} failed with uncaught exception", t.getName(), t.getStackTrace(), e);              
-            });
+            setUncaughtExceptionHandler(Main::logUncaughtException);
 
             ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
             controllerServiceMain.startAsync();
@@ -111,6 +112,15 @@ public class Main {
                 statsProvider.close();
             }
         }
+    }
+
+    @VisibleForTesting
+    static void setUncaughtExceptionHandler(BiConsumer<Thread, Throwable> exceptionConsumer) {
+        Thread.setDefaultUncaughtExceptionHandler(exceptionConsumer::accept);
+    }
+
+    static void logUncaughtException(Thread t, Throwable e) {
+        log.error("Thread {} with stackTrace {} failed with uncaught exception", t.getName(), t.getStackTrace(), e);
     }
 
     @VisibleForTesting
