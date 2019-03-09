@@ -15,6 +15,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.common.cache.RemovalListener;
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCounted;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
@@ -48,6 +49,8 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
 import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -846,16 +849,21 @@ public class SegmentHelper {
             }
         };
 
+        List<ByteBuf> buffersToRelease = new LinkedList<>();
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries = entries.stream().map(te -> {
             final WireCommands.TableKey key = convertToWireCommand(te.getKey());
-            final WireCommands.TableValue value = new WireCommands.TableValue(wrappedBuffer(te.getValue()));
+            ByteBuf valueBuffer = wrappedBuffer(te.getValue());
+            buffersToRelease.add(key.getData());
+            buffersToRelease.add(valueBuffer);
+            final WireCommands.TableValue value = new WireCommands.TableValue(valueBuffer);
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
         WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, delegationToken,
                                                                                       new WireCommands.TableEntries(wireCommandEntries));
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
-        return result;
+        return result
+                .whenComplete((r, e) -> buffersToRelease.forEach(ReferenceCounted::release));
     }
 
     /**
@@ -936,11 +944,17 @@ public class SegmentHelper {
             }
         };
 
-        List<WireCommands.TableKey> keyList = keys.stream().map(this::convertToWireCommand).collect(Collectors.toList());
+        List<ByteBuf> buffersToRelease = new ArrayList<>(keys.size());
+        List<WireCommands.TableKey> keyList = keys.stream().map(x -> {
+            WireCommands.TableKey key = convertToWireCommand(x);
+            buffersToRelease.add(key.getData());
+            return key;
+        }).collect(Collectors.toList());
 
         WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
-        return result;
+        return result
+                .whenComplete((r, e) -> buffersToRelease.forEach(ReferenceCounted::release));
     }
 
     /**
@@ -1031,14 +1045,20 @@ public class SegmentHelper {
             }
         };
 
+        List<ByteBuf> buffersToRelease = new ArrayList<>();
         // the version is always NO_VERSION as read returns the latest version of value.
-        List<WireCommands.TableKey> keyList = keys.stream().map(k -> new WireCommands.TableKey(wrappedBuffer(k.getKey()),
-                WireCommands.TableKey.NO_VERSION))
-                                                  .collect(Collectors.toList());
+        List<WireCommands.TableKey> keyList = keys.stream().map(k -> {
+            ByteBuf buffer = wrappedBuffer(k.getKey());
+            buffersToRelease.add(buffer);
+            return new WireCommands.TableKey(buffer, WireCommands.TableKey.NO_VERSION);
+        }).collect(Collectors.toList());
 
         WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
-        return result;
+        return result
+                .whenComplete((r, e) -> {
+                   buffersToRelease.forEach(ReferenceCounted::release); 
+                });
     }
 
     /**
