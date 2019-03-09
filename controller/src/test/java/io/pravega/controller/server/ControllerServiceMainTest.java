@@ -23,6 +23,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * ControllerServiceMain tests.
@@ -60,15 +62,24 @@ public abstract class ControllerServiceMainTest {
         }
     }
 
+    static CompletableFuture<Void> called = new CompletableFuture<>();
+    
+    static void handleUncaughtException(Thread t, Throwable e) {
+        called.complete(null);    
+    }
+
     @Test(timeout = 10000)
     public void testUncaughtException() {
         Main.setUncaughtExceptionHandler(Main::logUncaughtException);
+        Main.setUncaughtExceptionHandler(ControllerServiceMainTest::handleUncaughtException);
         
         Thread t = new Thread(() -> {
             throw new RuntimeException();
         });
         
         t.start();
+        
+        called.join();
     }
     
     @Test(timeout = 10000)
