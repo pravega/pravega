@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -95,21 +96,7 @@ public class Main {
             ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
             controllerServiceMain.startAsync();
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
-                memoryMXBean.setVerbose(true);
-                log.info("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
-                        memoryMXBean.getNonHeapMemoryUsage());
-                
-                log.info("Controller service shutting down");
-                try {
-                    controllerServiceMain.stopAsync();
-                    controllerServiceMain.awaitTerminated();
-                } finally {
-                    if (Config.DUMP_STACK_ON_SHUTDOWN) {
-                        Thread.getAllStackTraces().forEach((key, value) ->
-                                log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
-                    }
-                }
+                onShutdown(controllerServiceMain);
             }));
             
             controllerServiceMain.awaitTerminated();
@@ -122,6 +109,25 @@ public class Main {
         } finally {
             if (statsProvider != null) {
                 statsProvider.close();
+            }
+        }
+    }
+
+    @VisibleForTesting
+    static void onShutdown(ControllerServiceMain controllerServiceMain) {
+        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        memoryMXBean.setVerbose(true);
+        log.info("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
+                memoryMXBean.getNonHeapMemoryUsage());
+
+        log.info("Controller service shutting down");
+        try {
+            controllerServiceMain.stopAsync();
+            controllerServiceMain.awaitTerminated();
+        } finally {
+            if (Config.DUMP_STACK_ON_SHUTDOWN) {
+                Thread.getAllStackTraces().forEach((key, value) ->
+                        log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
             }
         }
     }

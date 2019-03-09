@@ -61,6 +61,29 @@ public abstract class ControllerServiceMainTest {
     }
 
     @Test(timeout = 10000)
+    public void mainShutdownTest() {
+        ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
+                MockControllerServiceStarter::new);
+
+        controllerServiceMain.startAsync();
+        try {
+            controllerServiceMain.awaitRunning();
+        } catch (IllegalStateException e) {
+            Assert.fail("Failed waiting for controllerServiceMain to get ready");
+        }
+
+        try {
+            controllerServiceMain.awaitServiceStarting().awaitRunning();
+        } catch (IllegalStateException e) {
+            Assert.fail("Failed waiting for starter to get ready");
+        }
+
+        Main.onShutdown(controllerServiceMain);
+        
+        controllerServiceMain.awaitTerminated();
+    }
+    
+    @Test(timeout = 10000)
     public void testControllerServiceMainStartStop() {
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
                 MockControllerServiceStarter::new);
