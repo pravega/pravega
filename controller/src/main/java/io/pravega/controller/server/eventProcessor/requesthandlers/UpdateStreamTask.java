@@ -112,4 +112,11 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
     public CompletableFuture<Void> writeBack(UpdateStreamEvent event) {
         return streamMetadataTasks.writeEvent(event);
     }
+
+    @Override
+    public CompletableFuture<Boolean> ignoreFairness(UpdateStreamEvent event) {
+        return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
+                                  .thenApply(state -> state.equals(State.UPDATING));
+
+    }
 }

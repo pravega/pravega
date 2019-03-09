@@ -114,4 +114,10 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
     public CompletableFuture<Void> writeBack(TruncateStreamEvent event) {
         return streamMetadataTasks.writeEvent(event);
     }
+
+    @Override
+    public CompletableFuture<Boolean> ignoreFairness(TruncateStreamEvent event) {
+        return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
+                                  .thenApply(state -> state.equals(State.TRUNCATING));
+    }
 }

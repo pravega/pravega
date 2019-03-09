@@ -297,7 +297,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     public CompletableFuture<Void> writeBack(CommitEvent event) {
         return streamTransactionMetadataTasks.writeCommitEvent(event);
     }
-
+    
     private CompletableFuture<Void> resetStateConditionally(String scope, String stream, VersionedMetadata<State> state,
                                                             OperationContext context) {
         if (state.getObject().equals(State.COMMITTING_TXN)) {
@@ -305,5 +305,11 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
         } else {
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    @Override
+    public CompletableFuture<Boolean> ignoreFairness(CommitEvent event) {
+        return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
+                                  .thenApply(state -> state.equals(State.COMMITTING_TXN) || state.equals(State.SEALING));
     }
 }

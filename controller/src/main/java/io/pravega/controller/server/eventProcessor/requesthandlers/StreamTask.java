@@ -28,4 +28,11 @@ public interface StreamTask<T extends ControllerEvent> {
      * @return future of processing
      */
     CompletableFuture<Void> writeBack(T event);
+
+    /**
+     * Method that indicates to the processor if it should ignore any fairness and start processing the task or not. 
+     * @param event event to process
+     * @return Completable Future which when completed will indicate if fairness should be ignore or honored. 
+     */
+    CompletableFuture<Boolean> ignoreFairness(T event);
 }
