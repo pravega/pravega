@@ -27,7 +27,7 @@ RUN wget http://central.maven.org/maven2/org/apache/bookkeeper/bookkeeper-server
 &&  mv bookkeeper-server-$BOOKKEEPER_VERSION /opt/bookkeeper
 
 # zookeeper-3.5.3-beta.tar.gz is actually not compressed even though it is published as .tar.gz, so not using -z flag to untar
-RUN wget http://www.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/zookeeper-$ZOOKEEPER_VERSION.tar.gz \
+RUN wget http://http://archive.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/zookeeper-$ZOOKEEPER_VERSION.tar.gz \
 &&  tar xvf zookeeper-$ZOOKEEPER_VERSION.tar.gz \
 &&  mv zookeeper-$ZOOKEEPER_VERSION /opt/zookeeper
 
