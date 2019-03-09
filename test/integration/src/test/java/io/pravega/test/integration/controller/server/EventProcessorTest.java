@@ -78,6 +78,9 @@ public class EventProcessorTest {
     ControllerWrapper controllerWrapper;
     Controller controller;
     EventSerializer<TestEvent> eventSerializer;
+    private ServiceBuilder serviceBuilder;
+    private StreamSegmentStore store;
+    private TableStore tableStore;
     
     public static class TestEventProcessor extends EventProcessor<TestEvent> {
         long sum;
@@ -163,14 +166,13 @@ public class EventProcessorTest {
     public void setUp() throws Exception {
         zkTestServer = new TestingServerStarter().start();
 
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        tableStore = serviceBuilder.createTableStoreService();
 
-        @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
 
