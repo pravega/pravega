@@ -24,14 +24,14 @@ import org.junit.Test;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * ControllerServiceMain tests.
  */
 public abstract class ControllerServiceMainTest {
-
+    private static final CompletableFuture<Void> INVOKED = new CompletableFuture<>();
     protected StoreClientConfig storeClientConfig;
+
     private final boolean disableControllerCluster;
 
     ControllerServiceMainTest(final boolean disableControllerCluster) {
@@ -61,8 +61,6 @@ public abstract class ControllerServiceMainTest {
             log.info("MockControllerServiceStarter shutdown.");
         }
     }
-
-    static CompletableFuture<Void> called = new CompletableFuture<>();
     
     static void handleUncaughtException(Thread t, Throwable e) {
         called.complete(null);    
