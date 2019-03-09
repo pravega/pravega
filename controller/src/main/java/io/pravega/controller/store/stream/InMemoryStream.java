@@ -710,11 +710,11 @@ public class InMemoryStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
+        List<Long> toPurge = new ArrayList<>();
+        Map<UUID, ActiveTxnRecord> committing = new HashMap<>();
+        AtomicInteger smallestEpoch = new AtomicInteger(Integer.MAX_VALUE);
         synchronized (txnsLock) {
             // take smallest epoch and collection transactions from smallest epoch.
-            List<Long> toPurge = new ArrayList<>();
-            Map<UUID, ActiveTxnRecord> committing = new HashMap<>();
-            AtomicInteger smallestEpoch = new AtomicInteger(Integer.MAX_VALUE);
             transactionCommitOrder
                     .forEach((order, txId) -> {
                         String key = txId.toString();
@@ -745,18 +745,17 @@ public class InMemoryStream extends PersistentStreamBase {
                                 break;
                         }
                     });
-            
-            // remove all stale transactions from transactionCommitOrder 
-            toPurge.forEach(transactionCommitOrder::remove);
-            
-            // take smallest epoch from committing transactions. order transactions in this epoch by 
-            // ordered position
-            List<Map.Entry<UUID, ActiveTxnRecord>> list = committing.entrySet().stream().filter(x -> RecordHelper.getTransactionEpoch(x.getKey()) == smallestEpoch.get())
-                                                                    .sorted(Comparator.comparing(x -> x.getValue().getCommitOrder()))
-                                                                    .collect(Collectors.toList());
-            
-            return CompletableFuture.completedFuture(list);
         }
+        // remove all stale transactions from transactionCommitOrder 
+        toPurge.forEach(transactionCommitOrder::remove);
+
+        // take smallest epoch from committing transactions. order transactions in this epoch by 
+        // ordered position
+        List<Map.Entry<UUID, ActiveTxnRecord>> list = committing.entrySet().stream().filter(x -> RecordHelper.getTransactionEpoch(x.getKey()) == smallestEpoch.get())
+                                                                .sorted(Comparator.comparing(x -> x.getValue().getCommitOrder()))
+                                                                .collect(Collectors.toList());
+
+        return CompletableFuture.completedFuture(list);
     }
 
     @Override

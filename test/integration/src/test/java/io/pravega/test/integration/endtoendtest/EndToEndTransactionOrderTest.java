@@ -151,7 +151,7 @@ public class EndToEndTransactionOrderTest {
         zkTestServer.close();
     }
     
-    @Test(timeout = 200000)
+    @Test(timeout = 100000)
     public void testOrder() throws Exception {
         final AtomicBoolean done = new AtomicBoolean(false);
 
