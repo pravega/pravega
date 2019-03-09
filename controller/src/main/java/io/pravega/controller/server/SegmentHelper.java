@@ -81,7 +81,7 @@ public class SegmentHelper {
         this.authHelper = authHelper;
         cache = CacheBuilder.newBuilder()
                             .maximumSize(Config.HOST_STORE_CONTAINER_COUNT)
-                            // if a host is not accessed for 2 minutes, remove it from the cache
+                            // if a host is not accessed for 5 minutes, remove it from the cache
                             .expireAfterAccess(5, TimeUnit.MINUTES)
                             .removalListener((RemovalListener<PravegaNodeUri, SegmentHelperConnectionManager>) removalNotification -> {
                                 // Whenever a connection manager is evicted from the cache call shutdown on it. 

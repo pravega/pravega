@@ -40,7 +40,7 @@ public class ZkInt96Counter {
     @GuardedBy("lock")
     private final AtomicInt96 counter;
     @GuardedBy("lock")
-    private volatile CompletableFuture<Void> refreshFutureRef;
+    private CompletableFuture<Void> refreshFutureRef;
     private ZKStoreHelper storeHelper;
 
     public ZkInt96Counter(ZKStoreHelper storeHelper) {

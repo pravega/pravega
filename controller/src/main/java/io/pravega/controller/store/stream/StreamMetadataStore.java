@@ -832,11 +832,11 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> removeTaskFromIndex(final String hostId, final String id);
 
     /**
-     * Returns a transaction managed by specified host, if one exists.
+     * Returns a map of pending tasks that were created by the host but their corresponding event was probably not posted.
      *
      * @param hostId Host identifier.
      * @param limit number of tasks to retrieve from store
-     * @return A transaction managed by specified host, if one exists.
+     * @return A CompletableFuture which when completed will have a map of tasks to events that should be posted.
      */
     CompletableFuture<Map<String, ControllerEvent>> getPendingsTaskForHost(final String hostId, final int limit);
 
@@ -849,9 +849,9 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> removeHostFromTaskIndex(String hostId);
 
     /**
-     * Fetches set of hosts that own some txn.
+     * Fetches set of hosts that own some tasks for which events have to be posted.
      *
-     * @return set of hosts owning some txn.
+     * @return set of hosts owning some pending tasks.
      */
     CompletableFuture<Set<String>> listHostsWithPendingTask();
 

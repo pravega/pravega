@@ -20,7 +20,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
-import java.util.LinkedList;
+import java.util.ArrayDeque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -40,7 +40,7 @@ class SegmentHelperConnectionManager {
     private final PravegaNodeUri uri;
     private final Object lock = new Object();
     @GuardedBy("lock")
-    private final LinkedList<ConnectionObject> availableConnections;
+    private final ArrayDeque<ConnectionObject> availableConnections;
     @GuardedBy("lock")
     private boolean isRunning;
     private final ConnectionFactory clientCF;
@@ -48,7 +48,7 @@ class SegmentHelperConnectionManager {
     SegmentHelperConnectionManager(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF) {
         this.uri = pravegaNodeUri;
         this.clientCF = clientCF;
-        this.availableConnections = new LinkedList<>();
+        this.availableConnections = new ArrayDeque<>();
         this.isRunning = true;
     }
 
@@ -75,11 +75,12 @@ class SegmentHelperConnectionManager {
      */
     void returnConnection(ConnectionObject pair) {
         pair.processor.uninitialize();
+        boolean toClose = false;
         synchronized (lock) {
             if (!isRunning) {
                 // The connection will be closed if returned anytime after the shutdown has been initiated.
                 log.debug("ConnectionManager is shutdown");
-                pair.connection.close();
+                toClose = true;
             } else {
                 // as connections are returned to us, we put them in queue to be reused
                 if (availableConnections.size() < MAX_AVAILABLE_CONNECTION) {
@@ -88,9 +89,12 @@ class SegmentHelperConnectionManager {
                     availableConnections.offer(pair);
                 } else {
                     log.debug("Returned connection object is discarded as available list is full");
-                    pair.connection.close();
+                    toClose = true;
                 }
             }
+        }
+        if (toClose) {
+            pair.connection.close();
         }
     }
 
