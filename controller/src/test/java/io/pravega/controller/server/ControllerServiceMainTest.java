@@ -63,7 +63,7 @@ public abstract class ControllerServiceMainTest {
     }
     
     static void handleUncaughtException(Thread t, Throwable e) {
-        called.complete(null);    
+        INVOKED.complete(null);    
     }
 
     @Test(timeout = 10000)
@@ -76,8 +76,8 @@ public abstract class ControllerServiceMainTest {
         });
         
         t.start();
-        
-        called.join();
+
+        INVOKED.join();
     }
     
     @Test(timeout = 10000)
