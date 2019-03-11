@@ -68,7 +68,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
             log.info("Received noSuchSegment {}", noSuchSegment);
-            CompletableFuture<SegmentRead> future = grabFuture(noSuchSegment.getSegment(), noSuchSegment.getRequestId());
+            CompletableFuture<SegmentRead> future = grabFuture(noSuchSegment.getSegment(), noSuchSegment.getOffset());
             if (future != null) {
                 future.completeExceptionally(new SegmentTruncatedException("Segment no longer exists."));
             }
@@ -77,7 +77,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void segmentIsTruncated(SegmentIsTruncated segmentIsTruncated) {
             log.info("Received segmentIsTruncated {}", segmentIsTruncated);
-            CompletableFuture<SegmentRead> future = grabFuture(segmentIsTruncated.getSegment(), segmentIsTruncated.getRequestId());
+            CompletableFuture<SegmentRead> future = grabFuture(segmentIsTruncated.getSegment(), segmentIsTruncated.getOffset());
             if (future != null) {
                 future.completeExceptionally(new SegmentTruncatedException());
             }
@@ -86,7 +86,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
             log.info("Received segmentSealed {}", segmentIsSealed);
-            CompletableFuture<SegmentRead> future = grabFuture(segmentIsSealed.getSegment(), segmentIsSealed.getRequestId());
+            CompletableFuture<SegmentRead> future = grabFuture(segmentIsSealed.getSegment(), segmentIsSealed.getOffset());
             if (future != null) {
                 future.complete(new WireCommands.SegmentRead(
                         segmentIsSealed.getSegment(),

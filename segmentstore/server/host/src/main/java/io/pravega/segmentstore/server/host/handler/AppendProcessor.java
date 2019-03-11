@@ -316,6 +316,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private void handleException(UUID writerId, long requestId, String segment, String doingWhat, Throwable u) {
         handleException(writerId, requestId, segment, -1L, doingWhat, u);
     }
+
     private void handleException(UUID writerId, long requestId, String segment, long eventNumber, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
@@ -331,7 +332,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentNotExistsException) {
             log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
-            connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace));
+            connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace, -1L));
         } else if (u instanceof StreamSegmentSealedException) {
             log.info("Segment '{}' is sealed and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
             connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace, eventNumber));

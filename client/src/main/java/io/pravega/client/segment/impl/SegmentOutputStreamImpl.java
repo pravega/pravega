@@ -81,6 +81,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final RetryWithBackoff retrySchedule;
     private final Object writeOrderLock = new Object();
     private final String delegationToken;
+    @VisibleForTesting
     @Getter
     private final long requestId = RequestIdGenerator.getRequestId();
 

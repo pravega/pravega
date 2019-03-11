@@ -263,6 +263,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final String serverStackTrace;
+        final long offset;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -274,13 +275,15 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(serverStackTrace);
+            out.writeLong(offset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            return new NoSuchSegment(requestId, segment, serverStackTrace);
+            long offset = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+            return new NoSuchSegment(requestId, segment, serverStackTrace, offset);
         }
 
         @Override
