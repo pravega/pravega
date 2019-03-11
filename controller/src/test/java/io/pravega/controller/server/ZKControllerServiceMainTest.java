@@ -9,14 +9,11 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.controller.mocks.StoreClientFactoryMock;
 import io.pravega.controller.store.client.StoreClient;
-import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
-import java.util.function.BiFunction;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
@@ -94,34 +91,6 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
         }
     }
 
-    static class MockZKControllerServiceMain extends ControllerServiceMain {
-        @Getter
-        private StoreClientFactoryMock.ZKClientFactoryMock zkClientFactory;
-        private final ControllerServiceConfig serviceConfig;
-
-        public MockZKControllerServiceMain(ControllerServiceConfig serviceConfig, BiFunction<ControllerServiceConfig,
-                                                 StoreClient, ControllerServiceStarter> starterFactory) {
-            super(serviceConfig, starterFactory);
-            this.serviceConfig = serviceConfig;
-            zkClientFactory = new StoreClientFactoryMock.ZKClientFactoryMock();
-        }
-
-        /**
-         * Instantiate a new ZKStoreClient while holding a reference to the ZKClientFactory. This will allow us to
-         * inject a failure that simulates a parameter change in Curator and check if the Controller restarts correctly.
-         *
-         * @return new StoreClient instance.
-         */
-        @Override
-        protected StoreClient createStoreClient() {
-            zkClientFactory = new StoreClientFactoryMock.ZKClientFactoryMock();
-            CompletableFuture<Void> sessionExpiryFuture = new CompletableFuture<>();
-            CuratorFramework zkClient = StoreClientFactory.createZKClient(serviceConfig.getStoreClientConfig().getZkClientConfig().get(),
-                    () -> !sessionExpiryFuture.isDone(), sessionExpiryFuture::complete, zkClientFactory);
-            return StoreClientFactory.createZKStoreClient(zkClient);
-        }
-    }
-
     /**
      * This test verifies that the Controller mechanism for handling a ZK session expiration works correctly. Moreover,
      * this verification is done both assuming that Zookeeper client connection parameters do not change and simulating
@@ -134,7 +103,7 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
             CompletableFuture<Void> waitingForShutdownSignal = new CompletableFuture<>();
 
             ConcurrentLinkedQueue<StoreClient> clientQueue = new ConcurrentLinkedQueue<>();
-            MockZKControllerServiceMain controllerServiceMain = new MockZKControllerServiceMain(createControllerServiceConfig(),
+            ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
                     (x, y) -> {
                         clientQueue.add(y);
                         return new MockControllerServiceStarter(x, y, signalShutdownStarted, waitingForShutdownSignal);
@@ -163,13 +132,16 @@ public class ZKControllerServiceMainTest extends ControllerServiceMainTest {
 
             // Simulate the 2 situations that may occur upon a session expiration: i) Curator changes the connection
             // parameters for ZK client (so ZK client gets closed), and ii) connection parameters remain the same.
-            controllerServiceMain.getZkClientFactory().getCloseZKClient().set(iteration % 2 == 1);
+            final boolean closeZKClient = iteration % 2 == 1;
 
             // Simulate ZK session timeout
             // we will submit zk session expiration and
             CompletableFuture.runAsync(() -> {
                 try {
                     curatorClient.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
+                    if (closeZKClient) {
+                        curatorClient.getZookeeperClient().getZooKeeper().close();
+                    }
                 } catch (Exception e) {
                     log.error("Failed while simulating client session expiry", e);
                     Assert.fail("Failed while simulating client session expiry");

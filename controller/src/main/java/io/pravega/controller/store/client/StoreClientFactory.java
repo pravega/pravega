@@ -73,7 +73,7 @@ public class StoreClientFactory {
     }
 
     @VisibleForTesting
-    public static CuratorFramework createZKClient(ZKClientConfig zkClientConfig, Supplier<Boolean> canRetry, Consumer<Void> expiryHandler, ZKClientFactory zkClientFactory) {
+    static CuratorFramework createZKClient(ZKClientConfig zkClientConfig, Supplier<Boolean> canRetry, Consumer<Void> expiryHandler, ZKClientFactory zkClientFactory) {
         if (zkClientConfig.isSecureConnectionToZooKeeper()) {
             ZKTLSUtils.setSecureZKClientProperties(zkClientConfig.getTrustStorePath(), JKSHelper.loadPasswordFrom(zkClientConfig.getTrustStorePasswordPath()));
         }
@@ -101,7 +101,7 @@ public class StoreClientFactory {
     }
 
     @VisibleForTesting
-    protected static class ZKClientFactory implements ZookeeperFactory {
+    static class ZKClientFactory implements ZookeeperFactory {
         private ZooKeeper client;
         @VisibleForTesting
         @Setter(AccessLevel.PACKAGE)
@@ -117,7 +117,6 @@ public class StoreClientFactory {
             if (client == null) {
                 Exceptions.checkNotNullOrEmpty(connectString, "connectString");
                 Preconditions.checkArgument(sessionTimeout > 0, "sessionTimeout should be a positive integer");
-                Preconditions.checkNotNull(watcher, "watcher");
                 this.connectString = connectString;
                 this.sessionTimeout = sessionTimeout;
                 this.canBeReadOnly = canBeReadOnly;

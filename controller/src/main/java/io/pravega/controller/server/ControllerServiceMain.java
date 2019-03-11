@@ -89,7 +89,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
             while (isRunning()) {
                 // Create store client.
                 log.info("Creating store client");
-                storeClient = createStoreClient();
+                storeClient = StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
 
                 boolean hasZkConnection = serviceConfig.getStoreClientConfig().getStoreType().equals(StoreType.Zookeeper) ||
                         serviceConfig.isControllerClusterListenerEnabled();
@@ -220,10 +220,5 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         awaitServiceStarting();
         ((CuratorFramework) this.storeClient.getClient()).getZookeeperClient().getZooKeeper()
                                                          .getTestable().injectSessionExpiration();
-    }
-
-    @VisibleForTesting
-    protected StoreClient createStoreClient() {
-        return StoreClientFactory.createStoreClient(serviceConfig.getStoreClientConfig());
     }
 }
