@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -37,8 +36,6 @@ public class RawClient implements AutoCloseable {
 
     private final CompletableFuture<ClientConnection> connection;
     private final Segment segmentId;
-    @Getter
-    private final long requestId;
 
     private final Object lock = new Object();
     @GuardedBy("lock")
@@ -79,9 +76,8 @@ public class RawClient implements AutoCloseable {
         }
     }
 
-    public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId, long requestId) {
+    public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
         this.segmentId = segmentId;
-        this.requestId = requestId;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
                                     .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
         Futures.exceptionListener(connection, e -> closeConnection(e));

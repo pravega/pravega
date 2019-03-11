@@ -14,7 +14,6 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.RequestIdGenerator;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
@@ -68,10 +67,10 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                     .throwingOn(SegmentSealedException.class)
                     .run(() -> {
                         if (client == null || client.isClosed()) {
-                            client = new RawClient(controller, connectionFactory, segmentId, RequestIdGenerator.getRequestId());
+                            client = new RawClient(controller, connectionFactory, segmentId);
                             long requestId = requestIdGenerator.get();
                             log.debug("Setting up append on segment: {}", segmentId);
-                            SetupAppend setup = new SetupAppend(client.getRequestId(), writerId,
+                            SetupAppend setup = new SetupAppend(requestId, writerId,
                                                                 segmentId.getScopedName(),
                                                                 delegationToken);
                             val reply = client.sendRequest(requestId, setup);
@@ -81,7 +80,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                             }
                         }
                         val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
-                                                            new Event(Unpooled.wrappedBuffer(data)), client.getRequestId());
+                                                            new Event(Unpooled.wrappedBuffer(data)), appendSequence);
                         val reply = client.sendRequest(appendSequence, request);
                         return transformDataAppended(reply.join());
                     });
