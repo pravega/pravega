@@ -85,7 +85,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             Append append = (Append) msg;
             Session session = setupSegments.get(append.segment);
             validateAppend(append, session);
-            if (!append.segment.equals(segmentBeingAppendedTo)) {
+            if (append.segment != segmentBeingAppendedTo) {
                 breakFromAppend(out);
             }
             if (bytesLeftInBlock == 0) {

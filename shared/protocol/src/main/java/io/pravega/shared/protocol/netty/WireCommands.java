@@ -554,8 +554,8 @@ public final class WireCommands {
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             byte[] data = new byte[length - Long.BYTES * 3];
-            in.readFully(data);
             long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+            in.readFully(data);
             return new AppendBlock(requestId, writerId, wrappedBuffer(data));
         }
     }
