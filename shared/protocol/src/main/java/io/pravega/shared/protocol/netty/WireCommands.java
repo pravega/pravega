@@ -210,7 +210,7 @@ public final class WireCommands {
             String segment = in.readUTF();
             long startOffset = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            long offset = (in.available() > Long.BYTES)? in.readLong(): -1L;
+            long offset = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
             return new SegmentIsTruncated(requestId, segment, startOffset, serverStackTrace, offset);
         }
         
@@ -553,7 +553,7 @@ public final class WireCommands {
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            byte[] data = new byte[length - 16];
+            byte[] data = new byte[length - Long.BYTES * 3];
             in.readFully(data);
             long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
             return new AppendBlock(requestId, writerId, wrappedBuffer(data));
@@ -622,8 +622,8 @@ public final class WireCommands {
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
             out.writeLong(expectedOffset);
-            out.writeLong(requestId);
             event.writeFields(out);
+            out.writeLong(requestId);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -693,21 +693,21 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(requestId);
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
             out.writeLong(previousEventNumber);
+            out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            long requestId = in.readLong();
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
             long previousEventNumber = -1;
             if (length >= 32) {
                 previousEventNumber = in.readLong();
             }
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
 
             return new DataAppended(requestId, writerId, offset, previousEventNumber);
         }
