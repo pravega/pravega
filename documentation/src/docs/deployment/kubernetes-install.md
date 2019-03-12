@@ -2,13 +2,13 @@
 
 ## Table of Contents
 
- * [Pravega Operator](#pravega-operator)
  * [Requirements](#requirements)
+    * [Pravega Operator](#pravega-operator)
  * [Usage](#usage)    
-    * [Installation of the Operator](#install-the-operator)
+    * [Installation of the Pravega Operator](#install-the-pravega-operator)
     * [Deploy a sample Pravega Cluster](#deploy-a-sample-pravega-cluster)
     * [Uninstall the Pravega Cluster](#uninstall-the-pravega-cluster)
-    * [Uninstall the Operator](#uninstall-the-operator)
+    * [Uninstall the Pravega Operator](#uninstall-the-pravega-operator)
  * [Configuration](#configuration)
     * [Use non-default service accounts](#use-non-default-service-accounts)
     * [Installing on a Custom Namespace with RBAC enabled](#installing-on-a-custom-namespace-with-rbac-enabled)
@@ -16,33 +16,27 @@
     * [Tune Pravega Configurations](#tune-pravega-configuration)
 * [Releases](#releases)
 
-## Pravega Operator
-
-The [Pravega Operator](https://github.com/pravega/pravega-operator/edit/master/README.md) manages Pravega clusters deployed to Kubernetes and automates tasks related to operating a Pravega cluster. Using Kubernetes for all services deployed in production increases automation, availability and provides flexibility around resource management.
-
- Currently Pravega Operator supports the following features:
-
-- Create and destroy a Pravega cluster
-- Resize cluster
+Using Kubernetes for all services deployed in production increases automation, availability and provides flexibility around resource management.
 
 ## Requirements
 
 - Kubernetes 1.8+
-- An existing Apache Zookeeper 3.5 cluster. This can be easily deployed using our [Zookeeper operator](https://github.com/pravega/zookeeper-operator).
+- An existing Apache Zookeeper 3.5 cluster. This can be easily deployed using our [Zookeeper Operator](https://github.com/pravega/zookeeper-operator).
+- [Pravega Operator](https://github.com/pravega/pravega-operator/edit/master/README.md)manages Pravega clusters deployed to Kubernetes and automates tasks related to operating a Pravega cluster.
 
 ## Usage
 
-### Install the operator
+### Install the Pravega Operator
 
 > Note: If you are running on Google Kubernetes Engine (GKE), please [check this first](#installation-on-google-kubernetes-engine).
 
-Run the following command to install the `PravegaCluster` custom resource definition (CRD), create the `pravega-operator` service account, roles, bindings, and the deploy the operator.
+Run the following command to install the `PravegaCluster` custom resource definition (CRD), create the `pravega-operator` service account, roles, bindings, and the deploy the Pravega Operator.
 
 ```
 $ kubectl create -f deploy
 ```
 
-Verify that the Pravega operator is running.
+Verify that the Pravega Operator is running.
 
 ```
 $ kubectl get deploy
@@ -108,7 +102,7 @@ spec:
   bookkeeper:
     image:
       repository: pravega/bookkeeper
-      tag: 0.3.2
+      tag: 0.4.0
       pullPolicy: IfNotPresent
 
     replicas: 3
@@ -143,7 +137,7 @@ spec:
 
     image:
       repository: pravega/pravega
-      tag: 0.3.2
+      tag: 0.4.0
       pullPolicy: IfNotPresent
 
     tier2:
@@ -224,11 +218,11 @@ $ kubectl delete -f pravega.yaml
 $ kubectl delete -f pvc.yaml
 ```
 
-### Uninstall the operator
+### Uninstall the Pravega Operator
 
 > Note that the Pravega clusters managed by the Pravega operator will NOT be deleted even if the operator is uninstalled.
 
-To delete all clusters, delete all cluster CR objects before uninstalling the operator.
+To delete all clusters, delete all cluster CR objects before uninstalling the Pravega Operator.
 
 ```
 $ kubectl delete -f deploy
@@ -281,7 +275,7 @@ Apply the changes.
 $ kubectl -n pravega-io apply -f deploy
 ```
 
-Note that the Pravega operator only monitors the `PravegaCluster` resources which are created in the same namespace, `pravega-io` in this example. Therefore, before creating a `PravegaCluster` resource, make sure an operator exists in that namespace.
+Note that the Pravega Operator only monitors the `PravegaCluster` resources which are created in the same namespace, `pravega-io` in this example. Therefore, before creating a `PravegaCluster` resource, make sure an Operator exists in that namespace.
 
 ```
 $ kubectl -n pravega-io create -f example/cr.yaml
@@ -368,7 +362,7 @@ Use the same `pravega.yaml` above to deploy the Pravega cluster.
 
 Pravega has many configuration options for setting up metrics, tuning, etc. The available options can be found
 [here](https://github.com/pravega/pravega/blob/master/config/config.properties) and are
-expressed through the pravega/options part of the resource specification. All values must be expressed as Strings.
+expressed through the `pravega/options` part of the resource specification. All values must be expressed as Strings.
 
 ```yaml
 ...
