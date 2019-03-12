@@ -16,13 +16,11 @@
     * [Tune Pravega Configurations](#tune-pravega-configuration)
 * [Releases](#releases)
 
-Using Kubernetes for all services deployed in production increases automation, availability and provides flexibility around resource management.
-
 ## Requirements
 
 - Kubernetes 1.8+
 - An existing Apache Zookeeper 3.5 cluster. This can be easily deployed using our [Zookeeper Operator](https://github.com/pravega/zookeeper-operator).
-- [Pravega Operator](https://github.com/pravega/pravega-operator/edit/master/README.md)manages Pravega clusters deployed to Kubernetes and automates tasks related to operating a Pravega cluster.
+- [Pravega Operator](https://github.com/pravega/pravega-operator/edit/master/README.md) manages Pravega clusters deployed to Kubernetes and automates tasks related to operating a Pravega cluster.
 
 ## Usage
 
