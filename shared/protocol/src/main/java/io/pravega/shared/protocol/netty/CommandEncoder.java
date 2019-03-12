@@ -118,7 +118,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                                                 dataRemainging,
                                                 session.eventCount,
                                                 session.lastEventNumber,
-                                                0L, append.getRequestId()), out);
+                                                append.getRequestId()), out);
                 bytesLeftInBlock = 0;
                 session.eventCount = 0;
             }
@@ -163,7 +163,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     currentBlockSize - bytesLeftInBlock,
                     null,
                     session.eventCount,
-                    session.lastEventNumber, 0L, session.id.getLeastSignificantBits()), out);
+                    session.lastEventNumber, session.id.getLeastSignificantBits()), out);
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
             session.eventCount = 0;

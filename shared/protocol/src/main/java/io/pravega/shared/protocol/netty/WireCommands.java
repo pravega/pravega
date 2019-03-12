@@ -568,7 +568,6 @@ public final class WireCommands {
         final ByteBuf data;
         final int numEvents;
         final long lastEventNumber;
-        final long unused; // Will be used by AppendSequence:
         final long requestId;
 
         @Override
@@ -584,7 +583,6 @@ public final class WireCommands {
             }
             out.writeInt(numEvents);
             out.writeLong(lastEventNumber);
-            out.writeLong(unused);
             out.writeLong(requestId);
         }
 
@@ -601,9 +599,8 @@ public final class WireCommands {
             }
             int numEvents = in.readInt();
             long lastEventNumber = in.readLong();
-            long unused = in.readLong();
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, wrappedBuffer(data), numEvents, lastEventNumber, unused, requestId);
+            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, wrappedBuffer(data), numEvents, lastEventNumber, requestId);
         }
     }
 

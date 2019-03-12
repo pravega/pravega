@@ -14,15 +14,15 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * This is used to generated unique request ids per process.
  */
-public class RequestIdGenerator {
+public class IdGenerator {
 
-    private static final AtomicLong REQUEST_ID_GENERATOR = new AtomicLong(0);
+    private static final AtomicLong ID_GENERATOR = new AtomicLong(0);
 
     /**
      * Get request id.
      * @return request id.
      */
     public static long getRequestId() {
-        return REQUEST_ID_GENERATOR.incrementAndGet();
+        return ID_GENERATOR.incrementAndGet();
     }
 }
