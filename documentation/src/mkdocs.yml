@@ -58,6 +58,7 @@ pages:
       - 'Deployment Overview': 'deployment/deployment.md'
       - 'Running Locally': 'deployment/run-local.md'
       - 'Manual Install': 'deployment/manual-install.md'
+      - 'Deployment in Kubernetes': 'deployment/kubernetes-install.md'
       - 'Deployment in Docker Swarm': 'deployment/docker-swarm.md'
       - 'Deployment on DC/OS': 'deployment/dcos-install.md'
       - 'Running in the Cloud (AWS)': 'deployment/aws-install.md'
