@@ -42,7 +42,7 @@ There are multiple options provided for running Pravega in different environment
     - Docker Compose (Distributed Mode)
 - Production - Multi-node installation suitable for running in production.
     - [Manual Installation](manual-install.md)
-    - [Kubernetes Deployment Model](kubernetes-deployment.md)
+    - [Kubernetes](kubernetes-install.md)
     - [Docker Swarm](docker-swarm.md)
     - [DC/OS](dcos-install.md)
     - Cloud - [AWS](aws-install.md)
