@@ -238,7 +238,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     .thenAccept(info ->
                             connection.send(new SegmentIsTruncated(request.getRequestId(), segment,
                                                                    info.getStartOffset(), EMPTY_STACK_TRACE, nonCachedEntry.getStreamSegmentOffset())))
-                    .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, operation, wrapCancellationException(e)));
+                    .exceptionally(e -> handleException(request.getRequestId(), segment, nonCachedEntry.getStreamSegmentOffset(), operation,
+                                                        wrapCancellationException(e)));
         } else {
             Preconditions.checkState(nonCachedEntry != null, "No ReadResultEntries returned from read!?");
             nonCachedEntry.requestContent(TIMEOUT);
@@ -260,11 +261,13 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                                    nonCachedEntry.getStreamSegmentOffset(), clientReplyStackTrace,
                                                                    nonCachedEntry.getStreamSegmentOffset()));
                         } else {
-                            handleException(nonCachedEntry.getStreamSegmentOffset(), segment, operation, wrapCancellationException(e));
+                            handleException(request.getRequestId(), segment, nonCachedEntry.getStreamSegmentOffset(), operation,
+                                            wrapCancellationException(e));
                         }
                         return null;
                     })
-                    .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, operation, wrapCancellationException(e)));
+                    .exceptionally(e -> handleException(request.getRequestId(), segment, nonCachedEntry.getStreamSegmentOffset(), operation,
+                                                        wrapCancellationException(e)));
         }
     }
 
