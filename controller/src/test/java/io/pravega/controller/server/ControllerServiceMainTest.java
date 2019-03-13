@@ -23,13 +23,15 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * ControllerServiceMain tests.
  */
 public abstract class ControllerServiceMainTest {
-
+    private static final CompletableFuture<Void> INVOKED = new CompletableFuture<>();
     protected StoreClientConfig storeClientConfig;
+
     private final boolean disableControllerCluster;
 
     ControllerServiceMainTest(final boolean disableControllerCluster) {
@@ -59,7 +61,48 @@ public abstract class ControllerServiceMainTest {
             log.info("MockControllerServiceStarter shutdown.");
         }
     }
+    
+    static void handleUncaughtException(Thread t, Throwable e) {
+        INVOKED.complete(null);    
+    }
 
+    @Test(timeout = 10000)
+    public void testUncaughtException() {
+        Main.setUncaughtExceptionHandler(Main::logUncaughtException);
+        Main.setUncaughtExceptionHandler(ControllerServiceMainTest::handleUncaughtException);
+        
+        Thread t = new Thread(() -> {
+            throw new RuntimeException();
+        });
+        
+        t.start();
+
+        INVOKED.join();
+    }
+    
+    @Test(timeout = 10000)
+    public void mainShutdownTest() {
+        ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),
+                MockControllerServiceStarter::new);
+
+        controllerServiceMain.startAsync();
+        try {
+            controllerServiceMain.awaitRunning();
+        } catch (IllegalStateException e) {
+            Assert.fail("Failed waiting for controllerServiceMain to get ready");
+        }
+
+        try {
+            controllerServiceMain.awaitServiceStarting().awaitRunning();
+        } catch (IllegalStateException e) {
+            Assert.fail("Failed waiting for starter to get ready");
+        }
+
+        Main.onShutdown(controllerServiceMain);
+        
+        controllerServiceMain.awaitTerminated();
+    }
+    
     @Test(timeout = 10000)
     public void testControllerServiceMainStartStop() {
         ControllerServiceMain controllerServiceMain = new ControllerServiceMain(createControllerServiceConfig(),

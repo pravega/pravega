@@ -14,6 +14,8 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
+import lombok.AccessLevel;
+import lombok.Setter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.NotImplementedException;
@@ -69,6 +71,11 @@ public class StoreClientFactory {
 
     @VisibleForTesting
     static CuratorFramework createZKClient(ZKClientConfig zkClientConfig, Supplier<Boolean> canRetry, Consumer<Void> expiryHandler) {
+        return createZKClient(zkClientConfig, canRetry, expiryHandler, new ZKClientFactory());
+    }
+
+    @VisibleForTesting
+    static CuratorFramework createZKClient(ZKClientConfig zkClientConfig, Supplier<Boolean> canRetry, Consumer<Void> expiryHandler, ZKClientFactory zkClientFactory) {
         if (zkClientConfig.isSecureConnectionToZooKeeper()) {
             ZKTLSUtils.setSecureZKClientProperties(zkClientConfig.getTrustStorePath(), JKSHelper.loadPasswordFrom(zkClientConfig.getTrustStorePasswordPath()));
         }
@@ -80,7 +87,7 @@ public class StoreClientFactory {
         CuratorFramework zkClient = CuratorFrameworkFactory.builder()
                 .connectString(zkClientConfig.getConnectionString())
                 .namespace(zkClientConfig.getNamespace())
-                .zookeeperFactory(new ZKClientFactory())
+                .zookeeperFactory(zkClientFactory)
                 .retryPolicy(retryPolicy)
                 .sessionTimeoutMs(zkClientConfig.getSessionTimeoutMs())
                 .build();
@@ -98,6 +105,8 @@ public class StoreClientFactory {
     @VisibleForTesting
     static class ZKClientFactory implements ZookeeperFactory {
         private ZooKeeper client;
+        @VisibleForTesting
+        @Setter(AccessLevel.PACKAGE)
         private String connectString;
         private int sessionTimeout;
         private boolean canBeReadOnly;
@@ -110,19 +119,31 @@ public class StoreClientFactory {
             if (client == null) {
                 Exceptions.checkNotNullOrEmpty(connectString, "connectString");
                 Preconditions.checkArgument(sessionTimeout > 0, "sessionTimeout should be a positive integer");
-                Preconditions.checkNotNull(watcher, "watcher");
                 this.connectString = connectString;
                 this.sessionTimeout = sessionTimeout;
                 this.canBeReadOnly = canBeReadOnly;
                 this.client = new ZooKeeper(connectString, sessionTimeout, watcher, canBeReadOnly);
-                return this.client;
             } else {
-                Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
-                Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
-                Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
-                Preconditions.checkNotNull(watcher, "watcher");
-                this.client.register(watcher);
-                return this.client;
+                try {
+                    Preconditions.checkArgument(this.connectString.equals(connectString), "connectString differs");
+                    Preconditions.checkArgument(this.sessionTimeout == sessionTimeout, "sessionTimeout differs");
+                    Preconditions.checkArgument(this.canBeReadOnly == canBeReadOnly, "canBeReadOnly differs");
+                    this.client.register(watcher);
+                } catch (IllegalArgumentException e) {
+                    log.warn("Input argument for new ZooKeeper client ({}, {}, {}) changed with respect to existing client ({}, {}, {}).",
+                        connectString, sessionTimeout, canBeReadOnly, this.connectString, this.sessionTimeout, this.canBeReadOnly, e);
+                    closeClient(client);
+                }
+            }
+            return this.client;
+        }
+
+        private void closeClient(ZooKeeper client) {
+            try {
+                client.close();
+            } catch (Exception e) {
+                // We prevent throwing uncontrolled exceptions here, which may lead Curator to retry indefinitely.
+                log.error("Exception while attempting to close ZooKeeper client.", e);
             }
         }
     }

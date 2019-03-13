@@ -101,7 +101,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                         if (cause instanceof StoreException.OperationNotAllowedException) {
                             log.debug("Cannot commit transaction on epoch {} on stream {}/{}. Postponing", epoch, scope, stream);
                         } else {
-                            log.error("Exception while attempting to commit transaction on epoch {} on stream {}/{}", epoch, scope, stream, e);
+                            log.error("gi {} on stream {}/{}", epoch, scope, stream, e);
                         }
                         future.completeExceptionally(cause);
                     } else {

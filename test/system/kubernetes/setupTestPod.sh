@@ -85,7 +85,7 @@ spec:
        claimName: task-pv-claim
   containers:
     - name: task-pv-container
-      image: openjdk:8-jre-alpine
+      image: openjdk:8u181-jre-alpine
       command: ["/bin/sh"]
       args: ["-c", "sleep 60000"]
       volumeMounts:
