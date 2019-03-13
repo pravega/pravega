@@ -29,7 +29,7 @@ import lombok.SneakyThrows;
 import lombok.val;
 
 /**
- * Represents an Operation Producer for the Self Tester.
+ * Represents an Operation Producer for the Self Tester. The Producer is used by both Streaming and Table tests.
  */
 class Producer<T extends ProducerUpdate> extends Actor {
     //region Members

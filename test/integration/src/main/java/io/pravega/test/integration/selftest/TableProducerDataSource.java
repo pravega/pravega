@@ -12,16 +12,20 @@ package io.pravega.test.integration.selftest;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BlockingDrainingQueue;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Queue;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 
@@ -29,9 +33,9 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
     //region Members
 
     private final ConcurrentHashMap<String, UpdateGenerator> updateGenerators;
-    @GuardedBy("lock")
+    private final BlockingDrainingQueue<UpdatedKey> recentUpdates;
+    @GuardedBy("random")
     private final Random random;
-    private final Object lock = new Object();
 
     //endregion
 
@@ -41,7 +45,17 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
         super(config, state, store);
         Preconditions.checkArgument(store.isFeatureSupported(StoreAdapter.Feature.Tables), "StoreAdapter must support Tables.");
         this.updateGenerators = new ConcurrentHashMap<>();
+        this.recentUpdates = new BlockingDrainingQueue<>();
         this.random = new Random();
+    }
+
+    //endregion
+
+    //region AutoCloseable Implementation
+
+    @Override
+    public void close() {
+        this.recentUpdates.close();
     }
 
     //endregion
@@ -60,11 +74,8 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
             this.state.setWarmup(false);
         }
 
-        boolean removal;
-        synchronized (this.lock) {
-            // Decide whether to remove.
-            removal = decide(this.config.getTableRemovePercentage());
-        }
+        // Decide whether to remove.
+        boolean removal = decide(this.config.getTableRemovePercentage());
 
         // Choose operation type based on Test Configuration. For simplicity we don't mix conditional and unconditional
         // updates in this type of test.
@@ -122,6 +133,20 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
 
     //endregion
 
+    //region TableProducerDataSource Implementation
+
+    /**
+     * Fetches the recent {@link UpdatedKey}s that were updated or removed.
+     *
+     * @param maxCount Maximum result size.
+     * @return A CompletableFuture that, when completed, will contain at least one result. If there are no recent updates
+     * this future will not be completed immediately; it will be completed when the next result is generated.
+     */
+    CompletableFuture<Queue<UpdatedKey>> fetchRecentUpdates(int maxCount) {
+        // TODO: create a Table Consumer that uses this and executes concurrent gets.
+        return this.recentUpdates.take(maxCount);
+    }
+
     private CompletableFuture<Void> deleteStream(String name) {
         return Futures.exceptionallyExpecting(this.store.deleteStream(name, this.config.getTimeout()),
                 ex -> ex instanceof StreamSegmentNotExistsException,
@@ -154,16 +179,23 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
             // Update the generator's knowledge of this key's version so it may reuse that for subsequent operations.
             generator.recordUpdate(op.getUpdate().getKeyId(), (Long) op.getResult());
         }
+
+        this.recentUpdates.add(new UpdatedKey(op.getTarget(), op.getUpdate().getKeyId()));
     }
 
     private void operationFailureCallback(ProducerOperation<?> op, Throwable ex) {
         this.state.operationFailed(op.getTarget());
     }
 
-    @GuardedBy("lock")
     private boolean decide(int probabilityPercentage) {
-        return random.nextInt(101) <= probabilityPercentage;
+        synchronized (this.random) {
+            return this.random.nextInt(101) <= probabilityPercentage;
+        }
     }
+
+    //endregion
+
+    //region UpdateGenerator
 
     private class UpdateGenerator {
         @GuardedBy("this")
@@ -195,6 +227,10 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
         }
     }
 
+    //endregion
+
+    //region KeyWithVersion
+
     @RequiredArgsConstructor
     private static class KeyWithVersion {
         final UUID keyId;
@@ -205,4 +241,22 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
             return String.format("KeyId = %s, Version = %s", this.keyId, this.version);
         }
     }
+
+    //endregion
+
+    //region UpdateKey
+
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    @Getter
+    static class UpdatedKey {
+        private final String target;
+        private final UUID keyId;
+
+        @Override
+        public String toString() {
+            return String.format("%s: %s", this.target, this.keyId);
+        }
+    }
+
+    //endregion
 }

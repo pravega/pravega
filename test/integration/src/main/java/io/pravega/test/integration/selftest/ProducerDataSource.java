@@ -20,7 +20,7 @@ import lombok.RequiredArgsConstructor;
  * @param <T> Type of update to add to Targets.
  */
 @RequiredArgsConstructor
-abstract class ProducerDataSource<T extends ProducerUpdate> {
+abstract class ProducerDataSource<T extends ProducerUpdate> implements AutoCloseable {
     protected static final String LOG_ID = "DataSource";
     @NonNull
     protected final TestConfig config;
@@ -28,6 +28,11 @@ abstract class ProducerDataSource<T extends ProducerUpdate> {
     protected final TestState state;
     @NonNull
     protected final StoreAdapter store;
+
+    @Override
+    public void close() {
+        // Nothing to do here. Derived classes may have different implementations but we do not force this upon them.
+    }
 
     /**
      * Generates a new {@link ProducerOperation} that can be executed next.
