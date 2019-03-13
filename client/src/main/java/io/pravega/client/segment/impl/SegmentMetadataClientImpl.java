@@ -15,6 +15,7 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.IdGenerator;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -33,8 +34,6 @@ import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -54,8 +53,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     @GuardedBy("lock")
     private RawClient client = null;
     private final String delegationToken;
-    private final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
-    
+
     private void closeConnection(Reply badReply) {
         log.info("Closing connection as a result of receiving: {}", badReply);
         RawClient c;
@@ -115,17 +113,17 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     private CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo(String delegationToken) {
-        long requestId = requestIdGenerator.get();
         log.debug("Getting segment info for segment: {}", segmentId);
         RawClient connection = getConnection();
+        long requestId = connection.getRequesterId().updateAndGet(IdGenerator.getRequestId());
         return connection.sendRequest(requestId, new GetStreamSegmentInfo(requestId, segmentId.getScopedName(), delegationToken))
                          .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
     }
     
     private CompletableFuture<WireCommands.SegmentAttribute> getPropertyAsync(UUID attributeId, String delegationToken) {
-        long requestId = requestIdGenerator.get();
         log.debug("Getting segment attribute: {}", attributeId);
         RawClient connection = getConnection();
+        long requestId = connection.getRequesterId().updateAndGet(IdGenerator.getRequestId());
         return connection.sendRequest(requestId,
                                       new GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, delegationToken))
                          .thenApply(r -> transformReply(r, WireCommands.SegmentAttribute.class));
@@ -133,9 +131,9 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     private CompletableFuture<SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, long expected,
                                                                                         long value, String delegationToken) {
-        long requestId = requestIdGenerator.get();
         log.trace("Updating segment attribute: {}", attributeId);
         RawClient connection = getConnection();
+        long requestId = connection.getRequesterId().updateAndGet(IdGenerator.getRequestId());
         return connection.sendRequest(requestId,
                                       new UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId,
                                                                  value, expected, delegationToken))
@@ -143,17 +141,17 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     }
 
     private CompletableFuture<SegmentTruncated> truncateSegmentAsync(Segment segment, long offset, String delegationToken) {
-        long requestId = requestIdGenerator.get();
         log.trace("Truncating segment: {}", segment);
         RawClient connection = getConnection();
+        long requestId = connection.getRequesterId().updateAndGet(IdGenerator.getRequestId());
         return connection.sendRequest(requestId, new TruncateSegment(requestId, segment.getScopedName(), offset, delegationToken))
                          .thenApply(r -> transformReply(r, SegmentTruncated.class));
     }
     
     private CompletableFuture<SegmentSealed> sealSegmentAsync(Segment segment, String delegationToken) {
-        long requestId = requestIdGenerator.get();
         log.trace("Sealing segment: {}", segment);
         RawClient connection = getConnection();
+        long requestId = connection.getRequesterId().updateAndGet(IdGenerator.getRequestId());
         return connection.sendRequest(requestId, new SealSegment(requestId, segment.getScopedName(), delegationToken))
                          .thenApply(r -> transformReply(r, SegmentSealed.class));
     }

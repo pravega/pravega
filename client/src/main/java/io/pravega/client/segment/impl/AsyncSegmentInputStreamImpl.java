@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
@@ -17,6 +18,7 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.IdGenerator;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -33,6 +35,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -51,7 +54,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Controller controller;
     private final String delegationToken;
-    private final long requestId;
+    @VisibleForTesting
+    @Getter
+    private final long requestId = IdGenerator.getRequesterId();
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
@@ -135,7 +140,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     }
 
     public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment,
-                                       String delegationToken, long requestId) {
+                                       String delegationToken) {
         super(segment);
         this.delegationToken = delegationToken;
         Preconditions.checkNotNull(controller);
@@ -143,7 +148,6 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         Preconditions.checkNotNull(segment);
         this.controller = controller;
         this.connectionFactory = connectionFactory;
-        this.requestId = requestId;
     }
 
     @Override

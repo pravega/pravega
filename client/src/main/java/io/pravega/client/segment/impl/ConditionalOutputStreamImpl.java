@@ -14,6 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.IdGenerator;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
@@ -53,7 +54,6 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     private final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
     private final RetryWithBackoff retrySchedule;
     
-
     @Override
     public String getScopedSegmentName() {
         return segmentId.getScopedName();
@@ -68,7 +68,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                     .run(() -> {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionFactory, segmentId);
-                            long requestId = requestIdGenerator.get();
+                            long requestId = client.getRequesterId().updateAndGet(IdGenerator.getRequestId());
                             log.debug("Setting up append on segment: {}", segmentId);
                             SetupAppend setup = new SetupAppend(requestId, writerId,
                                                                 segmentId.getScopedName(),
@@ -79,9 +79,10 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                                 return true;
                             }
                         }
+                        long requestId = client.getRequesterId().updateAndGet(IdGenerator.getRequestId());
                         val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
-                                                            new Event(Unpooled.wrappedBuffer(data)), appendSequence);
-                        val reply = client.sendRequest(appendSequence, request);
+                                                            new Event(Unpooled.wrappedBuffer(data)), requestId);
+                        val reply = client.sendRequest(requestId, request);
                         return transformDataAppended(reply.join());
                     });
         } 

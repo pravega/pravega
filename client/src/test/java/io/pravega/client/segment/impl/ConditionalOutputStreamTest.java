@@ -35,7 +35,6 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 
 public class ConditionalOutputStreamTest {
-    private final long requestId = 1;
 
     @Test(timeout = 5000)
     public void testWrite() throws ConnectionFailedException, SegmentSealedException {
@@ -56,9 +55,9 @@ public class ConditionalOutputStreamTest {
                 ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
                 if (argument.getExpectedOffset() == 0 || argument.getExpectedOffset() == 2) {
-                    processor.process(new WireCommands.DataAppended(requestId, argument.getWriterId(), argument.getEventNumber(), 0));
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0));
                 } else { 
-                    processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber(), requestId));
+                    processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber(), argument.getRequestId()));
                 }
                 return null;
             }
@@ -102,7 +101,7 @@ public class ConditionalOutputStreamTest {
                 if (count.getAndIncrement() < 2) {
                     processor.connectionDropped();
                 } else {
-                    processor.process(new WireCommands.DataAppended(requestId, argument.getWriterId(), argument.getEventNumber(), 0));
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0));
                 }                
                 return null;
             }
@@ -124,7 +123,7 @@ public class ConditionalOutputStreamTest {
             }
         }).when(mock).sendAsync(any(SetupAppend.class), any(ClientConnection.CompletedCallback.class));
     }
-    
+
     @Test(timeout = 10000)
     public void testSegmentSealed() throws ConnectionFailedException, SegmentSealedException {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
@@ -144,7 +143,8 @@ public class ConditionalOutputStreamTest {
             public Void answer(InvocationOnMock invocation) throws Throwable {
                 ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
-                processor.process(new WireCommands.SegmentIsSealed(requestId, segment.getScopedName(), mockClientReplyStackTrace, argument.getEventNumber()));
+                processor.process(new WireCommands.SegmentIsSealed(argument.getRequestId(), segment.getScopedName(), mockClientReplyStackTrace,
+                                                                   argument.getEventNumber()));
                 return null;
             }
         }).when(mock).sendAsync(any(ConditionalAppend.class), any(ClientConnection.CompletedCallback.class));
@@ -173,9 +173,10 @@ public class ConditionalOutputStreamTest {
                 ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
                 if (replies.take()) {                    
-                    processor.process(new WireCommands.DataAppended(requestId, argument.getWriterId(), argument.getEventNumber(), 0));
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0));
                 } else {
-                    processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber(), requestId));
+                    processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber(),
+                                                                              argument.getRequestId()));
                 }
                 return null;
             }

@@ -711,7 +711,7 @@ public final class WireCommands {
         
         @Override
         public long getRequestId() {
-            return eventNumber;
+            return requestId;
         }
     }
 
@@ -744,7 +744,7 @@ public final class WireCommands {
 
         @Override
         public long getRequestId() {
-            return eventNumber;
+            return requestId;
         }
     }
 

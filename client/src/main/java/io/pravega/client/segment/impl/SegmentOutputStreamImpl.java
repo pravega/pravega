@@ -80,7 +80,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final String delegationToken;
     @VisibleForTesting
     @Getter
-    private final long requestorId = IdGenerator.getRequestId();
+    private final long requestorId = IdGenerator.getRequesterId();
 
     /**
      * Internal object that tracks the state of the connection.
