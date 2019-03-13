@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.grpc.ServerBuilder;
 import io.pravega.auth.AuthException;
@@ -20,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.ServiceLoader;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -31,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PravegaAuthManager {
     private final GRPCServerConfig serverConfig;
+
     @GuardedBy("this")
     private final Map<String, AuthHandler> handlerMap;
 
@@ -125,6 +128,19 @@ public class PravegaAuthManager {
         AuthHandler handler = getHandler(method);
         Preconditions.checkNotNull( handler, "Can not find handler.");
         return handler.authorize(resource, principal).ordinal() >= level.ordinal();
+    }
+
+
+    /**
+     * This method is not only visible for testing, but also intended to be used solely for testing. It allows tests
+     * to inject and register custom auth handlers. Also, this method is idempotent.
+     *
+     * @param authHandler the {@code AuthHandler} implementation to register
+     * @Throws NullPointerException {@code authHandler} is null
+     */
+    @VisibleForTesting
+    public synchronized void registerHandler(AuthHandler authHandler) {
+        this.handlerMap.put(authHandler.getHandlerName(), authHandler);
     }
 
     /**
