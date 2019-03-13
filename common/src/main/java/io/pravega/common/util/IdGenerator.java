@@ -13,16 +13,20 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongUnaryOperator;
 
 /**
- * This is used to generated unique requester ids which is guranteed to be unique per process.
- * It also provides a method to generate new request ids from a requester id.
+ * IdGenerator is used to generated unique ids which are guaranteed to be unique per process. The id
+ * that is generated is 64 bit in length and is composed of
+ * ` msb 32 bit = requester ID` and `lsb 32 bit = request ID`.
+ *
+ * It also provides a method to generate new request ids for a requester id.
+ *
  */
 public class IdGenerator {
 
     private static final AtomicLong ID_GENERATOR = new AtomicLong(0);
 
     /**
-     * Get the requester id.
-     * @return request id.
+     * Get a new requester id.
+     * @return id.
      */
     public static long getRequesterId() {
         return ID_GENERATOR.updateAndGet(operand -> {
@@ -33,7 +37,7 @@ public class IdGenerator {
 
     /**
      * Return a {@link LongUnaryOperator} that can be used to generate a new Request id.
-     * @return
+     * @return id which corresponds to the newer request id.
      */
     public static LongUnaryOperator getRequestId() {
         return id -> {
