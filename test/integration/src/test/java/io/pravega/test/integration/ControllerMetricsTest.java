@@ -174,7 +174,7 @@ public class ControllerMetricsTest {
                 streamManager.updateStream(scope, iterationStreamName, streamConfiguration);
                 Counter updatedStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter streamUpdatesCounter = MetricRegistryUtils.getCounter(
-                        getCounterMetricNameWithoutSuffix(UPDATE_STREAM), streamTags(scope, iterationStreamName));
+                        getCounterMetricName(UPDATE_STREAM), streamTags(scope, iterationStreamName));
                 Assert.assertTrue(iterations * i + j <= updatedStreamsCounter.count());
                 Assert.assertTrue(j <= streamUpdatesCounter.count());
 
@@ -189,7 +189,7 @@ public class ControllerMetricsTest {
                 streamManager.truncateStream(scope, iterationStreamName, streamCut);
                 Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter perStreamTruncationCounter = MetricRegistryUtils.getCounter(
-                        getCounterMetricNameWithoutSuffix(UPDATE_STREAM), streamTags(scope, iterationStreamName));
+                        getCounterMetricName(UPDATE_STREAM), streamTags(scope, iterationStreamName));
                 Assert.assertTrue(iterations * i + j <= streamTruncationCounter.count());
                 Assert.assertTrue(j <= perStreamTruncationCounter.count());
             }
@@ -216,10 +216,6 @@ public class ControllerMetricsTest {
     }
 
     private static String getCounterMetricName(String metricName) {
-        return "pravega." + metricName + ".Counter";
-    }
-
-    private static String getCounterMetricNameWithoutSuffix(String metricName) {
         return "pravega." + metricName;
     }
 
