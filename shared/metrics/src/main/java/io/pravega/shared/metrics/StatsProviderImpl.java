@@ -23,9 +23,13 @@ import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.influx.InfluxMeterRegistry;
 import io.micrometer.statsd.StatsdMeterRegistry;
+import io.pravega.shared.MetricsTags;
 import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 @Slf4j
 class StatsProviderImpl implements StatsProvider {
@@ -64,7 +68,7 @@ class StatsProviderImpl implements StatsProvider {
         if (conf.isEnableInfluxDBReporter()) {
             metrics.add(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
         }
-
+        metrics.config().commonTags(getHostTag());
         Preconditions.checkArgument(metrics.getRegistries().size() != 0,
                 "No meter register bound hence no storage for metrics!");
     }
@@ -76,6 +80,7 @@ class StatsProviderImpl implements StatsProvider {
             metrics.remove(registry);
         }
         Metrics.addRegistry(new SimpleMeterRegistry());
+        metrics.config().commonTags(getHostTag());
     }
 
     @Synchronized
@@ -97,5 +102,17 @@ class StatsProviderImpl implements StatsProvider {
     public DynamicLogger createDynamicLogger() {
         init();
         return new DynamicLoggerImpl(conf, metrics, new StatsLoggerImpl(getMetrics(), "pravega"));
+    }
+
+    private String[] getHostTag() {
+        InetAddress ip;
+        String[] hostTag = {MetricsTags.TAG_HOST, null};
+        try {
+            ip = InetAddress.getLocalHost();
+            hostTag[1] = ip.getHostName();
+        } catch (UnknownHostException e) {
+            hostTag[1] = "unknown";
+        }
+        return hostTag;
     }
 }
