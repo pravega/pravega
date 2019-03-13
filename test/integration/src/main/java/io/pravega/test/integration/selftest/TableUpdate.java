@@ -81,7 +81,7 @@ class TableUpdate implements ProducerUpdate {
 
     //endregion
 
-    private static ArrayView generateKey(UUID keyId) {
+    static ArrayView generateKey(UUID keyId) {
         // We "serialize" the KeyId using English words for each digit.
         val r = new EnhancedByteArrayOutputStream();
         add(keyId.getMostSignificantBits(), r);

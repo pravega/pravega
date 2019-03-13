@@ -45,6 +45,7 @@ public class TestConfig {
     static final Property<Boolean> TABLE_CONDITIONAL_UPDATES = Property.named("tableConditionalUpdates", false);
     static final Property<Integer> TABLE_REMOVE_PERCENTAGE = Property.named("tableRemovePercentage", 10); // 0..100
     static final Property<Integer> TABLE_NEW_KEY_PERCENTAGE = Property.named("tableNewKeyPercentage", 30); // 0..100
+    static final Property<Integer> TABLE_CONSUMER_PARALLELISM = Property.named("tableConsumerParallelism", 1000);
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 80);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 3000);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
@@ -99,6 +100,8 @@ public class TestConfig {
     private final int tableRemovePercentage;
     @Getter
     private final int tableNewKeyPercentage;
+    @Getter
+    private final int tableConsumerParallelism;
     @Getter
     private final int threadPoolSize;
     @Getter
@@ -169,6 +172,7 @@ public class TestConfig {
             throw new ConfigurationException(String.format("Property '%s' must be a value between 0 and 100. Given %s.",
                     TABLE_NEW_KEY_PERCENTAGE, this.tableNewKeyPercentage));
         }
+        this.tableConsumerParallelism = properties.getInt(TABLE_CONSUMER_PARALLELISM);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
         this.bookieCount = properties.getInt(BOOKIE_COUNT);

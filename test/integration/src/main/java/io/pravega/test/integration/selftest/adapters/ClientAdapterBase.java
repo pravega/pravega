@@ -289,7 +289,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<ArrayView> getTableEntry(String tableName, ArrayView key, Duration timeout) {
+    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> key, Duration timeout) {
         throw new UnsupportedOperationException("Table operations not yet implemented.");
     }
 

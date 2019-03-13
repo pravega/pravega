@@ -19,6 +19,7 @@ import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -167,14 +168,14 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
     public abstract CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout);
 
     /**
-     * Retrieves the latest value of a Table Entry from a Table.
+     * Retrieves the latest value of for multiple Table Entry from a Table.
      *
      * @param tableName The name of the Table to retrieve the Entry from.
-     * @param key       The Key associated with the Entry.
+     * @param keys      The Keys to retrieve.
      * @param timeout   Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will contain the result, or null if no such Entry exists.
+     * @return A CompletableFuture that, when completed, will contain the result.
      */
-    public abstract CompletableFuture<ArrayView> getTableEntry(String tableName, ArrayView key, Duration timeout);
+    public abstract CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout);
 
     /**
      * This feature is not yet implemented. When implemented, its signature and return type may change.

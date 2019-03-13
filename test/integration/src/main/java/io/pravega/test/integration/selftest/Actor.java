@@ -94,8 +94,7 @@ abstract class Actor extends AbstractService implements AutoCloseable {
             Throwable failureCause = this.stopException.get();
             if (this.runTask != null) {
                 try {
-                    // This doesn't actually cancel the task. We need to plumb through the code with 'checkRunning' to
-                    // make sure we stop any long-running tasks.
+                    // Wait for the main task to complete before shutting down.
                     this.runTask.get(this.config.getTimeout().toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable ex) {
                     ex = Exceptions.unwrap(ex);

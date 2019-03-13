@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -233,7 +234,7 @@ class BookKeeperAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<ArrayView> getTableEntry(String tableName, ArrayView key, Duration timeout) {
+    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
         throw new UnsupportedOperationException("getTableEntry() is not supported on " + this.logId);
     }
 

@@ -185,20 +185,30 @@ class SelfTest extends AbstractService implements AutoCloseable {
             this.actors.add(new Producer<>(i, this.testConfig, this.dataSource, this.store, this.executor));
         }
 
+        TestLogger.log(LOG_ID, "Created %s Producer(s).", this.testConfig.getProducerCount());
+
         // Create Consumers (based on the number of non-transaction Segments).
-        boolean readsEnabled = this.testConfig.isReadsEnabled() && !this.testConfig.getTestType().isTablesTest();
-        boolean storeSupportsReads = Consumer.canUseStoreAdapter(this.store);
-        if (readsEnabled && storeSupportsReads) {
+        if (!this.testConfig.isReadsEnabled() || !Consumer.canUseStoreAdapter(this.store)) {
+            TestLogger.log(LOG_ID, "Not creating any consumers because reads are not enabled or the StorageAdapter"
+                    + " does not support all required features.");
+            return;
+        }
+
+        if (this.testConfig.getTestType().isTablesTest()) {
+            // Create TableConsumer.
+            this.actors.add(new TableConsumer(this.testConfig, (TableProducerDataSource) this.dataSource, this.state, this.store, this.executor));
+            TestLogger.log(LOG_ID, "Created TableConsumer.");
+        } else {
+            // Create Stream Consumers.
+            int count = 0;
             for (val si : this.state.getAllStreams()) {
                 if (!si.isTransaction()) {
                     this.actors.add(new Consumer(si.getName(), this.testConfig, this.state, this.store, this.executor));
+                    count++;
                 }
             }
-        } else {
-            String reason = readsEnabled
-                    ? (storeSupportsReads ? "no reason" : "the StoreAdapter does not support all required features")
-                    : "reads are not enabled or supported for this type of test";
-            TestLogger.log(LOG_ID, "Not creating any consumers because %s.", reason);
+
+            TestLogger.log(LOG_ID, "Created %s Consumer(s).", count);
         }
     }
 

@@ -23,6 +23,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -34,6 +35,7 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
 
     private final ConcurrentHashMap<String, UpdateGenerator> updateGenerators;
     private final BlockingDrainingQueue<UpdatedKey> recentUpdates;
+    private final AtomicInteger recentUpdatesAddCount;
     @GuardedBy("random")
     private final Random random;
 
@@ -46,6 +48,7 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
         Preconditions.checkArgument(store.isFeatureSupported(StoreAdapter.Feature.Tables), "StoreAdapter must support Tables.");
         this.updateGenerators = new ConcurrentHashMap<>();
         this.recentUpdates = new BlockingDrainingQueue<>();
+        this.recentUpdatesAddCount = new AtomicInteger();
         this.random = new Random();
     }
 
@@ -143,15 +146,19 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
      * this future will not be completed immediately; it will be completed when the next result is generated.
      */
     CompletableFuture<Queue<UpdatedKey>> fetchRecentUpdates(int maxCount) {
-        // TODO: create a Table Consumer that uses this and executes concurrent gets.
+        if (this.recentUpdates.size() == 0 && this.recentUpdatesAddCount.get() >= this.config.getOperationCount()) {
+            // End of the test.
+            return CompletableFuture.completedFuture(null);
+        }
+
         return this.recentUpdates.take(maxCount);
     }
 
     private CompletableFuture<Void> deleteStream(String name) {
-        return Futures.exceptionallyExpecting(this.store.deleteStream(name, this.config.getTimeout()),
+        return Futures.exceptionallyExpecting(this.store.deleteTable(name, this.config.getTimeout()),
                 ex -> ex instanceof StreamSegmentNotExistsException,
                 null)
-                .thenRun(() -> postStreamDeletion(name));
+                      .thenRun(() -> postStreamDeletion(name));
     }
 
     private void postStreamDeletion(String name) {
@@ -173,14 +180,18 @@ class TableProducerDataSource extends ProducerDataSource<TableUpdate> {
     private void operationCompletionCallback(ProducerOperation<TableUpdate> op) {
         this.state.operationCompleted(op.getTarget());
         this.state.recordDuration(op.getType(), op.getElapsedMillis());
-        this.state.recordAppend(op.getLength());
+        this.state.recordDataWritten(op.getLength());
+        this.state.recordTableModification(1);
         UpdateGenerator generator = this.updateGenerators.get(op.getTarget());
         if (generator != null && !op.getUpdate().isRemoval() && op.getResult() != null) {
             // Update the generator's knowledge of this key's version so it may reuse that for subsequent operations.
             generator.recordUpdate(op.getUpdate().getKeyId(), (Long) op.getResult());
         }
 
-        this.recentUpdates.add(new UpdatedKey(op.getTarget(), op.getUpdate().getKeyId()));
+        this.recentUpdatesAddCount.incrementAndGet();
+        if (!op.getUpdate().isRemoval()) {
+            this.recentUpdates.add(new UpdatedKey(op.getTarget(), op.getUpdate().getKeyId()));
+        }
     }
 
     private void operationFailureCallback(ProducerOperation<?> op, Throwable ex) {

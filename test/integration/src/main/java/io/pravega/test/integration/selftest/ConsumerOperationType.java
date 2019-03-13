@@ -22,6 +22,10 @@ final class ConsumerOperationType extends OperationType {
      * A Catch-up Read processed on the Consumer.
      */
     static final ConsumerOperationType CATCHUP_READ = new ConsumerOperationType("Catchup Read");
+    /**
+     * A Catch-up Read processed on the Consumer.
+     */
+    static final ConsumerOperationType TABLE_GET = new ConsumerOperationType("Table Get");
 
     private ConsumerOperationType(String name) {
         super(name);

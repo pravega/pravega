@@ -42,12 +42,14 @@ import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
@@ -271,13 +273,11 @@ class SegmentStoreAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<ArrayView> getTableEntry(String tableName, ArrayView key, Duration timeout) {
+    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
         ensureRunning();
-        return this.tableStore.get(tableName, Collections.singletonList(key), timeout)
-                              .thenApply(result -> {
-                                  TableEntry e = result.get(0);
-                                  return e == null ? null : e.getValue();
-                              });
+        return this.tableStore
+                .get(tableName, keys, timeout)
+                .thenApplyAsync(storeResult -> storeResult.stream().map(e -> e == null ? null : e.getValue()).collect(Collectors.toList()), this.testExecutor);
     }
 
     //endregion

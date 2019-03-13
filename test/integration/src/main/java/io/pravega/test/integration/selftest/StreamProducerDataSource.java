@@ -177,7 +177,7 @@ class StreamProducerDataSource extends ProducerDataSource<Event> {
             }
             this.eventGenerators.put(transactionName, new EventGenerator(id, false));
         } else if (op.getType() == ProducerOperationType.STREAM_APPEND) {
-            this.state.recordAppend(op.getLength());
+            this.state.recordDataWritten(op.getLength());
         }
     }
 

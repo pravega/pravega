@@ -133,10 +133,13 @@ class Reporter extends AbstractScheduledService {
     private void outputTableState(long producedLength, String ops, int instantOps, double instantThroughput, String threadPools) {
         TestLogger.log(
                 LOG_ID,
-                "%s; Ops = %d/%d; Data: %.1f MB; TPut: %.1f/%.1f MB/s; %s.",
+                "%s; Ops = %d/%d; U/G/GK:%d/%d/%d; Data: %.1f MB; TPut: %.1f/%.1f MB/s; %s.",
                 ops,
                 instantOps,
                 (int) this.testState.getOperationsPerSecond(),
+                this.testState.getTableUpdateCount(),
+                this.testState.getTableGetCount(),
+                this.testState.getTableGetTotalKeyCount(),
                 toMB(producedLength),
                 instantThroughput < 0 ? 0.0 : toMB(instantThroughput),
                 toMB(this.testState.getThroughput()),
