@@ -26,17 +26,17 @@ import static org.junit.Assert.assertNull;
 public class RegistryConfigUtilTest {
 
     @Test
-    public void testStatsdConfig() {
+    public void testStatsDConfig() {
         MetricsConfig appConfig = MetricsConfig.builder()
                 .with(MetricsConfig.OUTPUT_FREQUENCY, 37)
-                .with(MetricsConfig.METRICS_PREFIX, "statsdPrefix")
+                .with(MetricsConfig.METRICS_PREFIX, "statsDPrefix")
                 .with(MetricsConfig.STATSD_HOST, "localhost")
                 .with(MetricsConfig.STATSD_PORT, 8225)
                 .build();
 
-        StatsdConfig testConfig = RegistryConfigUtil.createStatsdConfig(appConfig);
+        StatsdConfig testConfig = RegistryConfigUtil.createStatsDConfig(appConfig);
         assertTrue(37 == testConfig.step().getSeconds());
-        assertEquals("statsdPrefix", testConfig.prefix());
+        assertEquals("statsDPrefix", testConfig.prefix());
         assertEquals("localhost", testConfig.host());
         assertTrue(8225 == testConfig.port());
         assertEquals(StatsdFlavor.TELEGRAF, testConfig.flavor());

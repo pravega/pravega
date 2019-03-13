@@ -275,13 +275,13 @@ public class MetricsConfig extends ComponentConfig {
     public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = Property.named("dynamicCacheEvictionDurationMinutes", 30);
     public final static Property<Integer> OUTPUT_FREQUENCY = Property.named("outputFrequencySeconds", 60);
     public final static Property<String> METRICS_PREFIX = Property.named("metricsPrefix", "pravega");
-    public final static Property<String> STATSD_HOST = Property.named("statsdHost", "localhost");
-    public final static Property<Integer> STATSD_PORT = Property.named("statsdPort", 8125);
+    public final static Property<String> STATSD_HOST = Property.named("statsDHost", "localhost");
+    public final static Property<Integer> STATSD_PORT = Property.named("statsDPort", 8125);
     public final static Property<String> INFLUXDB_URI = Property.named("influxDBURI", "http://localhost:8086");
     public final static Property<String> INFLUXDB_NAME = Property.named("influxDBName", "pravega");
     public final static Property<String> INFLUXDB_USERNAME = Property.named("influxDBUserName", "");
     public final static Property<String> INFLUXDB_PASSWORD = Property.named("influxDBPassword", "");
-    public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("enableStatsdReporter", true);
+    public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("enableStatsDReporter", true);
     public final static Property<Boolean> ENABLE_INFLUXDB_REPORTER = Property.named("enableInfluxDBReporter", false);
     public static final String COMPONENT_CODE = "metrics";
     ...

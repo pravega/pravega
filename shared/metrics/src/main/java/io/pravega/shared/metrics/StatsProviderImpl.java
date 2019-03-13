@@ -61,8 +61,8 @@ class StatsProviderImpl implements StatsProvider {
         init();
         log.info("Metrics prefix: {}", conf.getMetricsPrefix());
 
-        if (conf.isEnableStatsdReporter()) {
-            metrics.add(new StatsdMeterRegistry(RegistryConfigUtil.createStatsdConfig(conf), Clock.SYSTEM));
+        if (conf.isEnableStatsDReporter()) {
+            metrics.add(new StatsdMeterRegistry(RegistryConfigUtil.createStatsDConfig(conf), Clock.SYSTEM));
         }
 
         if (conf.isEnableInfluxDBReporter()) {

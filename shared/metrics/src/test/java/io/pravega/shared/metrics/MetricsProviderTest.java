@@ -101,20 +101,20 @@ public class MetricsProviderTest {
         int sum = 0;
         for (int i = 1; i < 10; i++) {
             sum += i;
-            dynamicLogger.incCounterValue("dynamicCounter", i);
-            dynamicLogger.incCounterValue("dynamicCounter", 2 * i, "hostname", "1.1.1.1");
-            dynamicLogger.incCounterValue("dynamicCounter", 3 * i, "hostname", "2.2.2.2");
-            assertEquals(sum, (int) MetricRegistryUtils.getCounter("pravega.dynamicCounter").count());
-            assertEquals(2 * sum, (int) MetricRegistryUtils.getCounter("pravega.dynamicCounter", "hostname", "1.1.1.1").count());
-            assertEquals(3 * sum, (int) MetricRegistryUtils.getCounter("pravega.dynamicCounter", "hostname", "2.2.2.2").count());
+            dynamicLogger.incCounterValue("testDynamicCounter", i);
+            dynamicLogger.incCounterValue("testDynamicCounter", 2 * i, "hostname", "1.1.1.1");
+            dynamicLogger.incCounterValue("testDynamicCounter", 3 * i, "hostname", "2.2.2.2");
+            assertEquals(sum, (int) MetricRegistryUtils.getCounter("pravega.testDynamicCounter").count());
+            assertEquals(2 * sum, (int) MetricRegistryUtils.getCounter("pravega.testDynamicCounter", "hostname", "1.1.1.1").count());
+            assertEquals(3 * sum, (int) MetricRegistryUtils.getCounter("pravega.testDynamicCounter", "hostname", "2.2.2.2").count());
         }
-        dynamicLogger.freezeCounter("dynamicCounter");
-        dynamicLogger.freezeCounter("dynamicCounter", "hostname", "1.1.1.1");
-        dynamicLogger.freezeCounter("dynamicCounter", "hostname", "2.2.2.2");
+        dynamicLogger.freezeCounter("testDynamicCounter");
+        dynamicLogger.freezeCounter("testDynamicCounter", "hostname", "1.1.1.1");
+        dynamicLogger.freezeCounter("testDynamicCounter", "hostname", "2.2.2.2");
 
-        assertEquals(null, MetricRegistryUtils.getCounter("pravega.dynamicCounter"));
-        assertEquals(null, MetricRegistryUtils.getCounter("pravega.dynamicCounter", "hostname", "1.1.1.1"));
-        assertEquals(null, MetricRegistryUtils.getCounter("pravega.dynamicCounter", "hostname", "2.2.2.2"));
+        assertEquals(null, MetricRegistryUtils.getCounter("pravega.testDynamicCounter"));
+        assertEquals(null, MetricRegistryUtils.getCounter("pravega.testDynamicCounter", "hostname", "1.1.1.1"));
+        assertEquals(null, MetricRegistryUtils.getCounter("pravega.testDynamicCounter", "hostname", "2.2.2.2"));
     }
 
     /**
