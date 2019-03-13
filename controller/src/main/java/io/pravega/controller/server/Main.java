@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -25,7 +26,12 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -86,8 +92,14 @@ public class Main {
                     .restServerConfig(Optional.of(restServerConfig))
                     .build();
 
+            setUncaughtExceptionHandler(Main::logUncaughtException);
+
             ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
             controllerServiceMain.startAsync();
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                onShutdown(controllerServiceMain);
+            }));
+            
             controllerServiceMain.awaitTerminated();
 
             log.info("Controller service exited");
@@ -98,6 +110,34 @@ public class Main {
         } finally {
             if (statsProvider != null) {
                 statsProvider.close();
+            }
+        }
+    }
+
+    @VisibleForTesting
+    static void setUncaughtExceptionHandler(BiConsumer<Thread, Throwable> exceptionConsumer) {
+        Thread.setDefaultUncaughtExceptionHandler(exceptionConsumer::accept);
+    }
+
+    static void logUncaughtException(Thread t, Throwable e) {
+        log.error("Thread {} with stackTrace {} failed with uncaught exception", t.getName(), t.getStackTrace(), e);
+    }
+
+    @VisibleForTesting
+    static void onShutdown(ControllerServiceMain controllerServiceMain) {
+        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        memoryMXBean.setVerbose(true);
+        log.info("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
+                memoryMXBean.getNonHeapMemoryUsage());
+
+        log.info("Controller service shutting down");
+        try {
+            controllerServiceMain.stopAsync();
+            controllerServiceMain.awaitTerminated();
+        } finally {
+            if (Config.DUMP_STACK_ON_SHUTDOWN) {
+                Thread.getAllStackTraces().forEach((key, value) ->
+                        log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
             }
         }
     }

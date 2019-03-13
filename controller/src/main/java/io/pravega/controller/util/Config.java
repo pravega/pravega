@@ -104,11 +104,15 @@ public final class Config {
     // Request Stream readerGroup
     public static final String SCALE_READER_GROUP;
 
+    // Print stack trace for all threads during shutdown
+    public static final boolean DUMP_STACK_ON_SHUTDOWN;
+    
     public static final MetricsConfig METRICS_CONFIG;
     public static final GRPCServerConfig GRPC_SERVER_CONFIG;
 
     private static final String METRICS_PATH = "controller.metrics";
     private static final String METRICS_PREFIX_REPLACEMENT = MetricsConfig.COMPONENT_CODE;
+
 
     //endregion
 
@@ -119,6 +123,7 @@ public final class Config {
     private static final Property<Integer> PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS = Property.named("minRebalanceIntervalSeconds", 10);
     private static final Property<Boolean> PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
     private static final Property<Boolean> PROPERTY_REQUEST_TRACING_ENABLED = Property.named("requestTracingEnabled", true);
+    private static final Property<Boolean> PROPERTY_DUMP_STACK_ON_SHUTDOWN = Property.named("dumpStackOnShutdown", false);
     private static final Property<Integer> PROPERTY_SERVICE_PORT = Property.named("service.port", 9090);
     private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("service.asyncTaskPoolSize", 80);
     private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named("service.hostIp", "localhost");
@@ -191,6 +196,7 @@ public final class Config {
         RETENTION_THREAD_POOL_SIZE = p.getInt(PROPERTY_RETENTION_THREAD_COUNT);
         SCALE_STREAM_NAME = p.get(PROPERTY_SCALE_STREAM_NAME);
         SCALE_READER_GROUP = p.get(PROPERTY_SCALE_READER_GROUP);
+        DUMP_STACK_ON_SHUTDOWN = p.getBoolean(PROPERTY_DUMP_STACK_ON_SHUTDOWN);
         GRPC_SERVER_CONFIG = createGrpcServerConfig();
         METRICS_CONFIG = createMetricsConfig(properties);
     }
