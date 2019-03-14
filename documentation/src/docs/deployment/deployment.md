@@ -15,12 +15,13 @@ This guide describes the options for running Pravega for development, testing an
 
 There are two modes for running Pravega.
 
-- Standalone - Standalone mode is suitable for development and testing Pravega applications. It can either be run from the source code, from the distribution package or as a docker container. For more information please see the [Running Pravega](http://pravega.io/docs/latest/deployment/run-local/#standalone-mode).
-- Distributed - Distributed mode runs each component separately on a single or multiple nodes. This is suitable for production in addition for development and testing. The deployment options in this mode include a manual installation, running in a docker swarm or DC/OS.
+- **Standalone:** Standalone mode is suitable for development and testing Pravega applications. It can either be run from the source code, from the distribution package or as a docker container. For more information please see [Running Pravega](http://pravega.io/docs/latest/deployment/run-local/#standalone-mode).
+
+- **Distributed:** Distributed mode runs each component separately on a single or multiple nodes. This is suitable for production in addition for development and testing. The deployment options in this mode include a manual installation, running in a docker swarm or DC/OS.
 
 ## Prerequisites
 
-The following prerequisites are required for running pravega in all modes.
+The following prerequisites are required for running Pravega in all modes.
 
 - Java 8
 
@@ -34,7 +35,7 @@ For more details on the prerequisites and recommended configuration options for 
 
 ## Installation
 
-There are multiple options provided for running Pravega in different environments. Most of these use the installation package from a Pravega release. You can find the latest Pravega release on the [Github Releases](https://github.com/pravega/pravega/releases).
+There are multiple options provided for running Pravega in different environments. Most of these use the installation package from a Pravega release. You can find the latest Pravega release on the [GitHub Releases](https://github.com/pravega/pravega/releases).
 
 - [Local](run-local.md) - Running Pravega locally is suitable for development and testing.
     - [Running from source](run-local.md#from-source)
