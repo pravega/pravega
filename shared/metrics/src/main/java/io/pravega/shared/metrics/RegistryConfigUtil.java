@@ -55,7 +55,7 @@ public class RegistryConfigUtil {
 
             @Override
             public String get(String key) {
-                return null;
+                return null; // accept the rest of the defaults; see https://micrometer.io/docs/registry/statsD.
             }
         };
     }
@@ -106,7 +106,7 @@ public class RegistryConfigUtil {
 
             @Override
             public String get(String k) {
-                return null;
+                return null;  // accept the rest of the defaults, see https://micrometer.io/docs/registry/influx.
             }
         };
     }

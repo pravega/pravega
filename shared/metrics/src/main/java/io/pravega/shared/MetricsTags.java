@@ -34,7 +34,7 @@ public class MetricsTags {
     private static final int TRANSACTION_ID_LENGTH = 2 * TRANSACTION_PART_LENGTH;
 
     /**
-     * Generate string array as container tag for metric.
+     * Generate a container tag (string array) on the input containerId to be associated with a metric.
      * @param containerId container id.
      * @return string array as the container tag of metric.
      */
@@ -43,7 +43,7 @@ public class MetricsTags {
     }
 
     /**
-     * Generate string array as host tag for metric.
+     * Generate a host tag (string array) on the input hostname to be associated with a metric.
      * @param hostname hostname of the metric.
      * @return string array as the host tag of metric.
      */
@@ -52,7 +52,7 @@ public class MetricsTags {
     }
 
     /**
-     * Generate string array as stream tags for metric.
+     * Generate stream tags (string array) on the input scope and stream name to be associated with a metric.
      * @param scope scope of the stream.
      * @param stream stream name.
      * @return string array as the stream tag of metric.
@@ -62,7 +62,7 @@ public class MetricsTags {
     }
 
     /**
-     * Generate string array as transaction tags for metric.
+     * Generate transaction tags (string array) on the input scope, stream and transactionId to be associated with a metric.
      * @param scope scope of the stream.
      * @param stream stream name.
      * @param transactionId transaction id.
@@ -73,7 +73,7 @@ public class MetricsTags {
     }
 
     /**
-     * Generate string array as segment tags for metric.
+     * Generate segment tags (string array) on the input fully qualified segment name to be associated with a metric.
      * @param qualifiedSegmentName fully qualified segment name.
      * @return string array as segment tag of metric.
      */
