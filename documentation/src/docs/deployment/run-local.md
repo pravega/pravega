@@ -17,14 +17,14 @@ The prerequisites for running in local machine is described below.
 
 ### From Source
 
-- 1.The Pravega source code needs to be checked out:
+The Pravega source code needs to be checked out:
 
 ```
 git clone https://github.com/pravega/pravega.git
 cd pravega
 ```
 
-- 2. Compile Pravega and start the standalone deployment:
+Compile Pravega and start the standalone deployment:
 
 ```
 ./gradlew startStandalone
