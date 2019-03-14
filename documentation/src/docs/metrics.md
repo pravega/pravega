@@ -281,6 +281,7 @@ public class MetricsConfig extends ComponentConfig {
     public final static Property<String> INFLUXDB_NAME = Property.named("influxDBName", "pravega");
     public final static Property<String> INFLUXDB_USERNAME = Property.named("influxDBUserName", "");
     public final static Property<String> INFLUXDB_PASSWORD = Property.named("influxDBPassword", "");
+    public final static Property<String> INFLUXDB_RETENTION_POLICY = Property.named("influxDBRetention", "");
     public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("enableStatsDReporter", true);
     public final static Property<Boolean> ENABLE_INFLUXDB_REPORTER = Property.named("enableInfluxDBReporter", false);
     public static final String COMPONENT_CODE = "metrics";

@@ -33,6 +33,7 @@ public class MetricsConfig {
     public final static Property<String> INFLUXDB_NAME = Property.named("influxDBName", "pravega");
     public final static Property<String> INFLUXDB_USERNAME = Property.named("influxDBUserName", "");
     public final static Property<String> INFLUXDB_PASSWORD = Property.named("influxDBPassword", "");
+    public final static Property<String> INFLUXDB_RETENTION_POLICY = Property.named("influxDBRetention", "");
     public final static Property<Boolean> ENABLE_STATSD_REPORTER = Property.named("enableStatsDReporter", true);
     public final static Property<Boolean> ENABLE_INFLUXDB_REPORTER = Property.named("enableInfluxDBReporter", false);
     public static final String COMPONENT_CODE = "metrics";
@@ -109,6 +110,12 @@ public class MetricsConfig {
     private final String influxDBPassword;
 
     /**
+     * The retention policy of InfluxDB, e.g. "2h", "52w".
+     */
+    @Getter
+    private final String influxDBRetention;
+
+    /**
      * The status of enable StatsD reporter.
      */
     @Getter
@@ -141,6 +148,7 @@ public class MetricsConfig {
         this.influxDBName = properties.get(INFLUXDB_NAME);
         this.influxDBUserName = properties.get(INFLUXDB_USERNAME);
         this.influxDBPassword = properties.get(INFLUXDB_PASSWORD);
+        this.influxDBRetention = properties.get(INFLUXDB_RETENTION_POLICY);
         this.enableInfluxDBReporter = properties.getBoolean(ENABLE_INFLUXDB_REPORTER);
         this.enableStatsDReporter = properties.getBoolean(ENABLE_STATSD_REPORTER);
     }

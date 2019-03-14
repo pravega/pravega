@@ -100,6 +100,11 @@ public class RegistryConfigUtil {
             }
 
             @Override
+            public String retentionPolicy() {
+                return conf.getInfluxDBRetention();
+            }
+
+            @Override
             public String get(String k) {
                 return null;
             }

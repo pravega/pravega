@@ -52,6 +52,7 @@ public class RegistryConfigUtilTest {
                 .with(MetricsConfig.INFLUXDB_NAME, "databaseName")
                 .with(MetricsConfig.INFLUXDB_USERNAME, "admin")
                 .with(MetricsConfig.INFLUXDB_PASSWORD, "changeme")
+                .with(MetricsConfig.INFLUXDB_RETENTION_POLICY, "2h")
                 .build();
 
         InfluxConfig testConfig = RegistryConfigUtil.createInfluxConfig(appConfig);
@@ -61,6 +62,7 @@ public class RegistryConfigUtilTest {
         assertEquals("databaseName", testConfig.db());
         assertEquals("admin", testConfig.userName());
         assertEquals("changeme", testConfig.password());
+        assertEquals("2h", testConfig.retentionPolicy());
         assertNull(testConfig.get("Undefined Key"));
     }
 }
