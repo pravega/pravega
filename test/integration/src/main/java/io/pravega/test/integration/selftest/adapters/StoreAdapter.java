@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.test.integration.selftest.Event;
@@ -20,6 +21,7 @@ import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -178,16 +180,13 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
     public abstract CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout);
 
     /**
-     * This feature is not yet implemented. When implemented, its signature and return type may change.
      * Iterates through all the Entries in a Table.
      *
      * @param tableName The name of the Table to iterate over.
      * @param timeout   Timeout for the operation.
-     * @return A CompletableFuture that will be completed when the iteration is done.
+     * @return A CompletableFuture that will return an {@link AsyncIterator} to iterate through all entries in the table.
      */
-    public CompletableFuture<Void> iterateTableEntries(String tableName, Duration timeout) {
-        throw new UnsupportedOperationException("iterators not implemented");
-    }
+    public abstract CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout);
 
     //endregion
 

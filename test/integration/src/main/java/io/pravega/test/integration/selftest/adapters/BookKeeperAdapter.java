@@ -15,6 +15,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -236,6 +238,11 @@ class BookKeeperAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
         throw new UnsupportedOperationException("getTableEntry() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

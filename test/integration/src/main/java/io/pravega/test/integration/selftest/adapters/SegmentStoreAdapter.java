@@ -15,6 +15,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -40,9 +41,11 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -278,6 +281,23 @@ class SegmentStoreAdapter extends StoreAdapter {
         return this.tableStore
                 .get(tableName, keys, timeout)
                 .thenApplyAsync(storeResult -> storeResult.stream().map(e -> e == null ? null : e.getValue()).collect(Collectors.toList()), this.testExecutor);
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
+        ensureRunning();
+        return this.tableStore
+                .entryIterator(tableName, null, timeout)
+                .thenApply(iterator -> () ->
+                        iterator.getNext().thenApply(item -> {
+                            if (item == null) {
+                                return null;
+                            } else {
+                                return item.getEntries().stream()
+                                           .map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey().getKey(), e.getValue()))
+                                           .collect(Collectors.<Map.Entry<ArrayView, ArrayView>>toList());
+                            }
+                        }));
     }
 
     //endregion

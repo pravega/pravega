@@ -43,7 +43,9 @@ public class TestState {
             ProducerOperationType.TABLE_UPDATE,
             ConsumerOperationType.END_TO_END,
             ConsumerOperationType.CATCHUP_READ,
-            ConsumerOperationType.TABLE_GET};
+            ConsumerOperationType.TABLE_GET,
+            ConsumerOperationType.TABLE_ITERATOR,
+            ConsumerOperationType.TABLE_ITERATOR_STEP};
     private static final double NANOS_PER_SECOND = 1000 * 1000 * 1000.0;
     private static final int MAX_LATENCY_MILLIS = 30000;
 

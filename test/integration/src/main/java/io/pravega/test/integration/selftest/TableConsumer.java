@@ -14,8 +14,11 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.integration.selftest.adapters.StoreAdapter;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Queue;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -29,7 +32,7 @@ import lombok.val;
  */
 public class TableConsumer extends Actor {
     //region Members
-
+    private static final int MAX_KEY_BATCH_SIZE = 32; // The max number of keys we can request at once.
     private final TableProducerDataSource dataSource;
     private final TestState testState;
 
@@ -60,11 +63,13 @@ public class TableConsumer extends Actor {
     @Override
     protected CompletableFuture<Void> run() {
         val canContinue = new AtomicBoolean(true);
-        return Futures.loop(
-                () -> isRunning() && canContinue.get(),
-                this::runOneIteration,
-                canContinue::set,
-                this.executorService);
+        return Futures
+                .loop(
+                        () -> isRunning() && canContinue.get(),
+                        this::runOneIteration,
+                        canContinue::set,
+                        this.executorService)
+                .thenComposeAsync(ignored -> invokeIterators(), this.executorService);
     }
 
     @Override
@@ -78,11 +83,10 @@ public class TableConsumer extends Actor {
 
     private CompletableFuture<Boolean> runOneIteration() {
         return this.dataSource
-                .fetchRecentUpdates(this.config.getTableConsumerParallelism())
+                .fetchRecentUpdates(Integer.MAX_VALUE)
                 .thenComposeAsync(this::processUpdateKeys, this.executorService)
                 .handle((r, ex) -> {
                     if (ex != null) {
-                        ex.printStackTrace();
                         ex = Exceptions.unwrap(ex);
                         if (ex instanceof ObjectClosedException) {
                             // End of the test.
@@ -103,21 +107,66 @@ public class TableConsumer extends Actor {
             return CompletableFuture.completedFuture(false);
         }
 
-        val byTarget = updatedKeys.stream().collect(Collectors.groupingBy(TableProducerDataSource.UpdatedKey::getTarget));
-        val result = new CompletableFuture[byTarget.size()];
-        int index = 0;
-        for (val g : byTarget.entrySet()) {
-            val timer = new Timer();
-            val keys = new HashSet<>(g.getValue()).stream().map(uk -> TableUpdate.generateKey(uk.getKeyId())).collect(Collectors.toList());
-            result[index++] = this.store
-                    .getTableEntries(g.getKey(), keys, this.config.getTimeout())
-                    .thenRun(() -> {
-                        this.testState.recordTableGet(keys.size());
-                        this.testState.recordDuration(ConsumerOperationType.TABLE_GET, timer.getElapsedMillis());
-                    });
+        // Group keys by Target and dedupe them.
+        val byTarget = new HashMap<String, HashSet<UUID>>();
+        for (val uk : updatedKeys) {
+            byTarget.computeIfAbsent(uk.getTarget(), t -> new HashSet<>()).add(uk.getKeyId());
         }
 
-        return CompletableFuture.allOf(result).thenApply(v -> true);
+        val result = new ArrayList<CompletableFuture<Void>>();
+        for (val targetSet : byTarget.entrySet()) {
+            // Serialize the keys.
+            val keys = targetSet.getValue().stream().map(TableUpdate::generateKey).collect(Collectors.toList());
+
+            // Create a number of consumers that will divide the key space evenly between them and request them (in batch)
+            // in parallel.
+            int consumerCount = Math.min(keys.size(), this.config.getConsumersPerTable());
+            int rangeIndex = 0;
+            for (int i = 0; i < consumerCount; i++) {
+                int rangeSize = Math.min(MAX_KEY_BATCH_SIZE, (keys.size() - rangeIndex) / (consumerCount - i));
+                val timer = new Timer();
+                val range = keys.subList(rangeIndex, rangeIndex + rangeSize);
+                rangeIndex += rangeSize;
+                result.add(this.store
+                        .getTableEntries(targetSet.getKey(), range, this.config.getTimeout())
+                        .thenRun(() -> {
+                            this.testState.recordTableGet(range.size());
+                            this.testState.recordDuration(ConsumerOperationType.TABLE_GET, timer.getElapsedMillis());
+                        }));
+            }
+        }
+
+        return Futures.allOf(result).thenApply(v -> true);
+    }
+
+    private CompletableFuture<Void> invokeIterators() {
+        return Futures.allOf(this.testState
+                .getAllStreams().stream()
+                .map(this::invokeIterator)
+                .collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Void> invokeIterator(TestState.StreamInfo tableInfo) {
+        val timer = new Timer();
+        return this.store
+                .iterateTableEntries(tableInfo.getName(), this.config.getTimeout())
+                .thenCompose(entryIterator -> {
+                    this.testState.recordDuration(ConsumerOperationType.TABLE_ITERATOR, timer.getElapsedMillis());
+                    val canContinue = new AtomicBoolean(true);
+                    return Futures.loop(
+                            canContinue::get,
+                            () -> {
+                                val startTime = timer.getElapsedNanos();
+                                return entryIterator
+                                        .getNext()
+                                        .thenAccept(item -> {
+                                            this.testState.recordDuration(ConsumerOperationType.TABLE_ITERATOR_STEP,
+                                                    (timer.getElapsedNanos() - startTime) / Timer.NANOS_TO_MILLIS);
+                                            canContinue.set(item != null);
+                                        });
+                            },
+                            this.executorService);
+                });
     }
 
     //endregion
