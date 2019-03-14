@@ -9,8 +9,8 @@ You may obtain a copy of the License at
 -->
 # Running Pravega
 
-Running in local machine allows us to get started using Pravega very quickly. Standalone mode is suitable for development and testing Pravega applications.
 
+Running in local machine allows us to get started using Pravega very quickly. Standalone mode is suitable for development and testing Pravega applications.
 The prerequisites for running in local machine is described below.
 
 ## Standalone Mode
@@ -18,6 +18,7 @@ The prerequisites for running in local machine is described below.
 ### From Source
 
 - 1.The Pravega source code needs to be checked out:
+The Pravega source code needs to be checked out to download the dependencies:
 
 ```
 git clone https://github.com/pravega/pravega.git
@@ -33,7 +34,6 @@ cd pravega
 ### From Installation Package
 
 Download the Pravega latest release from the [GitHub Releases](https://github.com/pravega/pravega/releases). The tarball or zip files can be used as they are identical. Instructions are provided for the tar files, but the same can be used for the zip file also.
-
 
 ```
 tar xfvz pravega-0.1.0.tgz
@@ -79,8 +79,19 @@ Clients can then connect to the controller at `${HOST_IP}:9090`.
 ## Running Pravega in Standalone Mode with SSL/TLS Enabled
 
 By default both the `singlenode.enableTls` and `singlenode.enableauth` are disabled. The configurations, `singlenode.enableTls` and `singlenode.enableauth` can be used to enable encryption and authentication respectively.
-
 In case `enableTls` is set to true, the default certificates provided in the `conf` directory are used for setting up TLS.
+Configure standalone server to communicate using SSL/TLS. To do so, edit the TLS-related properties in `standalone-config.properties` as shown below:
+
+  ```java
+  singlenode.enableTls=true
+  singlenode.keyFile=../config/key.pem
+  singlenode.certFile=../config/cert.pem
+  singlenode.keyStoreJKS=../config/standalone.keystore.jks
+  singlenode.keyStoreJKSPasswordFile=../config/standalone.keystore.jks.passwd
+  singlenode.trustStoreJKS=../config/standalone.truststore.jks
+
+  ```
+These properties include ports for Zookeeper, Segment Store and Controller. They also contain other configurations related to security.
 
 1. Configure standalone server to communicate using SSL/TLS. To do so, edit the TLS-related properties in `standalone-config.properties` as shown below:
 
@@ -143,3 +154,4 @@ Here are the steps you can use to add the provided `cert.pem` into the JVM's sys
 6. Everything else should be the same as other reader/writer apps.
 
 These properties include ports for Zookeeper, Segment Store and Controller. They also contain other configurations related to security.
+

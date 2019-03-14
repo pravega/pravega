@@ -47,13 +47,15 @@ fi
 echo "Logging the details of Kubernetes cluster"
 kubectl cluster-info  # any error here will cause the script to terminate.
 
-# Step 4: Verify if tier2 PVC has been created.
-tier2Size="$(kubectl get pvc -o jsonpath='{.items[?(@.metadata.name == "pravega-tier2")].status.capacity.storage}')"
-if [ -z "$tier2Size" ];then
+# Step 4: Verify if tier2 PVC has been created for NFS.
+if [ $tier2Type = "nfs" ]; then
+  tier2Size="$(kubectl get pvc -o jsonpath='{.items[?(@.metadata.name == "pravega-tier2")].status.capacity.storage}')"
+  if [ -z "$tier2Size" ];then
         echo "Tier2 PVC pravega-tier2 is not present. Please create it before running the tests."
         exit 1
-else
+  else
     echo "Size of Tier2 is $tier2Size"
+  fi
 fi
 
 # Step 5: Create a dynamic PVC, if already created the error is ignored.
@@ -83,7 +85,7 @@ spec:
        claimName: task-pv-claim
   containers:
     - name: task-pv-container
-      image: openjdk:8-jre-alpine
+      image: openjdk:8u181-jre-alpine
       command: ["/bin/sh"]
       args: ["-c", "sleep 60000"]
       volumeMounts:

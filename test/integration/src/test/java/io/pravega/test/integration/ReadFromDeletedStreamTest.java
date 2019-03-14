@@ -21,6 +21,8 @@ import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
@@ -46,8 +48,8 @@ public class ReadFromDeletedStreamTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, mock(TableStore.class), null,
-                                                                         null, null, null, true);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, mock(TableStore.class),
+                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), null, null, null, true);
         server.startListening();
 
         streamManager.createScope("test");

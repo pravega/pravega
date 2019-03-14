@@ -84,7 +84,7 @@ public class K8SequentialExecutor implements TestExecutor {
                                                   .build())
                 .addNewContainer()
                 .withName(podName) // container name is same as that of the pod.
-                .withImage("openjdk:8-jre-alpine")
+                .withImage("openjdk:8u181-jre-alpine")
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
                 .withArgs("-c", "java -DexecType=KUBERNETES -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "

@@ -63,6 +63,8 @@ public interface StreamCut extends Serializable {
     
     /**
      * Serializes the cut to a compact byte array.
+     *
+     * @return  A serialized version of this streamcut.
      */
     ByteBuffer toBytes();
 

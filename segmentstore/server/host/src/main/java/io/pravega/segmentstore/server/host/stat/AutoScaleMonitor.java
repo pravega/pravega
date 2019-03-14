@@ -24,26 +24,33 @@ import lombok.NonNull;
  */
 @Data
 public class AutoScaleMonitor implements AutoCloseable {
-    private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(10, "auto-scaler");
+    private final ScheduledExecutorService executor;
     private final AutoScaleProcessor processor;
     @Getter
-    private final SegmentStatsRecorder recorder;
+    private final SegmentStatsRecorder statsRecorder;
+    @Getter
+    private final TableSegmentStatsRecorder tableSegmentStatsRecorder;
 
     @VisibleForTesting
     public AutoScaleMonitor(@NonNull StreamSegmentStore store, @NonNull EventStreamClientFactory clientFactory,
                             @NonNull AutoScalerConfig configuration) {
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(configuration.getThreadPoolSize(), "auto-scaler");
         this.processor = new AutoScaleProcessor(configuration, clientFactory, this.executor);
-        this.recorder = new SegmentStatsRecorderImpl(this.processor, store, this.executor);
+        this.statsRecorder = new SegmentStatsRecorderImpl(this.processor, store, this.executor);
+        this.tableSegmentStatsRecorder = new TableSegmentStatsRecorderImpl();
     }
 
     public AutoScaleMonitor(@NonNull StreamSegmentStore store, @NonNull AutoScalerConfig configuration) {
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(configuration.getThreadPoolSize(), "auto-scaler");
         this.processor = new AutoScaleProcessor(configuration, this.executor);
-        this.recorder = new SegmentStatsRecorderImpl(this.processor, store, this.executor);
+        this.statsRecorder = new SegmentStatsRecorderImpl(this.processor, store, this.executor);
+        this.tableSegmentStatsRecorder = new TableSegmentStatsRecorderImpl();
     }
 
     @Override
     public void close() {
-        this.recorder.close();
+        this.statsRecorder.close();
+        this.tableSegmentStatsRecorder.close();
         this.processor.close();
         ExecutorServiceHelpers.shutdown(this.executor);
     }

@@ -105,7 +105,8 @@ public final class ServiceStarter {
 
         TokenVerifierImpl tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
         this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
-                                                      this.serviceConfig.getListeningPort(), service, tableStoreService, autoScaleMonitor.getRecorder(),
+                                                      this.serviceConfig.getListeningPort(), service, tableStoreService,
+                                                      autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
                                                       this.serviceConfig.isReplyWithStackTraceOnError());
         this.listener.startListening();

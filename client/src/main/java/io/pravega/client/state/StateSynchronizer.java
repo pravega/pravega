@@ -54,11 +54,11 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
      * A function which given a state object populates a list of updates that should be applied.
      * 
      * For example:
-     * <code>
-     * stateSynchronizer.updateState((state, updates) -> {
+     * <pre><code>
+     * stateSynchronizer.updateState((state, updates) {@literal ->} {
      *      updates.addAll(findUpdatesForState(state));
      * });
-     * </code>
+     * </code></pre>
      * @param <StateT> The type of state it generates updates for.
      */
     @FunctionalInterface
@@ -69,15 +69,17 @@ public interface StateSynchronizer<StateT extends Revisioned> extends AutoClosea
     /**
      * Similar to {@link UpdateGenerator} but it also returns a result for the caller.
      * For example:
-     * <code>
-     * boolean updated = stateSynchronizer.updateState((state, updates) -> {
+
+     * <pre><code>
+     * boolean updated = stateSynchronizer.updateState((state, updates) {@literal ->} {
+
      *      if (!shouldUpdate(state)) {
      *          return false;
      *      }
      *      updates.addAll(findUpdatesForState(state));
      *      return true;
      * });
-     * </code>
+     * </code></pre>
      * @param <StateT> The type of state it generates updates for.
      * @param <ReturnT> The type of the result returned.
      */

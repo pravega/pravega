@@ -1,3 +1,5 @@
+import org.gradle.internal.jvm.Jvm
+
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
@@ -10,6 +12,9 @@
  */
 // Apply the java plugin to add support for Java
 buildscript {
+
+    // log the current JVM version.
+    println "Build JVM Version is : " + Jvm.current()
     repositories {
         jcenter()
         maven {
@@ -72,8 +77,8 @@ allprojects {
 
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
-            sourceCompatibility = "8"
-            targetCompatibility = "8"
+            sourceCompatibility = JavaVersion.VERSION_1_8
+            targetCompatibility = JavaVersion.VERSION_1_8
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
@@ -117,8 +122,12 @@ project('common') {
         failOnError = false
         source {
             project(':common').sourceSets.main.java
-            project(':shared:protocol').sourceSets.main.java
+
         }
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion  
+        }
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -132,10 +141,14 @@ project('shared:authplugin') {
     javadoc {
         title = "Pravega Auth API"
         failOnError = false
-
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion   
+        }
         source {
             sourceSets.main.java
         }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -150,6 +163,11 @@ project ('shared:cluster') {
     }
     javadoc {
         exclude 'io/pravega/shared/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion   
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -171,6 +189,11 @@ project ('shared:metrics') {
 
     javadoc {
         exclude 'io/pravega/shared/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -181,6 +204,7 @@ project('shared:protocol') {
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
+     
     }
 }
 
@@ -201,6 +225,7 @@ project('client') {
         title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
+        options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
 
@@ -213,12 +238,26 @@ project('test:testcommon') {
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
     }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
+    }
 }
 
 project('segmentstore:contracts') {
     dependencies {
         compile project(':common')
         testCompile project(':test:testcommon')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
 
@@ -229,6 +268,13 @@ project('segmentstore:storage') {
         compile project(':segmentstore:contracts')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -242,6 +288,13 @@ project('segmentstore:storage:impl') {
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -265,6 +318,13 @@ project ('bindings') {
         testCompile project(':test:testcommon')
         testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
     }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
+    }
 }
 
 project('segmentstore:server') {
@@ -274,6 +334,13 @@ project('segmentstore:server') {
         compile project(':segmentstore:storage')
         compile project(':shared:metrics')
         testCompile project(':test:testcommon')
+    }
+    javadoc {
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
     }
 }
 
@@ -452,11 +519,9 @@ project('shared:controller-api') {
 
     dependencies {
         compile project(':common')
-
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-
         compile "io.grpc:grpc-netty:" + grpcVersion
         compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
@@ -468,6 +533,11 @@ project('shared:controller-api') {
 
     javadoc {
         exclude 'io/pravega/controller/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion            
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
@@ -481,7 +551,7 @@ project('controller') {
     applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
+                                 "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.config.properties",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=controller"]
@@ -520,7 +590,6 @@ project('controller') {
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
-        compile group: 'com.typesafe', name: 'config', version: typesafeConfigVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-client', version: apacheCuratorVersion
@@ -544,7 +613,7 @@ project('controller') {
                           "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
                           "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
                           "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
-                          "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
+                          "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.config.properties",
                           "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                           "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                           "-Dlog.name=controller"]
@@ -723,6 +792,7 @@ project('test:system') {
     }
 
     task startK8SystemTests(type: Test) {
+        tasks.withType(Exec) { environment "tier2Type", System.getProperty("tier2Type", "nfs") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
@@ -741,7 +811,11 @@ project('test:system') {
         systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
         // bookkeeper version defaults to pravega version.
         systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
-        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+
+        // tier2Type , default is NFS.
+        systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
+        // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
+        systemProperty "tier2Config", System.getProperty("tier2Config")
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
@@ -888,7 +962,7 @@ task javadocs(type: Javadoc) {
 
     // Include names of any project that is to be included in the javadoc distribution
     ext.projects = [':client']
-    options.links("http://docs.oracle.com/javase/8/docs/api/");
+    options.links("http://docs.oracle.com/javase/10/docs/api/");
     title = "Pravega API"
     destinationDir = file("${buildDir}/javadocs")
     source = files(projects.collect {
@@ -897,8 +971,9 @@ task javadocs(type: Javadoc) {
     classpath = files(projects.collect {
         project(it).sourceSets.main.output + project(it).sourceSets.main.compileClasspath
     })
-    failOnError = false
+    failOnError = true
     exclude "**/impl/**"
+    options.addBooleanOption("Xdoclint:all,-reference", true)
 }
 
 apply plugin: 'distribution'
@@ -996,6 +1071,7 @@ class DockerBuildTask extends Exec {
     DockerBuildTask() {
         executable project.dockerExecutable
         args "build"
+        args "--pull"
         args "-t", "${->baseTag}:${project.version}"
         args "-t", "${->baseTag}:latest"
         args "${->dockerDir}"

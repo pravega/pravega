@@ -14,6 +14,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+
 /**
  * Defines an Iterator for which every invocation results in an async call with a delayed response.
  *
@@ -75,5 +77,22 @@ public interface AsyncIterator<T> {
             });
             return result;
         };
+    }
+
+    /**
+     * Processes the remaining elements in the AsyncIterator until the specified {@link Predicate} returns false.
+     *
+     * @param collector A {@link Predicate} that decides if iterating over the collection can continue.
+     * @return A CompletableFuture that, when completed, will indicate that the processing is complete.
+     */
+    default CompletableFuture<Void> collectRemaining(Predicate<? super T> collector) {
+        return getNext().thenCompose(e -> {
+            boolean canContinue = e != null && collector.test(e);
+            if (canContinue) {
+                return collectRemaining(collector);
+            } else {
+                return CompletableFuture.completedFuture(null);
+            }
+        });
     }
 }

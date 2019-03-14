@@ -18,9 +18,11 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -34,8 +36,10 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 /**
  * {@link MetadataStore} implementation that stores all Segment Information as {@link TableEntry} instances in a dedicated
@@ -74,7 +78,10 @@ class TableMetadataStore extends MetadataStore {
         // Invoke submitAssignment(), which will ensure that the Metadata Segment is mapped in memory and pinned.
         // If this is the first time we initialize the TableMetadataStore for this SegmentContainer, a new id will be
         // assigned to it.
-        Collection<AttributeUpdate> attributes = TableStore.getInitialTableAttributes();
+        val attributes = TableAttributes.DEFAULT_VALUES
+                .entrySet().stream()
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
+                .collect(Collectors.toList());
         return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, attributes), true, timeout)
                 .thenAccept(segmentId -> {
                     this.initialized.set(true);
