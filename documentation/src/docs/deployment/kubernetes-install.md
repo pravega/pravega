@@ -26,7 +26,7 @@
 
 ### Install the Pravega Operator
 
-> Note: If you are running on Google Kubernetes Engine (GKE), please [check this first](#installation-on-google-kubernetes-engine).
+> Note: If you are running on Google Kubernetes Engine (GKE), please [check this first](https://github.com/pravega/pravega-operator#installation-on-google-kubernetes-engine).
 
 Run the following command to install the `PravegaCluster` custom resource definition (CRD), create the `pravega-operator` service account, roles, bindings, and the deploy the Pravega Operator.
 
@@ -253,6 +253,35 @@ spec:
 ...
 ```
 
+If external access is enabled in your Pravega cluster, Segment Store pods will require access to some Kubernetes API endpoints to obtain the external IP and port. Make sure that the service account you are using for the Segment Store has, at least, the following permissions.
+
+```
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pravega-components
+  namespace: "pravega-namespace"
+rules:
+- apiGroups: ["pravega.pravega.io"]
+  resources: ["*"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods", "services"]
+  verbs: ["get"]
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pravega-components
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get"]
+```
+
+Replace the `namespace` with your own namespace.
+
+
 ### Installing on a Custom Namespace with RBAC enabled
 
 Create the namespace.
@@ -375,4 +404,4 @@ spec:
 
 ## Releases  
 
-The latest Pravega releases can be found on the [Github Release](https://github.com/pravega/pravega-operator/releases) project page.
+The latest Pravega releases can be found on the [GitHub Release](https://github.com/pravega/pravega-operator/releases) project page.
