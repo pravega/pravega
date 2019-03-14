@@ -540,8 +540,7 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                     streamsList.forEach((stream, config) -> {
 
                         try {
-                            if (restAuthHelper.isAuthorized(getAuthorizationHeader(),
-                                    AuthResourceRepresentation.ofStreamInScope(scopeName, stream),
+                            if (restAuthHelper.isAuthorized(authHeader, AuthResourceRepresentation.ofStreamInScope(scopeName, stream),
                                     principal, READ)) {
                                 // If internal streams are requested select only the ones that have the special stream names
                                 // otherwise display the regular user created streams.
