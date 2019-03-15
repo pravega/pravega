@@ -10,7 +10,6 @@
 package io.pravega.storage.filesystem;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -76,17 +75,7 @@ import static java.nio.file.attribute.PosixFilePermission.OWNER_WRITE;
 @Slf4j
 public class FileSystemStorage implements SyncStorage {
     //region members
-
-    private static final Set<PosixFilePermission> READ_ONLY_PERMISSION = ImmutableSet.of(
-            PosixFilePermission.OWNER_READ,
-            PosixFilePermission.GROUP_READ,
-            PosixFilePermission.OTHERS_READ);
-
-    private static final Set<PosixFilePermission> READ_WRITE_PERMISSION = ImmutableSet.of(
-            PosixFilePermission.OWNER_WRITE,
-            PosixFilePermission.OWNER_READ,
-            PosixFilePermission.GROUP_READ,
-            PosixFilePermission.OTHERS_READ);
+    public static final String LOCK_SUFFIX = "-lock";
 
     private final FileSystemStorageConfig config;
     private final AtomicBoolean closed;
@@ -275,7 +264,7 @@ public class FileSystemStorage implements SyncStorage {
 
     private SegmentHandle doCreate(String streamSegmentName) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "create", streamSegmentName);
-        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(READ_WRITE_PERMISSION);
+        FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(FileSystemPermissions.READ_WRITE_PERMISSION);
 
         Path path = Paths.get(config.getRoot(), streamSegmentName);
         Path parent = path.getParent();
@@ -296,6 +285,7 @@ public class FileSystemStorage implements SyncStorage {
         }
 
         Path path = Paths.get(config.getRoot(), handle.getSegmentName());
+        Path lockFilepath = Paths.get(config.getRoot(), handle.getSegmentName() + LOCK_SUFFIX);
 
         // Fix for the case where Pravega runs with super user privileges.
         // This means that writes to readonly files also succeed. We need to explicitly check permissions in this case.
@@ -304,28 +294,29 @@ public class FileSystemStorage implements SyncStorage {
         }
 
         long totalBytesWritten = 0;
-        try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
-            long fileSize = channel.size();
-            if (fileSize != offset) {
-                throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
+        try (FileSystemBasedLock fileSystemLock = new FileSystemBasedLock(lockFilepath)) {
+            try (FileChannel channel = FileChannel.open(path, StandardOpenOption.WRITE)) {
+                long fileSize = channel.size();
+                if (fileSize != offset) {
+                    throw new BadOffsetException(handle.getSegmentName(), fileSize, offset);
+                }
+                // Wrap the input data into a ReadableByteChannel, but do not close it. Doing so will result in closing
+                // the underlying InputStream, which is not desirable if it is to be reused.
+                ReadableByteChannel sourceChannel = Channels.newChannel(data);
+                while (length != 0) {
+                    long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
+                    assert bytesWritten > 0 : "Unable to make any progress transferring data.";
+                    offset += bytesWritten;
+                    totalBytesWritten += bytesWritten;
+                    length -= bytesWritten;
+                }
+                channel.force(false);
+                FileSystemMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
+                FileSystemMetrics.WRITE_BYTES.add(totalBytesWritten);
+                LoggerHelpers.traceLeave(log, "write", traceId);
+                return null;
             }
-
-            // Wrap the input data into a ReadableByteChannel, but do not close it. Doing so will result in closing
-            // the underlying InputStream, which is not desirable if it is to be reused.
-            ReadableByteChannel sourceChannel = Channels.newChannel(data);
-            while (length != 0) {
-                long bytesWritten = channel.transferFrom(sourceChannel, offset, length);
-                assert bytesWritten > 0 : "Unable to make any progress transferring data.";
-                offset += bytesWritten;
-                totalBytesWritten += bytesWritten;
-                length -= bytesWritten;
-            }
-            channel.force(false);
         }
-        FileSystemMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
-        FileSystemMetrics.WRITE_BYTES.add(totalBytesWritten);
-        LoggerHelpers.traceLeave(log, "write", traceId);
-        return null;
     }
 
     private boolean isWritableFile(Path path) throws IOException {
@@ -339,14 +330,14 @@ public class FileSystemStorage implements SyncStorage {
             throw new IllegalArgumentException(handle.getSegmentName());
         }
 
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), READ_ONLY_PERMISSION);
+        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemPermissions.READ_ONLY_PERMISSION);
         LoggerHelpers.traceLeave(log, "seal", traceId);
         return null;
     }
 
     private Void doUnseal(SegmentHandle handle) throws IOException {
         long traceId = LoggerHelpers.traceEnter(log, "unseal", handle.getSegmentName());
-        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), READ_WRITE_PERMISSION);
+        Files.setPosixFilePermissions(Paths.get(config.getRoot(), handle.getSegmentName()), FileSystemPermissions.READ_WRITE_PERMISSION);
         LoggerHelpers.traceLeave(log, "unseal", traceId);
         return null;
     }
@@ -360,28 +351,32 @@ public class FileSystemStorage implements SyncStorage {
      * This option was preferred as other option (of having one file per transaction) will result in server side
      * fragmentation and corresponding slowdown in cluster performance.
      */
-    private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws IOException {
+    private Void doConcat(SegmentHandle targetHandle, long offset, String sourceSegment) throws Exception {
         long traceId = LoggerHelpers.traceEnter(log, "concat", targetHandle.getSegmentName(),
                 offset, sourceSegment);
 
+        Path sourceLockFilepath = Paths.get(config.getRoot(), sourceSegment + LOCK_SUFFIX);
+        Path targetLockFilepath = Paths.get(config.getRoot(), targetHandle.getSegmentName() + LOCK_SUFFIX);
         Path sourcePath = Paths.get(config.getRoot(), sourceSegment);
         Path targetPath = Paths.get(config.getRoot(), targetHandle.getSegmentName());
-
-        long length = Files.size(sourcePath);
-        try (FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE);
-             RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
-            if (isWritableFile(sourcePath)) {
-                throw new IllegalStateException(String.format("Source segment (%s) is not sealed.", sourceSegment));
+        try (FileSystemBasedLock sourceLock = new FileSystemBasedLock(sourceLockFilepath);
+             FileSystemBasedLock targetLock = new FileSystemBasedLock(targetLockFilepath)) {
+            long length = Files.size(sourcePath);
+            try (FileChannel targetChannel = FileChannel.open(targetPath, StandardOpenOption.WRITE);
+                 RandomAccessFile sourceFile = new RandomAccessFile(String.valueOf(sourcePath), "r")) {
+                if (isWritableFile(sourcePath)) {
+                    throw new IllegalStateException(String.format("Source segment (%s) is not sealed.", sourceSegment));
+                }
+                while (length > 0) {
+                    long bytesTransferred = targetChannel.transferFrom(sourceFile.getChannel(), offset, length);
+                    offset += bytesTransferred;
+                    length -= bytesTransferred;
+                }
+                targetChannel.force(false);
+                Files.delete(sourcePath);
+                LoggerHelpers.traceLeave(log, "concat", traceId);
+                return null;
             }
-            while (length > 0) {
-                long bytesTransferred = targetChannel.transferFrom(sourceFile.getChannel(), offset, length);
-                offset += bytesTransferred;
-                length -= bytesTransferred;
-            }
-            targetChannel.force(false);
-            Files.delete(sourcePath);
-            LoggerHelpers.traceLeave(log, "concat", traceId);
-            return null;
         }
     }
 
