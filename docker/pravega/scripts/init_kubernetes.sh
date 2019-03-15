@@ -22,6 +22,10 @@ k8() {
         retval=$( curl --cacert ${cacert} -H "Authorization: Bearer ${bearer}" https://kubernetes.default.svc/api/v1/namespaces/${namespace}/${resource_type}/${resource_name} 2> /dev/null | jq -rM "${jsonpath}" 2> /dev/null )
     fi
 
+    if [ "$retval" == "null" ]; then
+        retval=""
+    fi
+
     echo "$retval"
 }
 
