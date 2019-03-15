@@ -185,7 +185,6 @@ public class K8sClient {
                        });
     }
 
-
     /**
      * Method to fetch the status of all pods which match a label.
      * @param namespace Namespace on which the pod(s) reside.
@@ -194,8 +193,7 @@ public class K8sClient {
      * @return Future representing the list of pod status.
      */
     public CompletableFuture<List<V1PodStatus>> getStatusOfPodWithLabel(final String namespace, final String labelName, final String labelValue) {
-        CompletableFuture<V1PodList> future = getPodsWithLabel(namespace, labelName, labelValue);
-        return future
+        return getPodsWithLabel(namespace, labelName, labelValue)
                 .thenApply(v1PodList -> {
                     List<V1Pod> podList = v1PodList.getItems();
                     log.debug("{} pod(s) found with label {}={}.", podList.size(), labelName, labelValue);

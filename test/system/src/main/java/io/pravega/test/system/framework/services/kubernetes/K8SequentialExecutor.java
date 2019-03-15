@@ -96,7 +96,7 @@ public class K8SequentialExecutor implements TestExecutor {
                                                                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         if (restartMapFinal.size() != 0) {
             log.error("Pravega pods have restarted, Details: {}", restartMapFinal);
-            throw new AssertionError("Failing test due to Pravega pod restart." + restartMapFinal);
+            throw new AssertionError("Failing test due to Pravega pod restart.\n" + restartMapFinal);
         }
     }
 
