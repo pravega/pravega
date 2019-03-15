@@ -34,6 +34,7 @@ import lombok.Getter;
 import lombok.val;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsTags.segmentTags;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -45,7 +46,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
-    private static final String STREAM_SEGMENT_NAME = "test/test/0";
+    private static final String STREAM_SEGMENT_NAME = "scope/stream/0";
+    private static final String[] SEGMENT_TAGS = segmentTags(STREAM_SEGMENT_NAME);
 
     protected int getThreadPoolSize() {
         return 3;
@@ -105,40 +107,42 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         context.statsRecorder.recordAppend(STREAM_SEGMENT_NAME, 123L, 2, elapsed);
         verify(context.dynamicLogger).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 123L);
         verify(context.dynamicLogger).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_EVENTS), 2);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_BYTES, STREAM_SEGMENT_NAME), 123L);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_EVENTS, STREAM_SEGMENT_NAME), 2);
+        verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 123L, SEGMENT_TAGS);
+        verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 2, SEGMENT_TAGS);
 
         // Append metrics txn.
         val txnName = StreamSegmentNameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
-        context.statsRecorder.recordAppend(txnName, 123L, 2, elapsed);
-        verify(context.dynamicLogger, times(2)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 123L);
-        verify(context.dynamicLogger, times(2)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_EVENTS), 2);
-        verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_BYTES, txnName), 123L);
-        verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_EVENTS, txnName), 2);
+        context.statsRecorder.recordAppend(txnName, 321L, 5, elapsed);
+        verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 123L);
+        verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 321L);
+        verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_EVENTS), 2);
+        verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_EVENTS), 5);
+        verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 321L, segmentTags(txnName));
+        verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 5, segmentTags(txnName));
 
         // Read metrics.
         context.statsRecorder.read(STREAM_SEGMENT_NAME, 123);
         verify(context.dynamicLogger).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_READ_BYTES), 123);
-        verify(context.dynamicLogger).incCounterValue(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_READ_BYTES, STREAM_SEGMENT_NAME), 123);
+        verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_READ_BYTES, 123, SEGMENT_TAGS);
 
         context.statsRecorder.readComplete(elapsed);
         verify(context.readStreamSegment).reportSuccessEvent(eq(elapsed));
 
         // Seal metrics.
         context.statsRecorder.sealSegment(STREAM_SEGMENT_NAME);
-        verify(context.dynamicLogger).freezeCounter(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_BYTES, STREAM_SEGMENT_NAME));
-        verify(context.dynamicLogger).freezeCounter(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_EVENTS, STREAM_SEGMENT_NAME));
+        verify(context.dynamicLogger).freezeCounter(MetricsNames.SEGMENT_WRITE_BYTES, SEGMENT_TAGS);
+        verify(context.dynamicLogger).freezeCounter(MetricsNames.SEGMENT_WRITE_EVENTS, SEGMENT_TAGS);
 
         // Merge metrics.
         context.statsRecorder.merge(STREAM_SEGMENT_NAME, 123L, 2, 234L);
-        verify(context.dynamicLogger, times(2)).incCounterValue(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_BYTES, STREAM_SEGMENT_NAME), 123L);
-        verify(context.dynamicLogger, times(2)).incCounterValue(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_EVENTS, STREAM_SEGMENT_NAME), 2);
+        verify(context.dynamicLogger, times(2)).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 123L, SEGMENT_TAGS);
+        verify(context.dynamicLogger, times(2)).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 2, SEGMENT_TAGS);
 
         // Delete metrics.
         context.statsRecorder.deleteSegment(STREAM_SEGMENT_NAME);
-        verify(context.dynamicLogger, times(2)).freezeCounter(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_BYTES, STREAM_SEGMENT_NAME));
-        verify(context.dynamicLogger, times(2)).freezeCounter(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_WRITE_EVENTS, STREAM_SEGMENT_NAME));
-        verify(context.dynamicLogger).freezeCounter(MetricsNames.nameFromSegment(MetricsNames.SEGMENT_READ_BYTES, STREAM_SEGMENT_NAME));
+        verify(context.dynamicLogger, times(2)).freezeCounter(MetricsNames.SEGMENT_WRITE_BYTES, SEGMENT_TAGS);
+        verify(context.dynamicLogger, times(2)).freezeCounter(MetricsNames.SEGMENT_WRITE_EVENTS, SEGMENT_TAGS);
+        verify(context.dynamicLogger).freezeCounter(MetricsNames.SEGMENT_READ_BYTES, SEGMENT_TAGS);
     }
 
     private class TestContext implements AutoCloseable {

@@ -20,13 +20,13 @@ import java.time.Duration;
 public class RegistryConfigUtil {
 
     /**
-     * Create StatsdConfig for Statsd Register.
+     * Create StatsdConfig for StatsD Register.
      *
      * @param conf the metric config from Pravega.
-     * @return instance of StatsdConfig to be used by Statsd Register.
+     * @return instance of StatsdConfig to be used by StatsD Register.
      */
-    public static StatsdConfig createStatsdConfig(MetricsConfig conf) {
-        log.info("Configuring stats with statsd at {}:{}", conf.getStatsdHost(), conf.getStatsdPort());
+    public static StatsdConfig createStatsDConfig(MetricsConfig conf) {
+        log.info("Configuring stats with statsD at {}:{}", conf.getStatsDHost(), conf.getStatsDPort());
         return new StatsdConfig() {
             @Override
             public Duration step() {
@@ -40,12 +40,12 @@ public class RegistryConfigUtil {
 
             @Override
             public String host() {
-                return conf.getStatsdHost();
+                return conf.getStatsDHost();
             }
 
             @Override
             public int port() {
-                return conf.getStatsdPort();
+                return conf.getStatsDPort();
             }
 
             @Override
@@ -55,7 +55,7 @@ public class RegistryConfigUtil {
 
             @Override
             public String get(String key) {
-                return null;
+                return null; // accept the rest of the defaults; see https://micrometer.io/docs/registry/statsD.
             }
         };
     }
@@ -100,8 +100,13 @@ public class RegistryConfigUtil {
             }
 
             @Override
+            public String retentionPolicy() {
+                return conf.getInfluxDBRetention();
+            }
+
+            @Override
             public String get(String k) {
-                return null;
+                return null;  // accept the rest of the defaults, see https://micrometer.io/docs/registry/influx.
             }
         };
     }

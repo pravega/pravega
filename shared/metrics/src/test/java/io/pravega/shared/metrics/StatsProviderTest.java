@@ -10,7 +10,7 @@
 package io.pravega.shared.metrics;
 
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.composite.CompositeMeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.micrometer.influx.InfluxMeterRegistry;
 import io.micrometer.statsd.StatsdMeterRegistry;
@@ -30,21 +30,24 @@ public class StatsProviderTest {
 
     @Test
     public void testStatsProviderStartAndClose() {
+        //To improve test case isolation, create a new registry instead of using the global one.
+        CompositeMeterRegistry localRegistry = new CompositeMeterRegistry();
+
         MetricsConfig appConfig = MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, true)
                 .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, false)
                 .build();
 
-        StatsProvider statsProvider = new StatsProviderImpl(appConfig);
+        StatsProvider statsProvider = new StatsProviderImpl(appConfig, localRegistry);
         statsProvider.start();
 
-        for (MeterRegistry registry : Metrics.globalRegistry.getRegistries()) {
+        for (MeterRegistry registry : localRegistry.getRegistries()) {
             assertFalse(registry instanceof InfluxMeterRegistry);
             assertTrue(registry instanceof StatsdMeterRegistry);
         }
 
         statsProvider.close();
-        assertTrue(0 == Metrics.globalRegistry.getRegistries().size());
+        assertTrue(0 == localRegistry.getRegistries().size());
     }
 
     @Test
@@ -53,18 +56,19 @@ public class StatsProviderTest {
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, true)
                 .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, true)
                 .build();
+        CompositeMeterRegistry localRegistry = new CompositeMeterRegistry();
 
-        StatsProvider statsProvider = new StatsProviderImpl(appConfig);
+        StatsProvider statsProvider = new StatsProviderImpl(appConfig, localRegistry);
         statsProvider.startWithoutExporting();
 
-        for (MeterRegistry registry : Metrics.globalRegistry.getRegistries()) {
+        for (MeterRegistry registry : localRegistry.getRegistries()) {
             assertTrue(registry instanceof SimpleMeterRegistry);
             assertFalse(registry instanceof InfluxMeterRegistry);
             assertFalse(registry instanceof StatsdMeterRegistry);
         }
 
         statsProvider.close();
-        assertTrue(0 == Metrics.globalRegistry.getRegistries().size());
+        assertTrue(0 == localRegistry.getRegistries().size());
     }
 
     @Test (expected = Exception.class)
@@ -73,8 +77,9 @@ public class StatsProviderTest {
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .with(MetricsConfig.ENABLE_INFLUXDB_REPORTER, false)
                 .build();
+        CompositeMeterRegistry localRegistry = new CompositeMeterRegistry();
 
-        StatsProvider statsProvider = new StatsProviderImpl(appConfig);
+        StatsProvider statsProvider = new StatsProviderImpl(appConfig, localRegistry);
         statsProvider.start();
     }
 }
