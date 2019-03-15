@@ -26,7 +26,7 @@ public class ContainerConfig {
     public static final Property<Integer> SEGMENT_METADATA_EXPIRATION_SECONDS = Property.named("segmentMetadataExpirationSeconds",
             MINIMUM_SEGMENT_METADATA_EXPIRATION_SECONDS);
     public static final Property<Integer> METADATA_STORE_INIT_TIMEOUT_SECONDS = Property.named("metadataStoreInitTimeoutSeconds", 30);
-    public static final Property<Integer> MAX_ACTIVE_SEGMENT_COUNT = Property.named("maxActiveSegmentCount", 10000);
+    public static final Property<Integer> MAX_ACTIVE_SEGMENT_COUNT = Property.named("maxActiveSegmentCount", 25000);
     public static final Property<Integer> MAX_CONCURRENT_SEGMENT_EVICTION_COUNT = Property.named("maxConcurrentSegmentEvictionCount", 2500);
     public static final Property<Integer> MAX_CACHED_EXTENDED_ATTRIBUTE_COUNT = Property.named("maxCachedExtendedAttributeCount", 4096);
     private static final String COMPONENT_CODE = "containers";
