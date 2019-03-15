@@ -32,7 +32,6 @@ k8() {
 init_kubernetes() {
     if [ -d "/var/run/secrets/kubernetes.io" ] && [ ! -z "${K8_EXTERNAL_ACCESS}" ]; then
         echo "Running in a Kubernetes environment and managed by the Pravega Operator with external access enabled"
-        echo "Trying to obtain the external service endpoint..."
 
         if [ -z "${POD_NAMESPACE}" ]; then
           echo "POD_NAMESPACE variable not set. Exiting..."
@@ -46,29 +45,25 @@ init_kubernetes() {
 
         local ns=${POD_NAMESPACE}
         local podname=${POD_NAME}
+        export PUBLISHED_ADDRESS=""
+        export PUBLISHED_PORT=""
 
         service_type=$( k8 "${ns}" "services" "${podname}" ".spec.type" )
         if [ "${service_type}" == "LoadBalancer" ]; then
-            export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
-            export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
             while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
             do
-                echo "LoadBalancer external address and port could not be obtained. Waiting 30 seconds and trying again..."
-                sleep 30
+                echo "Trying to obtain LoadBalancer external endpoint..."
+                sleep 10
                 export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
                 export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
             done
         elif [ "${service_type}" == "NodePort" ]; then
             nodename=$( k8 "${ns}" "pods" "${podname}" ".spec.nodeName" )
-            export PUBLISHED_ADDRESS=$( k8 "" "nodes" "${nodename}" ".status.addresses[] | select(.type == \"ExternalIP\") | .address" )
-            export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].nodePort" )
             while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
             do
-                echo "NodePort external address and port could not be obtained. Waiting 30 seconds and trying again..."
-                sleep 30
-                nodename=$( k8 "${ns}" "pods" "${podname}" ".spec.nodeName" )
-                export PUBLISHED_ADDRESS=$( k8 "${ns}" "" "${nodename}" '.status.addresses[] | select(.type == "ExternalIP
-    ") | .address" )' )
+                echo "Trying to obtain NodePort external endpoint..."
+                sleep 10
+                export PUBLISHED_ADDRESS=$( k8 "" "nodes" "${nodename}" ".status.addresses[] | select(.type == \"ExternalIP\") | .address" )
                 export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].nodePort" )
             done
         else
