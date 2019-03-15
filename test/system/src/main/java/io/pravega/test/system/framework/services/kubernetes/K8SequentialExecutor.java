@@ -10,6 +10,7 @@
 package io.pravega.test.system.framework.services.kubernetes;
 
 import com.google.common.collect.ImmutableMap;
+import io.kubernetes.client.models.V1ContainerStatus;
 import io.kubernetes.client.models.V1ObjectMetaBuilder;
 import io.kubernetes.client.models.V1PersistentVolumeClaimVolumeSourceBuilder;
 import io.kubernetes.client.models.V1Pod;
@@ -22,9 +23,13 @@ import io.kubernetes.client.models.V1beta1ClusterRoleBinding;
 import io.kubernetes.client.models.V1beta1ClusterRoleBindingBuilder;
 import io.kubernetes.client.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.models.V1beta1SubjectBuilder;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestExecutor;
+import io.pravega.test.system.framework.TestFrameworkException;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.NotImplementedException;
 
@@ -49,6 +54,9 @@ public class K8SequentialExecutor implements TestExecutor {
         log.info("Start execution of test {}#{} on the KUBERNETES Cluster", className, methodName);
 
         final K8sClient client = ClientFactory.INSTANCE.getK8sClient();
+        // Fetch the current status of all the Pravega pods.
+        Map<String, V1ContainerStatus> podStatusBeforeTest = getPravegaPodStatus(client);
+
         final V1Pod pod = getTestPod(className, methodName, podName.toLowerCase());
 
         return client.createServiceAccount(NAMESPACE, getServiceAccount()) // create service Account, ignore if already present.
@@ -60,8 +68,8 @@ public class K8SequentialExecutor implements TestExecutor {
                          return client.waitUntilPodCompletes(NAMESPACE, podName).thenCombine(logDownload, (status, v1) -> status);
                      }).handle((s, t) -> {
                          if (t == null) {
-                             log.info("Test execution completed with status {}", s);
-
+                             log.info("Test {}#{} execution completed with status {}", className, methodName, s);
+                             verifyPravegaPodRestart(podStatusBeforeTest, getPravegaPodStatus(client));
                              if (s.getExitCode() != 0) {
                                  log.error("Test {}#{} failed. Details: {}", className, methodName, s);
                                  throw new AssertionError(methodName + " test failed.");
@@ -73,6 +81,23 @@ public class K8SequentialExecutor implements TestExecutor {
                          }
                      });
 
+    }
+
+    private Map<String, V1ContainerStatus> getPravegaPodStatus(K8sClient client) {
+        return Futures.getAndHandleExceptions(
+                client.getRestartedPods("default", "app", "pravega-cluster"),
+                t -> new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Failed to get status of Pravega pods", t));
+    }
+
+    private void verifyPravegaPodRestart(Map<String, V1ContainerStatus> podStatusBeforeTest, Map<String, V1ContainerStatus> podStatusAfterTest) {
+        Map<String, V1ContainerStatus> restartMapFinal = podStatusAfterTest.entrySet().stream()
+                                                                           .filter(e -> podStatusBeforeTest.containsKey(e.getKey())
+                                                                                   && podStatusBeforeTest.get(e.getKey()).getRestartCount() < e.getValue().getRestartCount())
+                                                                           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        if (restartMapFinal.size() != 0) {
+            log.error("Pravega pods have restarted, Details: {}", restartMapFinal);
+            throw new AssertionError("Failing test due to Pravega pod restart." + restartMapFinal);
+        }
     }
 
     private V1Pod getTestPod(String className, String methodName, String podName) {
