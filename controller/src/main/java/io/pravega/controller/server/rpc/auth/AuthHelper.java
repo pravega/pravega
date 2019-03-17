@@ -31,22 +31,29 @@ public class AuthHelper {
         return new AuthHelper(false, "");
     }
 
-    public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) {
+    public boolean isAuthorized(String resource, AuthHandler.Permissions permission) {
         if (isAuthEnabled) {
             PravegaInterceptor currentInterceptor = PravegaInterceptor.INTERCEPTOR_OBJECT.get();
 
             AuthHandler.Permissions allowedLevel;
             if (currentInterceptor == null) {
-                //No interceptor, and authorization is enabled. Means no access is granted.
+                //No interceptor, and authorization is enabled. That means no access is granted.
                 allowedLevel = AuthHandler.Permissions.NONE;
             } else {
                 allowedLevel = currentInterceptor.authorize(resource);
             }
-            if (allowedLevel.ordinal() < expectedLevel.ordinal()) {
-                throw new RuntimeException(new AuthorizationException("Access not allowed"));
-            }
+            return (allowedLevel.ordinal() < permission.ordinal()) ? false : true;
+        } else {
+            return true;
         }
-        return "";
+    }
+
+    public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) {
+        if (isAuthorized(resource, expectedLevel)) {
+            return "";
+        } else {
+            throw new RuntimeException(new AuthorizationException("Access not allowed"));
+        }
     }
 
     public String checkAuthorizationAndCreateToken(String resource, AuthHandler.Permissions expectedLevel) {
