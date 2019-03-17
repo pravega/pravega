@@ -32,29 +32,41 @@ import static io.pravega.controller.store.stream.ZKStreamMetadataStore.DATA_NOT_
 
 /**
  * This class is used to store ordered objects on a per stream basis. 
- * It uses Persistent Sequential znodes to create ordered sets.
- * New entities can be added and existing entities can be removed from these ordered sets. 
- * All entities from the set can be viewed and ordered based on the given order (a long). 
+ * It uses Persistent Sequential znodes to create ordered collection of entries.
+ * New entities can be added and existing entities can be removed from these ordered collections. 
+ * All entities from the collection can be viewed and ordered based on the given order (a long). 
  * 
  * Since we use Persistent Sequential znodes to assign order, we can exhaust the order space which is basically 10 digits
- * (Integer.Max). So this store is responsible for internally creating and progressing new sets once a previous set is 
- * exhausted. Overall we can create Integer.Max new sets. This means overall we have approximately Long.Max entries that 
- * each ordered set can support in its lifetime. 
+ * (Integer.Max). So this store creates multiple ordered collection of collections and is responsible for internally 
+ * creating and progressing new collections once a previous collection is exhausted. 
+ * Overall we can create Integer.Max new collections. This means overall we have approximately Long.Max entries that 
+ * each ordered collection can support in its lifetime. 
  */
 @Slf4j
-public class ZkOrderedStore {
-    public static final String SEALED_NODE = "sealed";
-    public static final String ENTITIES_NODE = "entities";
-    public static final String POSITION_NODE = "pos";
+class ZkOrderedStore {
+    private static final String SEALED_NODE = "sealed";
+    private static final String ENTITIES_NODE = "entities";
+    private static final String POSITION_NODE = "pos";
     private final ZKStoreHelper storeHelper;
     private final String ordererName;
     private final Executor executor;
     private final int rollOverAfter;
 
-    // root/scope/stream/<queueNum>/sealed
-    // root/scope/stream/<queueNum>/entities
-    public ZkOrderedStore(String ordererName, ZKStoreHelper storeHelper, Executor executor) {
-        // default roll over is after 90% or 1.8 billion entries have been added to a set. 
+    /**
+     * This class creates a collection of collections starting with collection numbered 0.
+     * A new collection is created under the znode: 
+     * \<root\>/scope/stream/\<collectionNum\>/entities
+     * It adds entries to lowest numbered collection using a persistent sequential znode 
+     * until its capacity is exhausted. 
+     * Once a collection is exhausted, a successor collection with number `current + 1` is created and current successor 
+     * is marked as sealed by created following znode: 
+     *     `\<root\>/scope/stream/\<collectionNum\>/sealed
+     * @param ordererName name of ordered which is used to generate the `root` of the orderer
+     * @param storeHelper store helper
+     * @param executor executor
+     */
+    ZkOrderedStore(String ordererName, ZKStoreHelper storeHelper, Executor executor) {
+        // default roll over is after 90% or 1.8 billion entries have been added to a collection. 
         this(ordererName, storeHelper, executor, (Integer.MAX_VALUE / 10) * 9);
     }
 
@@ -67,9 +79,9 @@ public class ZkOrderedStore {
     }
 
     /**
-     * Method to add new entity to the ordered set. Note: Same entity could be added to the set multiple times.
-     * Entities are added to the latest set for the stream. If the set has exhausted positions allowed for by rollOver limit,
-     * a new successor set is initiated and the entry is added to the new set.
+     * Method to add new entity to the ordered collection. Note: Same entity could be added to the collection multiple times.
+     * Entities are added to the latest collection for the stream. If the collection has exhausted positions allowed for by rollOver limit,
+     * a new successor collection is initiated and the entry is added to the new collection.
      * Any entries with positions higher than rollover values under a set are ignored and eventually purged. 
      * 
      * @param scope scope
@@ -77,12 +89,12 @@ public class ZkOrderedStore {
      * @param entity entity to add
      * @return CompletableFuture which when completed returns the position where the entity is added to the set. 
      */
-    public CompletableFuture<Long> addEntity(String scope, String stream, String entity) {
-        // add persistent sequential node to the latest queue number 
-        // if queueNum is sealed, increment queue number and write the entity there. 
-        return getLatestQueue(scope, stream)
-                .thenCompose(latestQueueNum ->
-                        storeHelper.createPersistentSequentialZNode(getEntitySequentialPath(scope, stream, latestQueueNum),
+    CompletableFuture<Long> addEntity(String scope, String stream, String entity) {
+        // add persistent sequential node to the latest collection number 
+        // if collectionNum is sealed, increment collection number and write the entity there. 
+        return getLatestCollection(scope, stream)
+                .thenCompose(latestcollectionNum ->
+                        storeHelper.createPersistentSequentialZNode(getEntitySequentialPath(scope, stream, latestcollectionNum),
                                 entity.getBytes(Charsets.UTF_8))
                                    .thenCompose(positionPath -> {
                                        int position = getPositionFromPath(positionPath);
@@ -91,18 +103,18 @@ public class ZkOrderedStore {
                                            // and roll over. 
                                            // 1. delete newly created path
                                            return storeHelper.deletePath(positionPath, false)
-                                                             // 2. seal latest queue
+                                                             // 2. seal latest collection
                                                              .thenCompose(v -> storeHelper.createZNodeIfNotExist(
-                                                                     getQueueSealedPath(scope, stream, latestQueueNum)))
+                                                                     getCollectionSealedPath(scope, stream, latestcollectionNum)))
                                                              // 3. call addEntity recursively
                                                              .thenCompose(v -> addEntity(scope, stream, entity))
-                                                             // 4. delete empty sealed queue path
+                                                             // 4. delete empty sealed collection path
                                                              .thenCompose(orderedPosition -> 
-                                                                     tryDeleteSealedQueuePath(scope, stream, latestQueueNum)
+                                                                     tryDeleteSealedCollectionPath(scope, stream, latestcollectionNum)
                                                                      .thenApply(v -> orderedPosition));
 
                                        } else {
-                                           return CompletableFuture.completedFuture(Position.toLong(latestQueueNum, position));
+                                           return CompletableFuture.completedFuture(Position.toLong(latestcollectionNum, position));
                                        }
                                    }))
                 .whenComplete((r, e) -> {
@@ -121,12 +133,12 @@ public class ZkOrderedStore {
      * @param entities list of entities' positions to remove
      * @return CompletableFuture which when completed will indicate that entities are removed from the set. 
      */
-    public CompletableFuture<Void> removeEntities(String scope, String stream, Collection<Long> entities) {
-        Set<Integer> queues = entities.stream().collect(Collectors.groupingBy(x -> new Position(x).queueNumber)).keySet();
+    CompletableFuture<Void> removeEntities(String scope, String stream, Collection<Long> entities) {
+        Set<Integer> collections = entities.stream().collect(Collectors.groupingBy(x -> new Position(x).collectionNumber)).keySet();
         return Futures.allOf(entities.stream()
                                      .map(entity -> storeHelper.deletePath(getEntityPath(scope, stream, entity), false))
                                      .collect(Collectors.toList()))
-                      .thenCompose(v -> Futures.allOf(queues.stream().map(queueNum -> tryDeleteSealedQueuePath(scope, stream, queueNum))
+                      .thenCompose(v -> Futures.allOf(collections.stream().map(collectionNum -> tryDeleteSealedCollectionPath(scope, stream, collectionNum))
                                                             .collect(Collectors.toList())))
                       .whenComplete((r, e) -> {
                           if (e != null) {
@@ -145,22 +157,22 @@ public class ZkOrderedStore {
      * @param stream stream stream
      * @return CompletableFuture which when completed will contain all positions to entities in the set. 
      */
-    public CompletableFuture<Map<Long, String>> getEntitiesWithPosition(String scope, String stream) {
+    CompletableFuture<Map<Long, String>> getEntitiesWithPosition(String scope, String stream) {
         Map<Long, String> result = new ConcurrentHashMap<>();
         return Futures.exceptionallyExpecting(storeHelper.getChildren(getStreamPath(scope, stream)), DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
                           .thenCompose(children -> {
-                              // start with smallest queue and collect records
+                              // start with smallest collection and collect records
                               List<Integer> iterable = children.stream().map(Integer::parseInt).collect(Collectors.toList());
                               
-                              return Futures.loop(iterable, queueNumber -> {
-                                  return Futures.exceptionallyExpecting(storeHelper.getChildren(getEntitiesPath(scope, stream, queueNumber)),
+                              return Futures.loop(iterable, collectionNumber -> {
+                                  return Futures.exceptionallyExpecting(storeHelper.getChildren(getEntitiesPath(scope, stream, collectionNumber)),
                                                     DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
                                                     .thenCompose(entities -> Futures.allOf(
                                                                     entities.stream().map(x -> {
                                                                         int pos = getPositionFromPath(x);
-                                                                        return storeHelper.getData(getEntityPath(scope, stream, queueNumber, pos))
+                                                                        return storeHelper.getData(getEntityPath(scope, stream, collectionNumber, pos))
                                                                                           .thenAccept(r -> {
-                                                                                              result.put(Position.toLong(queueNumber, pos),
+                                                                                              result.put(Position.toLong(collectionNumber, pos),
                                                                                                       new String(r.getData(), Charsets.UTF_8));
                                                                                           });
                                                                     }).collect(Collectors.toList()))
@@ -182,63 +194,63 @@ public class ZkOrderedStore {
         return ZKPaths.makePath(scopePath, stream);
     }
 
-    private String getQueuePath(String scope, String stream, Integer queueNum) {
-        return ZKPaths.makePath(getStreamPath(scope, stream), queueNum.toString());
+    private String getCollectionPath(String scope, String stream, Integer collectionNum) {
+        return ZKPaths.makePath(getStreamPath(scope, stream), collectionNum.toString());
     }
 
-    private String getQueueSealedPath(String scope, String stream, Integer queueNum) {
-        return ZKPaths.makePath(getQueuePath(scope, stream, queueNum), SEALED_NODE);
+    private String getCollectionSealedPath(String scope, String stream, Integer collectionNum) {
+        return ZKPaths.makePath(getCollectionPath(scope, stream, collectionNum), SEALED_NODE);
     }
 
-    private String getEntitiesPath(String scope, String stream, Integer queueNum) {
-        return ZKPaths.makePath(getQueuePath(scope, stream, queueNum), ENTITIES_NODE);
+    private String getEntitiesPath(String scope, String stream, Integer collectionNum) {
+        return ZKPaths.makePath(getCollectionPath(scope, stream, collectionNum), ENTITIES_NODE);
     }
 
-    private String getEntitySequentialPath(String scope, String stream, Integer queueNum) {
-        return ZKPaths.makePath(getEntitiesPath(scope, stream, queueNum), POSITION_NODE);
+    private String getEntitySequentialPath(String scope, String stream, Integer collectionNum) {
+        return ZKPaths.makePath(getEntitiesPath(scope, stream, collectionNum), POSITION_NODE);
     }
 
-    private String getEntityPath(String scope, String stream, int queueNumber, int position) {
-        return String.format("%s%010d", getEntitySequentialPath(scope, stream, queueNumber), position);
+    private String getEntityPath(String scope, String stream, int collectionNumber, int position) {
+        return String.format("%s%010d", getEntitySequentialPath(scope, stream, collectionNumber), position);
     }
 
     private String getEntityPath(String scope, String stream, long entity) {
         Position position = new Position(entity);
-        return getEntityPath(scope, stream, position.queueNumber, position.positionInQueue);
+        return getEntityPath(scope, stream, position.collectionNumber, position.positionInCollection);
     }
 
     private int getPositionFromPath(String name) {
         return Integer.parseInt(name.substring(name.length() - 10));
     }
 
-    private CompletableFuture<Integer> getLatestQueue(String scope, String stream) {
+    private CompletableFuture<Integer> getLatestCollection(String scope, String stream) {
         return storeHelper.getChildren(getStreamPath(scope, stream))
                           .thenCompose(children -> {
-                              int latestQueueNum = children.stream().mapToInt(Integer::parseInt).max().orElse(0);
-                              return storeHelper.checkExists(getQueueSealedPath(scope, stream, latestQueueNum))
+                              int latestcollectionNum = children.stream().mapToInt(Integer::parseInt).max().orElse(0);
+                              return storeHelper.checkExists(getCollectionSealedPath(scope, stream, latestcollectionNum))
                                                 .thenCompose(sealed -> {
                                                     if (sealed) {
                                                         return storeHelper.createZNodeIfNotExist(
-                                                                getQueuePath(scope, stream, latestQueueNum + 1))
-                                                                          .thenApply(v -> latestQueueNum + 1);
+                                                                getCollectionPath(scope, stream, latestcollectionNum + 1))
+                                                                          .thenApply(v -> latestcollectionNum + 1);
                                                     } else {
-                                                        return CompletableFuture.completedFuture(latestQueueNum);
+                                                        return CompletableFuture.completedFuture(latestcollectionNum);
                                                     }
                                                 });
                           });
     }
 
-    private CompletableFuture<Void> tryDeleteSealedQueuePath(String scope, String stream, Integer queueNum) {
-        // if higher queue number exists then we can attempt to delete this node
+    private CompletableFuture<Void> tryDeleteSealedCollectionPath(String scope, String stream, Integer collectionNum) {
+        // if higher collection number exists then we can attempt to delete this node
         // purge garbage znodes
         // attempt to delete entities node
-        // delete queue
-        return getLatestQueue(scope, stream)
-                .thenCompose(latestQueueNum ->
+        // delete collection
+        return getLatestCollection(scope, stream)
+                .thenCompose(latestcollectionNum ->
                         // 1. purge
-                        storeHelper.getChildren(getEntitiesPath(scope, stream, queueNum))
+                        storeHelper.getChildren(getEntitiesPath(scope, stream, collectionNum))
                                    .thenCompose(entitiesPos -> {
-                                       String entitiesPath = getEntitiesPath(scope, stream, queueNum);
+                                       String entitiesPath = getEntitiesPath(scope, stream, collectionNum);
 
                                        // delete entities greater than max pos
                                        return Futures.allOf(entitiesPos.stream().filter(pos -> getPositionFromPath(pos) > rollOverAfter)
@@ -248,21 +260,21 @@ public class ZkOrderedStore {
                 .thenCompose(x -> {
                     // 2. Try deleting entities root path. 
                     // if we are able to delete entities node then we can delete the whole thing
-                    return Futures.exceptionallyExpecting(storeHelper.deletePath(getEntitiesPath(scope, stream, queueNum), false)
-                                                                     .thenCompose(v -> storeHelper.deleteTree(getQueuePath(scope, stream, queueNum))),
+                    return Futures.exceptionallyExpecting(storeHelper.deletePath(getEntitiesPath(scope, stream, collectionNum), false)
+                                                                     .thenCompose(v -> storeHelper.deleteTree(getCollectionPath(scope, stream, collectionNum))),
                             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException, null);
                 });
     }
     
     @VisibleForTesting
-    CompletableFuture<Boolean> isSealed(String scope, String stream, int queueNumber) {
-        return Futures.exceptionallyExpecting(storeHelper.getData(getQueueSealedPath(scope, stream, queueNumber)).thenApply(v -> true), 
+    CompletableFuture<Boolean> isSealed(String scope, String stream, int collectionNum) {
+        return Futures.exceptionallyExpecting(storeHelper.getData(getCollectionSealedPath(scope, stream, collectionNum)).thenApply(v -> true), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);        
     }
     
     @VisibleForTesting
-    CompletableFuture<Boolean> isDeleted(String scope, String stream, int queueNumber) {
-        return Futures.exceptionallyExpecting(storeHelper.getData(getQueuePath(scope, stream, queueNumber)).thenApply(v -> false), 
+    CompletableFuture<Boolean> isDeleted(String scope, String stream, int collectionNum) {
+        return Futures.exceptionallyExpecting(storeHelper.getData(getCollectionPath(scope, stream, collectionNum)).thenApply(v -> false), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, true);
     }
 
@@ -276,16 +288,16 @@ public class ZkOrderedStore {
     @AllArgsConstructor
     @VisibleForTesting
     static class Position {
-        private final int queueNumber;
-        private final int positionInQueue;
+        private final int collectionNumber;
+        private final int positionInCollection;
 
         public Position(long position) {
-            this.queueNumber = (int) (position >> 32);
-            this.positionInQueue = (int) position;
+            this.collectionNumber = (int) (position >> 32);
+            this.positionInCollection = (int) position;
         }
         
-        static long toLong(int queueNumber, int positionInQueue) {
-            return (long) queueNumber << 32 | (positionInQueue & 0xFFFFFFFFL);
+        static long toLong(int collectionNumber, int positionInCollection) {
+            return (long) collectionNumber << 32 | (positionInCollection & 0xFFFFFFFFL);
         }
     }
 }

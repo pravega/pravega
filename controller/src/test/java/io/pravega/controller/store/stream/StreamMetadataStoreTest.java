@@ -967,7 +967,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(positions.get(2L), tx01);
         assertEquals(positions.get(3L), tx02);
         
-        // verify that when we retrive transactions from lowest epoch we get tx00
+        // verify that when we retrieve transactions from lowest epoch we get tx00
         List<Map.Entry<UUID, ActiveTxnRecord>> orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch().join();
         List<UUID> ordered = orderedRecords.stream().map(Map.Entry::getKey).collect(Collectors.toList());
         assertEquals(1, ordered.size());

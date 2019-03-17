@@ -1710,7 +1710,7 @@ public abstract class PersistentStreamBase implements Stream {
      * It is important to note that this method is called before marking transaction as committing in active txn record. 
      * So retrieving a transaction from this ordered list is no guarantee that the transaction has been set to committing. 
      * Similarly, there could be duplicate entries for the same transaction if retried. 
-     * So the ordered ist merely captures the order in which a request may have been received and is only opportunistic 
+     * So the ordered list merely captures the order in which a request may have been received and is only opportunistic 
      * and makes no strong claim of its consistency with active txn record. 
      *      1. we could have duplicate entries for same transaction in commit order.
      *      2. we could have transactions that are marked for aborting added to commit order
