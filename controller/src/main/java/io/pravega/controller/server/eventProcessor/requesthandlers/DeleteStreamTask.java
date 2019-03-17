@@ -100,7 +100,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
     }
 
     @Override
-    public CompletableFuture<Boolean> ignoreFairness(DeleteStreamEvent event) {
+    public CompletableFuture<Boolean> isRerun(DeleteStreamEvent event) {
         return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
                                   .thenApply(state -> state.equals(State.SEALED));
     }

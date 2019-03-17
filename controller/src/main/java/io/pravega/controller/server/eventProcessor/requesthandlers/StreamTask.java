@@ -30,9 +30,9 @@ public interface StreamTask<T extends ControllerEvent> {
     CompletableFuture<Void> writeBack(T event);
 
     /**
-     * Method that indicates to the processor if it should ignore any fairness and start processing the task or not. 
+     * Method that indicates to the processor if the work was already started and this is a rerun. 
      * @param event event to process
-     * @return Completable Future which when completed will indicate if fairness should be ignore or honored. 
+     * @return Completable Future which when completed will indicate if the event processing has already started or not. 
      */
-    CompletableFuture<Boolean> ignoreFairness(T event);
+    CompletableFuture<Boolean> isRerun(T event);
 }

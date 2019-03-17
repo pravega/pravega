@@ -114,7 +114,7 @@ public class UpdateStreamTask implements StreamTask<UpdateStreamEvent> {
     }
 
     @Override
-    public CompletableFuture<Boolean> ignoreFairness(UpdateStreamEvent event) {
+    public CompletableFuture<Boolean> isRerun(UpdateStreamEvent event) {
         return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
                                   .thenApply(state -> state.equals(State.UPDATING));
 

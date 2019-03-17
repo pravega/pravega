@@ -171,7 +171,7 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
     }
 
     @Override
-    public CompletableFuture<Boolean> ignoreFairness(SealStreamEvent event) {
+    public CompletableFuture<Boolean> isRerun(SealStreamEvent event) {
         return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
                                   .thenApply(state -> state.equals(State.SEALING));
     }
