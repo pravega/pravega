@@ -1233,6 +1233,7 @@ public class SegmentHelper {
         final byte[] bytes = new byte[buf.readableBytes()];
         final int readerIndex = buf.readerIndex();
         buf.getBytes(readerIndex, bytes);
+        buf.release();
         return bytes;
     }
 
