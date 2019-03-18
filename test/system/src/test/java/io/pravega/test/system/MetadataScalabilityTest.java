@@ -138,7 +138,7 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                                                      });
                                 }), executorService);
 
-        CompletableFuture<Void> result = scaleFuture
+        scaleFuture
                 .thenCompose(r -> {
                     // try SCALES_TO_PERFORM randomly generated stream cuts and truncate stream at those 
                     // stream cuts. 
@@ -172,8 +172,6 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                                                      });
                                 });
                     }, executorService);
-                });
-
-        Futures.await(result);
+                }).join();
     }
 }
