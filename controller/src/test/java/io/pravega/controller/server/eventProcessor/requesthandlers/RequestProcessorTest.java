@@ -72,11 +72,11 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
 
     public static class TestRequestProcessor1 extends AbstractRequestProcessor<TestEvent1> implements StreamTask<TestEvent1> {
         private final BlockingQueue<TestEvent1> queue;
-        private boolean toIgnoreFairness;
+        private boolean ignoreStarted;
         public TestRequestProcessor1(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor, BlockingQueue<TestEvent1> queue) {
             super(streamMetadataStore, executor);
             this.queue = queue;
-            this.toIgnoreFairness = false;
+            this.ignoreStarted = false;
         }
 
         public CompletableFuture<Void> testProcess(TestEvent1 event) {
@@ -96,7 +96,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
 
         @Override
         public CompletableFuture<Boolean> hasTaskStarted(TestEvent1 event) {
-            return CompletableFuture.completedFuture(toIgnoreFairness);
+            return CompletableFuture.completedFuture(ignoreStarted);
         }
     }
 
@@ -209,7 +209,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 30000)
-    public void testIgnoreFairness() throws InterruptedException {
+    public void testCompleteStartedTasks() throws InterruptedException {
         BlockingQueue<TestEvent1> queue1 = new LinkedBlockingQueue<>();
         TestRequestProcessor1 requestProcessor1 = new TestRequestProcessor1(getStore(), executorService(), queue1);
 
@@ -248,9 +248,9 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         // processing11 should complete successfully.
         AssertExtensions.assertFutureThrows("", processing11, e -> Exceptions.unwrap(e) instanceof RuntimeException); 
 
-        // set ignore fairness to true
-        requestProcessor1.toIgnoreFairness = true;
-        // 4. re submit processing for processor1. this should get be picked while we ignore fairness.
+        // set ignore started to true
+        requestProcessor1.ignoreStarted = true;
+        // 4. re submit processing for processor1. this should get be picked while we ignore started.
         event1 = new TestEvent1(scope, stream, () -> CompletableFuture.completedFuture(null));
 
         requestProcessor1.process(event1).join();
@@ -260,8 +260,8 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
         assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
 
-        // 6. now set ignore fairness to false. The processing of event 1 should be disallowed because of fairness
-        requestProcessor1.toIgnoreFairness = false;
+        // 6. now set ignore started to false. The processing of event 1 should be disallowed because of started
+        requestProcessor1.ignoreStarted = false;
         // we should get operation not allowed exception
         AssertExtensions.assertFutureThrows("", requestProcessor1.process(event1), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
