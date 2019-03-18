@@ -18,14 +18,14 @@ The prerequisites for running in local machine is described below.
 
 ### From Source
 
-The Pravega source code needs to be checked out:
+Checkout the source code:
 
 ```
 git clone https://github.com/pravega/pravega.git
 cd pravega
 ```
 
-Compile Pravega and start the standalone deployment:
+Build the Pravega standalone distribution:
 
 ```
 ./gradlew startStandalone
@@ -33,16 +33,19 @@ Compile Pravega and start the standalone deployment:
 
 ### From Installation Package
 
-Download the Pravega latest release from the [GitHub Releases](https://github.com/pravega/pravega/releases). The tarball or zip files can be used as they are identical. Instructions are provided for the tar files, but the same can be used for the zip file also.
+Download the Pravega release from the [GitHub Releases](https://github.com/pravega/pravega/releases).
 
 ```
-tar xfvz pravega-0.1.0.tgz
+$ tar xfvz pravega-<version>.tgz
+
 ```
+Download and extract either tarball or zip files. Follow the instructions provided for the tar files (same can be applied for zip file) to launch all the components of Pravega on your local machine.
 
 Run Pravega Standalone:
 
 ```
-pravega-0.1.0/bin/pravega-standalone
+pravega-<version>/bin/pravega-standalone
+
 ```
 
 ### From Docker Container
@@ -62,7 +65,7 @@ Unlike other options for running locally, the docker compose option runs a full 
 in distributed mode. It contains containers for running Zookeeper, Bookkeeper and HDFS. Hence Pravega operates as if it would in production. This is the easiest way to get started with the standalone option but requires additional resources.
 
 
-To use this we need to have Docker `1.12` or later versions.
+**Prerequisite:** Docker `1.12` or later versions.
 
 Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) from github. For example:
 
@@ -78,8 +81,9 @@ Clients can then connect to the controller at `${HOST_IP}:9090`.
 
 ## Running Pravega in Standalone Mode with SSL/TLS Enabled
 
-By default both the `singlenode.enableTls` and `singlenode.enableauth` are disabled. The configurations, `singlenode.enableTls` and `singlenode.enableauth` can be used to enable encryption and authentication respectively.
-In case `enableTls` is set to true, the default certificates provided in the `conf` directory are used for setting up TLS.
+By default the `singlenode.enableTls` (SSl/TLS) is disabled. To enable it, set the value of  `singlenode.enableTls` to **True**. Once the `enableTls` (TLS) is enabled, the default certificates provided in the `conf` directory are used for setting up TLS.
+
+Set the following configuration properties:
 
 1. Configure standalone server to communicate using SSL/TLS. To do so, edit the TLS-related properties in `standalone-config.properties` as shown below:
 
@@ -140,5 +144,3 @@ Here are the steps you can use to add the provided `cert.pem` into the JVM's sys
                  .build();
     ```
 6. Everything else should be the same as the Reader/Writer apps.
-
-These properties include ports for Zookeeper, Segment Store and Controller. They also contain other configurations related to security.
