@@ -65,7 +65,7 @@ Unlike other options for running locally, the docker compose option runs a full 
 in distributed mode. It contains containers for running Zookeeper, Bookkeeper and HDFS. Hence Pravega operates as if it would in production. This is the easiest way to get started with the standalone option but requires additional resources.
 
 
-**Prerequisite:** Docker `1.12` or later versions.
+**Prerequisite:** Docker `1.12` or later.
 
 Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) from github. For example:
 
