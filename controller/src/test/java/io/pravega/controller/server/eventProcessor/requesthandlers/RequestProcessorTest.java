@@ -95,7 +95,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Boolean> isRerun(TestEvent1 event) {
+        public CompletableFuture<Boolean> hasTaskStarted(TestEvent1 event) {
             return CompletableFuture.completedFuture(toIgnoreFairness);
         }
     }
@@ -124,7 +124,7 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Boolean> isRerun(TestEvent2 event) {
+        public CompletableFuture<Boolean> hasTaskStarted(TestEvent2 event) {
             return CompletableFuture.completedFuture(false);
         }
     }

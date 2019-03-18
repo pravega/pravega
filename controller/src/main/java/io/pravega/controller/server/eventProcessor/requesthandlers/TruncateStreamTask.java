@@ -116,7 +116,7 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
     }
 
     @Override
-    public CompletableFuture<Boolean> isRerun(TruncateStreamEvent event) {
+    public CompletableFuture<Boolean> hasTaskStarted(TruncateStreamEvent event) {
         return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
                                   .thenApply(state -> state.equals(State.TRUNCATING));
     }

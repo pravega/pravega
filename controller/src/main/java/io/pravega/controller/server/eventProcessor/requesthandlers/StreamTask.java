@@ -34,5 +34,5 @@ public interface StreamTask<T extends ControllerEvent> {
      * @param event event to process
      * @return Completable Future which when completed will indicate if the event processing has already started or not. 
      */
-    CompletableFuture<Boolean> isRerun(T event);
+    CompletableFuture<Boolean> hasTaskStarted(T event);
 }

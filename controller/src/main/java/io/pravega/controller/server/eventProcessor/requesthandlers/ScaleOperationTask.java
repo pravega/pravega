@@ -151,7 +151,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
     }
 
     @Override
-    public CompletableFuture<Boolean> isRerun(ScaleOpEvent event) {
+    public CompletableFuture<Boolean> hasTaskStarted(ScaleOpEvent event) {
         return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
                                   .thenApply(state -> state.equals(State.SCALING));
     }

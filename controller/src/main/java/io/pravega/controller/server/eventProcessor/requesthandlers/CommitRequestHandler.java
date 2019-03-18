@@ -308,7 +308,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
     }
 
     @Override
-    public CompletableFuture<Boolean> isRerun(CommitEvent event) {
+    public CompletableFuture<Boolean> hasTaskStarted(CommitEvent event) {
         return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
                                   .thenApply(state -> state.equals(State.COMMITTING_TXN) || state.equals(State.SEALING));
     }

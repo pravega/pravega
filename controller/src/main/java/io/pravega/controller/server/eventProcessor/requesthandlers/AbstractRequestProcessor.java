@@ -126,7 +126,7 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
         OperationContext context = streamMetadataStore.createContext(scope, stream);
         CompletableFuture<String> waitingProcFuture = suppressException(streamMetadataStore.getWaitingRequestProcessor(scope, stream, context, executor), null,
                 "Exception while trying to fetch waiting request. Logged and ignored.");
-        CompletableFuture<Boolean> ignoreFairnessFuture = task.isRerun(event);
+        CompletableFuture<Boolean> ignoreFairnessFuture = task.hasTaskStarted(event);
         
         CompletableFuture.allOf(waitingProcFuture, ignoreFairnessFuture)
                 .thenAccept(v -> {
