@@ -36,7 +36,7 @@ public class RequestId {
     }
 
     @VisibleForTesting
-    public RequestId( int sessionId, int requestSequenceNumber) {
+    RequestId(int sessionId, int requestSequenceNumber) {
         this.sessionId = sessionId;
         this.requestSequenceNumber = requestSequenceNumber;
     }
@@ -52,7 +52,7 @@ public class RequestId {
 
     /**
      * Obtain the {@link RequestId} corresponding to the next sequence number as {@code long}.
-     * @return
+     * @return RequestId corresponding to next sequence number.
      */
     @Synchronized
     public long getNextSequenceNumber() {
