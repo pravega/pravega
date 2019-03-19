@@ -16,25 +16,21 @@ import com.google.common.cache.LoadingCache;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public class Cache {
+    
+    private final LoadingCache<CacheKey, CompletableFuture<VersionedMetadata<?>>> cache;
 
-    @FunctionalInterface
-    public interface Loader {
-        CompletableFuture<Data> get(final String key);
-    }
-
-    private final LoadingCache<String, CompletableFuture<Data>> cache;
-
-    public Cache(final Loader loader) {
+    public Cache(final Function<CacheKey, CompletableFuture<VersionedMetadata<?>>> loader) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(new CacheLoader<String, CompletableFuture<Data>>() {
+                .build(new CacheLoader<CacheKey, CompletableFuture<VersionedMetadata<?>>>() {
                     @ParametersAreNonnullByDefault
                     @Override
-                    public CompletableFuture<Data> load(final String key) {
-                        CompletableFuture<Data> result = loader.get(key);
+                    public CompletableFuture<VersionedMetadata<?>> load(final CacheKey key) {
+                        CompletableFuture<VersionedMetadata<?>> result = loader.apply(key);
                         result.exceptionally(ex -> {
                             invalidateCache(key);
                             return null;
@@ -44,17 +40,14 @@ public class Cache {
                 });
     }
 
-    public CompletableFuture<Data> getCachedData(final String key) {
+    CompletableFuture<VersionedMetadata<?>> getCachedData(CacheKey key) {
         return cache.getUnchecked(key);
     }
 
-    public Void invalidateCache(final String key) {
+     void invalidateCache(final CacheKey key) {
         cache.invalidate(key);
-        return null;
     }
-
-    public Void invalidateAll() {
-        cache.invalidateAll();
-        return null;
+    
+    public interface CacheKey {
     }
 }

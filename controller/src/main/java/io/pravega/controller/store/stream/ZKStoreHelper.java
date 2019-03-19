@@ -14,8 +14,10 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import lombok.AccessLevel;
+import lombok.Data;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,9 +35,16 @@ public class ZKStoreHelper {
     @Getter(AccessLevel.PACKAGE)
     private final CuratorFramework client;
     private final Executor executor;
+    private final Cache cache;
+
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
         client = cf;
         this.executor = executor;
+        this.cache = new Cache(x -> {
+            ZkCacheKey<?> key = (ZkCacheKey<?>) x;
+            return this.getData(key.getPath(), key.getFromBytesFunc())
+                    .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
+        });
     }
 
     /**
@@ -130,12 +139,12 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Data> getData(final String path) {
-        final CompletableFuture<Data> result = new CompletableFuture<>();
+    public <T> CompletableFuture<VersionedMetadata<T>> getData(final String path, Function<byte[], T> fromBytes) {
+        final CompletableFuture<VersionedMetadata<T>> result = new CompletableFuture<>();
 
         try {
             client.getData().inBackground(
-                    callback(event -> result.complete(new Data(event.getData(), new Version.IntVersion(event.getStat().getVersion()))),
+                    callback(event -> result.complete(new VersionedMetadata<>(fromBytes.apply(event.getData()), new Version.IntVersion(event.getStat().getVersion()))),
                             result::completeExceptionally, path), executor)
                     .forPath(path);
         } catch (Exception e) {
@@ -165,17 +174,17 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Integer> setData(final String path, final Data data) {
+    CompletableFuture<Integer> setData(final String path, final byte[] data, final Version version) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
-            if (data.getVersion() == null) {
+            if (version == null) {
                 client.setData().inBackground(
                         callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
-                        .forPath(path, data.getData());
+                        .forPath(path, data);
             } else {
-                client.setData().withVersion(data.getVersion().asIntVersion().getIntValue()).inBackground(
+                client.setData().withVersion(version.asIntVersion().getIntValue()).inBackground(
                         callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
-                        .forPath(path, data.getData());
+                        .forPath(path, data);
             }
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
@@ -341,4 +350,41 @@ public class ZKStoreHelper {
     PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
         return new PathChildrenCache(client, path, cacheData);
     }
+
+    <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String path, String id, Function<byte[], T> fromBytes) {
+        return cache.getCachedData(new ZkCacheKey<>(path, id, fromBytes))
+                .thenApply(this::getVersionedMetadata);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> VersionedMetadata<T> getVersionedMetadata(VersionedMetadata v) {
+        return new VersionedMetadata<>((T) v.getObject(), v.getVersion());
+    }
+
+    void invalidateCache(String path, String id) {
+        cache.invalidateCache(new ZkCacheKey<>(path, id, x -> null));
+    }
+
+    @Data
+    static class ZkCacheKey<T> implements Cache.CacheKey {
+        private final String path;
+        private final String id;
+        private final Function<byte[], T> fromBytesFunc;
+
+        @Override
+        public int hashCode() {
+            int result = 17;
+            result = 31 * result + path.hashCode();
+            result = 31 * result + id.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof ZkCacheKey 
+                    && path.equals(((ZkCacheKey) obj).path)
+                    && id.equals(((ZkCacheKey) obj).id);
+        }
+    }
+
 }

@@ -543,7 +543,7 @@ public abstract class StreamMetadataStoreTest {
         CompletableFuture<VersionedMetadata<EpochTransitionRecord>> resp = store.submitScale(scope, stream, scale3SealedSegments, Arrays.asList(segment6), scaleTs3, null, null, executor);
         updateEpochTransitionCalled.join();
         VersionedMetadata<EpochTransitionRecord> epochRecord = streamObj.getEpochTransition().join();
-        streamObj.updateEpochTransitionNode(new Data(EpochTransitionRecord.EMPTY.toBytes(), epochRecord.getVersion())).join();
+        streamObj.updateEpochTransitionNode(new VersionedMetadata<>(EpochTransitionRecord.EMPTY, epochRecord.getVersion())).join();
         latch.complete(null);
 
         AssertExtensions.assertFutureThrows("", resp, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
@@ -581,9 +581,9 @@ public abstract class StreamMetadataStoreTest {
         doAnswer(x -> streamObj.updateEpochTransitionNode(any())).when(streamObjSpied).updateEpochTransitionNode(any());
 
         doAnswer(x -> CompletableFuture.runAsync(() -> {
-            Data argument = x.getArgument(0);
+            VersionedMetadata<EpochTransitionRecord> argument = x.getArgument(0);
 
-            EpochTransitionRecord record = EpochTransitionRecord.fromBytes(argument.getData());
+            EpochTransitionRecord record = argument.getObject();
 
             if (record.getSegmentsToSeal().containsAll(segmentsToSeal)) {
                 // wait until we create epoch transition outside of this method
@@ -610,7 +610,7 @@ public abstract class StreamMetadataStoreTest {
                             EpochTransitionRecord record = RecordHelper.computeEpochTransition(epochRecord, segmentsToSeal2,
                                     Arrays.asList(segment2p), scaleTs2);
                             return streamObjSpied.getEpochTransition()
-                                .thenCompose(existing -> streamObjSpied.updateEpochTransitionNode(new Data(record.toBytes(), existing.getVersion())))
+                                .thenCompose(existing -> streamObjSpied.updateEpochTransitionNode(new VersionedMetadata<>(record, existing.getVersion())))
                                     .thenApply(v -> new VersionedMetadata<>(record, v));
                         })
                 .thenCompose(epochRecord -> store.getVersionedState(scope, stream, null, executor)

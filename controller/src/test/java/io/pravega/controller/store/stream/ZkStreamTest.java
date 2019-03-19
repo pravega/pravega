@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -50,6 +51,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
@@ -561,14 +563,14 @@ public class ZkStreamTest {
         String activeTxPath = stream.getActiveTxPath(0, txId.toString());
         // throw DataNotFoundException for txn path
         doReturn(Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "txn data not found")))
-                .when(storeHelper).getData(eq(activeTxPath));
+                .when(storeHelper).getData(eq(activeTxPath), any());
 
-        Map<String, Data> result = stream.getCurrentTxns().join();
+        Map<String, VersionedMetadata<ActiveTxnRecord>> result = stream.getCurrentTxns().join();
         // verify that call succeeds and no active txns were found
         assertTrue(result.isEmpty());
 
         // throw generic exception for txn path
-        doReturn(Futures.failedFuture(new RuntimeException())).when(storeHelper).getData(eq(activeTxPath));
+        doReturn(Futures.failedFuture(new RuntimeException())).when(storeHelper).getData(eq(activeTxPath), any());
 
         ZKStream stream2 = new ZKStream("scope", "stream", storeHelper);
         // verify that the call fails
