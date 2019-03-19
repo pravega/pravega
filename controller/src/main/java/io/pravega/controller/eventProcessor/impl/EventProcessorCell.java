@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
+import io.pravega.controller.eventProcessor.EventProcessorExecutionException;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreException;
 import io.pravega.controller.eventProcessor.ExceptionHandler;
@@ -34,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.zookeeper.KeeperException;
 
 /**
  * This is an internal class that embeds the following.
@@ -104,7 +106,12 @@ class EventProcessorCell<T extends ControllerEvent> {
                     try {
                         event = reader.readNextEvent(defaultTimeout);
                     } catch (HostStoreException e) {
-                        throw new EventProcessorReinitException("Exception reading events in EventProcessorCell", e.getCause());
+                        // In the case of a SessionExpiredException, we don't want to restart (the Controller itself will).
+                        if (e.getCause() instanceof KeeperException.SessionExpiredException) {
+                            throw new EventProcessorExecutionException("Exception reading events in EventProcessorCell", e.getCause());
+                        } else {
+                            throw e;
+                        }
                     }
                     if (event != null && event.getEvent() != null) {
                         // invoke the user specified event processing method
