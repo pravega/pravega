@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.test.common.AssertExtensions;
@@ -582,6 +583,57 @@ public class ZkStreamTest {
         assertEquals(1, result.size());
     }
 
+    @Test(timeout = 10000)
+    public void testStreamRecreation() {
+        // We will first create stream. Verify that its metadata is present in the cache.  
+        ZKStoreHelper storeHelper = new ZKStoreHelper(cli, executor);
+        String scope = "scope";
+        String stream1 = "streamToDelete";
+        ZKStream stream = new ZKStream(scope, stream1, storeHelper);
+        final int startingSegmentNumber = 0;
+        storeHelper.createZNodeIfNotExist("/store/scope").join();
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        stream.create(configuration1, System.currentTimeMillis(), startingSegmentNumber).join();
+        stream.createStreamPositionNodeIfAbsent(0).join();
+        stream.updateState(State.ACTIVE).join();
+        Long creationTime = stream.getCreationTime().join();
+        Integer position = stream.getStreamPosition().join();
+        assertEquals(0, position.intValue());
+        ZKStoreHelper.ZkCacheKey<Integer> key = new ZKStoreHelper.ZkCacheKey<>(stream.getCreationPath(), position.toString(), x -> BitConverter.readInt(x, 0));
+        VersionedMetadata<?> cachedCreationTime = storeHelper.getCache().getCachedData(key).join();
+        // verify that both times are same
+        assertEquals(creationTime, cachedCreationTime.getObject());
+        // delete stream.
+        stream.updateState(State.SEALING).join();
+        stream.updateState(State.SEALED).join();
+        stream.deleteStream().join();
+
+        // refresh the stream object to indicate new request context
+        stream.refresh();
+        // verify that metadata doesnt exist in the store.
+        AssertExtensions.assertFutureThrows("Stream deleted", stream.getCreationTime(), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        
+        // verify that cached entries still exist. 
+        VersionedMetadata<?> cachedCreationTimeExists = storeHelper.getCache().getCachedData(key).join();
+        assertEquals(cachedCreationTime.getObject(), cachedCreationTimeExists.getObject());
+        
+        // create stream again.
+        stream.create(configuration1, System.currentTimeMillis(), startingSegmentNumber).join();
+        stream.createStreamPositionNodeIfAbsent(1).join();
+        stream.updateState(State.ACTIVE).join();
+
+        Long creationTimeNew = stream.getCreationTime().join();
+        Integer positionNew = stream.getStreamPosition().join();
+        assertEquals(1, positionNew.intValue());
+
+        ZKStoreHelper.ZkCacheKey<Integer> keyNew = new ZKStoreHelper.ZkCacheKey<>(stream.getCreationPath(), positionNew.toString(), x -> BitConverter.readInt(x, 0));
+        VersionedMetadata<?> cachedCreationTimeNew = storeHelper.getCache().getCachedData(keyNew).join();
+        // verify that both times are different
+        assertNotEquals(creationTime, creationTimeNew);
+        assertNotEquals(cachedCreationTime.getObject(), cachedCreationTimeNew.getObject());
+    }
+    
     private void testCommitFailure(StreamMetadataStore store, String scope, String stream, int epoch, UUID txnId,
                                    OperationContext context,
                                    Predicate<Throwable> checker) {

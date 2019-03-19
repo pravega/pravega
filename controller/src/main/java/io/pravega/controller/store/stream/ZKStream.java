@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -78,6 +79,8 @@ class ZKStream extends PersistentStreamBase {
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
     
     private final ZKStoreHelper store;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final String creationPath;
     private final String configurationPath;
     private final String truncationPath;
@@ -100,7 +103,7 @@ class ZKStream extends PersistentStreamBase {
     private final String segmentsSealedSizeMapShardPathFormat;
 
     private final Supplier<Integer> currentBatchSupplier;
-    private final AtomicReference<String> id;
+    private final AtomicReference<String> idRef;
     
     @VisibleForTesting
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
@@ -141,7 +144,7 @@ class ZKStream extends PersistentStreamBase {
         historyTimeSeriesChunkPathFormat = String.format(HISTORY_TIMESERIES_CHUNK_PATH, scopeName, streamName) + "/%d";
         segmentSealedEpochPathFormat = String.format(SEGMENT_SEALED_EPOCH_PATH, scopeName, streamName) + "/%d";
         segmentsSealedSizeMapShardPathFormat = String.format(SEGMENTS_SEALED_SIZE_MAP_SHARD_PATH, scopeName, streamName) + "/%d";
-        id = new AtomicReference<>();
+        idRef = new AtomicReference<>();
         this.currentBatchSupplier = currentBatchSupplier;
     }
 
@@ -631,26 +634,39 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     public void refresh() {
-        // refresh all mutable records
-        String id = this.id.get();
+        String id = this.idRef.get();
         if (id != null) {
+            // invalidate all mutable records in the cache 
             store.invalidateCache(statePath, id);
             store.invalidateCache(configurationPath, id);
             store.invalidateCache(truncationPath, id);
             store.invalidateCache(epochTransitionPath, id);
             store.invalidateCache(committingTxnsPath, id);
             store.invalidateCache(currentEpochRecordPath, id);
+            // reset id to null so that its retrieved from the store again
+            this.idRef.set(null);
         }
     }
 
+    /**
+     * Method to retrieve unique Id for the stream. We use streamPosition as the unique id for the stream.
+     * If the id had been previously retrieved then this method simply returns
+     * the previous value else it retrieves the stored stream position from zookeeper. 
+     * The id of a stream is fixed for lifecycle of a stream and only changes when the stream is deleted and recreated. 
+     * The id is used for caching entities and safeguarding against stream recreation. 
+     * @return CompletableFuture which when completed contains stream's position as the id. 
+     */
     private CompletableFuture<String> getId() {
-        String id = this.id.get();
-        if (id != null) {
+        String id = this.idRef.get();
+        if (!Strings.isNullOrEmpty(id)) {
             return CompletableFuture.completedFuture(id);
         } else {
             return getStreamPosition()
-                    .thenAccept(pos -> this.id.compareAndSet(null, pos.toString()))
-                    .thenCompose(v -> getId());
+                    .thenApply(pos -> {
+                        String s = pos.toString();
+                        this.idRef.compareAndSet(null, s);
+                        return s;
+                    });
         }
     }
     // endregion

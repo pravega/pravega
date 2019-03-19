@@ -18,15 +18,24 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+/**
+ * Cache for asynchronously retrieving and loading records from underlying store using the supplied loader.
+ * This uses Guava's loading cache and takes a loader function for loading entries into the cache. 
+ * This class caches Futures which hold the metadata record with version. The cache is untyped and the CompletableFutures
+ * can hold any value under the VersionedMetadata wrapper.
+ * The values are by default held for 2 minutes after creation unless invalidated explicitly.
+ * The maximum number of records that can be held in the cache is 10000. 
+ */
 public class Cache {
+    private static final int MAX_CACHE_SIZE = 10000;
     
     private final LoadingCache<CacheKey, CompletableFuture<VersionedMetadata<?>>> cache;
 
     public Cache(final Function<CacheKey, CompletableFuture<VersionedMetadata<?>>> loader) {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(10000)
-                .expireAfterWrite(10, TimeUnit.MINUTES)
-                .build(new CacheLoader<CacheKey, CompletableFuture<VersionedMetadata<?>>>() {
+                            .maximumSize(MAX_CACHE_SIZE)
+                            .expireAfterWrite(2, TimeUnit.MINUTES)
+                            .build(new CacheLoader<CacheKey, CompletableFuture<VersionedMetadata<?>>>() {
                     @ParametersAreNonnullByDefault
                     @Override
                     public CompletableFuture<VersionedMetadata<?>> load(final CacheKey key) {
@@ -44,10 +53,13 @@ public class Cache {
         return cache.getUnchecked(key);
     }
 
-     void invalidateCache(final CacheKey key) {
+    void invalidateCache(final CacheKey key) {
         cache.invalidate(key);
     }
-    
+
+    /**
+     * All entries in the cache are cached against objects of type CacheKey. 
+     */
     public interface CacheKey {
     }
 }
