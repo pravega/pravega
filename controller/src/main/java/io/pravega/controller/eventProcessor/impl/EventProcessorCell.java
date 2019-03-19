@@ -19,6 +19,7 @@ import io.pravega.controller.eventProcessor.ExceptionHandler;
 import io.pravega.controller.eventProcessor.EventProcessorInitException;
 import io.pravega.controller.eventProcessor.EventProcessorReinitException;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
+import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
@@ -100,7 +101,11 @@ class EventProcessorCell<T extends ControllerEvent> {
 
             while (isRunning()) {
                 try {
-                    event = reader.readNextEvent(defaultTimeout);
+                    try {
+                        event = reader.readNextEvent(defaultTimeout);
+                    } catch (HostStoreException e) {
+                        throw new EventProcessorReinitException("Exception reading events in EventProcessorCell", e.getCause());
+                    }
                     if (event != null && event.getEvent() != null) {
                         // invoke the user specified event processing method
                         actor.process(event.getEvent(), event.getPosition());
@@ -112,7 +117,6 @@ class EventProcessorCell<T extends ControllerEvent> {
                     handleException(e);
                 }
             }
-
         }
 
         @Override
