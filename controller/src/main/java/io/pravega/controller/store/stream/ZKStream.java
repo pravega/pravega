@@ -661,12 +661,16 @@ class ZKStream extends PersistentStreamBase {
         if (!Strings.isNullOrEmpty(id)) {
             return CompletableFuture.completedFuture(id);
         } else {
-            return getStreamPosition()
+            // We will return empty string as id if the position does not exist. 
+            // This can happen if stream is being created and we access the cache. 
+            // Even if we access/load the cache against empty id, eventually cache will be populated against correct id 
+            // once it is created. 
+            return Futures.exceptionallyExpecting(getStreamPosition()
                     .thenApply(pos -> {
                         String s = pos.toString();
                         this.idRef.compareAndSet(null, s);
                         return s;
-                    });
+                    }), e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, "");
         }
     }
     // endregion
