@@ -92,9 +92,8 @@ jobs:
          - kubectl create serviceaccount --namespace kube-system tiller
          - kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
          - helm init --wait --service-account tiller
-         # Install NFS provisioner
-         - helm install stable/nfs-server-provisioner
-         # Create pravega-tier2 PVC
+         # Configure Tier 2
+         - helm install stable/nfs-client-provisioner --name nfs-cp --set nfs.server=172.20.15.34 --set nfs.path=/data --set storageClass.name=nfs
          - kubectl create -f https://raw.githubusercontent.com/pravega/pravega-operator/master/test/e2e/resources/tier2.yaml
       script:
          # ping stdout every 5 minutes or Travis kills build
