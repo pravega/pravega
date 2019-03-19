@@ -96,8 +96,8 @@ public class K8SequentialExecutor implements TestExecutor {
 
     private void verifyPravegaPodRestart(Map<String, V1ContainerStatus> podStatusBeforeTest, Map<String, V1ContainerStatus> podStatusAfterTest) {
         Map<String, V1ContainerStatus> restartMapFinal = podStatusAfterTest.entrySet().stream()
-                                                                           .filter(e -> podStatusBeforeTest.containsKey(e.getKey())
-                                                                                   && podStatusBeforeTest.get(e.getKey()).getRestartCount() < e.getValue().getRestartCount())
+                                                                           .filter(e -> !podStatusBeforeTest.containsKey(e.getKey()) ||
+                                                                                   podStatusBeforeTest.get(e.getKey()).getRestartCount() < e.getValue().getRestartCount())
                                                                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         if (restartMapFinal.size() != 0) {
             log.error("Pravega pods have restarted, Details: {}", restartMapFinal);
