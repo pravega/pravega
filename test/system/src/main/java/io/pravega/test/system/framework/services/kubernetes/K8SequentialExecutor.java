@@ -54,11 +54,10 @@ public class K8SequentialExecutor implements TestExecutor {
         log.info("Start execution of test {}#{} on the KUBERNETES Cluster", className, methodName);
 
         final K8sClient client = ClientFactory.INSTANCE.getK8sClient();
-        // Fetch the current status of all the Pravega pods.
+
         Map<String, V1ContainerStatus> podStatusBeforeTest = getPravegaPodStatus(client);
 
         final V1Pod pod = getTestPod(className, methodName, podName.toLowerCase());
-
         return client.createServiceAccount(NAMESPACE, getServiceAccount()) // create service Account, ignore if already present.
                      .thenCompose(v -> client.createClusterRoleBinding(getClusterRoleBinding())) // ensure test pod has cluster admin rights.
                      .thenCompose(v -> client.deployPod(NAMESPACE, pod)) // deploy test pod.
@@ -80,12 +79,18 @@ public class K8SequentialExecutor implements TestExecutor {
                              throw new CompletionException("Error while invoking the test " + podName, t);
                          }
                      });
-
     }
 
     private Map<String, V1ContainerStatus> getPravegaPodStatus(K8sClient client) {
+        // fetch the status of pods deployed by Pravega-operator and zookeeper operator.
+        Map<String, V1ContainerStatus> podStatusBeforeTest = getApplicationPodStatus(client, "app", "pravega-cluster");
+        podStatusBeforeTest.putAll(getApplicationPodStatus(client, "app", "zookeeper"));
+        return podStatusBeforeTest;
+    }
+
+    private Map<String, V1ContainerStatus> getApplicationPodStatus(K8sClient client, String labelName, String labelValue) {
         return Futures.getAndHandleExceptions(
-                client.getRestartedPods("default", "app", "pravega-cluster"),
+                client.getRestartedPods(NAMESPACE, labelName, labelValue),
                 t -> new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Failed to get status of Pravega pods", t));
     }
 
