@@ -14,7 +14,6 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.IdGenerator;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
@@ -68,7 +67,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                     .run(() -> {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionFactory, segmentId);
-                            long requestId = client.getRequesterId().updateAndGet(IdGenerator.getRequestId());
+                            long requestId = client.getRequestId().getNextSequenceNumber();
                             log.debug("Setting up append on segment: {}", segmentId);
                             SetupAppend setup = new SetupAppend(requestId, writerId,
                                                                 segmentId.getScopedName(),
@@ -79,7 +78,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                                 return true;
                             }
                         }
-                        long requestId = client.getRequesterId().updateAndGet(IdGenerator.getRequestId());
+                        long requestId = client.getRequestId().getNextSequenceNumber();
                         val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
                                                             new Event(Unpooled.wrappedBuffer(data)), requestId);
                         val reply = client.sendRequest(requestId, request);
