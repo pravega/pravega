@@ -54,7 +54,6 @@ The below command will download and run Pravega from the container image on dock
 
 **Note:** We must replace the `<ip>` with the IP of our machine to connect to Pravega from our local machine. Optionally we can replace `latest` with the version of Pravega as per the requirement.
 
-
 ```
 docker run -it -e HOST_IP=<ip> -p 9090:9090 -p 12345:12345 pravega/pravega:latest standalone
 ```
@@ -63,7 +62,6 @@ docker run -it -e HOST_IP=<ip> -p 9090:9090 -p 12345:12345 pravega/pravega:lates
 
 Unlike other options for running locally, the docker compose option runs a full deployment of Pravega
 in distributed mode. It contains containers for running Zookeeper, Bookkeeper and HDFS. Hence Pravega operates as if it would in production. This is the easiest way to get started with the standalone option but requires additional resources.
-
 
 **Prerequisite:** Docker `1.12` or later.
 
@@ -74,6 +72,7 @@ wget https://raw.githubusercontent.com/pravega/pravega/master/docker/compose/doc
 ```
 
 We need to set the IP address of our local machine as the value of `HOST_IP` in the following command.
+
 ```
 HOST_IP=1.2.3.4 docker-compose up
 ```
@@ -81,13 +80,11 @@ Clients can then connect to the controller at `${HOST_IP}:9090`.
 
 ## Running Pravega in Standalone Mode with SSL/TLS Enabled
 
-By default the `singlenode.enableTls` (SSl/TLS) is disabled. To enable it, set the value of  `singlenode.enableTls` to **True**. Once the `enableTls` (TLS) is enabled, the default certificates provided in the `conf` directory are used for setting up TLS.
-
-Set the following configuration properties:
+SSL/TLS `singlenode.enableTls` is disabled by default in Pravega standalone mode cluster. The following steps explains how to enable and run standalone mode cluster with SSL/TLS enabled:
 
 1. Configure standalone server to communicate using SSL/TLS. To do so, edit the TLS-related properties in `standalone-config.properties` as shown below:
 
-  ```java
+```java
   singlenode.enableTls=true
   singlenode.keyFile=../config/key.pem
   singlenode.certFile=../config/cert.pem
@@ -95,17 +92,17 @@ Set the following configuration properties:
   singlenode.keyStoreJKSPasswordFile=../config/standalone.keystore.jks.passwd
   singlenode.trustStoreJKS=../config/standalone.truststore.jks
 
-  ```
+```
 
 2. Ensure that the server's certificate is trusted. If you run `./gradlew startStandalone` without it, you'll encounter the following error:
 
-  ```java
+```java
   Caused by: sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
           at sun.security.validator.PKIXValidator.doBuild(PKIXValidator.java:397)
           at sun.security.validator.PKIXValidator.engineValidate(PKIXValidator.java:302)
           at sun.security.validator.Validator.validate(Validator.java:260)
           at sun.security.ssl.X509TrustManagerImpl.validate(X509TrustManager
-  ```
+```
 
 To ensure the server's certificate is trusted, import it into the JVM's truststore. The following command sequence is used (in Linux) with the provided certificate file `cert.pem`.
 
@@ -128,19 +125,18 @@ Here are the steps you can use to add the provided `cert.pem` into the JVM's sys
 
 4. Verify that controller REST API is returning response over SSL/TLS:
 
-    ```java
+```java
      curl -v -k https://104.215.152.115:9091/v1/scopes
-    ```
-    `-v` is to avoid hostname verification, since we are using the provided certificate
-    which isn't assigned to your hostname. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
+```
+`-v` is to avoid hostname verification, since we are using the provided certificate which isn't assigned to your hostname. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
 
 5. Run Reader/Writer [Pravega sample applications](https://github.com/pravega/pravega-samples/blob/master/pravega-client-examples/README.md) against the standalone server to verify it is responding appropriately to `Read/Write` requests. To do so, in the `ClientConfig`, set the following:
 
-    ```java
+```java
     ClientConfig clientConfig = ClientConfig.builder()
                  .controllerURI(...)
                  .trustStore("/path/to/cert.pem")
                  .validateHostName(false)
                  .build();
-    ```
+```
 6. Everything else should be the same as the Reader/Writer apps.
