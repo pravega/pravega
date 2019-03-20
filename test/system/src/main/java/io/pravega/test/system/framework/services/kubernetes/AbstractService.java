@@ -72,12 +72,12 @@ public abstract class AbstractService implements Service {
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
+    static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
     private static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
     private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
     private static final String PRAVEGA_OPERATOR_IMAGE = System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest");
-    static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
