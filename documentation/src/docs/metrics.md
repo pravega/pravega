@@ -370,7 +370,7 @@ public class MetricsConfig extends ComponentConfig {
 
 # Configuring Own Metrics
 
-1. On the start of a segment store/controller service, start a Metrics service as a sub service. Please check [`ServiceStarter.start()`](#example-for-starting-a-metric-service)
+1. On the start of a Segment Store/Controller Service, start a Metric Service as a sub service. Please check [`ServiceStarter.start()`](#example-for-starting-a-metric-service)
 
 ```java
 public class AddMetrics {
@@ -418,7 +418,7 @@ public class AddMetrics {
 
 ## Metrics in Segment Store Service
 
-- Segment Store Read/Write latency of storage operations (Histograms):
+- Segment Store Read/Write latency of storage operations ([Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
 
 ```
 segmentstore.segment.create_latency_ms
@@ -426,7 +426,7 @@ segmentstore.segment.read_latency_ms
 segmentstore.segment.write_latency_ms
 ```
 
-- Segment Store global and per-segment Read/Write Metrics (Counters):
+- Segment Store global and per-segment Read/Write Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
 
 ```
 // Global counters
@@ -440,28 +440,28 @@ segmentstore.segment.read_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
 segmentstore.segment.write_events.$scope.$stream.$segment.#epoch.$epoch.Counter
 ```
 
-- Segment Store cache Read/Write latency Metrics (Histogram):
+- Segment Store cache Read/Write latency Metrics ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
 
 ```
 segmentstore.cache.insert_latency_ms
 segmentstore.cache.get_latency
 ```
 
-- Segment Store cache Read/Write Metrics (Counters):
+- Segment Store cache Read/Write Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
 
 ```
 segmentstore.cache.write_bytes.Counter
 segmentstore.cache.read_bytes.Counter
 ```
 
-- Segment Store cache size (Gauge) and generation spread (Histogram) Metrics:
+- Segment Store cache size (Gauge) and generation spread ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)) Metrics:
 
 ```
 segmentstore.cache.size_bytes.Gauge
 segmentstore.cache.gen
 ```
 
-- Tier 1 Storage `DurableDataLog` Read/Write latency and queueing Metrics (Histogram):
+- Tier 1 Storage `DurableDataLog` Read/Write latency and queueing Metrics ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
 
 ```
 segmentstore.bookkeeper.total_write_latency_ms
@@ -470,21 +470,21 @@ segmentstore.bookkeeper.write_queue_size
 segmentstore.bookkeeper.write_queue_fill
 ```
 
-- Tier 1 Storage `DurableDataLog` Read/Write (Counter) and per-container ledger count Metrics (Gauge):
+- Tier 1 Storage `DurableDataLog` Read/Write ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) and per-container ledger count Metrics ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)):
 
 ```
 segmentstore.bookkeeper.write_bytes.Counter
 segmentstore.bookkeeper.bookkeeper_ledger_count.$containerId.Gauge
 ```
 
-- Tier 2 Storage Read/Write latency Metrics (Histogram):
+- Tier 2 Storage Read/Write latency Metrics ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
 
 ```
 segmentstore.storage.read_latency_ms
 segmentstore.storage.write_latency_ms
 ```
 
-- Tier 2 Storage Read/Write data and file creation Metrics (Counters):
+- Tier 2 Storage Read/Write data and file creation Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters):
 
 ```
 segmentstore.storage.read_bytes.Counter
@@ -511,7 +511,7 @@ segmentstore.container.operation_commit.memory_latency_ms.$containerId
 segmentstore.container.operation.log_size.$containerId.Gauge
 ```
 
-- Segment Store operation processor (Counter) Metrics:
+- Segment Store operation processor ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
 
 ```
 // Counters/Meters
@@ -529,7 +529,7 @@ segmentstore.container.truncate_count.$containerId.Meter
 
 ```
 
-- Segment Store active Segments (Gauge) and thread pool status (Histogram) Metrics:
+- Segment Store active Segments ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) and thread pool status ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)) Metrics:
 ```
 // Gauge
 segmentstore.active_segments.$containerId.Gauge
@@ -541,7 +541,7 @@ segmentstore.thread_pool.active_threads
 
 ## Metrics in Controller Service
 
-- Controller Stream operation latency Metrics (Histograms):
+- Controller Stream operation latency Metrics ([Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
 ```
 controller.stream.created_latency_ms
 controller.stream.sealed_latency_ms
@@ -550,7 +550,7 @@ controller.stream.updated_latency_ms
 controller.stream.truncated_latency_ms
 ```
 
-- Controller global and per-Stream operation Metrics (Counters):
+- Controller global and per-Stream operation Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
 ```
 controller.stream.created.Counter
 controller.stream.create_failed_global.Counter
@@ -571,13 +571,13 @@ controller.stream.truncate_failed_global.Counter
 controller.stream.truncate_failed.$scope.$stream.Counter
 ```
 
-- Controller Stream retention frequency (Counter) and truncated size (Gauge) Metrics:
+- Controller Stream retention frequency ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) and truncated size ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) Metrics:
 ```
 controller.retention.frequency.$scope.$stream.Counter
 controller.retention.truncated_size.$scope.$stream.Gauge
 ```
 
-- Controller Stream Segment operations (Counters) and open/timed out Transactions on a Stream (Gauge/Counter) Metrics:
+- Controller Stream Segment operations ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) and open/timed out Transactions on a Stream ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#guages)/[Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
 ```
 controller.transactions.opened.$scope.$stream.Gauge
 controller.transactions.timedout.$scope.$stream.Counter
@@ -611,14 +611,14 @@ controller.transactions.abort_failed.$scope.$stream.Counter
 controller.transactions.abort_failed.$scope.$stream.$txnId.Counter
 ```
 
-- Controller hosts available (Gauge) and host failure (Counter) Metrics:
+- Controller hosts available ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) and host failure ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
 ```
 controller.hosts.count.Gauge
 controller.hosts.failures_global.Counter
 controller.hosts.failures.$host.Counter
 ```
 
-- Controller Container count per host (Gauge) and failover (Counter) Metrics:
+- Controller Container count per host ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) and failover ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
 ```
 controller.hosts.container_count.Gauge
 controller.container.failovers_global.Counter
