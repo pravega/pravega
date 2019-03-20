@@ -28,6 +28,7 @@ import io.kubernetes.client.models.V1beta1CustomResourceDefinition;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionBuilder;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionNamesBuilder;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionSpecBuilder;
+import io.kubernetes.client.models.V1beta1CustomResourceDefinitionStatus;
 import io.kubernetes.client.models.V1beta1PolicyRuleBuilder;
 import io.kubernetes.client.models.V1beta1Role;
 import io.kubernetes.client.models.V1beta1RoleBinding;
@@ -75,8 +76,11 @@ public abstract class AbstractService implements Service {
     private static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
     private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
-    private static final String PRAVEGA_OPERATOR_VERSION = System.getProperty("pravegaOperatorVersion", "latest");
+    private static final String PRAVEGA_OPERATOR_IMAGE = System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest");
+    static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
+    private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
+    private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
 
@@ -115,8 +119,8 @@ public abstract class AbstractService implements Service {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
         // use the latest version of bookkeeper.
-        final Map<String, Object> bookeeperSpec = ImmutableMap.<String, Object>builder().put("image",
-                                                                                             getImageSpec(DOCKER_REGISTRY + PREFIX + "/bookkeeper", PRAVEGA_BOOKKEEPER_VERSION))
+        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image",
+                                                                                             getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, PRAVEGA_BOOKKEEPER_VERSION))
                                                                                         .put("replicas", bookieCount)
                                                                                         .put("storage", ImmutableMap.builder()
                                                                                                                     .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
@@ -146,7 +150,7 @@ public abstract class AbstractService implements Service {
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
                                                                                       .put("options", options)
                                                                                       .put("image",
-                                                                                           getImageSpec(DOCKER_REGISTRY + PREFIX + "/pravega", PRAVEGA_VERSION))
+                                                                                           getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME, PRAVEGA_VERSION))
                                                                                       .put("tier2", tier2Spec())
                                                                                       .build();
         return ImmutableMap.<String, Object>builder()
@@ -154,7 +158,7 @@ public abstract class AbstractService implements Service {
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
                 .put("spec", ImmutableMap.builder().put("zookeeperUri", zkLocation)
-                                         .put("bookkeeper", bookeeperSpec)
+                                         .put("bookkeeper", bookkeeperSpec)
                                          .put("pravega", pravegaSpec)
                                          .build())
                 .build();
@@ -217,6 +221,9 @@ public abstract class AbstractService implements Service {
                                                      .build())
                                   .withScope("Namespaced")
                                   .withVersion(CUSTOM_RESOURCE_VERSION_PRAVEGA)
+                                  .withNewSubresources()
+                                                     .withStatus(new V1beta1CustomResourceDefinitionStatus())
+                                  .endSubresources()
                                   .build())
                 .build();
 
@@ -261,7 +268,7 @@ public abstract class AbstractService implements Service {
 
     private V1Deployment getPravegaOperatorDeployment() {
         V1Container container = new V1ContainerBuilder().withName(PRAVEGA_OPERATOR)
-                                                        .withImage("pravega/pravega-operator:" + PRAVEGA_OPERATOR_VERSION)
+                                                        .withImage(PRAVEGA_OPERATOR_IMAGE)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand(PRAVEGA_OPERATOR)
                                                         // start the pravega-operator in test mode to disable minimum replica count check.
