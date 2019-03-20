@@ -123,7 +123,6 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                                                                                            .sorted(Comparator.comparingInt(x ->
                                                                                                    StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % NUM_SEGMENTS))
                                                                                            .collect(Collectors.toList()));
-                                    log.info("found segments in epoch = {}", sorted);
                                     listOfEpochs.add(sorted);
                                     // note: with SCALES_TO_PERFORM < NUM_SEGMENTS, we can use the segment number as the index
                                     // into the range map
