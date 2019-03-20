@@ -79,13 +79,11 @@ The `ApppendBlockEnd` has a `sizeOfWholeEvents` to allow the append block to be 
 
 1.  `Data`: It contains the Event's data (only valid inside the block).
 
-
 ## Data Appended - Reply
 
 1. `writerId`: UUID (16 bytes).It identifies the requesting appender.
 2. `eventNumber`: Long (8 bytes). This matches the `lastEventNumber` in the append block.
 3. `previousEventNumber`: Long (8 bytes). This is the previous value of `eventNumber` that was returned in the last `DataAppeneded`.
-
 
 When appending a client:
 
