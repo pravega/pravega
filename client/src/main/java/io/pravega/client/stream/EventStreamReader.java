@@ -71,4 +71,12 @@ public interface EventStreamReader<T> extends AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Close the reader. No further actions may be performed. If this reader is part of a {@link ReaderGroup}, this will
+     * automatically invoke {@link ReaderGroup#readerOffline(String, Position)} with the supplied position.
+     *
+     * @param position {@link Position} to use while reporting readerOffline on the {@link ReaderGroup}.
+     */
+    void close(Position position);
 }
