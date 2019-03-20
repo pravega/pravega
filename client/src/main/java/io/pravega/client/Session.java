@@ -17,32 +17,36 @@ import lombok.Synchronized;
 import lombok.ToString;
 
 /**
- * The class represents a request id that is sent as part of every WireCommand. It consists of a
+ * The class represents a Session between a Segment client and the SegmentStore. It consists of a
  * <i>sessionId</i> and a <i>requestSequenceNumber</i>. The <i>sessionId</i> is used to represent the
  * communication between Segment clients and the SegmentStore which uses an underlying
  * connection pool. This <i>sessionId</i> is unique per connection pool.
  * The <i>requestSequenceNumber</i> is used to represent the requestSequence for a given session.
  */
 @ToString
-public class RequestId {
+public class Session {
     private static final AtomicInteger ID_GENERATOR = new AtomicInteger(0);
     @Getter
     private final int sessionId;
     @GuardedBy("$LOCK")
     private int requestSequenceNumber = 0;
 
-    public RequestId() {
-        this(ID_GENERATOR.updateAndGet(i -> i == Integer.MAX_VALUE ? 0 : i + 1), 0);
-    }
-
     @VisibleForTesting
-    RequestId(int sessionId, int requestSequenceNumber) {
+    public Session(int sessionId, int requestSequenceNumber) {
         this.sessionId = sessionId;
         this.requestSequenceNumber = requestSequenceNumber;
     }
 
     /**
-     * Return a {@code long} representation of {@link RequestId}.
+     * Create a new Session.
+     * @return Session.
+     */
+    public static Session create() {
+        return new Session(ID_GENERATOR.updateAndGet(i -> i == Integer.MAX_VALUE ? 0 : i + 1), 0);
+    }
+
+    /**
+     * Return a {@code long} representation of {@link Session}.
      * @return long representation.
      */
     @Synchronized
@@ -51,8 +55,8 @@ public class RequestId {
     }
 
     /**
-     * Obtain the {@link RequestId} corresponding to the next sequence number as {@code long}.
-     * @return RequestId corresponding to next sequence number.
+     * Obtain a {@code long} representation of {@link Session} with the next sequence number.
+     * @return {@code long} representation of {@link Session} with the next sequence number.
      */
     @Synchronized
     public long getNextSequenceNumber() {

@@ -14,11 +14,11 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class RequestIdTest {
+public class SessionTest {
 
     @Test
     public void testNextSequenceNumber() {
-        RequestId id = new RequestId();
+        Session id = Session.create();
         assertEquals(id.getSessionId(), (int) (id.asLong() >> 32));
         assertEquals("SequenceNumber should be 0 for " + id, 0, (int) id.asLong());
         assertEquals("SequenceNumber should be incremented", (int) id.asLong() + 1, (int) id.getNextSequenceNumber());
@@ -26,7 +26,7 @@ public class RequestIdTest {
 
     @Test
     public void testSequenceNumberOverflow() {
-        RequestId id = new RequestId(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        Session id = new Session(Integer.MAX_VALUE, Integer.MAX_VALUE);
         assertEquals(0,  (int) id.getNextSequenceNumber());
     }
 }

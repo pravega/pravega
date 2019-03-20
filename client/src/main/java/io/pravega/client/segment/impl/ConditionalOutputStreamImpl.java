@@ -67,7 +67,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                     .run(() -> {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionFactory, segmentId);
-                            long requestId = client.getRequestId().getNextSequenceNumber();
+                            long requestId = client.getSession().getNextSequenceNumber();
                             log.debug("Setting up append on segment: {}", segmentId);
                             SetupAppend setup = new SetupAppend(requestId, writerId,
                                                                 segmentId.getScopedName(),
@@ -78,7 +78,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                                 return true;
                             }
                         }
-                        long requestId = client.getRequestId().getNextSequenceNumber();
+                        long requestId = client.getSession().getNextSequenceNumber();
                         val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
                                                             new Event(Unpooled.wrappedBuffer(data)), requestId);
                         val reply = client.sendRequest(requestId, request);

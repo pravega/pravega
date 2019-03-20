@@ -12,7 +12,7 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.RequestId;
+import io.pravega.client.Session;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
@@ -80,7 +80,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final String delegationToken;
     @VisibleForTesting
     @Getter
-    private final long requestId = new RequestId().asLong();
+    private final long requestId = Session.create().asLong();
 
     /**
      * Internal object that tracks the state of the connection.

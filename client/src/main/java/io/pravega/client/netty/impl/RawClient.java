@@ -10,7 +10,7 @@
 package io.pravega.client.netty.impl;
 
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.RequestId;
+import io.pravega.client.Session;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
@@ -45,7 +45,7 @@ public class RawClient implements AutoCloseable {
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @Getter
-    private final RequestId requestId = new RequestId();
+    private final Session session = Session.create();
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
