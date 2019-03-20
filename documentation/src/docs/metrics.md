@@ -255,7 +255,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     …
 }
 ```
-Using the above example, following are the required steps to register and use a metric in desired class and method:
+Using the above example, following are the required steps to register and use a metric in the desired class and method:
 
 1. Get a `StatsLogger` from `MetricsProvider`.
 
@@ -271,7 +271,7 @@ static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGM
 ```
 Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
 ```
-Here `CREATE_STREAM_SEGMENT` is the name of this metric, and `CREATE_STREAM_SEGMENT` is the name of our Metrics logger. It will track operations of `createSegment`, and we will get the time of each `createSegment` operation happened, (like time taken by each operation and other numbers computed based on them).
+The `CREATE_STREAM_SEGMENT` is the name of this metric, and `CREATE_STREAM_SEGMENT` is the name of our Metrics logger. It will track operations of `createSegment`, and we will get the time (i.e. time taken by each operation and other numbers computed based on them) for each `createSegment` operation happened.
 
 ### Output Example of OpStatsLogger
 
@@ -286,7 +286,10 @@ t,count,max,mean,min,stddev,p50,p75,p95,p98,p99,p999,mean_rate,m1_rate,m5_rate,m
 
 ## Example for Dynamic Gauge and OpStatsLogger(Histogram)
 
-This is an example from `io.pravega.controller.store.stream.AbstractStreamMetadataStore`. In the class, `AbstractStreamMetadataStore` we report a Dynamic Gauge which represents the open Transactions and  one Histogram (`CREATE_STREAM`).
+This is an example from `io.pravega.controller.store.stream.AbstractStreamMetadataStore`. In the class, `AbstractStreamMetadataStore` we report a Dynamic Gauge which represents:
+
+- Open Transactions
+- One Histogram (`CREATE_STREAM`).
 
 ```java
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore  {
@@ -332,11 +335,11 @@ public final class SegmentStoreMetrics {
 
 # Metric Reporter and Configurations
 
-Reporters are the way through which we export all the measurements being made by the metrics. We currently provide StatsD and [CSV](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) output. It is not difficult to add new output formats, such as **JMX/SLF4J**.
+Reporters are used to export all the measurements being made by the metrics. We currently provide [StatsD](https://github.com/b/statsd_spec) and [CSV](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) output. It is not difficult to add new output formats, such as **[JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx)/[SLF4J](https://metrics.dropwizard.io/3.1.0/manual/core/#slf4j)**.
 
-- **CSV** reporter will export each Metric into one file.
-- **StatsD** reporter will export Metrics through UDP/TCP to a StatsD server.
-The reporter could be configured through `MetricsConfig`.
+- [**CSV**](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) reporter will export each Metric into one file.
+- [**StatsD**](https://github.com/b/statsd_spec) reporter will export Metrics through UDP/TCP to a StatsD server.
+The reporter could be configured using the `MetricsConfig`.
 
 ```java
 public class MetricsConfig extends ComponentConfig {
