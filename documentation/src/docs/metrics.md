@@ -15,7 +15,7 @@ You may obtain a copy of the License at
    - [Metric Logger — Interface StatsLogger](#metric-logger--interface-statslogger)
    - [Metric Sub Logger — OpStatsLogger](#metric-sub-logger--opstatslogger)
    - [Metric Logger — Interface DynamicLogger](#metric-logger--interface-dynamiclogger)
-* [Example for starting a Metric Service](#example-for-starting-a-metric-service)
+* [Example for Starting a Metric Service](#example-for-starting-a-metric-service)
    - [Example for Dynamic Counter and OpStatsLogger(Timer)](#example-for-dynamic-counter-and-opstatsloggertimer)
        - [Output Example of OpStatsLogger](#output-example-of-opstatslogger)
    - [Example for Dynamic Gauge and OpStatsLogger(Histogram)](#example-for-dynamic-gauge-and-opstatsloggerhistogram)
@@ -46,7 +46,7 @@ Following are four basic interfaces:
 
 ## Metrics Service Provider — Interface StatsProvider
 
-The starting point of Pravega Metric framework is the `StatsProvider` interface, it provides _start_ and _stop_ method for Metric service. Regarding the reporters, currently we have support for [**CSV reporter**](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) and [**StatsD reporter**](https://github.com/b/statsd_spec).
+Pravega Metric Framework is initiated using the `StatsProvider` interface, it provides _start_ and _stop_ method for Metric service. Regarding the **Reporters**, currently we have support for [**CSV reporter**](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) and [**StatsD reporter**](https://github.com/b/statsd_spec).
 
 ```java
 public interface StatsProvider {
@@ -57,14 +57,14 @@ public interface StatsProvider {
 }
 ```
 
-- `start()`: Initializes [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and reporters for our Metrics service.
-- `close()`: Performs Shutting down of Metrics service.
+- `start()`: Initializes [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and Reporters for our Metric service.
+- `close()`: Performs Shutting down of Metric Service.
 - `createStatsLogger()`: Creates and returns a `StatsLogger` instance, which is used to retrieve a metric and performs metric insertion and collection in Pravega code.
 - `createDynamicLogger()`: Creates a Dynamic Logger.
 
 ## Metric Logger — Interface StatsLogger
 
-Using the following interface we can register required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric `OpStatsLogger`, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
+Using the following interface we can register required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric like `OpStatsLogger`, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
 
 ```java
 public interface StatsLogger {
@@ -80,7 +80,7 @@ public interface StatsLogger {
 - `createCounter()`: Register and get a [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) Metric.
 - `createMeter()`: Create and register a [Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter) Metric.
 - `registerGauge()`: Register a [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) Metric.
-- `createScopeLogger()`: Create the Statistics Logger under given scope name.
+- `createScopeLogger()`: Create the `StatsLogger` under the given scope name.
 
 ## Metric Sub Logger — OpStatsLogger
 
@@ -101,12 +101,12 @@ public interface OpStatsLogger {
 - `reportFailEvent()`: It is used to track the [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) of a failed operation and will record the latency in nanoseconds in required metric.  
 - `reportSuccessValue()`: It is used to track the [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms) of a success value.
 - `reportFailValue()`: It is used to track the [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms) of a failed value.
-- `toOpStatsData()`:  It is Used to support the JMX exports and inner tests.
+- `toOpStatsData()`:  It is used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) exports and inner tests.
 - `clear`: It is used to clear the stats for this operation.
 
 ## Metric Logger — Interface DynamicLogger
 
-A simple interface that exposes only simple type metrics: ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges),/[Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter).
+The following is an example of a  simple interface that exposes only simple type metrics: ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter)).
 
 ```java
 public interface DynamicLogger {
@@ -119,12 +119,12 @@ public interface DynamicLogger {
 }
 ```
 
-- `incCounterValue()`: Increases the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counter) with the given value.
-- `updateCounterValue()`: Updates the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counter with the given value.
-- `freezeCounter()`: Notifies that, the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counter) will not be updated.
-- `reportGaugeValue()`: Reports the [Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauge) value.
-- `freezeGaugeValue()`: Notifies that, the [Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauge) value will not be updated.
-- `recordMeterEvents()`: Records the occurrences of a given number of events in [Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter).
+- `incCounterValue()`: Increases the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters) with the given value.
+- `updateCounterValue()`: Updates the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters) with the given value.
+- `freezeCounter()`: Notifies that, the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters) will not be updated.
+- `reportGaugeValue()`: Reports the [Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges) value.
+- `freezeGaugeValue()`: Notifies that, the [Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges) value will not be updated.
+- `recordMeterEvents()`: Records the occurrences of a given number of events in [Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meters).
 
 
 # Example for Starting a Metric Service
