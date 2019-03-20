@@ -319,6 +319,7 @@ public class FileSystemStorage implements SyncStorage {
                     totalBytesWritten += bytesWritten;
                     length -= bytesWritten;
                 }
+                channel.force(false);
             }
             FileSystemMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
             FileSystemMetrics.WRITE_BYTES.add(totalBytesWritten);
@@ -377,6 +378,7 @@ public class FileSystemStorage implements SyncStorage {
                 offset += bytesTransferred;
                 length -= bytesTransferred;
             }
+            targetChannel.force(false);
             Files.delete(sourcePath);
             LoggerHelpers.traceLeave(log, "concat", traceId);
             return null;
