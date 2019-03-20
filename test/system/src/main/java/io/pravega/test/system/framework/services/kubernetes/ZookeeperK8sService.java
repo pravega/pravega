@@ -163,7 +163,7 @@ public class ZookeeperK8sService extends AbstractService {
                                   .withScope("Namespaced")
                                   .withVersion(CUSTOM_RESOURCE_VERSION)
                                   .withNewSubresources()
-                                                    .withStatus(new V1beta1CustomResourceDefinitionStatus())
+                                                     .withStatus(new V1beta1CustomResourceDefinitionStatus())
                                   .endSubresources()
                                   .build())
                 .build();
