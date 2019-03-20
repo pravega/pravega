@@ -12,9 +12,9 @@ You may obtain a copy of the License at
 
 * [Metrics Interfaces and Examples Usage](#metrics-interfaces-and-examples-usage)
    - [Metrics Service Provider — Interface StatsProvider](#metrics-service-provider--interface-statsprovider)
-   - [Metric Logger — Interface StatsLogger](#metric-logger-interface-statslogger)
-   - [Metric Sub Logger — OpStatsLogger](#metric-sub-logger-opstatslogger)
-   - [Metric Logger — interface DynamicLogger](#metric-logger-interface-dynamiclogger)
+   - [Metric Logger — Interface StatsLogger](#metric-logger--interface-statslogger)
+   - [Metric Sub Logger — OpStatsLogger](#metric-sub-logger--opstatslogger)
+   - [Metric Logger — interface DynamicLogger](#metric-logger--interface-dynamiclogger)
 * [Example for starting a Metric service](#example-for-starting-a-metric-service)
    - [Example for Dynamic Counter and OpStatsLogger(Timer)](#example-for-dynamic-counter-and-opstatsloggertimer)
        - [Output example of OpStatsLogger](#output-example-of-opstatslogger)
@@ -34,17 +34,19 @@ Following are four basic interfaces:
 1. `StatsProvider`
 2. `StatsLogger`
 3. `OpStatsLogger`
-4. `Dynamic Logger`
+4. `DynamicLogger`
 
 - `StatsProvider`: The Statistics Provider which provides us the whole Metric service.
 
-- `StatsLogger`: The Statistics Logger is the place at which we register and get the required Metrics ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)).
+- `StatsLogger`: The Statistics Logger is the place at where we register and get the required Metrics ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)).
 
-- `OpStatsLogger`: The Operation Statistics Logger, is a sub-metric for the complex ones ([Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms). It is included in the StatsLogger.
+- `OpStatsLogger`: The Operation Statistics Logger, is a sub-metric for the complex ones ([Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)). It is included in the `StatsLogger` and `DynamicLogger`.
+
+
 
 ## Metrics Service Provider — Interface StatsProvider
 
-The starting point of Pravega Metric framework is the `StatsProvider` interface, it provides _start_ and _stop_ method for Metric service. Regarding the reporters, currently we have support for [**CSV reporter**](https://metrics.dropwizard.io/3.1.0/apidocs/com/codahale/metrics/CsvReporter.html) and [**StatsD reporter**](https://github.com/b/statsd_spec).
+The starting point of Pravega Metric framework is the `StatsProvider` interface, it provides _start_ and _stop_ method for Metric service. Regarding the reporters, currently we have support for [**CSV reporter**](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) and [**StatsD reporter**](https://github.com/b/statsd_spec).
 
 ```java
 public interface StatsProvider {
@@ -76,7 +78,7 @@ public interface StatsLogger {
 
 - `createStats()`: Register and get a `OpStatsLogger`, which is used for complex type of metrics.
 - `createCounter()`: Register and get a [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) Metric.
-- `createMeter()`: Create and register a Meter Metric.
+- `createMeter()`: Create and register a [Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter) Metric.
 - `registerGauge()`: Register a [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) Metric.
 - `createScopeLogger()`: Create the Statistics Logger under given scope name.
 
@@ -104,7 +106,7 @@ public interface OpStatsLogger {
 
 ## Metric Logger — Interface DynamicLogger
 
-A simple interface that exposes only simple type metrics: ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges),/Meter.
+A simple interface that exposes only simple type metrics: ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges),/[Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter).
 
 ```java
 public interface DynamicLogger {
@@ -117,12 +119,12 @@ public interface DynamicLogger {
 }
 ```
 
-- `incCounterValue()`: Increases the Counter with the given value.
-- `updateCounterValue()`: Updates the Counter with the given value.
-- `freezeCounter()`: Notifies that, the Counter will not be updated.
-- `reportGaugeValue()`: Reports the Gauge value.
-- `freezeGaugeValue()`: Notifies that, the Gauge value will not be updated.
-- `recordMeterEvents()`: Records the occurrences of a given number of events in Meter.
+- `incCounterValue()`: Increases the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counter) with the given value.
+- `updateCounterValue()`: Updates the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counter with the given value.
+- `freezeCounter()`: Notifies that, the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counter) will not be updated.
+- `reportGaugeValue()`: Reports the [Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauge) value.
+- `freezeGaugeValue()`: Notifies that, the [Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauge) value will not be updated.
+- `recordMeterEvents()`: Records the occurrences of a given number of events in [Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter).
 
 
 # Example for Starting a Metric Service
@@ -273,7 +275,7 @@ Here `CREATE_STREAM_SEGMENT` is the name of this metric, and `CREATE_STREAM_SEGM
 
 ### Output Example of OpStatsLogger
 
-An example output of `OpStatsLogger CREATE_SEGMENT` reported through CSV reporter.
+An example output of `OpStatsLogger CREATE_SEGMENT` reported through [CSV](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) reporter.
 
 ```
 $ cat CREATE_STREAM_SEGMENT.csv
@@ -330,7 +332,7 @@ public final class SegmentStoreMetrics {
 
 # Metric Reporter and Configurations
 
-Reporters are the way through which we export all the measurements being made by the metrics. We currently provide StatsD and CSV output. It is not difficult to add new output formats, such as **JMX/SLF4J**.
+Reporters are the way through which we export all the measurements being made by the metrics. We currently provide StatsD and [CSV](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) output. It is not difficult to add new output formats, such as **JMX/SLF4J**.
 
 - **CSV** reporter will export each Metric into one file.
 - **StatsD** reporter will export Metrics through UDP/TCP to a StatsD server.
