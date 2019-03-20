@@ -14,15 +14,15 @@ You may obtain a copy of the License at
    - [Metrics Service Provider — Interface StatsProvider](#metrics-service-provider--interface-statsprovider)
    - [Metric Logger — Interface StatsLogger](#metric-logger--interface-statslogger)
    - [Metric Sub Logger — OpStatsLogger](#metric-sub-logger--opstatslogger)
-   - [Metric Logger — interface DynamicLogger](#metric-logger--interface-dynamiclogger)
-* [Example for starting a Metric service](#example-for-starting-a-metric-service)
+   - [Metric Logger — Interface DynamicLogger](#metric-logger--interface-dynamiclogger)
+* [Example for starting a Metric Service](#example-for-starting-a-metric-service)
    - [Example for Dynamic Counter and OpStatsLogger(Timer)](#example-for-dynamic-counter-and-opstatsloggertimer)
-       - [Output example of OpStatsLogger](#output-example-of-opstatslogger)
+       - [Output Example of OpStatsLogger](#output-example-of-opstatslogger)
    - [Example for Dynamic Gauge and OpStatsLogger(Histogram)](#example-for-dynamic-gauge-and-opstatsloggerhistogram)
    - [Example for Dynamic Meter](#example-for-dynamic-meter)
-* [Metric reporter and Configurations](#metric-reporter-and-configurations)
-* [Steps to add your own Metrics](#steps-to-add-your-own-metrics)
-* [Available Metrics and their names](#available-metrics-and-their-names)
+* [Metric Reporter and Configurations](#metric-reporter-and-configurations)
+* [Configuring Own Metrics](#configuring-own-metrics)
+* [Available Metrics and Their Names](#available-metrics-and-their-names)
 * [Resources](#resources)
 
 In Pravega Metrics Framework, we use [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
@@ -365,7 +365,7 @@ public class MetricsConfig extends ComponentConfig {
 }
 ```
 
-# Steps to Add Your Own Metrics
+# Configuring Own Metrics
 
 1. On the start of a segment store/controller service, start a Metrics service as a sub service. Please check [`ServiceStarter.start()`](#example-for-starting-a-metric-service)
 
