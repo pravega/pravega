@@ -550,7 +550,7 @@ project('controller') {
     apply plugin: 'application'
     applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
-    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
+    applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError", "-XX:+UseG1GC",
                                  "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.config.properties",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
