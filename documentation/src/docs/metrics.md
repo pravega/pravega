@@ -10,8 +10,8 @@ You may obtain a copy of the License at
 
 # Pravega Metrics
 
-* [Metrics Interfaces and Examples Usage](#metric-interface-and-examples-usage)
-   - [Metrics Service Provider — Interface StatsProvider](#metrics-service-provider-interface-statsprovider)
+* [Metrics Interfaces and Examples Usage](#metrics-interfaces-and-examples-usage)
+   - [Metrics Service Provider — Interface StatsProvider](#metrics-service-provider--interface-statsprovider)
    - [Metric Logger — Interface StatsLogger](#metric-logger-interface-statslogger)
    - [Metric Sub Logger — OpStatsLogger](#metric-sub-logger-opstatslogger)
    - [Metric Logger — interface DynamicLogger](#metric-logger-interface-dynamiclogger)
@@ -23,7 +23,7 @@ You may obtain a copy of the License at
 * [Metric reporter and Configurations](#metric-reporter-and-configurations)
 * [Steps to add your own Metrics](#steps-to-add-your-own-metrics)
 * [Available Metrics and their names](#available-metrics-and-their-names)
-* [Useful Links](#useful-links)
+* [Resources](#resources)
 
 In Pravega Metrics Framework, we use [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
 
