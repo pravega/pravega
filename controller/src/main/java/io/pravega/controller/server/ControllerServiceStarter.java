@@ -172,7 +172,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                                                     .build();
 
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
-            SegmentHelper segmentHelper = new SegmentHelper();
+            SegmentHelper segmentHelper = new SegmentHelper(connectionFactory);
 
             AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
@@ -211,7 +211,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamMetrics = new StreamMetrics();
             transactionMetrics = new TransactionMetrics();
             controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, streamMetrics, transactionMetrics);
+                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
             setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),

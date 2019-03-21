@@ -10,9 +10,12 @@
 package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.google.common.cache.RemovalListener;
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -32,6 +35,7 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
+import io.pravega.controller.util.Config;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -44,12 +48,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
+
+import javax.annotation.ParametersAreNonnullByDefault;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
@@ -62,6 +69,28 @@ public class SegmentHelper {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
 
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
+    // cache of connection manager for segment store nodes.
+    // Pravega Connection Manager maintains a pool of connection for a segment store and returns a connection from 
+    // the pool on the need basis. 
+    private final LoadingCache<PravegaNodeUri, SegmentHelperConnectionManager> cache;
+
+    public SegmentHelper(final ConnectionFactory clientCF) {
+        cache = CacheBuilder.newBuilder()
+                            .maximumSize(Config.HOST_STORE_CONTAINER_COUNT)
+                            // if a host is not accessed for 5 minutes, remove it from the cache
+                            .expireAfterAccess(5, TimeUnit.MINUTES)
+                            .removalListener((RemovalListener<PravegaNodeUri, SegmentHelperConnectionManager>) removalNotification -> {
+                                // Whenever a connection manager is evicted from the cache call shutdown on it. 
+                                removalNotification.getValue().shutdown();
+                            })
+                            .build(new CacheLoader<PravegaNodeUri, SegmentHelperConnectionManager>() {
+                                @Override
+                                @ParametersAreNonnullByDefault
+                                public SegmentHelperConnectionManager load(PravegaNodeUri nodeUri) {
+                                    return new SegmentHelperConnectionManager(nodeUri, clientCF);
+                                }
+                            });
+    }
 
     public Controller.NodeUri getSegmentUri(final String scope,
                                             final String stream,
@@ -114,7 +143,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "CreateSegment {} threw exception", qualifiedStreamSegmentName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -177,7 +206,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "truncateSegment {} error", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -236,7 +265,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "deleteSegment {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -314,7 +343,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "sealSegment {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -329,7 +358,7 @@ public class SegmentHelper {
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
     }
-
+    
     public CompletableFuture<UUID> createTransaction(final String scope,
                                                      final String stream,
                                                      final long segmentId,
@@ -371,7 +400,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error("createTransaction {} failed", transactionName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -446,7 +475,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error("commitTransaction {} failed", transactionName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -503,7 +532,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.info("abortTransaction {} failed", transactionName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -551,7 +580,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "updatePolicy {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -600,7 +629,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error("getSegmentInfo {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -671,7 +700,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "CreateTableSegment {} threw exception", qualifiedStreamSegmentName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -750,7 +779,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "deleteTableSegment {} failed.", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -834,7 +863,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "updateTableEntries {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -928,7 +957,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "removeTableKeys {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1019,7 +1048,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTable {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1108,7 +1137,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTableKeys {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1199,7 +1228,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTableEntries {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1237,28 +1266,33 @@ public class SegmentHelper {
     private <ResultT> void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
                                             final CompletableFuture<ResultT> resultFuture,
                                             final ConnectionFactory connectionFactory, final PravegaNodeUri uri) {
-        CompletableFuture<ClientConnection> connectionFuture = connectionFactory.establishConnection(uri, replyProcessor);
+        // get connection manager for the segment store node from the cache. 
+        SegmentHelperConnectionManager connectionManager = cache.getUnchecked(uri);
+        // take a new connection from the connection manager
+        CompletableFuture<SegmentHelperConnectionManager.ConnectionObject> connectionFuture = connectionManager.getConnection(replyProcessor);
         connectionFuture.whenComplete((connection, e) -> {
-            if (connection == null) {
-                resultFuture.completeExceptionally(new WireCommandFailedException(new ConnectionFailedException(e),
+            if (connection == null || e != null) {
+                ConnectionFailedException cause = e != null ? new ConnectionFailedException(e) : new ConnectionFailedException();
+                resultFuture.completeExceptionally(new WireCommandFailedException(cause,
                         request.getType(),
                         WireCommandFailedException.Reason.ConnectionFailed));
             } else {                
-                connection.sendAsync(request, cfe -> {
-                    if (cfe != null) {
-                        Throwable cause = Exceptions.unwrap(cfe);
-                        if (cause instanceof ConnectionFailedException) {
-                            resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
-                        } else {
-                            resultFuture.completeExceptionally(new RuntimeException(cause));
-                        }                        
-                    }
-                });                
+                connection.sendAsync(request, resultFuture);
             }
         });
         resultFuture.whenComplete((result, e) -> {
-            connectionFuture.thenAccept(ClientConnection::close);
+            // when processing completes, return the connection back to connection manager asynchronously.
+            // Note: If result future is complete, connectionFuture is definitely complete. 
+            connectionFuture.thenAccept(connectionManager::returnConnection);
         });
+    }
+
+    private <T> void handleError(Exception error, CompletableFuture<T> result, WireCommandType type) {
+        if (Exceptions.unwrap(error) instanceof ConnectionFailedException) {
+            result.completeExceptionally(new WireCommandFailedException(error, type, WireCommandFailedException.Reason.ConnectionFailed));
+        } else {
+            result.completeExceptionally(error);
+        }
     }
 
     private Pair<Byte, Integer> extractFromPolicy(ScalingPolicy policy) {
