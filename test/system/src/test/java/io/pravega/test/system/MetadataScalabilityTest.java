@@ -11,7 +11,6 @@ package io.pravega.test.system;
 
 import com.google.common.collect.Lists;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -48,10 +47,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-/**
- * This test creates a stream with 10k segments and then rapidly scales it 1010 times.
- * Then it performs truncation a random number (less than 1010) of times. 
- */
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public abstract class MetadataScalabilityTest extends AbstractScaleTests {

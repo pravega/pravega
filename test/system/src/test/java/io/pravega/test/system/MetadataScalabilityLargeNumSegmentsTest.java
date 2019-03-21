@@ -27,8 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
- * This test creates a stream with 10k segments and then rapidly scales it 1010 times.
- * Then it performs truncation a random number (less than 1010) of times. 
+ * This test creates a stream with 10k segments and then rapidly scales it 10 times.
+ * Then it performs truncation a random number of times.
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)

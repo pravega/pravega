@@ -12,7 +12,6 @@ package io.pravega.test.system;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.system.framework.SystemTestRunner;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -24,12 +23,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
- * This test creates a stream with 10k segments and then rapidly scales it 1010 times.
- * Then it performs truncation a random number (less than 1010) of times. 
+ * This test creates a stream with 10 segments and then rapidly scales it 1010 times.
+ * Then it performs truncation a random number of times.
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
