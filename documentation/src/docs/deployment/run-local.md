@@ -94,17 +94,7 @@ SSL/TLS `singlenode.enableTls` is disabled by default in Pravega standalone mode
 
 ```
 
-2. Ensure that the server's certificate is trusted. If you run `./gradlew startStandalone` without it, you'll encounter the following error:
-
-```java
-  Caused by: sun.security.validator.ValidatorException: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
-          at sun.security.validator.PKIXValidator.doBuild(PKIXValidator.java:397)
-          at sun.security.validator.PKIXValidator.engineValidate(PKIXValidator.java:302)
-          at sun.security.validator.Validator.validate(Validator.java:260)
-          at sun.security.ssl.X509TrustManagerImpl.validate(X509TrustManager
-```
-
-To ensure the server's certificate is trusted, import it into the JVM's truststore. The following command sequence is used (in Linux) with the provided certificate file `cert.pem`.
+2. Ensure that the server's certificate is trusted. To ensure the server's certificate is trusted, import it into the JVM's truststore. The following command sequence is used (in Linux) with the provided certificate file `cert.pem`.
 
 The server certificate used for the Pravega standalone mode server must be trusted on the JVM that runs the server. A server certificate can be rendered trusted via either Chain of Trust or via Direct Trust.
 
