@@ -25,6 +25,7 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -53,13 +54,8 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class MetadataScalabilityTest extends AbstractScaleTests {
-    private static final String STREAM_NAME = "metadataScalability";
-    private static final int NUM_SEGMENTS = 10000;
-    private static final StreamConfiguration CONFIG = StreamConfiguration.builder()
-                                                                         .scalingPolicy(ScalingPolicy.fixed(NUM_SEGMENTS)).build();
-    private static final int SCALES_TO_PERFORM = 1010;
-
+public abstract class MetadataScalabilityTest extends AbstractScaleTests {
+    private final String streamName = getStreamName();
     @Rule
     public Timeout globalTimeout = Timeout.seconds(60 * 60);
 
@@ -89,7 +85,7 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
         log.debug("create scope status {}", createScopeStatus);
 
         //create a stream
-        Boolean createStreamStatus = controller.createStream(SCOPE, STREAM_NAME, CONFIG).get();
+        Boolean createStreamStatus = controller.createStream(SCOPE, getStreamName(), getStreamConfig()).get();
         log.debug("create stream status for scale up stream {}", createStreamStatus);
     }
 
@@ -101,35 +97,40 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
         ExecutorServiceHelpers.shutdown(executorService, scaleExecutorService);
     }
 
+    abstract StreamConfiguration getStreamConfig();
+
+    abstract String getStreamName();
+
+    abstract int getScalesToPerform();
+
     @Test
     public void scalability() {
         testState = new TestState(false);
 
         ControllerImpl controller = getController();
 
+        int numSegments = getStreamConfig().getScalingPolicy().getMinNumSegments();
+        int scalesToPerform = getScalesToPerform();
+
         // manually scale the stream SCALES_TO_PERFORM times
-        Stream stream = new StreamImpl(SCOPE, STREAM_NAME);
+        Stream stream = new StreamImpl(SCOPE, getStreamName());
         AtomicInteger counter = new AtomicInteger(0);
         List<List<Segment>> listOfEpochs = new LinkedList<>();
-
-        CompletableFuture<Void> scaleFuture = Futures.loop(() -> counter.incrementAndGet() <= SCALES_TO_PERFORM,
-                () -> controller.getCurrentSegments(SCOPE, STREAM_NAME)
+        
+        CompletableFuture<Void> scaleFuture = Futures.loop(() -> counter.incrementAndGet() <= scalesToPerform,
+                () -> controller.getCurrentSegments(SCOPE, streamName)
                                 .thenCompose(segments -> {
-                                    Map<Double, Double> newRanges = new HashMap<>();
-                                    double delta = 1.0 / NUM_SEGMENTS;
-                                    newRanges.put(delta * (counter.get() - 1), delta * counter.get());
-
                                     ArrayList<Segment> sorted = Lists.newArrayList(segments.getSegments().stream()
                                                                                            .sorted(Comparator.comparingInt(x ->
-                                                                                                   StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % NUM_SEGMENTS))
+                                                                                                   StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % numSegments))
                                                                                            .collect(Collectors.toList()));
-                                    log.info("found segments in epoch = {}", sorted);
                                     listOfEpochs.add(sorted);
-                                    // note: with SCALES_TO_PERFORM < NUM_SEGMENTS, we can use the segment number as the index
+                                    // note: with SCALES_TO_PERFORM < numSegments, we can use the segment number as the index
                                     // into the range map
-                                    List<Long> segmentsToSeal = sorted.stream()
-                                                                      .filter(x -> counter.get() - 1 == StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % NUM_SEGMENTS)
-                                                                      .map(Segment::getSegmentId).collect(Collectors.toList());
+                                    Pair<List<Long>, Map<Double, Double>> scaleInput = getScaleInput(sorted);
+                                    List<Long> segmentsToSeal = scaleInput.getKey();
+                                    Map<Double, Double> newRanges = scaleInput.getValue();
+
                                     return controller.scaleStream(stream, segmentsToSeal, newRanges, executorService)
                                                      .getFuture()
                                                      .thenAccept(scaleStatus -> {
@@ -144,24 +145,24 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                     // stream cuts. 
                     List<AtomicInteger> indexes = new LinkedList<>();
                     Random rand = new Random();
-                    for (int i = 0; i < NUM_SEGMENTS; i++) {
+                    for (int i = 0; i < numSegments; i++) {
                         indexes.add(new AtomicInteger(1));
                     }
-                    return Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < SCALES_TO_PERFORM - 1), () -> {
+                    return Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < scalesToPerform - 1), () -> {
                         // randomly generate a stream cut. 
                         // Note: From epoch 1 till epoch SCALES_TO_PERFORM each epoch is made up of 10k segments
                         // and the range is statically partitioned evenly. 
-                        // So a random, correct streamcut would be choosing NUM_SEGMENTS disjoint segments from NUM_SEGMENTS random epochs. 
+                        // So a random, correct streamcut would be choosing numSegments disjoint segments from numSegments random epochs. 
                         Map<Segment, Long> map = new HashMap<>();
-                        for (int i = 0; i < NUM_SEGMENTS; i++) {
+                        for (int i = 0; i < numSegments; i++) {
                             AtomicInteger index = indexes.get(i);
-                            index.set(index.get() + rand.nextInt(SCALES_TO_PERFORM - index.get()));
+                            index.set(index.get() + rand.nextInt(scalesToPerform - index.get()));
                             map.put(listOfEpochs.get(index.get()).get(i), 0L);
                         }
 
                         StreamCut cut = new StreamCutImpl(stream, map);
                         log.info("truncating stream at {}", map);
-                        return controller.truncateStream(SCOPE, STREAM_NAME, cut).
+                        return controller.truncateStream(SCOPE, streamName, cut).
                                 thenCompose(truncated -> {
                                     log.info("stream truncated successfully at {}", cut);
                                     assert truncated;
@@ -174,4 +175,6 @@ public class MetadataScalabilityTest extends AbstractScaleTests {
                     }, executorService);
                 }).join();
     }
+
+    abstract Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sorted);
 }

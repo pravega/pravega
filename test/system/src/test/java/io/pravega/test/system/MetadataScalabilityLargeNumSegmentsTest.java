@@ -1,0 +1,70 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
+package io.pravega.test.system;
+
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.test.system.framework.SystemTestRunner;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
+import org.junit.runner.RunWith;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
+/**
+ * This test creates a stream with 10k segments and then rapidly scales it 1010 times.
+ * Then it performs truncation a random number (less than 1010) of times. 
+ */
+@Slf4j
+@RunWith(SystemTestRunner.class)
+public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalabilityTest {
+    private static final String STREAM_NAME = "metadataScalability";
+    private static final int NUM_SEGMENTS = 10000;
+    private static final StreamConfiguration CONFIG = StreamConfiguration.builder()
+                                                                         .scalingPolicy(ScalingPolicy.fixed(NUM_SEGMENTS)).build();
+    private static final int SCALES_TO_PERFORM = 10;
+
+    private final AtomicInteger counter = new AtomicInteger(0);
+
+    @Override
+    String getStreamName() {
+        return STREAM_NAME;
+    }
+
+    @Override
+    StreamConfiguration getStreamConfig() {
+        return CONFIG;
+    }
+    
+    @Override
+    int getScalesToPerform() {
+        return SCALES_TO_PERFORM;
+    }
+
+    Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sorted) {
+        int i = counter.incrementAndGet();
+        List<Long> segmentsToSeal = sorted.stream()
+                                          .filter(x -> i - 1 == StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % NUM_SEGMENTS)
+                                          .map(Segment::getSegmentId).collect(Collectors.toList());
+        Map<Double, Double> newRanges = new HashMap<>();
+        double delta = 1.0 / NUM_SEGMENTS;
+        newRanges.put(delta * (i - 1), delta * i);
+
+        return new ImmutablePair<>(segmentsToSeal, newRanges);
+    }
+}
