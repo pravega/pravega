@@ -12,6 +12,7 @@ package io.pravega.shared.metrics;
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.function.Supplier;
+import io.micrometer.core.instrument.Meter.Id;
 
 public class NullStatsLogger implements StatsLogger {
 
@@ -20,22 +21,22 @@ public class NullStatsLogger implements StatsLogger {
     static final NullGauge NULLGAUGE = new NullGauge();
     static final NullMeter NULLMETER = new NullMeter();
     static final NullOpStatsLogger NULLOPSTATSLOGGER = new NullOpStatsLogger();
-    private static final String NULLNAME = "";
+    private static final Id NULL_ID = null;
 
     @Override
-    public OpStatsLogger createStats(String name) {
+    public OpStatsLogger createStats(String name, String... tags) {
         return NULLOPSTATSLOGGER;
     }
 
     @Override
-    public Counter createCounter(String name) {
+    public Counter createCounter(String name, String... tags) {
         return NULLCOUNTER;
     }
 
     private static class NullGauge implements Gauge {
         @Override
-        public String getName() {
-            return NULLNAME;
+        public Id getId() {
+            return NULL_ID;
         }
 
         @Override
@@ -45,12 +46,12 @@ public class NullStatsLogger implements StatsLogger {
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
+    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
         return NULLGAUGE;
     }
 
     @Override
-    public Meter createMeter(String name) {
+    public Meter createMeter(String name, String... tags) {
         return NULLMETER;
     }
 
@@ -93,8 +94,8 @@ public class NullStatsLogger implements StatsLogger {
         }
 
         @Override
-        public String getName() {
-            return NULLNAME;
+        public Id getId() {
+            return NULL_ID;
         }
 
         @Override
@@ -115,11 +116,6 @@ public class NullStatsLogger implements StatsLogger {
         }
 
         @Override
-        public void dec() {
-            // nop
-        }
-
-        @Override
         public void add(long delta) {
             // nop
         }
@@ -130,8 +126,8 @@ public class NullStatsLogger implements StatsLogger {
         }
 
         @Override
-        public String getName() {
-            return NULLNAME;
+        public Id getId() {
+            return NULL_ID;
         }
 
         @Override
@@ -157,8 +153,8 @@ public class NullStatsLogger implements StatsLogger {
         }
 
         @Override
-        public String getName() {
-            return NULLNAME;
+        public Id getId() {
+            return NULL_ID;
         }
 
         @Override
