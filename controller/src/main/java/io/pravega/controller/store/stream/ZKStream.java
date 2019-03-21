@@ -293,12 +293,18 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createCurrentEpochRecordDataIfAbsent(EpochRecord data) {
-        return Futures.toVoid(store.createZNodeIfNotExist(currentEpochRecordPath, data.toBytes()));
+        byte[] epochData = new byte[Integer.BYTES];
+        BitConverter.writeInt(epochData, 0, data.getEpoch());
+
+        return Futures.toVoid(store.createZNodeIfNotExist(currentEpochRecordPath, epochData));
     }
 
     @Override
     CompletableFuture<Version> updateCurrentEpochRecordData(VersionedMetadata<EpochRecord> data) {
-        return store.setData(currentEpochRecordPath, data.getObject().toBytes(), data.getVersion())
+        byte[] epochData = new byte[Integer.BYTES];
+        BitConverter.writeInt(epochData, 0, data.getObject().getEpoch());
+
+        return store.setData(currentEpochRecordPath, epochData, data.getVersion())
                     .thenApply(Version.IntVersion::new);
     }
 
@@ -308,7 +314,9 @@ class ZKStream extends PersistentStreamBase {
             if (ignoreCached) {
                 store.invalidateCache(currentEpochRecordPath, id);
             }
-            return store.getCachedData(currentEpochRecordPath, id, EpochRecord::fromBytes);
+            return store.getCachedData(currentEpochRecordPath, id, x -> BitConverter.readInt(x, 0))
+                    .thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
+                            .thenApply(epochRecord -> new VersionedMetadata<>(epochRecord, versionedEpochNumber.getVersion())));
         });
     }
 
