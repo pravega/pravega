@@ -230,7 +230,8 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     dynamicLogger.freezeCounter(Metrics.SEGMENT_READ_BYTES);
     dynamicLogger.freezeGaugeValue(OPEN_TRANSACTIONS);
     }
-  ```
+
+```
 
 # Available Metrics and Their Names
 
