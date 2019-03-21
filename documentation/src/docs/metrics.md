@@ -31,10 +31,10 @@ In the Pravega Metrics Framework, we use [Dropwizard Metrics](https://metrics.dr
 
 Following are four basic interfaces:
 
-1. `StatsProvider`
-2. `StatsLogger`
-3. `OpStatsLogger`
-4. `DynamicLogger`
+1. **StatsProvider**
+2. **StatsLogger**
+3. **OpStatsLogger**
+4. **DynamicLogger**
 
 - `StatsProvider`: The Statistics Provider which provides the whole Metric service.
 
@@ -214,7 +214,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
         static final String SEGMENT_READ_BYTES = "segmentstore.segment.read_bytes";  //Dynamic Counter
         static final String OPEN_TRANSACTIONS = "controller.transactions.opened";    //Dynamic Gauge
         ...
-    }
+      }
 
     //to report success or increment
     Metrics.CREATE_STREAM.reportSuccessValue(1); // < --- 3
@@ -231,7 +231,8 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     dynamicLogger.freezeGaugeValue(OPEN_TRANSACTIONS);
     }
 
-```
+   ```
+
 
 # Available Metrics and Their Names
 
