@@ -9,8 +9,10 @@
  */
 package io.pravega.client.segment.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.Session;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
@@ -33,6 +35,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -51,6 +54,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Controller controller;
     private final String delegationToken;
+    @VisibleForTesting
+    @Getter
+    private final long requestId = Session.create().asLong();
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
@@ -67,7 +73,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
             log.info("Received noSuchSegment {}", noSuchSegment);
-            CompletableFuture<SegmentRead> future = grabFuture(noSuchSegment.getSegment(), noSuchSegment.getRequestId());
+            CompletableFuture<SegmentRead> future = grabFuture(noSuchSegment.getSegment(), noSuchSegment.getOffset());
             if (future != null) {
                 future.completeExceptionally(new SegmentTruncatedException("Segment no longer exists."));
             }
@@ -76,7 +82,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void segmentIsTruncated(SegmentIsTruncated segmentIsTruncated) {
             log.info("Received segmentIsTruncated {}", segmentIsTruncated);
-            CompletableFuture<SegmentRead> future = grabFuture(segmentIsTruncated.getSegment(), segmentIsTruncated.getRequestId());
+            CompletableFuture<SegmentRead> future = grabFuture(segmentIsTruncated.getSegment(), segmentIsTruncated.getOffset());
             if (future != null) {
                 future.completeExceptionally(new SegmentTruncatedException());
             }
@@ -85,13 +91,15 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         @Override
         public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
             log.info("Received segmentSealed {}", segmentIsSealed);
-            CompletableFuture<SegmentRead> future = grabFuture(segmentIsSealed.getSegment(), segmentIsSealed.getRequestId());
+            CompletableFuture<SegmentRead> future = grabFuture(segmentIsSealed.getSegment(), segmentIsSealed.getOffset());
             if (future != null) {
-                future.complete(new WireCommands.SegmentRead(segmentIsSealed.getSegment(),
-                        segmentIsSealed.getRequestId(),
+                future.complete(new WireCommands.SegmentRead(
+                        segmentIsSealed.getSegment(),
+                        segmentIsSealed.getOffset(),
                         true,
                         true,
-                        ByteBuffer.allocate(0)));
+                        ByteBuffer.allocate(0),
+                        segmentIsSealed.getRequestId()));
             }
         }
 
@@ -104,10 +112,10 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             }
         }
 
-        private CompletableFuture<SegmentRead> grabFuture(String segment, long requestId) {
+        private CompletableFuture<SegmentRead> grabFuture(String segment, long offset) {
             checkSegment(segment);
             synchronized (lock) {
-                return outstandingRequests.remove(requestId);
+                return outstandingRequests.remove(offset);
             }
         }
 
@@ -131,7 +139,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         }
     }
 
-    public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment, String delegationToken) {
+    public AsyncSegmentInputStreamImpl(Controller controller, ConnectionFactory connectionFactory, Segment segment,
+                                       String delegationToken) {
         super(segment);
         this.delegationToken = delegationToken;
         Preconditions.checkNotNull(controller);
@@ -157,7 +166,8 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     @Override
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
-        WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length, this.delegationToken);
+        WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
+                                                                        this.delegationToken, requestId);
 
         return backoffSchedule.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
