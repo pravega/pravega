@@ -91,6 +91,7 @@ public class PravegaRequestProcessorTest {
 
     private static final int MAX_KEY_LENGTH = 100;
     private static final int MAX_VALUE_LENGTH = 100;
+    private final long requestId = 1L;
 
     static {
         MetricsProvider.initialize(MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build());
@@ -173,9 +174,9 @@ public class PravegaRequestProcessorTest {
         when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
 
         // Execute and Verify readSegment calling stack in connection and store is executed as design.
-        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, ""));
+        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
-        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(data)));
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(data), requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         entry2.complete(new ReadResultEntryContents(new ByteArrayInputStream(data), data.length));
@@ -202,9 +203,9 @@ public class PravegaRequestProcessorTest {
         when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
 
         // Execute and Verify readSegment calling stack in connection and store is executed as design.
-        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, ""));
+        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
-        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, false, true, ByteBuffer.wrap(new byte[0])));
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, false, true, ByteBuffer.wrap(new byte[0]), requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -225,10 +226,10 @@ public class PravegaRequestProcessorTest {
         when(store.read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT)).thenReturn(readResult);
 
         // Execute and Verify readSegment is calling stack in connection and store is executed as design.
-        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, ""));
+        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
         // Since the underlying store cancels the read request verify if an empty SegmentRead Wirecommand is sent as a response.
-        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(new byte[0])));
+        verify(connection).send(new WireCommands.SegmentRead(streamSegmentName, 0, true, false, ByteBuffer.wrap(new byte[0]), requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -261,10 +262,10 @@ public class PravegaRequestProcessorTest {
                 .thenReturn(CompletableFuture.completedFuture(info));
 
         // Execute and Verify readSegment calling stack in connection and store is executed as design.
-        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, ""));
+        processor.readSegment(new WireCommands.ReadSegment(streamSegmentName, 0, readLength, "", requestId));
         verify(store).read(streamSegmentName, 0, readLength, PravegaRequestProcessor.TIMEOUT);
         verify(store).getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT);
-        verify(connection).send(new WireCommands.SegmentIsTruncated(0, streamSegmentName, info.getStartOffset(), ""));
+        verify(connection).send(new WireCommands.SegmentIsTruncated(requestId, streamSegmentName, info.getStartOffset(), "", 0));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -308,60 +309,60 @@ public class PravegaRequestProcessorTest {
         InOrder order = inOrder(connection);
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
 
-        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
+        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
 
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
-        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(2, transactionName, ""));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
-        order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         order.verify(connection).send(Mockito.argThat(t -> {
             return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists();
         }));
-        processor.mergeSegments(new WireCommands.MergeSegments(3, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(3, streamSegmentName, transactionName));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(4, transactionName, ""));
+        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), ""));
+                .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         txnid = UUID.randomUUID();
         transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
-        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
-        order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(2, transactionName, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection).send(Mockito.argThat(t -> {
             return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists();
         }));
-        processor.deleteSegment(new WireCommands.DeleteSegment(3, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentDeleted(3, transactionName));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(4, transactionName, ""));
+        processor.deleteSegment(new WireCommands.DeleteSegment(requestId, transactionName, ""));
+        order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, transactionName));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), ""));
+                .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         // Verify the case when the transaction segment is already sealed. This simulates the case when the process
         // crashed after sealing, but before issuing the merge.
         txnid = UUID.randomUUID();
         transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
-        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 1, store));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(2, transactionName, ""));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         assertTrue(append(StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), 2, store));
 
         // Seal the transaction in the SegmentStore.
         String txnName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
         store.sealStreamSegment(txnName, Duration.ZERO).join();
 
-        processor.mergeSegments(new WireCommands.MergeSegments(3, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(3, streamSegmentName, transactionName));
-        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(4, transactionName, ""));
+        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName));
+        processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
-                .send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), ""));
+                .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
 
         order.verifyNoMoreInteractions();
     }
@@ -383,16 +384,16 @@ public class PravegaRequestProcessorTest {
 
         PravegaRequestProcessor processor = new PravegaRequestProcessor(store,  mock(TableStore.class), connection);
 
-        processor.createSegment(new WireCommands.CreateSegment(0, streamSegmentName,
+        processor.createSegment(new WireCommands.CreateSegment(requestId, streamSegmentName,
                 WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(0, streamSegmentName));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
 
         String transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
 
-        processor.createSegment(new WireCommands.CreateSegment(1, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(1, transactionName));
-        processor.mergeSegments(new WireCommands.MergeSegments(2, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(2, streamSegmentName, transactionName));
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
+        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName));
 
         txnid = UUID.randomUUID();
         transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);
@@ -402,11 +403,12 @@ public class PravegaRequestProcessorTest {
         doReturn(Futures.failedFuture(new StreamSegmentNotExistsException(streamSegmentName))).when(store).mergeStreamSegment(
                 anyString(), anyString(), any());
 
-        processor.createSegment(new WireCommands.CreateSegment(3, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
-        order.verify(connection).send(new WireCommands.SegmentCreated(3, transactionName));
-        processor.mergeSegments(new WireCommands.MergeSegments(4, streamSegmentName, transactionName, ""));
+        processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
+        processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
 
-        order.verify(connection).send(new WireCommands.NoSuchSegment(4, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), ""));
+        order.verify(connection).send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName,
+                                                                                                                       txnid), "", -1L));
     }
 
     @Test(timeout = 20000)
@@ -509,38 +511,37 @@ public class PravegaRequestProcessorTest {
         assertTrue(append(streamSegmentName, 1, store));
         assertTrue(append(streamSegmentName, 2, store));
 
-        processor.sealSegment(new WireCommands.SealSegment(2, streamSegmentName, ""));
+        processor.sealSegment(new WireCommands.SealSegment(requestId, streamSegmentName, ""));
         assertFalse(append(streamSegmentName, 2, store));
 
         // Truncate half.
         final long truncateOffset = store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getLength() / 2;
         AssertExtensions.assertGreaterThan("Nothing to truncate.", 0, truncateOffset);
-        processor.truncateSegment(new WireCommands.TruncateSegment(3, streamSegmentName, truncateOffset, ""));
+        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, streamSegmentName, truncateOffset, ""));
         assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
         // Truncate at the same offset - verify idempotence.
-        processor.truncateSegment(new WireCommands.TruncateSegment(4, streamSegmentName, truncateOffset, ""));
+        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, streamSegmentName, truncateOffset, ""));
         assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
         // Truncate at a lower offset - verify failure.
-        processor.truncateSegment(new WireCommands.TruncateSegment(5, streamSegmentName, truncateOffset - 1, ""));
+        processor.truncateSegment(new WireCommands.TruncateSegment(requestId, streamSegmentName, truncateOffset - 1, ""));
         assertEquals(truncateOffset, store.getStreamSegmentInfo(streamSegmentName, PravegaRequestProcessor.TIMEOUT)
                 .join().getStartOffset());
 
         // Delete.
-        processor.deleteSegment(new WireCommands.DeleteSegment(6, streamSegmentName, ""));
+        processor.deleteSegment(new WireCommands.DeleteSegment(requestId, streamSegmentName, ""));
         assertFalse(append(streamSegmentName, 4, store));
 
         // Verify connection response with same order.
-        order.verify(connection).send(new WireCommands.SegmentCreated(1, streamSegmentName));
-        order.verify(connection).send(new WireCommands.SegmentSealed(2, streamSegmentName));
-        order.verify(connection).send(new WireCommands.SegmentTruncated(3, streamSegmentName));
-        order.verify(connection).send(new WireCommands.SegmentTruncated(4, streamSegmentName));
-        order.verify(connection).send(new WireCommands.SegmentIsTruncated(5, streamSegmentName, truncateOffset, ""));
-        order.verify(connection).send(new WireCommands.SegmentDeleted(6, streamSegmentName));
+        order.verify(connection).send(new WireCommands.SegmentCreated(requestId, streamSegmentName));
+        order.verify(connection).send(new WireCommands.SegmentSealed(requestId, streamSegmentName));
+        order.verify(connection, times(2)).send(new WireCommands.SegmentTruncated(requestId, streamSegmentName));
+        order.verify(connection).send(new WireCommands.SegmentIsTruncated(requestId, streamSegmentName, truncateOffset, "", 0));
+        order.verify(connection).send(new WireCommands.SegmentDeleted(requestId, streamSegmentName));
         order.verifyNoMoreInteractions();
     }
 

@@ -229,7 +229,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
                 String segment = last.getSegment();
                 long eventNumber = last.getEventNumber();
-                outstandingAppend = new Append(segment, writer, eventNumber, eventCount, data, null);
+                outstandingAppend = new Append(segment, writer, eventNumber, eventCount, data, null, last.getRequestId());
             }
             return outstandingAppend;
         }
@@ -267,16 +267,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             }
 
             if (success) {
-                final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
+                final DataAppended dataAppendedAck = new DataAppended(append.getRequestId(), append.getWriterId(), append.getEventNumber(),
                         previousEventNumber);
                 log.trace("Sending DataAppended : {}", dataAppendedAck);
                 connection.send(dataAppendedAck);
             } else {
                 if (conditionalFailed) {
                     log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
-                    connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber()));
+                    connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
                 } else {
-                    handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "appending data", exception);
+                    handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
+                                    "appending data", exception);
                 }
             }
 
@@ -313,6 +314,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     }
 
     private void handleException(UUID writerId, long requestId, String segment, String doingWhat, Throwable u) {
+        handleException(writerId, requestId, segment, -1L, doingWhat, u);
+    }
+
+    private void handleException(UUID writerId, long requestId, String segment, long eventNumber, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
             log.error("Append processor: Error {} on segment = '{}'", doingWhat, segment, exception);
@@ -327,10 +332,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentNotExistsException) {
             log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
-            connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace));
+            connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace, -1L));
         } else if (u instanceof StreamSegmentSealedException) {
             log.info("Segment '{}' is sealed and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
-            connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace));
+            connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace, eventNumber));
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
             log.warn("Wrong host. Segment '{}' (Container {}) is not owned and {} cannot perform operation '{}'.",
