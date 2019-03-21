@@ -96,9 +96,9 @@ SSL/TLS `singlenode.enableTls` is disabled by default in Pravega standalone mode
 
 2. Ensure that the server's certificate is trusted. To ensure the server's certificate is trusted, import it into the JVM's truststore. The following command sequence is used (in Linux) with the provided certificate file `cert.pem`. The server certificate used for the Pravega standalone mode server must be trusted on the JVM that runs the server. A server certificate can be rendered trusted via either Chain of Trust or via Direct Trust.
 
-   - **Chain of Trust:** A chain of trust, which is the standard SSL/TLS certificate trust model, is established by verifying that the certificate is issued and signed by a trusted CA. If you are using a certificate issued by a CA as the server certificate, ensure that the CA's certificate is in the JVM's truststore.
+    **Chain of Trust:** A chain of trust, which is the standard SSL/TLS certificate trust model, is established by verifying that the certificate is issued and signed by a trusted CA. If you are using a certificate issued by a CA as the server certificate, ensure that the CA's certificate is in the JVM's truststore.
 
-   - **Direct Trust:** This type of trust is established by adding the server's certificate to the truststore. It is a non-standard way of establishing trust when using self-signed certificates. If you using self-signed certificates such as those provided by Pravega for standalone mode, ensure that the server's certificate is in the JVM's truststore.
+    **Direct Trust:** This type of trust is established by adding the server's certificate to the truststore. It is a non-standard way of establishing trust when using self-signed certificates. If you using self-signed certificates such as those provided by Pravega for standalone mode, ensure that the server's certificate is in the JVM's truststore.
 Here are the steps you can use to add the provided `cert.pem` into the JVM's system truststore.
 
    - `cd /path/to/pravega/config`
