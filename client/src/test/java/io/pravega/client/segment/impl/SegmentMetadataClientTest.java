@@ -22,8 +22,11 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentAttributeUpdated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.test.common.InlineExecutor;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import org.junit.Test;
@@ -41,7 +44,7 @@ import static org.mockito.Mockito.mock;
 public class SegmentMetadataClientTest {
     
     @Test(timeout = 10000)
-    public void testCurrentStreamLength() throws Exception {
+    public void testCurrentStreamLength() {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
@@ -58,18 +61,19 @@ public class SegmentMetadataClientTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.process(new StreamSegmentInfo(1, segment.getScopedName(), true, false, false, 0,
+                WireCommands.GetStreamSegmentInfo getStreamInfo = invocation.getArgument(0);
+                processor.process(new StreamSegmentInfo(getStreamInfo.getRequestId(), segment.getScopedName(), true, false, false, 0,
                                                                   123, 121));
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(1, segment.getScopedName(), "")),
+        }).when(connection).sendAsync(any(WireCommands.GetStreamSegmentInfo.class),
                                       Mockito.any(ClientConnection.CompletedCallback.class));
         long length = client.fetchCurrentSegmentLength();
         assertEquals(123, length);
     }
     
     @Test(timeout = 10000)
-    public void testTruncate() throws Exception {
+    public void testTruncate() {
         Segment segment = new Segment("scope", "testTruncate", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
@@ -83,21 +87,23 @@ public class SegmentMetadataClientTest {
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         client.getConnection();
         ReplyProcessor processor = cf.getProcessor(endpoint);
+        AtomicLong requestId = new AtomicLong();
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.process(new SegmentTruncated(1, segment.getScopedName()));
+                WireCommands.TruncateSegment truncateSegment = invocation.getArgument(0);
+                processor.process(new SegmentTruncated(truncateSegment.getRequestId(), segment.getScopedName()));
+                requestId.set(truncateSegment.getRequestId());
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.eq(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L, "")),
-                                 Mockito.any(ClientConnection.CompletedCallback.class));
+        }).when(connection).sendAsync(any(WireCommands.TruncateSegment.class), Mockito.any(ClientConnection.CompletedCallback.class));
         client.truncateSegment(123L);
-        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.TruncateSegment(1, segment.getScopedName(), 123L, "")),
-                                 Mockito.any(ClientConnection.CompletedCallback.class));
+        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.TruncateSegment(requestId.get(), segment.getScopedName(), 123L, "")),
+                                             Mockito.any(ClientConnection.CompletedCallback.class));
     }
     
     @Test(timeout = 10000)
-    public void testSeal() throws Exception {
+    public void testSeal() {
         Segment segment = new Segment("scope", "testSeal", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup
@@ -111,20 +117,20 @@ public class SegmentMetadataClientTest {
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         client.getConnection();
         ReplyProcessor processor = cf.getProcessor(endpoint);
+        AtomicLong requestId = new AtomicLong();
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.process(new WireCommands.SegmentSealed(1, segment.getScopedName()));
+                WireCommands.SealSegment sealSegment = invocation.getArgument(0);
+                processor.process(new WireCommands.SegmentSealed(sealSegment.getRequestId(), segment.getScopedName()));
+                requestId.set(sealSegment.getRequestId());
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.eq(new WireCommands.SealSegment(1, segment.getScopedName(), "")),
-                                      Mockito.any(ClientConnection.CompletedCallback.class));
+        }).when(connection).sendAsync(any(WireCommands.SealSegment.class), Mockito.any(ClientConnection.CompletedCallback.class));
         client.sealSegment();
-        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.SealSegment(1, segment.getScopedName(), "")),
+        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.SealSegment(requestId.get(), segment.getScopedName(), "")),
                                              Mockito.any(ClientConnection.CompletedCallback.class));
     }  
-
-    
 
     @Test(timeout = 10000)
     public void testGetProperty() throws Exception {
@@ -145,17 +151,17 @@ public class SegmentMetadataClientTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.process(new WireCommands.SegmentAttribute(1, 123));
+                WireCommands.GetSegmentAttribute request = invocation.getArgument(0);
+                processor.process(new WireCommands.SegmentAttribute(request.getRequestId(), 123));
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.eq(new WireCommands.GetSegmentAttribute(1, segment.getScopedName(), attributeId, "")),
-                                      Mockito.any(ClientConnection.CompletedCallback.class));
+        }).when(connection).sendAsync(any(WireCommands.GetSegmentAttribute.class), Mockito.any(ClientConnection.CompletedCallback.class));
         long value = client.fetchProperty(SegmentAttribute.RevisionStreamClientMark);
         assertEquals(123, value);
     }
 
     @Test(timeout = 10000)
-    public void compareAndSetAttribute() throws Exception {
+    public void compareAndSetAttribute() {
         UUID attributeId = SegmentAttribute.RevisionStreamClientMark.getValue();
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
@@ -170,12 +176,11 @@ public class SegmentMetadataClientTest {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.process(new SegmentAttributeUpdated(1, true));
+                WireCommands.UpdateSegmentAttribute request = invocation.getArgument(0);
+                processor.process(new SegmentAttributeUpdated(request.getRequestId(), true));
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.eq(new WireCommands.UpdateSegmentAttribute(1, segment.getScopedName(), attributeId, 1234,
-                                                                         -1234, "")),
-                                      Mockito.any(ClientConnection.CompletedCallback.class));
+        }).when(connection).sendAsync(any(WireCommands.UpdateSegmentAttribute.class), Mockito.any(ClientConnection.CompletedCallback.class));
         assertTrue(client.compareAndSetAttribute(SegmentAttribute.RevisionStreamClientMark, -1234, 1234));
     }
 
@@ -193,38 +198,39 @@ public class SegmentMetadataClientTest {
         @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         client.getConnection();
-        WireCommands.GetStreamSegmentInfo getSegmentInfo1 = new WireCommands.GetStreamSegmentInfo(1, segment.getScopedName(), "");
+        final List<Long> requestIds = new ArrayList<>();
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                ReplyProcessor processor = cf.getProcessor(endpoint);
-                processor.connectionDropped();
+                WireCommands.GetStreamSegmentInfo request = invocation.getArgument(0);
+                requestIds.add(request.getRequestId());
+                if (requestIds.size() == 1) {
+                    ReplyProcessor processor = cf.getProcessor(endpoint);
+                    processor.connectionDropped();
+                } else {
+                    ReplyProcessor processor = cf.getProcessor(endpoint);
+                    processor.process(new StreamSegmentInfo(request.getRequestId(), segment.getScopedName(), true, false, false, 0,
+                                                            123, 121));
+                }
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.eq(getSegmentInfo1), Mockito.any(ClientConnection.CompletedCallback.class));
-        WireCommands.GetStreamSegmentInfo getSegmentInfo2 = new WireCommands.GetStreamSegmentInfo(2, segment.getScopedName(), "");
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                ReplyProcessor processor = cf.getProcessor(endpoint);
-                processor.process(new StreamSegmentInfo(2, segment.getScopedName(), true, false, false, 0,
-                                                                  123, 121));
-                return null;
-            }
-        }).when(connection).sendAsync(Mockito.eq(getSegmentInfo2), Mockito.any(ClientConnection.CompletedCallback.class));
+        }).when(connection).sendAsync(any(WireCommands.GetStreamSegmentInfo.class), Mockito.any(ClientConnection.CompletedCallback.class));
+
         long length = client.fetchCurrentSegmentLength();
         InOrder order = Mockito.inOrder(connection, cf);
         order.verify(cf).establishConnection(eq(endpoint), any(ReplyProcessor.class));
-        order.verify(connection).sendAsync(Mockito.eq(getSegmentInfo1), Mockito.any(ClientConnection.CompletedCallback.class));
+        order.verify(connection).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")),
+                                           Mockito.any(ClientConnection.CompletedCallback.class));
         order.verify(cf).establishConnection(eq(endpoint), any(ReplyProcessor.class));
-        order.verify(connection).sendAsync(Mockito.eq(getSegmentInfo2), Mockito.any(ClientConnection.CompletedCallback.class));
+        order.verify(connection).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(1), segment.getScopedName(), "")),
+                                           Mockito.any(ClientConnection.CompletedCallback.class));
         order.verify(cf).getProcessor(eq(endpoint));
         order.verifyNoMoreInteractions();
         assertEquals(123, length);
     }
     
     @Test(timeout = 10000)
-    public void testExceptionOnSend() throws Exception {
+    public void testExceptionOnSend() {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         @Cleanup("shutdown")
@@ -247,33 +253,43 @@ public class SegmentMetadataClientTest {
                        return CompletableFuture.completedFuture(connection2);
                    }
                });
-        WireCommands.GetStreamSegmentInfo getSegmentInfo1 = new WireCommands.GetStreamSegmentInfo(2, segment.getScopedName(), "");
+        final List<Long> requestIds = new ArrayList<>();
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                ClientConnection.CompletedCallback callback = invocation.getArgument(1);
-                callback.complete(new ConnectionFailedException());
-                return null;
-            }
-        }).when(connection1).sendAsync(Mockito.eq(getSegmentInfo1), Mockito.any(ClientConnection.CompletedCallback.class));
-        WireCommands.GetStreamSegmentInfo getSegmentInfo2 = new WireCommands.GetStreamSegmentInfo(3, segment.getScopedName(), "");
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                processor.get().process(new StreamSegmentInfo(3, segment.getScopedName(), true, false, false, 0,
+                WireCommands.GetStreamSegmentInfo request = invocation.getArgument(0);
+                requestIds.add(request.getRequestId());
+                if (requestIds.size() == 1) {
+                    ClientConnection.CompletedCallback callback = invocation.getArgument(1);
+                    callback.complete(new ConnectionFailedException());
+                } else {
+                    processor.get().process(new StreamSegmentInfo(request.getRequestId(), segment.getScopedName(), true, false, false, 0,
                                                                   123, 121));
+                }
                 return null;
             }
-        }).when(connection2).sendAsync(Mockito.eq(getSegmentInfo2), Mockito.any(ClientConnection.CompletedCallback.class));
+        }).when(connection1).sendAsync(any(WireCommands.GetStreamSegmentInfo.class), Mockito.any(ClientConnection.CompletedCallback.class));
+        Mockito.doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocation) throws Throwable {
+                WireCommands.GetStreamSegmentInfo request = invocation.getArgument(0);
+                requestIds.add(request.getRequestId());
+                processor.get().process(new StreamSegmentInfo(request.getRequestId(), segment.getScopedName(), true, false, false, 0,
+                                                              123, 121));
+                return null;
+            }
+        }).when(connection2).sendAsync(any(WireCommands.GetStreamSegmentInfo.class), Mockito.any(ClientConnection.CompletedCallback.class));
         @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         InOrder order = Mockito.inOrder(connection1, connection2, cf);
         long length = client.fetchCurrentSegmentLength();
         order.verify(cf, Mockito.times(2)).establishConnection(Mockito.eq(endpoint), Mockito.any());
-        order.verify(connection1).sendAsync(Mockito.eq(getSegmentInfo1), Mockito.any(ClientConnection.CompletedCallback.class));
+        order.verify(connection1).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")),
+                                            Mockito.any(ClientConnection.CompletedCallback.class));
         order.verify(connection1).close();
         order.verify(cf).establishConnection(Mockito.eq(endpoint), Mockito.any());
-        order.verify(connection2).sendAsync(Mockito.eq(getSegmentInfo2), Mockito.any(ClientConnection.CompletedCallback.class));
+        order.verify(connection2).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(1), segment.getScopedName(), "")),
+                                            Mockito.any(ClientConnection.CompletedCallback.class));
         order.verifyNoMoreInteractions();
         assertEquals(123, length);
     }
