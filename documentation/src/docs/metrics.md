@@ -128,7 +128,7 @@ public interface DynamicLogger {
 
 # Example for Starting a Metric Service
 
-This example is from file `io.pravega.segmentstore.server.host.ServiceStarter`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/43113a257681c92581d57c6ed34f7b9e36e0bfe3/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/ServiceStarter.java). It starts Pravega Segment Store service and the Metrics Service is started as a sub service.
+This example is from `io.pravega.segmentstore.server.host.ServiceStarter`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/43113a257681c92581d57c6ed34f7b9e36e0bfe3/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/ServiceStarter.java). It starts Pravega Segment Store service and the Metrics Service is started as a sub service.
 
 ## Example for Dynamic Counter and OpStatsLogger(Timer)
 
@@ -229,7 +229,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     //to freeze
     dynamicLogger.freezeCounter(Metrics.SEGMENT_READ_BYTES);
     dynamicLogger.freezeGaugeValue(OPEN_TRANSACTIONS);
-   }
+    }
   ```
 
 # Available Metrics and Their Names
