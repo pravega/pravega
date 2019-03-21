@@ -110,8 +110,7 @@ public final class Config {
     public static final MetricsConfig METRICS_CONFIG;
     public static final GRPCServerConfig GRPC_SERVER_CONFIG;
 
-    private static final String METRICS_PATH = "controller.metrics";
-    private static final String METRICS_PREFIX_REPLACEMENT = MetricsConfig.COMPONENT_CODE;
+    private static final String METRICS_PATH = "controller.metrics.";
 
 
     //endregion
@@ -307,7 +306,7 @@ public final class Config {
         for (val e : p.entrySet()) {
             String key = (String) e.getKey();
             if (key.startsWith(METRICS_PATH)) {
-                builder.with(Property.named(key.replaceFirst(METRICS_PATH, METRICS_PREFIX_REPLACEMENT)), e.getValue());
+                builder.with(Property.named(key.substring(METRICS_PATH.length())), e.getValue());
             }
         }
 
