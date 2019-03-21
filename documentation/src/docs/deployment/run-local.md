@@ -84,7 +84,7 @@ SSL/TLS `singlenode.enableTls` is disabled by default in Pravega standalone mode
 
 1. Configure standalone server to communicate using SSL/TLS. To do so, edit the TLS-related properties in `standalone-config.properties` as shown below:
 
-```java
+     ```java
   singlenode.enableTls=true
   singlenode.keyFile=../config/key.pem
   singlenode.certFile=../config/cert.pem
@@ -92,41 +92,39 @@ SSL/TLS `singlenode.enableTls` is disabled by default in Pravega standalone mode
   singlenode.keyStoreJKSPasswordFile=../config/standalone.keystore.jks.passwd
   singlenode.trustStoreJKS=../config/standalone.truststore.jks
 
-```
+    ```
 
-2. Ensure that the server's certificate is trusted. To ensure the server's certificate is trusted, import it into the JVM's truststore. The following command sequence is used (in Linux) with the provided certificate file `cert.pem`.
+2. Ensure that the server's certificate is trusted. To ensure the server's certificate is trusted, import it into the JVM's truststore. The following command sequence is used (in Linux) with the provided certificate file `cert.pem`. The server certificate used for the Pravega standalone mode server must be trusted on the JVM that runs the server. A server certificate can be rendered trusted via either Chain of Trust or via Direct Trust.
 
-The server certificate used for the Pravega standalone mode server must be trusted on the JVM that runs the server. A server certificate can be rendered trusted via either Chain of Trust or via Direct Trust.
+  - **Chain of Trust:** A chain of trust, which is the standard SSL/TLS certificate trust model, is established by verifying that the certificate is issued and signed by a trusted CA. If you are using a certificate issued by a CA as the server certificate, ensure that the CA's certificate is in the JVM's truststore.
 
-- **Chain of Trust:** A chain of trust, which is the standard SSL/TLS certificate trust model, is established by verifying that the certificate is issued and signed by a trusted CA. If you are using a certificate issued by a CA as the server certificate, ensure that the CA's certificate is in the JVM's truststore.
-
-- **Direct Trust:** This type of trust is established by adding the server's certificate to the truststore. It is a non-standard way of establishing trust when using self-signed certificates. If you using self-signed certificates such as those provided by Pravega for standalone mode, ensure that the server's certificate is in the JVM's truststore.
+  - **Direct Trust:** This type of trust is established by adding the server's certificate to the truststore. It is a non-standard way of establishing trust when using self-signed certificates. If you using self-signed certificates such as those provided by Pravega for standalone mode, ensure that the server's certificate is in the JVM's truststore.
 
 Here are the steps you can use to add the provided `cert.pem` into the JVM's system truststore.
 
- - `cd /path/to/pravega/config`
- - Convert the `cert.pem` file to `DER` format: `openssl x509 -in cert.pem -inform pem -out cert.der -outform der`
- - Import the certificate into the local JVM's trust store:
+  - `cd /path/to/pravega/config`
+  - Convert the `cert.pem` file to `DER` format: `openssl x509 -in cert.pem -inform pem -out cert.der -outform der`
+  - Import the certificate into the local JVM's trust store:
   `sudo keytool -importcert -alias local-CA -keystore /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/security/cacerts  -file cert.der` (using the default password `changeit`)
 
-**Note:** If you want to use a custom truststore instead of adding the certificate to the system truststore, create a new truststore using Java keytool utility, add the certificate to it and configure the JVM to use it by setting the system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
+  **Note:** If you want to use a custom truststore instead of adding the certificate to the system truststore, create a new truststore using Java keytool utility, add the certificate to it and configure the JVM to use it by setting the system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
 
 3. Run Pravega standalone mode using command `./gradlew startStandalone`.
 
 4. Verify that controller REST API is returning response over SSL/TLS:
 
-```java
+    ```java
      curl -v -k https://104.215.152.115:9091/v1/scopes
-```
-`-v` is to avoid hostname verification, since we are using the provided certificate which isn't assigned to your hostname. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
+    ```
+   `-v` is to avoid hostname verification, since we are using the provided certificate which isn't assigned to your hostname. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
 
 5. Run Reader/Writer [Pravega sample applications](https://github.com/pravega/pravega-samples/blob/master/pravega-client-examples/README.md) against the standalone server to verify it is responding appropriately to `Read/Write` requests. To do so, in the `ClientConfig`, set the following:
 
-```java
+   ```java
     ClientConfig clientConfig = ClientConfig.builder()
                  .controllerURI(...)
                  .trustStore("/path/to/cert.pem")
                  .validateHostName(false)
                  .build();
-```
+   ```
 6. Everything else should be the same as the Reader/Writer apps.
