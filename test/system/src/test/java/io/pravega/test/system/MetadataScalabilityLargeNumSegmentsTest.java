@@ -17,6 +17,8 @@ import io.pravega.test.system.framework.SystemTestRunner;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.junit.Rule;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
@@ -33,11 +35,17 @@ import java.util.stream.Collectors;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalabilityTest {
-    private static final String STREAM_NAME = "metadataScalability";
+    private static final String STREAM_NAME = "metadataScalabilitySegments";
     private static final int NUM_SEGMENTS = 10000;
     private static final StreamConfiguration CONFIG = StreamConfiguration.builder()
                                                                          .scalingPolicy(ScalingPolicy.fixed(NUM_SEGMENTS)).build();
     private static final int SCALES_TO_PERFORM = 10;
+
+    // we should be able to create 10k segments and then scale them 10 times followed by truncation.
+    // In the end we seal and delete ~10k segments. 
+    // All of this should happen well within few minutes. 
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(15 * 60);
 
     private final AtomicInteger counter = new AtomicInteger(0);
 
