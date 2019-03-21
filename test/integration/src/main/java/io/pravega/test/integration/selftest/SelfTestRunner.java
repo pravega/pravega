@@ -113,7 +113,9 @@ public class SelfTestRunner {
         if (testConfig.isMetricsEnabled()) {
             b.include(MetricsConfig.builder()
                                    .with(MetricsConfig.ENABLE_STATISTICS, true)
-                                   .with(MetricsConfig.OUTPUT_FREQUENCY, 1));
+                                   .with(MetricsConfig.ENABLE_CSV_REPORTER, true)
+                                   .with(MetricsConfig.OUTPUT_FREQUENCY, 1)
+                                   .with(MetricsConfig.CSV_ENDPOINT, testConfig.getComponentMetricsPath("segmentstore", 0)));
         }
 
         return b.build();

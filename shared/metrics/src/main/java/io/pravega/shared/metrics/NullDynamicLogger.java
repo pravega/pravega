@@ -13,32 +13,32 @@ public class NullDynamicLogger implements DynamicLogger {
     public static final NullDynamicLogger INSTANCE = new NullDynamicLogger();
 
     @Override
-    public void incCounterValue(String name, long delta, String... tags) {
+    public void incCounterValue(String name, long delta) {
         // nop
     }
 
     @Override
-    public void updateCounterValue(String name, long value, String... tags) {
+    public void updateCounterValue(String name, long value) {
         // nop
     }
 
     @Override
-    public void freezeCounter(String name, String... tags) {
+    public void freezeCounter(String name) {
         // nop
     }
 
     @Override
-    public <T extends Number> void reportGaugeValue(String name, T value, String... tags) {
+    public <T extends Number> void reportGaugeValue(String name, T value) {
         // nop
     }
 
     @Override
-    public void freezeGaugeValue(String name, String... tags) {
+    public void freezeGaugeValue(String name) {
         // nop
     }
 
     @Override
-    public void recordMeterEvents(String name, long number, String... tags) {
+    public void recordMeterEvents(String name, long number) {
         // nop
     }
 }

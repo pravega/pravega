@@ -9,30 +9,38 @@
  */
 package io.pravega.shared.metrics;
 
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.Metrics;
-import io.micrometer.core.instrument.Timer;
-import io.micrometer.core.instrument.DistributionSummary;
-
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.Timer;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class MetricRegistryUtils {
 
-    public static Counter getCounter(String metricsName, String... tags) {
-        return Metrics.globalRegistry.find(metricsName).tags(tags).counter();
+    public static Counter getCounter(String metricsName) {
+        return (Counter) getMetric(metricsName);
     }
 
-    public static DistributionSummary getMeter(String metricsName, String... tags) {
-        return Metrics.globalRegistry.find(metricsName).tags(tags).summary();
+    public static Meter getMeter(String metricsName) {
+        return (Meter) getMetric(metricsName);
     }
 
-    public static Gauge getGauge(String metricsName, String... tags) {
-        return Metrics.globalRegistry.find(metricsName).tags(tags).gauge();
+    public static Gauge getGauge(String metricsName) {
+        return (Gauge) getMetric(metricsName);
     }
 
-    public static Timer getTimer(String metricsName, String... tags) {
-        return Metrics.globalRegistry.find(metricsName).tags(tags).timer();
+    public static Timer getTimer(String metricsName) {
+        return (Timer) getMetric(metricsName);
+    }
+
+    public static Metric getMetric(String metricsName) {
+        Metric metric = MetricsProvider.getMetric(metricsName);
+        if (metric == null) {
+            log.info("The metric {} is not present in the Metrics Registry", metricsName);
+            return null;
+        }
+        return metric;
     }
 }

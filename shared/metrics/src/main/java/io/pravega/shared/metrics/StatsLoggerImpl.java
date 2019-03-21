@@ -9,37 +9,32 @@
  */
 package io.pravega.shared.metrics;
 
+import com.codahale.metrics.MetricRegistry;
 import com.google.common.base.Preconditions;
-
 import java.util.function.Supplier;
-
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Meter.Id;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.annotation.concurrent.GuardedBy;
-
+import static com.codahale.metrics.MetricRegistry.name;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLCOUNTER;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLGAUGE;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLMETER;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLOPSTATSLOGGER;
-import static io.pravega.shared.MetricsNames.joinWithDot;
 
 @Slf4j
 public class StatsLoggerImpl implements StatsLogger {
     private final String basename;
-    private final MeterRegistry metrics;
+    private final MetricRegistry metrics;
 
-    StatsLoggerImpl(MeterRegistry metrics, String basename) {
+    StatsLoggerImpl(MetricRegistry metrics, String basename) {
         this.metrics = Preconditions.checkNotNull(metrics, "metrics");
         this.basename = basename;
     }
 
     @Override
-    public OpStatsLogger createStats(String statName, String... tags) {
+    public OpStatsLogger createStats(String statName) {
         try {
-            return new OpStatsLoggerImpl(metrics, basename, statName, tags);
+            return new OpStatsLoggerImpl(metrics, basename, statName);
         } catch (Exception e) {
             log.warn("createStats failure: {}", statName, e);
             return NULLOPSTATSLOGGER;
@@ -47,9 +42,9 @@ public class StatsLoggerImpl implements StatsLogger {
     }
 
     @Override
-    public Counter createCounter(String statName, String... tags) {
+    public Counter createCounter(String statName) {
         try {
-            return new CounterImpl(statName, tags);
+            return new CounterImpl(statName);
         } catch (Exception e) {
             log.warn("createCounter failure: {}", statName, e);
             return NULLCOUNTER;
@@ -57,9 +52,9 @@ public class StatsLoggerImpl implements StatsLogger {
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> valueSupplier, String... tags) {
+    public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> valueSupplier) {
         try {
-            return new GaugeImpl<>(statName, valueSupplier, tags);
+            return new GaugeImpl<>(statName, valueSupplier);
         } catch (Exception e) {
             log.warn("registerGauge failure: {}", statName, e);
             return NULLGAUGE;
@@ -67,9 +62,9 @@ public class StatsLoggerImpl implements StatsLogger {
     }
 
     @Override
-    public Meter createMeter(String statName, String... tags) {
+    public Meter createMeter(String statName) {
         try {
-            return new MeterImpl(statName, tags);
+            return new MeterImpl(statName);
         } catch (Exception e) {
             log.warn("createMeter failure: {}", statName, e);
             return NULLMETER;
@@ -82,103 +77,100 @@ public class StatsLoggerImpl implements StatsLogger {
         if (0 == basename.length()) {
             scopeName = scope;
         } else {
-            scopeName = joinWithDot(basename, scope);
+            scopeName = name(basename, scope);
         }
         return new StatsLoggerImpl(metrics, scopeName);
     }
 
     private class CounterImpl implements Counter {
-        @GuardedBy("this")
-        private io.micrometer.core.instrument.Counter counter;
-        private final io.micrometer.core.instrument.Tags tags;
+        private final com.codahale.metrics.Counter counter;
         @Getter
-        private final Id id;
         private final String name;
 
-        CounterImpl(String statName, String... tagPairs) {
-            this.tags = io.micrometer.core.instrument.Tags.of(tagPairs);
-            this.name = joinWithDot(basename, statName);
-            this.counter = metrics.counter(name, this.tags);
-            this.id = counter.getId();
-        }
-
-        @Override
-        public synchronized void close() {
-            metrics.remove(counter);
-        }
-
-        @Override
-        public synchronized void clear() {
-            metrics.remove(counter.getId());
-            this.counter = metrics.counter(name, tags);
-        }
-
-        @Override
-        public synchronized long get() {
-            return (long) counter.count();
-        }
-
-        @Override
-        public synchronized void inc() {
-            counter.increment();
-        }
-
-        @Override
-        public synchronized void add(long delta) {
-            counter.increment(delta);
-        }
-    }
-
-    private class GaugeImpl<T extends Number> implements Gauge {
-        @Getter
-        private final Id id;
-
-        GaugeImpl(String statName, Supplier<T> value, String... tagPairs) {
-            String name = joinWithDot(basename, statName);
-            io.micrometer.core.instrument.Tags tags = io.micrometer.core.instrument.Tags.of(tagPairs);
-            this.id = new Id(name, tags, null, null, io.micrometer.core.instrument.Meter.Type.GAUGE);
-            metrics.remove(this.id);
-            metrics.gauge(name, tags, value, obj -> obj.get().doubleValue());
+        CounterImpl(String statName) {
+            this.name = name(basename, statName);
+            this.counter = metrics.counter(name);
         }
 
         @Override
         public void close() {
-            metrics.remove(this.id);
+            metrics.remove(this.name);
+        }        
+
+        @Override
+        public synchronized void clear() {
+            long cur = counter.getCount();
+            counter.dec(cur);
+        }
+
+        @Override
+        public long get() {
+            return counter.getCount();
+        }
+
+        @Override
+        public void inc() {
+            counter.inc();
+        }
+
+        @Override
+        public void dec() {
+            counter.dec();
+        }
+
+        @Override
+        public void add(long delta) {
+            counter.inc(delta);
+        }
+    }
+
+    private class GaugeImpl<T> implements Gauge {
+        private final com.codahale.metrics.Gauge<T> gauge;
+        @Getter
+        private final String name;
+
+        GaugeImpl(String statName, Supplier<T> value) {
+            this.name = name(basename, statName);
+            this.gauge = value::get;
+            metrics.remove(name);
+            metrics.register(name, gauge);
+        }
+
+        @Override
+        public void close() {
+            metrics.remove(this.name);
         }
 
     }
 
     private class MeterImpl implements Meter {
-        private final io.micrometer.core.instrument.DistributionSummary summary;
+        private final com.codahale.metrics.Meter meter;
         @Getter
-        private final Id id;
+        private final String name;
 
-        MeterImpl(String statName, String... tagPairs) {
-            this.summary = io.micrometer.core.instrument.DistributionSummary
-                    .builder(joinWithDot(basename, statName))
-                    .tags(tagPairs)
-                    .register(metrics);
-            this.id = summary == null ? null : summary.getId();
+        MeterImpl(String statName) {
+            this.name = name(basename, statName);
+            this.meter = metrics.meter(this.name);
         }
 
         @Override
         public void close() {
-            metrics.remove(summary);
+            metrics.remove(this.name);
         }
 
         @Override
         public void recordEvent() {
-            summary.record(1);
+            meter.mark();
         }
 
         @Override
         public void recordEvents(long n) {
-            summary.record(n);
+            meter.mark(n);
         }
 
         @Override
         public long getCount() {
-            return (long) summary.totalAmount();
+            return meter.getCount();
         }
     }
 }

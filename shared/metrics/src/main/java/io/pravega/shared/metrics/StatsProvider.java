@@ -20,14 +20,6 @@ public interface StatsProvider extends AutoCloseable {
     void start();
 
     /**
-     * Initialize the stats provider with SimpleMeterRegistry only which is memory based without exporting.
-     * Note different Micrometer registry may behave inconsistently from storage perspective (e.g. same metric
-     * may return different value from different registry).
-     * To keep things consistent, particularly for unit tests, only SimpleMeterRegistry is bound here.
-     */
-    void startWithoutExporting();
-
-    /**
      * Close the stats provider.
      */
     @Override

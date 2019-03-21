@@ -41,11 +41,6 @@ public class StatsProviderProxy implements StatsProvider {
     }
 
     @Override
-    public void startWithoutExporting() {
-        instance.get().startWithoutExporting();
-    }
-
-    @Override
     public void close() {
         instance.get().close();
     }
