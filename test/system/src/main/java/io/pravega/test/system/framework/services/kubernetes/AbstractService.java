@@ -222,7 +222,7 @@ public abstract class AbstractService implements Service {
                                   .withScope("Namespaced")
                                   .withVersion(CUSTOM_RESOURCE_VERSION_PRAVEGA)
                                   .withNewSubresources()
-                                                     .withStatus(new V1beta1CustomResourceDefinitionStatus())
+                                  .withStatus(new V1beta1CustomResourceDefinitionStatus())
                                   .endSubresources()
                                   .build())
                 .build();
