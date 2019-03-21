@@ -17,7 +17,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.rolling.RollingStorageTestBase;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.storage.IdempotentStorageTestBase;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -46,8 +45,6 @@ public class FileSystemStorageTest extends IdempotentStorageTestBase {
         this.baseDir = Files.createTempDirectory("test_nfs").toFile().getAbsoluteFile();
         MetricsConfig metricsConfig = MetricsConfig.builder().with(MetricsConfig.ENABLE_STATISTICS, true).build();
         MetricsProvider.initialize(metricsConfig);
-        StatsProvider statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.startWithoutExporting();
         this.adapterConfig = FileSystemStorageConfig
                 .builder()
                 .with(FileSystemStorageConfig.ROOT, this.baseDir.getAbsolutePath())

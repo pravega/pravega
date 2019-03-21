@@ -14,12 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import io.pravega.shared.MetricsNames;
 import lombok.extern.slf4j.Slf4j;
-
-import static io.pravega.shared.MetricsNames.metricKey;
-import static io.pravega.shared.MetricsNames.NONE_SUFFIX;
 
 @Slf4j
 public class StatsLoggerProxy implements StatsLogger {
@@ -42,28 +37,25 @@ public class StatsLoggerProxy implements StatsLogger {
     }
 
     @Override
-    public OpStatsLogger createStats(String name, String... tags) {
-        return getOrSet(this.opStatsLoggers, name,
-                metricName -> this.statsLoggerRef.get().createStats(metricName, tags), OpStatsLoggerProxy::new, tags);
+    public OpStatsLogger createStats(String name) {
+        return getOrSet(this.opStatsLoggers, name, this.statsLoggerRef.get()::createStats, OpStatsLoggerProxy::new);
     }
 
     @Override
-    public Counter createCounter(String name, String... tags) {
-        return getOrSet(this.counters, name,
-                metricName -> this.statsLoggerRef.get().createCounter(metricName, tags), CounterProxy::new, tags);
+    public Counter createCounter(String name) {
+        return getOrSet(this.counters, name, this.statsLoggerRef.get()::createCounter, CounterProxy::new);
     }
 
     @Override
-    public Meter createMeter(String name, String... tags) {
-        return getOrSet(this.meters, name,
-                metricName -> this.statsLoggerRef.get().createMeter(metricName, tags), MeterProxy::new, tags);
+    public Meter createMeter(String name) {
+        return getOrSet(this.meters, name, this.statsLoggerRef.get()::createMeter, MeterProxy::new);
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
+    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
         return getOrSet(this.gauges, name,
-                metricName -> this.statsLoggerRef.get().registerGauge(metricName, value, tags),
-                (metric, proxyName, c) -> new GaugeProxy(metric, proxyName, value, c), tags);
+                metricName -> this.statsLoggerRef.get().registerGauge(metricName, value),
+                (metric, proxyName, c) -> new GaugeProxy(metric, proxyName, value, c));
     }
 
     @Override
@@ -86,15 +78,14 @@ public class StatsLoggerProxy implements StatsLogger {
      */
     private <T extends Metric, V extends MetricProxy<T>> V getOrSet(ConcurrentHashMap<String, V> cache, String name,
                                                                     Function<String, T> createMetric,
-                                                                    ProxyCreator<T, V> createProxy, String... tags) {
+                                                                    ProxyCreator<T, V> createProxy) {
         // We could simply use Map.computeIfAbsent to do everything atomically, however in ConcurrentHashMap, the function
         // is evaluated while holding the lock. As per the method's guidelines, the computation should be quick and not
         // do any IO or acquire other locks, however we have no control over new Metric creation. As such, we use optimistic
         // concurrency, where we assume that the MetricProxy does not exist, create it, and then if it does exist, close
         // the newly created one.
-        MetricsNames.MetricKey keys = metricKey(name, NONE_SUFFIX, tags);
-        T newMetric = createMetric.apply(keys.getRegistryKey());
-        V newProxy = createProxy.apply(newMetric, keys.getCacheKey(), cache::remove);
+        T newMetric = createMetric.apply(name);
+        V newProxy = createProxy.apply(newMetric, name, cache::remove);
         V existingProxy = cache.putIfAbsent(newProxy.getProxyName(), newProxy);
         if (existingProxy != null) {
             newProxy.close();

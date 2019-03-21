@@ -26,7 +26,7 @@ public interface Meter extends Metric {
     void recordEvents(long n);
 
     /**
-     * Returns the total number of events which have been marked.
+     * Returns the number of events which have been marked.
      *
      * @return the count
      */

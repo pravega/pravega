@@ -243,6 +243,9 @@ class OutOfProcessAdapter extends ExternalAdapter {
 
         if (this.testConfig.isMetricsEnabled()) {
             ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.ENABLE_STATISTICS), true);
+            ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.ENABLE_CSV_REPORTER), true);
+            ps.sysProp(configProperty(MetricsConfig.COMPONENT_CODE, MetricsConfig.CSV_ENDPOINT),
+                    this.testConfig.getComponentMetricsPath("segmentstore", segmentStoreId));
         }
 
         Process p = ps.start();

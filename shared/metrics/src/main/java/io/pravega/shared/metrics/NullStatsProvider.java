@@ -16,17 +16,12 @@ public class NullStatsProvider implements StatsProvider {
 
     @Override
     public void start() {
-        // no-op
-    }
-
-    @Override
-    public void startWithoutExporting() {
-        // no-op
+        // nop
     }
 
     @Override
     public void close() {
-        // no-op
+        // nop
     }
 
     @Override
