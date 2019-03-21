@@ -370,7 +370,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
   ```
 
 - Controller global and per-Stream operation Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
-```
+  ```
     controller.stream.created.Counter
     controller.stream.create_failed_global.Counter
     controller.stream.create_failed.$scope.$stream.Counter
