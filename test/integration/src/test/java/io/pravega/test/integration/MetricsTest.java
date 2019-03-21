@@ -118,13 +118,13 @@ public class MetricsTest extends ThreadPooledTestSuite {
         log.info("Initializing metrics provider ...");
 
         MetricsConfig metricsConfig = MetricsConfig.builder()
-                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                .with(MetricsConfig.ENABLE_CSV_REPORTER, false).with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
         metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(5));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.startWithoutExporting();
+        statsProvider.start();
         log.info("Metrics Stats provider is started");
     }
 
@@ -212,7 +212,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
                 }
             }
 
-            long initialCount = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").count();
+            long initialCount = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
             Assert.assertEquals(bytesWritten, initialCount);
 
             Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
@@ -236,7 +236,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
                 }
             }
 
-            long countAfterCacheEvicted = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").count();
+            long countAfterCacheEvicted = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
@@ -278,7 +278,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
                 }
             }
 
-            long countFromSecondSegment = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter").count();
+            long countFromSecondSegment = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter").getCount();
 
             Assert.assertEquals(bytesWritten, countFromSecondSegment);
 

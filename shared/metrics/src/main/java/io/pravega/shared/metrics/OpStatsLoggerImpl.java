@@ -9,16 +9,15 @@
  */
 package io.pravega.shared.metrics;
 
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Snapshot;
+import com.codahale.metrics.Timer;
 import com.google.common.base.Preconditions;
-import io.micrometer.core.instrument.Meter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
-import io.micrometer.core.instrument.distribution.HistogramSnapshot;
-
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.concurrent.TimeUnit;
 
+import static com.codahale.metrics.MetricRegistry.name;
 import static io.pravega.shared.MetricsNames.failMetricName;
 
 class OpStatsLoggerImpl implements OpStatsLogger {
@@ -28,21 +27,18 @@ class OpStatsLoggerImpl implements OpStatsLogger {
     private final String successName;
     private final Timer fail;
     private final String failName;
-    private final MeterRegistry meterRegistry;
+    private final MetricRegistry metricRegistry;
 
     //endregion
 
     //region Constructor
 
-    OpStatsLoggerImpl(MeterRegistry metricRegistry, String baseName, String statName, String... tags) {
-        this.meterRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
-        this.successName = baseName + "." + statName;
-        this.failName = baseName + "." + failMetricName(statName);
-        //This will publish additional percentile metrics
-        this.success = Timer.builder(successName).tags(tags).publishPercentiles(OpStatsData.PERCENTILE_ARRAY)
-                .register(this.meterRegistry);
-        this.fail = Timer.builder(failName).tags(tags).publishPercentiles(OpStatsData.PERCENTILE_ARRAY)
-                .register(this.meterRegistry);
+    OpStatsLoggerImpl(MetricRegistry metricRegistry, String baseName, String statName) {
+        this.metricRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
+        this.successName = name(baseName, statName);
+        this.failName = name(baseName, failMetricName(statName));
+        this.success = this.metricRegistry.timer(this.successName);
+        this.fail = this.metricRegistry.timer(this.failName);
     }
 
     //endregion
@@ -51,8 +47,8 @@ class OpStatsLoggerImpl implements OpStatsLogger {
 
     @Override
     public void close() {
-        this.meterRegistry.remove(success);
-        this.meterRegistry.remove(fail);
+        this.metricRegistry.remove(this.successName);
+        this.metricRegistry.remove(this.failName);
     }
 
 
@@ -61,30 +57,30 @@ class OpStatsLoggerImpl implements OpStatsLogger {
     //region OpStatsLogger Implementation
 
     @Override
-    public Meter.Id getId() {
-        return this.success.getId();
+    public String getName() {
+        return this.successName;
     }
 
     @Override
     public void reportFailEvent(Duration duration) {
-        fail.record(duration.toMillis(), TimeUnit.MILLISECONDS);
+        fail.update(duration.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void reportSuccessEvent(Duration duration) {
-        success.record(duration.toMillis(), TimeUnit.MILLISECONDS);
+        success.update(duration.toMillis(), TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void reportSuccessValue(long value) {
         // Values are inserted as millis, which is the unit they will be presented, to maintain 1:1 scale
-        success.record(value, TimeUnit.MILLISECONDS);
+        success.update(value, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void reportFailValue(long value) {
         // Values are inserted as millis, which is the unit they will be presented, to maintain 1:1 scale
-        fail.record(value, TimeUnit.MILLISECONDS);
+        fail.update(value, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -94,20 +90,15 @@ class OpStatsLoggerImpl implements OpStatsLogger {
 
     @Override
     public OpStatsData toOpStatsData() {
-        long numFailed = fail.count();
-        long numSuccess = success.count();
-        HistogramSnapshot snapshot = success.takeSnapshot();
-        double avgLatencyMillis = snapshot.mean();
+        long numFailed = fail.getCount();
+        long numSuccess = success.getCount();
+        Snapshot s = success.getSnapshot();
+        double avgLatencyMillis = s.getMean();
 
         EnumMap<OpStatsData.Percentile, Long> percentileLongMap  =
-                new EnumMap<>(OpStatsData.Percentile.class);
-
-        //Only add entries into percentile map when percentile values are not missing from snapshot.
-        if (OpStatsData.PERCENTILE_ARRAY.length == snapshot.percentileValues().length) {
-            int index = 0;
-            for (OpStatsData.Percentile percent : OpStatsData.PERCENTILE_SET) {
-                percentileLongMap.put(percent, (long) snapshot.percentileValues()[index++].value());
-            }
+                new EnumMap<OpStatsData.Percentile, Long>(OpStatsData.Percentile.class);
+        for (OpStatsData.Percentile percent : OpStatsData.PERCENTILESET) {
+            percentileLongMap.put(percent, (long) s.getValue(percent.getValue() / 100));
         }
         return new OpStatsData(numSuccess, numFailed, avgLatencyMillis, percentileLongMap);
     }

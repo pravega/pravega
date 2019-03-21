@@ -10,7 +10,6 @@
 package io.pravega.shared.metrics;
 
 import com.google.common.base.Preconditions;
-import io.micrometer.core.instrument.Meter;
 import io.pravega.common.Exceptions;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -50,12 +49,12 @@ abstract class MetricProxy<T extends Metric> implements AutoCloseable {
     }
 
     /**
-     * Gets the id of the underlying metric.
+     * Gets the name of the underlying metric.
      *
-     * @return The id of the underlying metric.
+     * @return The name.
      */
-    public Meter.Id getId() {
-        return getInstance().getId();
+    public String getName() {
+        return getInstance().getName();
     }
 
     /**

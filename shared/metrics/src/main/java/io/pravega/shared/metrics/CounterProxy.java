@@ -28,6 +28,11 @@ class CounterProxy extends MetricProxy<Counter> implements Counter {
     }
 
     @Override
+    public void dec() {
+        getInstance().dec();
+    }
+
+    @Override
     public void add(long delta) {
         getInstance().add(delta);
     }
