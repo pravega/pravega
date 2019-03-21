@@ -153,7 +153,9 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final String serverStackTrace;
-        // This represents the offset at which the segment is sealed.
+        /**
+         * This represents the offset at which the segment is sealed.
+         */
         final long offset;
 
         @Override
@@ -190,7 +192,9 @@ public final class WireCommands {
         final String segment;
         final long startOffset;
         final String serverStackTrace;
-        // This represents the offset at which the segment is truncated at.
+        /**
+         * This represents the offset at which the segment is truncated.
+         */
         final long offset;
 
         @Override
@@ -265,7 +269,9 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final String serverStackTrace;
-        // This field is used represent the offset that was sent by the request.
+        /**
+         * This represents the offset that was sent by the request.
+         */
         final long offset;
 
         @Override
