@@ -57,6 +57,11 @@ public class MetadataScalabilityLargeScalesTest extends MetadataScalabilityTest 
         return SCALES_TO_PERFORM;
     }
 
+    /**
+     * Scale all the segments in the current epoch and replace them with new identical 10 segments. 
+     * @param sortedCurrentSegments segments in current epoch
+     * @return scale input for next scale to perform
+     */
     Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments) {
         return new ImmutablePair<>(getSegmentsToSeal(sortedCurrentSegments), getNewRanges());     
     }

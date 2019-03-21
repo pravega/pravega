@@ -56,9 +56,14 @@ public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalability
         return SCALES_TO_PERFORM;
     }
 
-    Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sorted) {
+    /**
+     * Chooses one segment out of the current segments and selects its matching range as the input for next scale.
+     * @param sortedCurrentSegments sorted current segments
+     * @return scale input for next scale
+     */
+    Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments) {
         int i = counter.incrementAndGet();
-        List<Long> segmentsToSeal = sorted.stream()
+        List<Long> segmentsToSeal = sortedCurrentSegments.stream()
                                           .filter(x -> i - 1 == StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % NUM_SEGMENTS)
                                           .map(Segment::getSegmentId).collect(Collectors.toList());
         Map<Double, Double> newRanges = new HashMap<>();

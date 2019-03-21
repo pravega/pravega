@@ -103,6 +103,8 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
 
     abstract int getScalesToPerform();
 
+    abstract Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments);
+
     @Test
     public void scalability() {
         testState = new TestState(false);
@@ -175,6 +177,4 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
                     }, executorService);
                 }).join();
     }
-
-    abstract Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sorted);
 }
