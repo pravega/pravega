@@ -10,6 +10,7 @@
 package io.pravega.client.netty.impl;
 
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.Session;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -42,6 +44,9 @@ public class RawClient implements AutoCloseable {
     private final Map<Long, CompletableFuture<Reply>> requests = new HashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    @Getter
+    private final Session session = Session.create();
+
     private final class ResponseProcessor extends FailingReplyProcessor {
 
         @Override

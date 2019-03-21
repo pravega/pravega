@@ -228,7 +228,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     @Override
     public String toString() {
         return String.format(
-                "[%d: %s] Count = %d, LastOffset = %s, LUSN = %d LastFlush = %ds",
+                "[%d: %s] Count = %d, LastOffset = %s, LUSN = %d, LastFlush = %ds",
                 this.metadata.getId(),
                 this.metadata.getName(),
                 this.operations.size(),
