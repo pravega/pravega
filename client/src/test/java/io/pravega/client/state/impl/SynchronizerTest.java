@@ -478,7 +478,7 @@ public class SynchronizerTest {
             callCount.incrementAndGet();
             updates.add(new RegularUpdate("e"));
         });
-        assertEquals("e",syncA.getState().getValue());
+        assertEquals("e", syncA.getState().getValue());
         syncB.fetchUpdates();
         assertEquals("e", syncB.getState().getValue());
         assertTrue(syncA.bytesWrittenSinceCompaction() > size);
@@ -487,21 +487,21 @@ public class SynchronizerTest {
             callCount.incrementAndGet();
             updates.add(new RegularUpdate("f"));
         });
-        assertEquals("f",syncA.getState().getValue());
+        assertEquals("f", syncA.getState().getValue());
         assertTrue(syncA.bytesWrittenSinceCompaction() > size);
 
         syncA.updateState((state, updates) -> {
             callCount.incrementAndGet();
             updates.add(new RegularUpdate("g"));
         });
-        assertEquals("g",syncA.getState().getValue());
+        assertEquals("g", syncA.getState().getValue());
         assertTrue(syncA.bytesWrittenSinceCompaction() > size);
 
         syncA.updateState((state, updates) -> {
             callCount.incrementAndGet();
             updates.add(new RegularUpdate("h"));
         });
-        assertEquals("h",syncA.getState().getValue());
+        assertEquals("h", syncA.getState().getValue());
         assertTrue(syncA.bytesWrittenSinceCompaction() > size);
 
         syncA.compact(state -> {
@@ -509,9 +509,9 @@ public class SynchronizerTest {
             return new RegularUpdate("h");
         });
 
-        assertEquals("h",syncA.getState().getValue());
+        assertEquals("h", syncA.getState().getValue());
         syncB.fetchUpdates();
-        assertEquals("h",syncB.getState().getValue());
+        assertEquals("h", syncB.getState().getValue());
         assertEquals(8, callCount.get());
         assertEquals(0, syncA.bytesWrittenSinceCompaction());
     }
