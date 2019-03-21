@@ -205,12 +205,12 @@ public class SynchronizerTest {
         RevisionedImpl state3 = sync.getState();
         assertEquals(new RevisionImpl(segment, 4, 4), state3.getRevision());
     }
-    
+
     @Test(timeout = 20000)
     public void testCompaction() throws EndOfSegmentException {
         String streamName = "streamName";
         String scope = "scope";
-        
+
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
@@ -411,5 +411,121 @@ public class SynchronizerTest {
         assertEquals(0, set3.getCurrentSize());
     }
 
-    
+    @Test(timeout = 20000)
+    public void testCompactWithTruncation() throws EndOfSegmentException {
+        String streamName = "streamName";
+        String scope = "scope";
+
+        MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        MockClientFactory clientFactoryA = new MockClientFactory(scope, ioFactory);
+        @Cleanup
+        MockClientFactory clientFactoryB = new MockClientFactory(scope, ioFactory);
+
+        StateSynchronizer<RevisionedImpl> syncA = clientFactoryA.createStateSynchronizer(streamName,
+                new JavaSerializer<>(),
+                new JavaSerializer<>(),
+                SynchronizerConfig.builder().build());
+
+        StateSynchronizer<RevisionedImpl> syncB = clientFactoryB.createStateSynchronizer(streamName,
+                new JavaSerializer<>(),
+                new JavaSerializer<>(),
+                SynchronizerConfig.builder().build());
+
+        assertEquals(0, syncA.bytesWrittenSinceCompaction());
+        assertEquals(0, syncB.bytesWrittenSinceCompaction());
+
+        AtomicInteger callCount = new AtomicInteger(0);
+
+        syncA.initialize(new RegularUpdate("a"));
+        syncB.initialize(new RegularUpdate("b"));
+        assertEquals("a", syncA.getState().getValue());
+        assertEquals("a", syncB.getState().getValue());
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("b"));
+        });
+        assertEquals(1, callCount.get());
+        assertEquals("b", syncA.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("b", syncB.getState().getValue());
+
+        long size = syncA.bytesWrittenSinceCompaction();
+        assertTrue(size > 0);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("c"));
+        });
+        assertEquals(2, callCount.get());
+        assertEquals("c", syncA.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("c", syncB.getState().getValue());
+        assertTrue(syncA.bytesWrittenSinceCompaction() > size);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("d"));
+        });
+        assertEquals(3, callCount.get());
+        assertEquals("d", syncA.getState().getValue());
+        assertEquals("c", syncB.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("d", syncB.getState().getValue());
+        assertTrue(syncA.bytesWrittenSinceCompaction() > size);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("e"));
+        });
+        assertEquals(4, callCount.get());
+        assertEquals("e", syncA.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("e", syncB.getState().getValue());
+        assertTrue(syncA.bytesWrittenSinceCompaction() > size);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("f"));
+        });
+        assertEquals(5, callCount.get());
+        assertEquals("f", syncA.getState().getValue());
+        assertTrue(syncA.bytesWrittenSinceCompaction() > size);
+
+        assertEquals("e", syncB.getState().getValue());
+        syncB.compact(state -> {
+            callCount.incrementAndGet();
+            return new RegularUpdate("e");
+        });
+        assertEquals(7, callCount.get());
+        assertEquals(0, syncB.bytesWrittenSinceCompaction());
+        assertEquals("f", syncA.getState().getValue());
+        assertEquals("f", syncB.getState().getValue());
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("g"));
+        });
+        assertEquals(9, callCount.get());
+        assertEquals("g", syncA.getState().getValue());
+        assertEquals(syncA.bytesWrittenSinceCompaction(), size);
+
+        syncA.updateState((state, updates) -> {
+            callCount.incrementAndGet();
+            updates.add(new RegularUpdate("h"));
+        });
+        assertEquals(10, callCount.get());
+        assertEquals("h", syncA.getState().getValue());
+
+        syncA.compact(state -> {
+            callCount.incrementAndGet();
+            return new RegularUpdate("h");
+        });
+        assertEquals(11, callCount.get());
+        assertEquals("h", syncA.getState().getValue());
+        syncB.fetchUpdates();
+        assertEquals("h", syncB.getState().getValue());
+        assertEquals(0, syncA.bytesWrittenSinceCompaction());
+    }
 }
