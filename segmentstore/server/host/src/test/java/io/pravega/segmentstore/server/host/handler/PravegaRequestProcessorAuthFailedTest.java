@@ -40,7 +40,7 @@ public class PravegaRequestProcessorAuthFailedTest {
 
     @Test
     public void readSegment() {
-        processor.readSegment(new WireCommands.ReadSegment("segment", 0, 10, ""));
+        processor.readSegment(new WireCommands.ReadSegment("segment", 0, 10, "", 0));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(0, ""));
     }
 
