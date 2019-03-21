@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework.kubernetes;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import io.kubernetes.client.ApiCallback;
@@ -185,7 +186,6 @@ public class K8sClient {
                        });
     }
 
-
     /**
      * Method to fetch the status of all pods which match a label.
      * @param namespace Namespace on which the pod(s) reside.
@@ -193,23 +193,62 @@ public class K8sClient {
      * @param labelValue Value of the label.
      * @return Future representing the list of pod status.
      */
-    @SneakyThrows(ApiException.class)
     public CompletableFuture<List<V1PodStatus>> getStatusOfPodWithLabel(final String namespace, final String labelName, final String labelValue) {
+        return getPodsWithLabel(namespace, labelName, labelValue)
+                .thenApply(v1PodList -> {
+                    List<V1Pod> podList = v1PodList.getItems();
+                    log.debug("{} pod(s) found with label {}={}.", podList.size(), labelName, labelValue);
+                    return podList.stream().map(V1Pod::getStatus).collect(Collectors.toList());
+                });
+    }
+
+    /**
+     * Method to fetch all pods which match a label.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @param labelName Name of the label.
+     * @param labelValue Value of the label.
+     * @return Future representing the list of pod status.
+     */
+    public CompletableFuture<V1PodList> getPodsWithLabel(String namespace, String labelName, String labelValue) {
+       return getPodsWithLabels(namespace, ImmutableMap.of(labelName, labelValue));
+    }
+
+    /**
+     * Method to fetch all pods which match a set of labels.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @param labels Name of the label.
+     * @return Future representing the list of pod status.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1PodList> getPodsWithLabels(String namespace, Map<String, String> labels) {
         CoreV1Api api = new CoreV1Api();
 
         // Workaround for okhttp issue, tracked by https://github.com/pravega/pravega/issues/3361
         log.debug("Current number of http interceptors {}", api.getApiClient().getHttpClient().networkInterceptors().size());
         api.getApiClient().getHttpClient().networkInterceptors().clear();
 
+        String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
-        api.listNamespacedPodAsync(namespace, PRETTY_PRINT, null, null, true, labelName + "=" + labelValue, null,
+        api.listNamespacedPodAsync(namespace, PRETTY_PRINT, null, null, true, labelSelector, null,
                                    null, null, false, callback);
-        return callback.getFuture()
-                       .thenApply(v1PodList -> {
-                           List<V1Pod> podList = v1PodList.getItems();
-                           log.debug("{} pod(s) found with label {}={}.", podList.size(), labelName, labelValue);
-                           return podList.stream().map(V1Pod::getStatus).collect(Collectors.toList());
-                       });
+        return callback.getFuture();
+    }
+
+    /**
+     * Method to fetch all restarted pods which match a label.
+     * Note: This method currently supports only one container per pod.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @param labelName Name of the label.
+     * @param labelValue Value of the label.
+     * @return Future representing the list of pod status.
+     */
+    public CompletableFuture<Map<String, V1ContainerStatus>> getRestartedPods(String namespace, String labelName, String labelValue) {
+        return getPodsWithLabel(namespace, labelName, labelValue)
+                     .thenApply(v1PodList -> v1PodList.getItems().stream()
+                                                      .filter(pod -> !pod.getStatus().getContainerStatuses().isEmpty() &&
+                                                              (pod.getStatus().getContainerStatuses().get(0).getRestartCount() != 0))
+                                                      .collect(Collectors.toMap(pod -> pod.getMetadata().getName(),
+                                                                                pod -> pod.getStatus().getContainerStatuses().get(0))));
     }
 
     /**
