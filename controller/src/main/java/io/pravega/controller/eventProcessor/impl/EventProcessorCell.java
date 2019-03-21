@@ -143,11 +143,19 @@ class EventProcessorCell<T extends ControllerEvent> {
 
                 // First close the reader, which implicitly notifies reader position to the reader group
                 log.info("Closing reader for {}", objectId);
-                reader.close(getCheckpoint());
+                try {
+                    reader.close(getCheckpoint());
+                } catch (Exception e) {
+                    log.error("Exception while closing EventProcessorCell reader from checkpointStore: ", e);
+                }
 
                 // Next, clean up the reader and its position from checkpoint store
                 log.info("Cleaning up checkpoint store for {}", objectId);
-                checkpointStore.removeReader(process, readerGroupName, readerId);
+                try {
+                    checkpointStore.removeReader(process, readerGroupName, readerId);
+                } catch (Exception e) {
+                    log.error("Exception while removing reader from checkpointStore: ", e);
+                }
             }
         }
 

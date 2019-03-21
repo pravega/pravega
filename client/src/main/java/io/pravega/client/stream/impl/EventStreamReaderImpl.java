@@ -291,7 +291,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     public void close(Position position) {
         synchronized (readers) {
             if (!closed) {
-                log.info("Closing reader {} ", this);
+                log.info("Closing reader {} at position {}.", this, position);
                 closed = true;
                 groupState.readerShutdown(position);
                 for (EventSegmentReader reader : readers) {
