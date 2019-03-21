@@ -25,7 +25,7 @@ You may obtain a copy of the License at
 * [Available Metrics and Their Names](#available-metrics-and-their-names)
 * [Resources](#resources)
 
-In Pravega Metrics Framework, we use [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
+In the Pravega Metrics Framework, we use [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
 
 # Metrics Interfaces and Examples Usage
 
@@ -36,17 +36,16 @@ Following are four basic interfaces:
 3. `OpStatsLogger`
 4. `DynamicLogger`
 
-- `StatsProvider`: The Statistics Provider which provides us the whole Metric service.
+- `StatsProvider`: The Statistics Provider which provides the whole Metric service.
 
-- `StatsLogger`: The Statistics Logger is the place at where we register and get the required Metrics ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)).
+- `StatsLogger`: The Statistics Logger is where the required Metrics ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)) are registered.
 
-- `OpStatsLogger`: The Operation Statistics Logger, is a sub-metric for the complex ones ([Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)). It is included in the `StatsLogger` and `DynamicLogger`.
-
+- `OpStatsLogger`: The Operation Statistics Logger is a sub-metric for the complex ones ([Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)). It is included in `StatsLogger` and `DynamicLogger`.
 
 
 ## Metrics Service Provider — Interface StatsProvider
 
-Pravega Metric Framework is initiated using the `StatsProvider` interface, it provides _start_ and _stop_ method for Metric service. Regarding the **Reporters**, currently we have support for [**CSV reporter**](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) and [**StatsD reporter**](https://github.com/b/statsd_spec).
+Pravega Metric Framework is initiated using the `StatsProvider` interface: it provides the _start_ and _stop_ methods for the Metric service. The following are the supported **Reporters**, [**CSV reporter**](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) and [**StatsD reporter**](https://github.com/b/statsd_spec).
 
 ```java
 public interface StatsProvider {
@@ -57,14 +56,14 @@ public interface StatsProvider {
 }
 ```
 
-- `start()`: Initializes [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and Reporters for our Metric service.
-- `close()`: Performs Shutting down of Metric Service.
+- `start()`: Initializes the [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and Reporters for our Metric service.
+- `close()`: Shuts down the Metric Service.
 - `createStatsLogger()`: Creates and returns a `StatsLogger` instance, which is used to retrieve a metric and performs metric insertion and collection in Pravega code.
 - `createDynamicLogger()`: Creates a Dynamic Logger.
 
 ## Metric Logger — Interface StatsLogger
 
-Using the following interface we can register required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric like `OpStatsLogger`, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
+This interface can be used to register the required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric like `OpStatsLogger`, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
 
 ```java
 public interface StatsLogger {
@@ -97,16 +96,16 @@ public interface OpStatsLogger {
 }
 ```
 
-- `reportSuccessEvent()`: It is used to track the [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) of a successful operation and will record the latency in nanoseconds in the required metric.
-- `reportFailEvent()`: It is used to track the [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) of a failed operation and will record the latency in nanoseconds in required metric.  
-- `reportSuccessValue()`: It is used to track the [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms) of a success value.
-- `reportFailValue()`: It is used to track the [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms) of a failed value.
-- `toOpStatsData()`:  It is used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) exports and inner tests.
-- `clear`: It is used to clear the stats for this operation.
+- `reportSuccessEvent()`: Used to track the [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) of a successful operation and will record the latency in nanoseconds in the required metric.
+- `reportFailEvent()`: Used to track the [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) of a failed operation and will record the latency in nanoseconds in required metric.  
+- `reportSuccessValue()`: Used to track the [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms) of a success value.
+- `reportFailValue()`: Used to track the [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms) of a failed value.
+- `toOpStatsData()`:  Used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) exports and inner tests.
+- `clear`: Used to clear the stats for this operation.
 
 ## Metric Logger — Interface DynamicLogger
 
-The following is an example of a  simple interface that exposes only simple type metrics: ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter)).
+The following is an example of a simple interface that exposes only simple type metrics: ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter)).
 
 ```java
 public interface DynamicLogger {
@@ -129,148 +128,31 @@ public interface DynamicLogger {
 
 # Example for Starting a Metric Service
 
-This example is from file `io.pravega.segmentstore.server.host.ServiceStarter`. It starts Pravega Segment Store service and the Metrics Service is started as a sub service.
-
-```java
-public final class ServiceStarter {
-    ...
-    private final ServiceBuilderConfig builderConfig;
-    private StatsProvider statsProvider;
-    ...
-    public void start() throws Exception {
-        ...
-        log.info("Initializing metrics provider ...");
-        MetricsProvider.initialize(builderConfig.getConfig(MetricsConfig::builder));
-        statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start(); // Here metric service is started as a sub-service
-        ...
-    }
-    private void shutdown() {
-        ...
-         if (this.statsProvider != null) {
-            statsProvider.close();
-            statsProvider = null;
-            log.info("Metrics statsProvider is now closed.");
-         }
-         ...
-    }
-...
-}
-```
+This example is from file `io.pravega.segmentstore.server.host.ServiceStarter`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/43113a257681c92581d57c6ed34f7b9e36e0bfe3/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/ServiceStarter.java). It starts Pravega Segment Store service and the Metrics Service is started as a sub service.
 
 ## Example for Dynamic Counter and OpStatsLogger(Timer)
 
-This is an example from `io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor`. In the class `PravegaRequestProcessor`, we have registered two metrics:
+This is an example from `io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/43113a257681c92581d57c6ed34f7b9e36e0bfe3/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/handler/PravegaRequestProcessor.java). In the class `PravegaRequestProcessor`, we have registered two metrics:
 
 - one Timer (`createStreamSegment`)
 - one dynamic counter (`segmentReadBytes`)
 
-```java
-public class PravegaRequestProcessor extends FailingRequestProcessor implements RequestProcessor {
-
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
-    private DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
-
-    private final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
-
-    private void handleReadResult(ReadSegment request, ReadResult result) {
-            String segment = request.getSegment();
-            ArrayList<ReadResultEntryContents> cachedEntries = new ArrayList<>();
-            ReadResultEntry nonCachedEntry = collectCachedEntries(request.getOffset(), result, cachedEntries);
-
-            boolean truncated = nonCachedEntry != null && nonCachedEntry.getType() == Truncated;
-            boolean endOfSegment = nonCachedEntry != null && nonCachedEntry.getType() == EndOfStreamSegment;
-            boolean atTail = nonCachedEntry != null && nonCachedEntry.getType() == Future;
-
-            if (!cachedEntries.isEmpty() || endOfSegment) {
-                // We managed to collect some data. Send it.
-                ByteBuffer data = copyData(cachedEntries);
-                SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
-                connection.send(reply);
-                dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length); // Increasing the counter value for the counter metric SEGMENT_READ_BYTES
-            } else if (truncated) {
-                // We didn't collect any data, instead we determined that the current read offset was truncated.
-                // Determine the current Start Offset and send that back.
-                segmentStore.getStreamSegmentInfo(segment, false, TIMEOUT)
-                        .thenAccept(info ->
-                                connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment, info.getStartOffset())))
-                        .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", e));
-            } else {
-                Preconditions.checkState(nonCachedEntry != null, "No ReadResultEntries returned from read!?");
-                nonCachedEntry.requestContent(TIMEOUT);
-                nonCachedEntry.getContent()
-                        .thenAccept(contents -> {
-                            ByteBuffer data = copyData(Collections.singletonList(contents));
-                            SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
-                            connection.send(reply);
-                            dynamicLogger.incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), reply.getData().array().length); // Increasing the counter value for the counter metric SEGMENT_READ_BYTES
-                        })
-                        .exceptionally(e -> {
-                            if (Exceptions.unwrap(e) instanceof StreamSegmentTruncatedException) {
-                                // The Segment may have been truncated in Storage after we got this entry but before we managed
-                                // to make a read. In that case, send the appropriate error back.
-                                connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment, nonCachedEntry.getStreamSegmentOffset()));
-                            } else {
-                                handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", e);
-                            }
-                            return null;
-                        })
-                        .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, "Read segment", e));
-            }
-        }
-
-    @Override
-        public void createSegment(CreateSegment createStreamsSegment) {
-            Timer timer = new Timer();
-
-            Collection<AttributeUpdate> attributes = Arrays.asList(
-                    new AttributeUpdate(SCALE_POLICY_TYPE, AttributeUpdateType.Replace, ((Byte) createStreamsSegment.getScaleType()).longValue()),
-                    new AttributeUpdate(SCALE_POLICY_RATE, AttributeUpdateType.Replace, ((Integer) createStreamsSegment.getTargetRate()).longValue()),
-                    new AttributeUpdate(CREATION_TIME, AttributeUpdateType.None, System.currentTimeMillis())
-            );
-
-           if (!verifyToken(createStreamsSegment.getSegment(), createStreamsSegment.getRequestId(),
-                   createStreamsSegment.getDelegationToken(), READ_UPDATE, "Create Segment")) {
-                return;
-           }
-           log.debug("Creating stream segment {}", createStreamsSegment);
-            segmentStore.createStreamSegment(createStreamsSegment.getSegment(), attributes, TIMEOUT)
-                    .thenAccept(v -> {
-                        createStreamSegment.reportSuccessEvent(timer.getElapsed()); // Reporting success event for Timer metric createStreamSegment
-                        connection.send(new SegmentCreated(createStreamsSegment.getRequestId(), createStreamsSegment.getSegment()));
-                    })
-                    .whenComplete((res, e) -> {
-                        if (e == null) {
-                            if (statsRecorder != null) {
-                                statsRecorder.createSegment(createStreamsSegment.getSegment(),
-                                        createStreamsSegment.getScaleType(), createStreamsSegment.getTargetRate());
-                            }
-                        } else {
-                            createStreamSegment.reportFailEvent(timer.getElapsed()); // Reporting fail event for Timer metric createStreamSegment
-                            handleException(createStreamsSegment.getRequestId(), createStreamsSegment.getSegment(), "Create segment", e);
-                        }
-                    });
-        }
-
-    …
-}
-```
-Using the above example, following are the required steps to register and use a metric in the desired class and method:
+Using the mentioned example, following are the required steps to register and use a metric in the desired class and method:
 
 1. Get a `StatsLogger` from `MetricsProvider`.
 
-```
-StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger();
-```
+   ```
+     StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger();
+   ```
 2. Register all the desired metrics through `StatsLogger`.
-```
-static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
-```
+   ```
+    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
+   ```
 3. Use these metrics within code at the appropriate places where you would like to collect and record the values.
 
-```
-Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-```
+   ```
+    Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
+   ```
 The `CREATE_STREAM_SEGMENT` is the name of this metric, and `CREATE_STREAM_SEGMENT` is the name of our Metrics logger. It will track operations of `createSegment`, and we will get the time (i.e. time taken by each operation and other numbers computed based on them) for each `createSegment` operation happened.
 
 ### Output Example of OpStatsLogger
@@ -286,52 +168,14 @@ t,count,max,mean,min,stddev,p50,p75,p95,p98,p99,p999,mean_rate,m1_rate,m5_rate,m
 
 ## Example for Dynamic Gauge and OpStatsLogger(Histogram)
 
-This is an example from `io.pravega.controller.store.stream.AbstractStreamMetadataStore`. In the class, `AbstractStreamMetadataStore` we report a Dynamic Gauge which represents:
+This is an example from `io.pravega.controller.store.stream.AbstractStreamMetadataStore`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/b4155031aa8c0fba229c4cf92f162e8ac982c30d/controller/src/main/java/io/pravega/controller/store/stream/AbstractStreamMetadataStore.java). In the class, `AbstractStreamMetadataStore` we report a Dynamic Gauge which represents:
 
 - Open Transactions
 - One Histogram (`CREATE_STREAM`).
 
-```java
-public abstract class AbstractStreamMetadataStore implements StreamMetadataStore  {
-    ...
-    private static final OpStatsLogger CREATE_STREAM = STATS_LOGGER.createStats(MetricsNames.CREATE_STREAM); // get stats logger from MetricsProvider
-    private DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger(); // get dynamic logger from MetricsProvider
-
-    ...
-    @Override
-        public CompletableFuture<CreateStreamResponse> createStream(final String scope,
-                                                       final String name,
-                                                       final StreamConfiguration configuration,
-                                                       final long createTimestamp,
-                                                       final OperationContext context,
-                                                       final Executor executor) {
-            return withCompletion(getStream(scope, name, context).create(configuration, createTimestamp), executor)
-                    .thenApply(result -> {
-                        if (result.getStatus().equals(CreateStreamResponse.CreateStatus.NEW)) {
-                            CREATE_STREAM.reportSuccessValue(1); // Report success event for histogram metric CREATE_STREAM
-                            dynamicLogger.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, name), 0); // Report gauge value for Dynamic Gauge metric OPEN_TRANSACTIONS
-                        }
-
-                        return result;
-                    });
-        }
-    ...
- }
-```
-
 ## Example for Dynamic Meter
 
-This is an example from `io.pravega.segmentstore.server.SegmentStoreMetrics`. In the class `SegmentStoreMetrics`, we report a Dynamic Meter which represents the Segments created.
-
-```java
-public final class SegmentStoreMetrics {
-    private final DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
-
-    public void createSegment() {
-            dynamicLogger.recordMeterEvents(this.createSegmentCount, 1);  // Record event for meter metric createSegmentCount
-    }
-}
-```
+This is an example from `io.pravega.segmentstore.server.SegmentStoreMetrics`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/d2c856ae1bf611f75db0cedd488f2735ba22a805/segmentstore/server/src/main/java/io/pravega/segmentstore/server/SegmentStoreMetrics.java). In the class `SegmentStoreMetrics`, we report a Dynamic Meter which represents the Segments created.
 
 # Metric Reporter and Configurations
 
@@ -339,48 +183,22 @@ Reporters are used to export all the measurements being made by the metrics. We 
 
 - [**CSV**](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) reporter will export each Metric into one file.
 - [**StatsD**](https://github.com/b/statsd_spec) reporter will export Metrics through UDP/TCP to a StatsD server.
-The reporter could be configured using the `MetricsConfig`.
+The reporter could be configured using the `MetricsConfig`. Please refer to the [example](https://github.com/pravega/pravega/blob/237a7da0b29284d3bf7bce2fe3cab595cc52c0ff/shared/metrics/src/main/java/io/pravega/shared/metrics/MetricsConfig.java).
 
-```java
-public class MetricsConfig extends ComponentConfig {
-    //region Members
-    public final static String COMPONENT_CODE = "metrics";
-    public final static String ENABLE_STATISTICS = "enableStatistics"; //enable metric, or will report nothing, default = true,  
-    public final static Property<Long> DYNAMIC_CACHE_SIZE = "dynamicCacheSize"; //dynamic cache size , default = 10000000L
-    public final static Property<Integer> DYNAMIC_CACHE_EVICTION_DURATION_MINUTES = "dynamicCacheEvictionDurationMinutes"; //dynamic cache evcition duration, default = 30
-    public final static String OUTPUT_FREQUENCY = "statsOutputFrequencySeconds"; //reporter output frequency, default = 60
-    public final static String METRICS_PREFIX = "metricsPrefix"; //Metrics Prefix, default = "pravega"
-    public final static String CSV_ENDPOINT = "csvEndpoint"; // CSV reporter output dir, default = "/tmp/csv"
-    public final static String STATSD_HOST = "statsDHost"; // StatsD server host for the reporting, default = "localhost"
-    public final static String STATSD_PORT = "statsDPort"; // StatsD server port, default = "8125"
-    public final static Property<String> GRAPHITE_HOST = "graphiteHost"; // Graphite server host for the reporting, default = "localhost"
-    public final static Property<Integer> GRAPHITE_PORT = "graphitePort"; // Graphite server port, default = "2003"
-    public final static Property<String> JMX_DOMAIN = "jmxDomain"; // JMX domain for the reporting, default = "domain"
-    public final static Property<String> GANGLIA_HOST = "gangliaHost"; // Ganglia server host for the reporting, default = "localhost"
-    public final static Property<Integer> GANGLIA_PORT = "gangliaPort"; // Ganglia server port, default = "8649"
-    public final static Property<Boolean> ENABLE_CSV_REPORTER = "enableCSVReporter"; // Enables CSV reporter, default = true
-    public final static Property<Boolean> ENABLE_STATSD_REPORTER = "enableStatsdReporter"; // Enables StatsD reporter, default = true
-    public final static Property<Boolean> ENABLE_GRAPHITE_REPORTER = "enableGraphiteReporter"; // Enables Graphite reporter, default = false
-    public final static Property<Boolean> ENABLE_JMX_REPORTER = "enableJMXReporter"; // Enables JMX reporter, default = false
-    public final static Property<Boolean> ENABLE_GANGLIA_REPORTER ="enableGangliaReporter"; // Enables Ganglia reporter, default = false
-    public final static Property<Boolean> ENABLE_CONSOLE_REPORTER = "enableConsoleReporter"; // Enables Console reporter, default = false
-    ...
-}
-```
 
-# Configuring Own Metrics
+# Creating Own Metrics
 
 1. On the start of a Segment Store/Controller Service, start a Metric Service as a sub service. Please check [`ServiceStarter.start()`](#example-for-starting-a-metric-service)
 
-```java
-public class AddMetrics {
-        statsProvider = MetricsProvider.getProvider();
-        statsProvider.start(metricsConfig);    
-```
+   ```java
+    public class AddMetrics {
+         statsProvider = MetricsProvider.getProvider();
+         .start(metricsConfig);    
+   ```
 
-2. In the class that need Metrics: get `StatsLogger` through `MetricsProvider`; then get `Metrics` from `StatsLogger`; in the end report it at the right place.
+2. Create a new `StatsLogger` instance through `MetricsProvider.createStatsLogger(String loggerName)`, and register metric by name, e.g. `STATS_LOGGER.createCounter(String name)`; and then update the metric object as appropriate in your code.
 
-```java
+   ```java
 
     static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); // <--- 1
     DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
@@ -411,8 +229,8 @@ public class AddMetrics {
     //to freeze
     dynamicLogger.freezeCounter(Metrics.SEGMENT_READ_BYTES);
     dynamicLogger.freezeGaugeValue(OPEN_TRANSACTIONS);
-}
-```
+   }
+  ```
 
 # Available Metrics and Their Names
 
@@ -420,210 +238,209 @@ public class AddMetrics {
 
 - Segment Store Read/Write latency of storage operations ([Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
 
-```
-segmentstore.segment.create_latency_ms
-segmentstore.segment.read_latency_ms
-segmentstore.segment.write_latency_ms
-```
+   ```
+    segmentstore.segment.create_latency_ms
+    segmentstore.segment.read_latency_ms
+    segmentstore.segment.write_latency_ms
+  ```
 
 - Segment Store global and per-segment Read/Write Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
 
-```
-// Global counters
-segmentstore.segment.read_bytes_global.Counter
-segmentstore.segment.write_bytes_global.Counter
-segmentstore.segment.write_events_global.Counter
+   ```
+      // Global counters
+      segmentstore.segment.read_bytes_global.Counter
+      segmentstore.segment.write_bytes_global.Counter
+      segmentstore.segment.write_events_global.Counter
 
-// Per segment counters
-segmentstore.segment.write_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
-segmentstore.segment.read_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
-segmentstore.segment.write_events.$scope.$stream.$segment.#epoch.$epoch.Counter
-```
+      // Per segment counters
+      segmentstore.segment.write_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
+      segmentstore.segment.read_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
+      segmentstore.segment.write_events.$scope.$stream.$segment.#epoch.$epoch.Counter
+  ```
 
 - Segment Store cache Read/Write latency Metrics ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
 
-```
-segmentstore.cache.insert_latency_ms
-segmentstore.cache.get_latency
-```
+  ```
+    segmentstore.cache.insert_latency_ms
+    segmentstore.cache.get_latency
+  ```
 
 - Segment Store cache Read/Write Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
 
-```
-segmentstore.cache.write_bytes.Counter
-segmentstore.cache.read_bytes.Counter
-```
+  ```
+    segmentstore.cache.write_bytes.Counter
+    segmentstore.cache.read_bytes.Counter
+  ```
 
 - Segment Store cache size (Gauge) and generation spread ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)) Metrics:
 
-```
-segmentstore.cache.size_bytes.Gauge
-segmentstore.cache.gen
-```
+  ```
+    segmentstore.cache.size_bytes.Gauge
+    segmentstore.cache.gen
+  ```
 
 - Tier 1 Storage `DurableDataLog` Read/Write latency and queueing Metrics ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
 
-```
-segmentstore.bookkeeper.total_write_latency_ms
-segmentstore.bookkeeper.write_latency_ms
-segmentstore.bookkeeper.write_queue_size
-segmentstore.bookkeeper.write_queue_fill
-```
+  ```
+    segmentstore.bookkeeper.total_write_latency_ms
+    segmentstore.bookkeeper.write_latency_ms
+    segmentstore.bookkeeper.write_queue_size
+    segmentstore.bookkeeper.write_queue_fill
+  ```
 
 - Tier 1 Storage `DurableDataLog` Read/Write ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) and per-container ledger count Metrics ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)):
 
-```
-segmentstore.bookkeeper.write_bytes.Counter
-segmentstore.bookkeeper.bookkeeper_ledger_count.$containerId.Gauge
-```
+  ```
+    segmentstore.bookkeeper.write_bytes.Counter
+    segmentstore.bookkeeper.bookkeeper_ledger_count.$containerId.Gauge
+  ```
 
 - Tier 2 Storage Read/Write latency Metrics ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
 
-```
-segmentstore.storage.read_latency_ms
-segmentstore.storage.write_latency_ms
-```
+  ```
+    segmentstore.storage.read_latency_ms
+    segmentstore.storage.write_latency_ms
+  ```
 
 - Tier 2 Storage Read/Write data and file creation Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters):
 
-```
-segmentstore.storage.read_bytes.Counter
-segmentstore.storage.write_bytes.Counter
-segmentstore.storage.create_count.Counter
-```
+  ```
+    segmentstore.storage.read_bytes.Counter
+    segmentstore.storage.write_bytes.Counter
+    segmentstore.storage.create_count.Counter
+  ```
 
 - Segment Store container-specific operation Metrics:
 
-```
-// Histograms
-segmentstore.container.process_operations.latency_ms.$containerId
-segmentstore.container.process_operations.batch_size.$containerId
-segmentstore.container.operation_queue.size.$containerId
-segmentstore.container.operation_processor.in_flight.$containerId
-segmentstore.container.operation_queue.wait_time.$containerId
-segmentstore.container.operation_processor.delay_ms.$containerId
-segmentstore.container.operation_commit.latency_ms.$containerId
-segmentstore.container.operation.latency_ms.$containerId
-segmentstore.container.operation_commit.metadata_txn_count.$containerId
-segmentstore.container.operation_commit.memory_latency_ms.$containerId
+  ```
+    // Histograms
+    segmentstore.container.process_operations.latency_ms.$containerId
+    segmentstore.container.process_operations.batch_size.$containerId
+    segmentstore.container.operation_queue.size.$containerId
+    segmentstore.container.operation_processor.in_flight.$containerId
+    segmentstore.container.operation_queue.wait_time.$containerId
+    segmentstore.container.operation_processor.delay_ms.$containerId
+    segmentstore.container.operation_commit.latency_ms.$containerId
+    segmentstore.container.operation.latency_ms.$containerId
+    segmentstore.container.operation_commit.metadata_txn_count.$containerId
+    segmentstore.container.operation_commit.memory_latency_ms.$containerId
 
-// Gauge
-segmentstore.container.operation.log_size.$containerId.Gauge
-```
+    // Gauge
+    segmentstore.container.operation.log_size.$containerId.Gauge
+  ```
 
 - Segment Store operation processor ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
 
-```
-// Counters/Meters
-segmentstore.container.append_count.$containerId.Meter
-segmentstore.container.append_offset_count.$containerId.Meter
-segmentstore.container.update_attributes_count.$containerId.Meter
-segmentstore.container.get_attributes_count.$containerId.Meter
-segmentstore.container.read_count.$containerId.Meter
-segmentstore.container.get_info_count.$containerId.Meter
-segmentstore.container.create_segment_count.$containerId.Meter
-segmentstore.container.delete_segment_count.$containerId.Meter
-segmentstore.container.merge_segment_count.$containerId.Meter
-segmentstore.container.seal_count.$containerId.Meter
-segmentstore.container.truncate_count.$containerId.Meter
-
-```
+  ```
+    // Counters/Meters
+    segmentstore.container.append_count.$containerId.Meter
+    segmentstore.container.append_offset_count.$containerId.Meter
+    segmentstore.container.update_attributes_count.$containerId.Meter
+    segmentstore.container.get_attributes_count.$containerId.Meter
+    segmentstore.container.read_count.$containerId.Meter
+    segmentstore.container.get_info_count.$containerId.Meter
+    segmentstore.container.create_segment_count.$containerId.Meter
+    segmentstore.container.delete_segment_count.$containerId.Meter
+    segmentstore.container.merge_segment_count.$containerId.Meter
+    segmentstore.container.seal_count.$containerId.Meter
+    segmentstore.container.truncate_count.$containerId.Meter
+  ```
 
 - Segment Store active Segments ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) and thread pool status ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)) Metrics:
-```
-// Gauge
-segmentstore.active_segments.$containerId.Gauge
+  ```
+    // Gauge
+    segmentstore.active_segments.$containerId.Gauge
 
-// Histograms
-segmentstore.thread_pool.queue_size
-segmentstore.thread_pool.active_threads
-```
+    // Histograms
+    segmentstore.thread_pool.queue_size
+    segmentstore.thread_pool.active_threads
+  ```
 
 ## Metrics in Controller Service
 
 - Controller Stream operation latency Metrics ([Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
-```
-controller.stream.created_latency_ms
-controller.stream.sealed_latency_ms
-controller.stream.deleted_latency_ms
-controller.stream.updated_latency_ms
-controller.stream.truncated_latency_ms
-```
+  ```
+    controller.stream.created_latency_ms
+    controller.stream.sealed_latency_ms
+    controller.stream.deleted_latency_ms
+    controller.stream.updated_latency_ms
+    controller.stream.truncated_latency_ms
+  ```
 
 - Controller global and per-Stream operation Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
 ```
-controller.stream.created.Counter
-controller.stream.create_failed_global.Counter
-controller.stream.create_failed.$scope.$stream.Counter
-controller.stream.sealed.Counter
-controller.stream.seal_failed_global.Counter
-controller.stream.seal_failed.$scope.$stream.Counter
-controller.stream.deleted.Counter
-controller.stream.delete_failed_global.Counter
-controller.stream.delete_failed.$scope.$stream.Counter
-controller.stream.updated_global.Counter
-controller.stream.updated.$scope.$stream.Counter
-controller.stream.update_failed_global.Counter
-controller.stream.update_failed.$scope.$stream.Counter
-controller.stream.truncated_global.Counter
-controller.stream.truncated.$scope.$stream.Counter
-controller.stream.truncate_failed_global.Counter
-controller.stream.truncate_failed.$scope.$stream.Counter
-```
+    controller.stream.created.Counter
+    controller.stream.create_failed_global.Counter
+    controller.stream.create_failed.$scope.$stream.Counter
+    controller.stream.sealed.Counter
+    controller.stream.seal_failed_global.Counter
+    controller.stream.seal_failed.$scope.$stream.Counter
+    controller.stream.deleted.Counter
+    controller.stream.delete_failed_global.Counter
+    controller.stream.delete_failed.$scope.$stream.Counter
+    controller.stream.updated_global.Counter
+    controller.stream.updated.$scope.$stream.Counter
+    controller.stream.update_failed_global.Counter
+    controller.stream.update_failed.$scope.$stream.Counter
+    controller.stream.truncated_global.Counter
+    controller.stream.truncated.$scope.$stream.Counter
+    controller.stream.truncate_failed_global.Counter
+    controller.stream.truncate_failed.$scope.$stream.Counter
+  ```
 
 - Controller Stream retention frequency ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) and truncated size ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) Metrics:
-```
-controller.retention.frequency.$scope.$stream.Counter
-controller.retention.truncated_size.$scope.$stream.Gauge
-```
+  ```
+    controller.retention.frequency.$scope.$stream.Counter
+    controller.retention.truncated_size.$scope.$stream.Gauge
+  ```
 
 - Controller Stream Segment operations ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) and open/timed out Transactions on a Stream ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#guages)/[Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
-```
-controller.transactions.opened.$scope.$stream.Gauge
-controller.transactions.timedout.$scope.$stream.Counter
-controller.segments.count.$scope.$stream.Counter
-controller.segment.splits.$scope.$stream.Counter
-controller.segment.merges.$scope.$stream.Counter
-```
+  ```
+    controller.transactions.opened.$scope.$stream.Gauge
+    controller.transactions.timedout.$scope.$stream.Counter
+    controller.segments.count.$scope.$stream.Counter
+    controller.segment.splits.$scope.$stream.Counter
+    controller.segment.merges.$scope.$stream.Counter
+  ```
 
 - Controller Transaction operation latency Metrics:
-```
-controller.transactions.created_latency_ms
-controller.transactions.committed_latency_ms
-controller.transactions.aborted_latency_ms
-```
+  ```
+    controller.transactions.created_latency_ms
+    controller.transactions.committed_latency_ms
+    controller.transactions.aborted_latency_ms
+  ```
 
 - Controller Transaction operation counter Metrics:
-```
-controller.transactions.created_global.Counter
-controller.transactions.created.$scope.$stream.Counter
-controller.transactions.create_failed_global.Counter
-controller.transactions.create_failed.$scope.$stream.Counter
-controller.transactions.committed_global.Counter
-controller.transactions.committed.$scope.$stream.Counter
-controller.transactions.commit_failed_global.Counter
-controller.transactions.commit_failed.$scope.$stream.Counter
-controller.transactions.commit_failed.$scope.$stream.$txnId.Counter
-controller.transactions.aborted_global.Counter
-controller.transactions.aborted.$scope.$stream.Counter
-controller.transactions.abort_failed_global.Counter
-controller.transactions.abort_failed.$scope.$stream.Counter
-controller.transactions.abort_failed.$scope.$stream.$txnId.Counter
-```
+    ```
+    controller.transactions.created_global.Counter
+    controller.transactions.created.$scope.$stream.Counter
+    controller.transactions.create_failed_global.Counter
+    controller.transactions.create_failed.$scope.$stream.Counter
+    controller.transactions.committed_global.Counter
+    controller.transactions.committed.$scope.$stream.Counter
+    controller.transactions.commit_failed_global.Counter
+    controller.transactions.commit_failed.$scope.$stream.Counter
+    controller.transactions.commit_failed.$scope.$stream.$txnId.Counter
+    controller.transactions.aborted_global.Counter
+    controller.transactions.aborted.$scope.$stream.Counter
+    controller.transactions.abort_failed_global.Counter
+    controller.transactions.abort_failed.$scope.$stream.Counter
+    controller.transactions.abort_failed.$scope.$stream.$txnId.Counter
+  ```
 
 - Controller hosts available ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) and host failure ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
-```
-controller.hosts.count.Gauge
-controller.hosts.failures_global.Counter
-controller.hosts.failures.$host.Counter
-```
+  ```
+    controller.hosts.count.Gauge
+    controller.hosts.failures_global.Counter
+    controller.hosts.failures.$host.Counter
+  ```
 
 - Controller Container count per host ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) and failover ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
-```
-controller.hosts.container_count.Gauge
-controller.container.failovers_global.Counter
-controller.container.failovers.$containerId.Counter
-```
+  ```
+    controller.hosts.container_count.Gauge
+    controller.container.failovers_global.Counter
+    controller.container.failovers.$containerId.Counter
+  ```
 
 # Resources
 * [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs)
