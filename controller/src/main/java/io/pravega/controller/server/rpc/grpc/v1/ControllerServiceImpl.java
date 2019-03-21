@@ -170,7 +170,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getCurrentSegments called for stream {}/{}.", request.getScope(), request.getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
+                AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
                                        .thenApply(segmentRanges -> SegmentRanges.newBuilder()
                                                                                 .addAllSegmentRanges(segmentRanges)
@@ -186,7 +186,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
+                AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream())
                                        .thenApply(segments -> {
@@ -257,7 +257,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
+                AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.checkScale(request.getStreamInfo().getScope(), request.getStreamInfo().getStream(),
                         request.getEpoch()), responseObserver);
     }
@@ -370,7 +370,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 request.getStreamInfo().getStream(), request.getTxnId());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(), request.getStreamInfo().getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
+                AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.checkTransactionStatus(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
                         request.getTxnId()),
