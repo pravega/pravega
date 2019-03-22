@@ -187,7 +187,7 @@ public abstract class PersistentStreamBase implements Stream {
         // find segments between "previous" stream cut and current stream cut. these are segments to delete.
         // Note: exclude segments in current streamcut
         CompletableFuture<Map<StreamSegmentRecord, Integer>> previousSpanFuture = previous.getSpan().isEmpty() ?
-                getEpochRecord(0).thenApply(this::convertToSpan)
+                getEpochRecord(0).thenApply(epoch -> convertToSpan(epoch))
                 : CompletableFuture.completedFuture(previous.getSpan());
 
         return previousSpanFuture.thenCompose(spanFrom -> segmentsBetweenStreamCutSpans(spanFrom, span))
