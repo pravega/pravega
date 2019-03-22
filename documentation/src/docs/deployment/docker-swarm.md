@@ -26,7 +26,7 @@ docker stack up --compose-file zookeeper.yml pravega
 ```
 
 This runs a single node HDFS container and single node ZooKeeper inside the `pravega_default` overlay network, and adds
-them to the `pravega`stack.
+them to the pravegastack.
 
 HDFS is reachable inside the swarm as
 
@@ -54,14 +54,16 @@ Both approaches are demonstrated in the below section.
 
 The easiest way to deploy is to keep all traffic inside the swarm. This means your client apps must also run inside
 the swarm.
-
-`ZK_URL=zookeeper:2181 HDFS_URL=hdfs:8020 docker stack up --compose-file pravega.yml pravega`
+```
+ZK_URL=zookeeper:2181 HDFS_URL=hdfs:8020 docker stack up --compose-file pravega.yml pravega
+```
 
 Note that `ZK_URL` and `HDFS_URL` don't include the protocol. They have default values assigned as `zookeeper:2181` and `hdfs:8020`, when deployed using `zookeeper.yml`/`hdfs.yml`.
 
 Your clients must then be deployed into the swarm, using the following command.
-
-`docker service create --name=myapp --network=pravega_default mycompany/myapp`
+```
+docker service create --name=myapp --network=pravega_default mycompany/myapp
+```
 
 The crucial bit being
 ```
@@ -71,7 +73,7 @@ The crucial bit being
 Your client should talk to Pravega at
 
 ```
-tcp://controller:9090`.
+tcp://controller:9090.
 ```
 ## Deploying (External clients)
 
@@ -79,7 +81,9 @@ If you intend to run clients outside the swarm, you must provide two additional 
 `PUBLISHED_ADDRESS` and `LISTENING_ADDRESS`. `PUBLISHED_ADDRESS` must be an IP or Hostname that resolves to one or more
 swarm nodes (or a load balancer that sits in front of them). `LISTENING_ADDRESS` should always be `0`, or `0.0.0.0`.
 
-`PUBLISHED_ADDRESS=1.2.3.4 LISTENING_ADDRESS=0 ZK_URL=zookeeper:2181 HDFS_URL=hdfs:8020 docker stack up --compose-file pravega.yml pravega`
+```
+PUBLISHED_ADDRESS=1.2.3.4 LISTENING_ADDRESS=0 ZK_URL=zookeeper:2181 HDFS_URL=hdfs:8020 docker stack up --compose-file pravega.yml pravega
+```
 
 As above, `ZK_URL` and `HDFS_URL` can be omitted if the services are at their default locations.
 
