@@ -194,10 +194,14 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletionStage<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
+    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
+        return checkDone(condition, 100L);
+    }
+    
+    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
         AtomicBoolean isDone = new AtomicBoolean(false);
         return Futures.loop(() -> !isDone.get(),
-                () -> Futures.delayedFuture(condition, 100, executor)
+                () -> Futures.delayedFuture(condition, delay, executor)
                              .thenAccept(isDone::set), executor);
     }
 
@@ -345,7 +349,7 @@ public class StreamMetadataTasks extends TaskBase {
                 // 4. check for truncation to complete
                 .thenCompose(truncationStarted -> {
                     if (truncationStarted) {
-                        return checkDone(() -> isTruncated(scope, stream, streamCut, context))
+                        return checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
                                 .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         log.warn(requestId, "Unable to start truncation for {}/{}", scope, stream);
