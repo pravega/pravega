@@ -15,8 +15,10 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
@@ -33,12 +35,17 @@ import java.util.List;
 public class HistoryTimeSeries {
     public static final HistoryTimeSeriesSerializer SERIALIZER = new HistoryTimeSeriesSerializer();
     public static final int HISTORY_CHUNK_SIZE = 1000;
-
+    
     private final List<HistoryTimeSeriesRecord> historyRecords;
 
     @Builder
+    HistoryTimeSeries(List<HistoryTimeSeriesRecord> historyRecords, boolean copyCollection) {
+        this.historyRecords = copyCollection ? ImmutableList.copyOf(historyRecords) : historyRecords;
+    }
+
+    @Builder
     HistoryTimeSeries(List<HistoryTimeSeriesRecord> historyRecords) {
-        this.historyRecords = ImmutableList.copyOf(historyRecords);
+        this(historyRecords, true);
     }
 
     @SneakyThrows(IOException.class)
@@ -87,7 +94,8 @@ public class HistoryTimeSeries {
 
         private void read00(RevisionDataInput revisionDataInput, HistoryTimeSeries.HistoryTimeSeriesBuilder builder) throws IOException {
             builder.historyRecords(revisionDataInput.readCollection(HistoryTimeSeriesRecord.SERIALIZER::deserialize,
-                    ArrayList::new));
+                    ArrayList::new))
+                   .copyCollection(false);
         }
 
         private void write00(HistoryTimeSeries history, RevisionDataOutput revisionDataOutput) throws IOException {

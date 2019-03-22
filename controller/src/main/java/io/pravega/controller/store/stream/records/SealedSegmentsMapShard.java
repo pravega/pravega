@@ -9,11 +9,13 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import jdk.nashorn.internal.ir.annotations.Immutable;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -30,7 +32,6 @@ import java.util.Map;
 /**
  * Data class for storing information about stream's truncation point.
  */
-@Builder
 @Slf4j
 @Data
 /**
@@ -73,9 +74,15 @@ public class SealedSegmentsMapShard {
      **/
     private final Map<Long, Long> sealedSegmentsSizeMap;
 
-    SealedSegmentsMapShard(int shardNumber, Map<Long, Long> sealedSegmentsSizeMap) {
+    @Builder
+    private SealedSegmentsMapShard(int shardNumber, Map<Long, Long> sealedSegmentsSizeMap, boolean copyCollections) {
         this.shardNumber = shardNumber;
-        this.sealedSegmentsSizeMap = new HashMap<>(sealedSegmentsSizeMap);
+        this.sealedSegmentsSizeMap = copyCollections ? ImmutableMap.copyOf(sealedSegmentsSizeMap) : sealedSegmentsSizeMap;
+    }
+
+    @Builder
+    SealedSegmentsMapShard(int shardNumber, Map<Long, Long> sealedSegmentsSizeMap) {
+        this(shardNumber, sealedSegmentsSizeMap, true);
     }
 
     public static class SealedSegmentsMapShardBuilder implements ObjectBuilder<SealedSegmentsMapShard> {
@@ -125,7 +132,8 @@ public class SealedSegmentsMapShard {
 
         private void read00(RevisionDataInput revisionDataInput,
                             SealedSegmentsMapShard.SealedSegmentsMapShardBuilder sealedSegmentsRecordBuilder) throws IOException {
-            sealedSegmentsRecordBuilder.sealedSegmentsSizeMap(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong));
+            sealedSegmentsRecordBuilder.sealedSegmentsSizeMap(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong))
+                                       .copyCollections(false);
         }
 
         private void write00(SealedSegmentsMapShard sealedSegmentsRecord, RevisionDataOutput revisionDataOutput) throws IOException {
