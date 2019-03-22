@@ -154,19 +154,11 @@ public abstract class PersistentStreamBase implements Stream {
                     return isStreamCutValid(streamCut)
                         .thenCompose(isValid -> {
                             Exceptions.checkArgument(isValid, "streamCut", "invalid stream cut");
-                            CompletableFuture<Map<StreamSegmentRecord, Integer>> previousSpanFuture = 
-                                    existing.getObject().getStreamCut().isEmpty() ?
-                                    getEpochRecord(0).thenApply(this::convertToSpan)
-                                    : computeStreamCutSpan(existing.getObject().getStreamCut());
-                            CompletableFuture<Map<StreamSegmentRecord, Integer>> currentSpanFuture = 
-                                    computeStreamCutSpan(streamCut);
-                            return CompletableFuture.allOf(previousSpanFuture, currentSpanFuture)
-                                    .thenCompose(done -> {
-                                        Map<StreamSegmentRecord, Integer> span = currentSpanFuture.join();
-                                        Map<StreamSegmentRecord, Integer> previousSpan = previousSpanFuture.join();
+                            return computeStreamCutSpan(streamCut)
+                                    .thenCompose(span -> {
                                         StreamTruncationRecord previous = existing.getObject();
                                         // check greater than
-                                        Exceptions.checkArgument(greaterThan(streamCut, span, previous.getStreamCut(), previousSpan),
+                                        Exceptions.checkArgument(greaterThan(streamCut, span, previous.getStreamCut(), previous.getSpan()),
                                                 "StreamCut", "Supplied streamcut is behind previous truncation point");
 
                                         return computeTruncationRecord(previous, streamCut, span)
@@ -194,9 +186,9 @@ public abstract class PersistentStreamBase implements Stream {
 
         // find segments between "previous" stream cut and current stream cut. these are segments to delete.
         // Note: exclude segments in current streamcut
-        CompletableFuture<Map<StreamSegmentRecord, Integer>> previousSpanFuture = previous.getStreamCut().isEmpty() ?
+        CompletableFuture<Map<StreamSegmentRecord, Integer>> previousSpanFuture = previous.getSpan().isEmpty() ?
                 getEpochRecord(0).thenApply(this::convertToSpan)
-                : computeStreamCutSpan(previous.getStreamCut());
+                : CompletableFuture.completedFuture(previous.getSpan());
 
         return previousSpanFuture.thenCompose(spanFrom -> segmentsBetweenStreamCutSpans(spanFrom, span))
                                  .thenCompose(segmentsBetween -> sizeBetweenStreamCuts(previous.getStreamCut(), streamCut, segmentsBetween)
@@ -411,7 +403,7 @@ public abstract class PersistentStreamBase implements Stream {
                         return getEpochRecord(0)
                                 .thenApply(this::convertToSpan);
                     } else {
-                        return computeStreamCutSpan(truncationRecord.getObject().getStreamCut());
+                        return CompletableFuture.completedFuture(truncationRecord.getObject().getSpan());
                     }
                 });
         CompletableFuture<Map<StreamSegmentRecord, Integer>> toSpanFuture = getActiveEpoch(true)
@@ -485,12 +477,11 @@ public abstract class PersistentStreamBase implements Stream {
                         return getSegmentsInEpoch(0)
                                 .thenApply(segments -> segments.stream().collect(Collectors.toMap(x -> x, x ->  0L)));
                     } else {
-                        return computeStreamCutSpan(truncationRecord.getObject().getStreamCut())
-                                .thenApply(span -> {
-                                    return truncationRecord.getObject().getStreamCut().entrySet()
-                                                                                       .stream().collect(Collectors.toMap(x -> span.keySet().stream().filter(y -> y.segmentId() == x.getKey()).findFirst().get(),
-                                                    Map.Entry::getValue));
-                                });
+                        return CompletableFuture.completedFuture(truncationRecord.getObject().getStreamCut().entrySet()
+                                                                                 .stream().collect(Collectors.toMap(x ->
+                                                truncationRecord.getObject().getSpan().keySet().stream()
+                                                                          .filter(y -> y.segmentId() == x.getKey()).findFirst().get(),
+                                        Map.Entry::getValue)));
                     }
                 });
     }

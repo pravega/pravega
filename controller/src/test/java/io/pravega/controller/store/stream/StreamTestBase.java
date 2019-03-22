@@ -711,8 +711,7 @@ public abstract class StreamTestBase {
         StreamTruncationRecord truncationRecord = versionedTruncationRecord.getObject();
         assertTrue(truncationRecord.getToDelete().isEmpty());
         assertEquals(truncationRecord.getStreamCut(), streamCut1);
-        Map<StreamSegmentRecord, Integer> span = stream.computeStreamCutSpan(truncationRecord.getStreamCut()).join();
-        Map<Long, Integer> transform = transform(span);
+        Map<Long, Integer> transform = transform(truncationRecord.getSpan());
         assertTrue(transform.get(startingSegmentNumber + 0L) == 0 &&
                 transform.get(startingSegmentNumber + 1L) == 0);
         stream.completeTruncation(versionedTruncationRecord).join();
@@ -743,8 +742,7 @@ public abstract class StreamTestBase {
                 && truncationRecord.getToDelete().contains(startingSegmentNumber + 1L)
                 && truncationRecord.getToDelete().contains(threeSegmentId));
         assertTrue(truncationRecord.getStreamCut().equals(streamCut2));
-        span = stream.computeStreamCutSpan(truncationRecord.getStreamCut()).join();
-        transform = transform(span);
+        transform = transform(truncationRecord.getSpan());
         assertTrue(transform.get(startingSegmentNumber + 0L) == 2 &&
                 transform.get(twoSegmentId) == 2 &&
                 transform.get(fourSegmentId) == 2 &&
@@ -779,8 +777,7 @@ public abstract class StreamTestBase {
         assertTrue(truncationRecord.getToDelete().size() == 1
                 && truncationRecord.getToDelete().contains(startingSegmentNumber + 0L));
         assertTrue(truncationRecord.getStreamCut().equals(streamCut3));
-        span = stream.computeStreamCutSpan(truncationRecord.getStreamCut()).join();
-        transform = transform(span);
+        transform = transform(truncationRecord.getSpan());
         assertTrue(transform.get(twoSegmentId) == 2 &&
                 transform.get(fourSegmentId) == 4 &&
                 transform.get(fiveSegmentId) == 4 &&
