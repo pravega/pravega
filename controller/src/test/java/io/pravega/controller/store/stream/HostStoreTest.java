@@ -89,7 +89,7 @@ public class HostStoreTest {
             // Update host store map.
             hostStore.updateHostContainersMap(HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount));
             // wait until the map is updated in the node cache
-            while(hostStore.getHostContainersMap().isEmpty()) {
+            while (hostStore.getHostContainersMap().isEmpty()) {
                 Exceptions.handleInterrupted(() -> Thread.sleep(100));
             }
             validateStore(hostStore);
