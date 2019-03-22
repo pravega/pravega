@@ -60,6 +60,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsTags.segmentTags;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -212,7 +213,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
                 }
             }
 
-            long initialCount = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").count();
+            long initialCount = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes", segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0")).count();
             Assert.assertEquals(bytesWritten, initialCount);
 
             Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
@@ -236,7 +237,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
                 }
             }
 
-            long countAfterCacheEvicted = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").count();
+            long countAfterCacheEvicted = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes", segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0")).count();
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
@@ -278,7 +279,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
                 }
             }
 
-            long countFromSecondSegment = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter").count();
+            long countFromSecondSegment = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes", segmentTags(scope + "/" + STREAM_NAME + "/1.#epoch.1")).count();
 
             Assert.assertEquals(bytesWritten, countFromSecondSegment);
 

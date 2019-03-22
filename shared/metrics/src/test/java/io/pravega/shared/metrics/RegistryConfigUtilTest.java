@@ -26,17 +26,17 @@ import static org.junit.Assert.assertNull;
 public class RegistryConfigUtilTest {
 
     @Test
-    public void testStatsdConfig() {
+    public void testStatsDConfig() {
         MetricsConfig appConfig = MetricsConfig.builder()
                 .with(MetricsConfig.OUTPUT_FREQUENCY, 37)
-                .with(MetricsConfig.METRICS_PREFIX, "statsdPrefix")
+                .with(MetricsConfig.METRICS_PREFIX, "statsDPrefix")
                 .with(MetricsConfig.STATSD_HOST, "localhost")
                 .with(MetricsConfig.STATSD_PORT, 8225)
                 .build();
 
-        StatsdConfig testConfig = RegistryConfigUtil.createStatsdConfig(appConfig);
+        StatsdConfig testConfig = RegistryConfigUtil.createStatsDConfig(appConfig);
         assertTrue(37 == testConfig.step().getSeconds());
-        assertEquals("statsdPrefix", testConfig.prefix());
+        assertEquals("statsDPrefix", testConfig.prefix());
         assertEquals("localhost", testConfig.host());
         assertTrue(8225 == testConfig.port());
         assertEquals(StatsdFlavor.TELEGRAF, testConfig.flavor());
@@ -52,6 +52,7 @@ public class RegistryConfigUtilTest {
                 .with(MetricsConfig.INFLUXDB_NAME, "databaseName")
                 .with(MetricsConfig.INFLUXDB_USERNAME, "admin")
                 .with(MetricsConfig.INFLUXDB_PASSWORD, "changeme")
+                .with(MetricsConfig.INFLUXDB_RETENTION_POLICY, "2h")
                 .build();
 
         InfluxConfig testConfig = RegistryConfigUtil.createInfluxConfig(appConfig);
@@ -61,6 +62,7 @@ public class RegistryConfigUtilTest {
         assertEquals("databaseName", testConfig.db());
         assertEquals("admin", testConfig.userName());
         assertEquals("changeme", testConfig.password());
+        assertEquals("2h", testConfig.retentionPolicy());
         assertNull(testConfig.get("Undefined Key"));
     }
 }

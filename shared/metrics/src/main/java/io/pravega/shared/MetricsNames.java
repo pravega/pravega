@@ -186,42 +186,6 @@ public final class MetricsNames {
     public static final String RETENTION_FREQUENCY = "controller.retention.frequency";   // Per-stream Counter
     public static final String TRUNCATED_SIZE = "controller.retention.truncated_size";   // Per-stream Gauge
 
-    // Metric Type Suffix
-    public static final String COUNTER_SUFFIX = ".Counter";
-    public static final String GAUGE_SUFFIX = ".Gauge";
-    public static final String METER_SUFFIX = ".Meter";
-    public static final String TIMER_SUFFIX = ".Timer";
-    public static final String NONE_SUFFIX = "";
-
-    private static String escapeSpecialChar(String name) {
-        return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
-    }
-
-    public static String nameFromStream(String metric, String scope, String stream) {
-        String name = metric + "." + scope + "." + stream;
-        return escapeSpecialChar(name);
-    }
-
-    public static String nameFromTransaction(String metric, String scope, String stream, String txnId) {
-        String name = metric + "." + scope + "." + stream + "." + txnId;
-        return escapeSpecialChar(name);
-    }
-
-    public static String nameFromSegment(String metric, String segmentName) {
-        String name = metric + "." + segmentName;
-        return escapeSpecialChar(name);
-    }
-
-    public static String nameFromHost(String metric, String hostId) {
-        String name = metric + "." + hostId;
-        return escapeSpecialChar(name);
-    }
-
-    public static String nameFromContainer(String metric, int containerId) {
-        String name = metric + "." + containerId;
-        return escapeSpecialChar(name);
-    }
-
     public static String globalMetricName(String stringName) {
         return stringName + "_global";
     }
@@ -269,33 +233,24 @@ public final class MetricsNames {
     }
 
     /**
-     * Create an MetricKey based on metric name, metric type and tags associated.
-     *
-     * e.g.
-     * for flat metric name "append_count.6" (without tag), its cache key is:
-     *   "append_count.6.Counter", and its registry key is "append_count.6.Counter".
-     * for metric name "append_count" with tag "container=6", the cache key is:
-     *   "append_count.6.Counter", but the registry key is "append_count".
+     * Create an MetricKey object based on metric name, metric type and tags associated.
+     * The MetricKey object contains cache key for cache lookup and registry key for registry lookup.
      *
      * @param metric the metric name.
-     * @param typeSuffix the metric type suffix, e.g. ".Counter", ".Gauge", ".Meter"
      * @param tags the tag(s) associated with the metric.
-     * @return the MetricKey object which holds both cache lookup key and metric registry key.
+     * @return the MetricKey object contains cache lookup key and metric registry key.
      */
-    public static MetricKey metricKey(String metric, String typeSuffix, String... tags) {
+    public static MetricKey metricKey(String metric, String... tags) {
 
-        StringBuilder sb = new StringBuilder(metric);
-        if (tags == null || tags.length == 0) {  //no tags: append suffix to form cache & registry key
-            sb.append(typeSuffix);
-            String key = sb.toString();
-            return new MetricKey(key, key);
-        } else { //tags: append tag values and suffix to form cache key, original name is registry key
+        if (tags == null || tags.length == 0) {  //without tags: the original metric name is cache and registry key
+            return new MetricKey(metric, metric);
+        } else { //with tags: append tag values to form cache key, original metric name is registry key
+            StringBuilder sb = new StringBuilder(metric);
             Preconditions.checkArgument((tags.length % 2) == 0, "Tags is a set of key/value pair so the size must be even: %s", tags.length);
             for (int i = 0; i < tags.length; i += 2) {
                 Preconditions.checkArgument(!Strings.isNullOrEmpty(tags[i]) || !Strings.isNullOrEmpty(tags[i + 1]), "Tag name or value cannot be empty or null");
                 sb.append('.').append(tags[i + 1]);
             }
-            sb.append(typeSuffix);
             return new MetricKey(sb.toString(), metric);
         }
     }

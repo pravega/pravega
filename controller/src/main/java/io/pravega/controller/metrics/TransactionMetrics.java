@@ -23,8 +23,8 @@ import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_FAILED;
 import static io.pravega.shared.MetricsNames.CREATE_TRANSACTION_LATENCY;
 import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
 import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromStream;
-import static io.pravega.shared.MetricsNames.nameFromTransaction;
+import static io.pravega.shared.MetricsTags.streamTags;
+import static io.pravega.shared.MetricsTags.transactionTags;
 
 /**
  * Class to encapsulate the logic to report Controller service metrics for Transactions.
@@ -45,7 +45,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      */
     public void createTransaction(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_TRANSACTION), 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_TRANSACTION, scope, streamName), 1);
+        DYNAMIC_LOGGER.incCounterValue(CREATE_TRANSACTION, 1, streamTags(scope, streamName));
         createTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -57,7 +57,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      */
     public void createTransactionFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CREATE_TRANSACTION_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromStream(CREATE_TRANSACTION_FAILED, scope, streamName), 1);
+        DYNAMIC_LOGGER.incCounterValue(CREATE_TRANSACTION_FAILED, 1, streamTags(scope, streamName));
     }
 
     /**
@@ -70,7 +70,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      */
     public void commitTransaction(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(COMMIT_TRANSACTION), 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromStream(COMMIT_TRANSACTION, scope, streamName), 1);
+        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION, 1, streamTags(scope, streamName));
         commitTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -83,8 +83,8 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      */
     public void commitTransactionFailed(String scope, String streamName, String txnId) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(COMMIT_TRANSACTION_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromStream(COMMIT_TRANSACTION_FAILED, scope, streamName), 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromTransaction(COMMIT_TRANSACTION_FAILED, scope, streamName, txnId), 1);
+        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION_FAILED, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(COMMIT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
     }
 
     /**
@@ -97,7 +97,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      */
     public void abortTransaction(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(ABORT_TRANSACTION), 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromStream(ABORT_TRANSACTION, scope, streamName), 1);
+        DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION, 1, streamTags(scope, streamName));
         abortTransactionLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -110,8 +110,8 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      */
     public void abortTransactionFailed(String scope, String streamName, String txnId) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(ABORT_TRANSACTION_FAILED), 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromStream(ABORT_TRANSACTION_FAILED, scope, streamName), 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromTransaction(ABORT_TRANSACTION_FAILED, scope, streamName, txnId), 1);
+        DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.incCounterValue(ABORT_TRANSACTION_FAILED, 1, transactionTags(scope, streamName, txnId));
     }
 
     /**
@@ -122,7 +122,7 @@ public final class TransactionMetrics extends AbstractControllerMetrics implemen
      * @param ongoingTransactions   Number of open Transactions in the Stream.
      */
     public static void reportOpenTransactions(String scope, String streamName, int ongoingTransactions) {
-        DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(OPEN_TRANSACTIONS, scope, streamName), ongoingTransactions);
+        DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, ongoingTransactions, streamTags(scope, streamName));
     }
 
     @Override
