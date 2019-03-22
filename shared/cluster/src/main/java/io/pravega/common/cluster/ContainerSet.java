@@ -46,13 +46,13 @@ public class ContainerSet {
             version(0).revision(0, this::write00, this::read00);
         }
 
-        private void read00(RevisionDataInput revisionDataInput, ContainerSetBuilder ContainerSetBuilder) throws IOException {
-            ContainerSetBuilder
+        private void read00(RevisionDataInput revisionDataInput, ContainerSetBuilder containerSetBuilder) throws IOException {
+            containerSetBuilder
                     .containerSet(revisionDataInput.readCollection(DataInput::readInt, HashSet::new));
         }
 
-        private void write00(ContainerSet ContainerSet, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeCollection(ContainerSet.getContainerSet(), DataOutput::writeInt);
+        private void write00(ContainerSet containerSet, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeCollection(containerSet.getContainerSet(), DataOutput::writeInt);
         }
 
         @Override
