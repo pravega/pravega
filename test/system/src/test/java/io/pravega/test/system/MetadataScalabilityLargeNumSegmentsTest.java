@@ -12,6 +12,7 @@ package io.pravega.test.system;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.system.framework.SystemTestRunner;
 import lombok.extern.slf4j.Slf4j;
@@ -84,6 +85,13 @@ public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalability
 
     @Test
     public void largeSegmentsScalability() {
-        scalability();
+        testState = new TestState(false);
+
+        ControllerImpl controller = getController();
+
+        List<List<Segment>> listOfEpochs = scale(controller);
+        // TODO: uncomment truncation as part of 3478
+        // truncation(controller, listOfEpochs);
+        sealAndDeleteStream(controller);
     }
 }
