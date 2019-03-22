@@ -10,15 +10,16 @@
 package io.pravega.controller.store.host;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.util.ZKUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.io.Serializable;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.SneakyThrows;
@@ -48,7 +49,7 @@ public class ZKHostStore implements HostControllerStore {
 
     private final NodeCache hostContainerMapNode;
 
-    private Map<Host, Set<Integer>> hostContainerMap;
+    private AtomicReference<ImmutableMap<Host, Set<Integer>>> hostContainerMap;
     
     /**
      * Zookeeper based host store implementation.
@@ -61,7 +62,7 @@ public class ZKHostStore implements HostControllerStore {
         zkClient = client;
         zkPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         hostContainerMapNode = new NodeCache(zkClient, zkPath);
-        hostContainerMap = Collections.emptyMap();
+        hostContainerMap = new AtomicReference<>(ImmutableMap.of());
         segmentMapper = new SegmentToContainerMapper(containerCount);
     }
 
@@ -82,7 +83,7 @@ public class ZKHostStore implements HostControllerStore {
 
     @Synchronized
     private void updateMap() {
-        hostContainerMap = getCurrentHostMap();
+        hostContainerMap.set(ImmutableMap.copyOf(getCurrentHostMap()));
     }
 
     @Override
@@ -122,7 +123,7 @@ public class ZKHostStore implements HostControllerStore {
     private Host getHostForContainer(int containerId) {
         tryInit();
 
-        Optional<Host> host = hostContainerMap.entrySet().stream()
+        Optional<Host> host = hostContainerMap.get().entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
         if (host.isPresent()) {
             log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);
