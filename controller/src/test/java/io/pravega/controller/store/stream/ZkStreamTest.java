@@ -15,6 +15,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -238,11 +239,11 @@ public class ZkStreamTest {
         store.setState(SCOPE, streamName, State.ACTIVE, null, executor).get();
         OperationContext context = store.createContext(SCOPE, streamName);
 
-        List<Segment> segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
+        List<StreamSegmentRecord> segments = store.getActiveSegments(SCOPE, streamName, context, executor).get();
         assertEquals(segments.size(), 5);
         assertTrue(segments.stream().allMatch(x -> Lists.newArrayList(0L, 1L, 2L, 3L, 4L).contains(x.segmentId())));
 
-        long start = segments.get(0).getStart();
+        long start = segments.get(0).getCreationTime();
 
         assertEquals(store.getConfiguration(SCOPE, streamName, context, executor).get(), streamConfig);
 
