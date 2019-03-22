@@ -14,6 +14,7 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.controller.util.ZKUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -45,6 +46,8 @@ public class ZKHostStore implements HostControllerStore {
 
     private final NodeCache hostContainerMapNode;
 
+    private Map<Host, Set<Integer>> hostContainerMap;
+    
     /**
      * Zookeeper based host store implementation.
      *
@@ -56,7 +59,7 @@ public class ZKHostStore implements HostControllerStore {
         zkClient = client;
         zkPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         hostContainerMapNode = new NodeCache(zkClient, zkPath);
-
+        hostContainerMap = Collections.emptyMap();
         segmentMapper = new SegmentToContainerMapper(containerCount);
     }
 
@@ -66,23 +69,29 @@ public class ZKHostStore implements HostControllerStore {
     private void tryInit() {
         if (!zkInit) {
             ZKUtils.createPathIfNotExists(zkClient, zkPath, HostContainerMap.EMPTY.toBytes());
-            hostContainerMapNode.start();
+            this.hostContainerMapNode.getListenable().addListener(this::updateMap);
+            hostContainerMapNode.start(true);
 
             zkInit = true;
         }
+    }
+
+    @Synchronized
+    private void updateMap() {
+        hostContainerMap = getCurrentHostMap();
     }
 
     @Override
     public Map<Host, Set<Integer>> getHostContainersMap() {
         tryInit();
 
-        return getCurrentHostMap().getHostContainerMap();
+        return getCurrentHostMap();
     }
 
     @SuppressWarnings("unchecked")
-    private HostContainerMap getCurrentHostMap() {
+    private Map<Host, Set<Integer>> getCurrentHostMap() {
         try {
-            return HostContainerMap.fromBytes(hostContainerMapNode.getCurrentData().getData());
+            return HostContainerMap.fromBytes(hostContainerMapNode.getCurrentData().getData()).getHostContainerMap();
         } catch (Exception e) {
             throw new HostStoreException("Failed to fetch segment container map from zookeeper", e);
         }
@@ -104,8 +113,7 @@ public class ZKHostStore implements HostControllerStore {
     private Host getHostForContainer(int containerId) {
         tryInit();
 
-        HostContainerMap mapping = getCurrentHostMap();
-        Optional<Host> host = mapping.getHostContainerMap().entrySet().stream()
+        Optional<Host> host = hostContainerMap.entrySet().stream()
                                      .filter(x -> x.getValue().contains(containerId)).map(Map.Entry::getKey).findAny();
         if (host.isPresent()) {
             log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);
