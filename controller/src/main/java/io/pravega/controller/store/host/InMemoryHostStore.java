@@ -11,6 +11,7 @@ package io.pravega.controller.store.host;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.shared.segment.SegmentToContainerMapper;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class InMemoryHostStore implements HostControllerStore {
-    private Map<Host, Set<Integer>> hostContainerMap;
+    private HostContainerMap hostContainerMap;
     private final SegmentToContainerMapper segmentMapper;
 
     /**
@@ -33,7 +34,7 @@ public class InMemoryHostStore implements HostControllerStore {
      *
      * @param hostContainerMap      The initial Host to container ownership information.
      */
-    InMemoryHostStore(Map<Host, Set<Integer>> hostContainerMap, int containerCount) {
+    InMemoryHostStore(HostContainerMap hostContainerMap, int containerCount) {
         Preconditions.checkNotNull(hostContainerMap, "hostContainerMap");
         this.hostContainerMap = hostContainerMap;
         segmentMapper = new SegmentToContainerMapper(containerCount);
@@ -41,19 +42,19 @@ public class InMemoryHostStore implements HostControllerStore {
 
     @Override
     @Synchronized
-    public Map<Host, Set<Integer>> getHostContainersMap() {
-        return new HashMap<>(hostContainerMap);
+    public HostContainerMap getHostContainersMap() {
+        return hostContainerMap;
     }
 
     @Override
     @Synchronized
-    public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
+    public void updateHostContainersMap(HostContainerMap newMapping) {
         Preconditions.checkNotNull(newMapping, "newMapping");
-        hostContainerMap = new HashMap<>(newMapping);
+        hostContainerMap = newMapping;
     }
 
     private Host getHostForContainer(int containerId) {
-        Optional<Host> host = hostContainerMap.entrySet().stream()
+        Optional<Host> host = hostContainerMap.getHostContainerMap().entrySet().stream()
                 .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
         if (host.isPresent()) {
             log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);

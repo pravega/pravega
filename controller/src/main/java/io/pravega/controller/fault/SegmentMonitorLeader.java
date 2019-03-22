@@ -186,9 +186,9 @@ class SegmentMonitorLeader implements LeaderSelectorListener {
     private void triggerRebalance() throws IOException {
         //Read the current mapping from the host store and write back the update after rebalancing.
         try {
-            Map<Host, Set<Integer>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap(),
+            Map<Host, Set<Integer>> newMapping = segBalancer.rebalance(hostStore.getHostContainersMap().getHostContainerMap(),
                     pravegaServiceCluster.getClusterMembers());
-            Map<Host, Set<Integer>> oldMapping = hostStore.getHostContainersMap();
+            Map<Host, Set<Integer>> oldMapping = hostStore.getHostContainersMap().getHostContainerMap();
             hostStore.updateHostContainersMap(newMapping);
             hostContainerMetrics.updateHostContainerMetrics(oldMapping, newMapping);
         } catch (ClusterException e) {
