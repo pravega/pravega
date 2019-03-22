@@ -15,7 +15,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
-import org.mockito.Mock;
 
 import java.util.concurrent.CompletableFuture;
 

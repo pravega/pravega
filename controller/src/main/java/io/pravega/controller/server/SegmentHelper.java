@@ -27,7 +27,6 @@ import io.pravega.client.tables.impl.TableEntryImpl;
 import io.pravega.client.tables.impl.TableKey;
 import io.pravega.client.tables.impl.TableKeyImpl;
 import io.pravega.client.tables.impl.TableSegment;
-import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.TagLogger;
