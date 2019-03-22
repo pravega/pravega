@@ -543,7 +543,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
     /**
      * Wraps a collection of WriterSegmentProcessors, including the main Segment Aggregator.
      */
-    private static class ProcessorCollection implements WriterSegmentProcessor {
+    private class ProcessorCollection implements WriterSegmentProcessor {
         private final SegmentAggregator aggregator;
         private final List<WriterSegmentProcessor> processors;
 
@@ -594,11 +594,9 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
 
         @Override
         public long getLowestUncommittedSequenceNumber() {
-            // We collect the lowest value across all processors.
-            return this.processors.stream()
-                                  .mapToLong(WriterSegmentProcessor::getLowestUncommittedSequenceNumber)
-                                  .min()
-                                  .orElse(Operation.NO_SEQUENCE_NUMBER);
+            return this.processors.size() == 1
+                    ? this.processors.get(0).getLowestUncommittedSequenceNumber()
+                    : StorageWriter.this.ackCalculator.getLowestUncommittedSequenceNumber(this.processors);
         }
 
         @Override

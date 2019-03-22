@@ -147,8 +147,7 @@ public class ReadTest {
 
         ByteBuffer actual = ByteBuffer.allocate(entries * data.length);
         while (actual.position() < actual.capacity()) {
-            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.position(), 10000, ""));
-
+            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.position(), 10000, "", 1L));
             assertEquals(segmentName, result.getSegment());
             assertEquals(result.getOffset(), actual.position());
             assertTrue(result.isAtTail());

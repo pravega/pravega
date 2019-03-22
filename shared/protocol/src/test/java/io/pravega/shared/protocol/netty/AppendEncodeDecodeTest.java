@@ -106,7 +106,7 @@ public class AppendEncodeDecodeTest {
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
-        Append msg = new Append("segment", writerId, 1, event);
+        Append msg = new Append("segment", writerId, 1, event, 1);
         CommandEncoder commandEncoder = new CommandEncoder(new FixedBatchSizeTracker(3));
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(null, setupAppend, fakeNetwork);
@@ -276,7 +276,7 @@ public class AppendEncodeDecodeTest {
         byte[] content = new byte[length];
         Arrays.fill(content, (byte) messageNumber);
         Event event = new Event(Unpooled.wrappedBuffer(content));
-        Append msg = new Append(segment, writerId, messageNumber, event);
+        Append msg = new Append(segment, writerId, messageNumber, event, 1);
         assertEquals(length + WireCommands.TYPE_PLUS_LENGTH_SIZE, msg.data.readableBytes());
         encoder.encode(null, msg, out);
         assertEquals(length + WireCommands.TYPE_PLUS_LENGTH_SIZE, msg.data.readableBytes());
