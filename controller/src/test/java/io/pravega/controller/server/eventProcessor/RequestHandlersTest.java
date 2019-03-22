@@ -17,13 +17,17 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
@@ -38,6 +42,7 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
+import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -51,11 +56,13 @@ import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.shared.controller.event.TruncateStreamEvent;
 import io.pravega.shared.controller.event.UpdateStreamEvent;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.AbstractMap;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -79,11 +86,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 public class RequestHandlersTest {
     private final String scope = "scope";
@@ -102,7 +105,7 @@ public class RequestHandlersTest {
     private CuratorFramework zkClient;
     private EventStreamClientFactory clientFactory;
     private ConnectionFactoryImpl connectionFactory;
-
+    private SegmentHelper segmentHelper;
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -129,15 +132,17 @@ public class RequestHandlersTest {
 
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(EventStreamClientFactory.class);
+        doAnswer(x -> new EventStreamWriterMock<>()).when(clientFactory).createEventWriter(anyString(), any(), any());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
                 executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelper, executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper());
-
+        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), 
+                "abortStream", new EventStreamWriterMock<>());
         long createTimestamp = System.currentTimeMillis();
 
         // add a host in zk
@@ -547,5 +552,290 @@ public class RequestHandlersTest {
 
         streamStore.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
         streamStore.setState(scope, stream, State.ACTIVE, null, executor).join();
+    }
+
+    @Test
+    public void testScaleIgnoreFairness() {
+        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
+                new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                streamStore,
+                executor);
+        String fairness = "fairness";
+        streamStore.createScope(fairness).join();
+        streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis()).join();
+
+        // 1. set segment helper mock to throw exception
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+                .when(segmentHelper).sealSegment(anyString(), anyString(), anyLong(), any(), any(), anyString(), anyLong());
+        
+        // 2. start scale --> this should fail with a retryable exception while talking to segment store!
+        ScaleOpEvent scaleEvent = new ScaleOpEvent(fairness, fairness, Collections.singletonList(0L), 
+                Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), 
+                false, System.currentTimeMillis(), 0L);
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        // verify that scale was started
+        assertEquals(State.SCALING, streamStore.getState(fairness, fairness, true, null, executor).join());
+
+        // 3. set waiting processor to "random name"
+        streamStore.createWaitingRequestIfAbsent(fairness, fairness, "myProcessor", null, executor).join();
+        
+        // 4. reset segment helper to return success
+        doAnswer(x -> CompletableFuture.completedFuture(true))
+                .when(segmentHelper).sealSegment(anyString(), anyString(), anyLong(), any(), any(), anyString(), anyLong());
+        
+        // 5. process again. it should succeed while ignoring waiting processor
+        streamRequestHandler.process(scaleEvent).join();
+        EpochRecord activeEpoch = streamStore.getActiveEpoch(fairness, fairness, null, true, executor).join();
+        assertEquals(1, activeEpoch.getEpoch());
+        assertEquals(State.ACTIVE, streamStore.getState(fairness, fairness, true, null, executor).join());
+        
+        // 6. run a new scale. it should fail because of waiting processor.
+        ScaleOpEvent scaleEvent2 = new ScaleOpEvent(fairness, fairness, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1)),
+                Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0)),
+                false, System.currentTimeMillis(), 0L);
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(scaleEvent2),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
+    }
+    
+    @Test
+    public void testUpdateIgnoreFairness() {
+        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
+                new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                streamStore,
+                executor);
+        String fairness = "fairness";
+        streamStore.createScope(fairness).join();
+        streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis()).join();
+
+        // 1. set segment helper mock to throw exception
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+                .when(segmentHelper).updatePolicy(anyString(), anyString(), any(), anyLong(), any(), any(), anyString(), anyLong());
+        
+        // 2. start process --> this should fail with a retryable exception while talking to segment store!
+        streamStore.startUpdateConfiguration(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                null, executor).join();
+        streamStore.setState(fairness, fairness, State.UPDATING, null, executor).join();
+        assertEquals(State.UPDATING, streamStore.getState(fairness, fairness, true, null, executor).join());
+        
+        UpdateStreamEvent event = new UpdateStreamEvent(fairness, fairness, 0L);
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+
+        verify(segmentHelper, atLeastOnce()).updatePolicy(anyString(), anyString(), any(), anyLong(), any(), any(), anyString(), anyLong());
+        
+        // 3. set waiting processor to "random name"
+        streamStore.createWaitingRequestIfAbsent(fairness, fairness, "myProcessor", null, executor).join();
+        
+        // 4. reset segment helper to return success
+        doAnswer(x -> CompletableFuture.completedFuture(null))
+                .when(segmentHelper).updatePolicy(anyString(), anyString(), any(), anyLong(), any(), any(), anyString(), anyLong());
+        
+        // 5. process again. it should succeed while ignoring waiting processor
+        streamRequestHandler.process(event).join();
+        assertEquals(State.ACTIVE, streamStore.getState(fairness, fairness, true, null, executor).join());
+        
+        // 6. run a new update. it should fail because of waiting processor and our state does not allow us to ignore waiting processor
+        UpdateStreamEvent event2 = new UpdateStreamEvent(fairness, fairness, 0L);
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event2),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
+    }
+
+    @Test
+    public void testTruncateIgnoreFairness() {
+        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
+                new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                streamStore,
+                executor);
+        String fairness = "fairness";
+        streamStore.createScope(fairness).join();
+        streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis()).join();
+
+        // 1. set segment helper mock to throw exception
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+                .when(segmentHelper).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyString(), anyLong());
+        
+        // 2. start process --> this should fail with a retryable exception while talking to segment store!
+        streamStore.startTruncation(fairness, fairness, Collections.singletonMap(0L, 0L), null, executor).join();
+        streamStore.setState(fairness, fairness, State.TRUNCATING, null, executor).join();
+        assertEquals(State.TRUNCATING, streamStore.getState(fairness, fairness, true, null, executor).join());
+        
+        TruncateStreamEvent event = new TruncateStreamEvent(fairness, fairness, 0L);
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+
+        verify(segmentHelper, atLeastOnce()).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyString(), anyLong());
+        
+        // 3. set waiting processor to "random name"
+        streamStore.createWaitingRequestIfAbsent(fairness, fairness, "myProcessor", null, executor).join();
+        
+        // 4. reset segment helper to return success
+        doAnswer(x -> CompletableFuture.completedFuture(null))
+                .when(segmentHelper).truncateSegment(anyString(), anyString(), anyLong(), anyLong(), any(), any(), anyString(), anyLong());
+        
+        // 5. process again. it should succeed while ignoring waiting processor
+        streamRequestHandler.process(event).join();
+        assertEquals(State.ACTIVE, streamStore.getState(fairness, fairness, true, null, executor).join());
+        
+        // 6. run a new update. it should fail because of waiting processor.
+        TruncateStreamEvent event2 = new TruncateStreamEvent(fairness, fairness, 0L);
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event2),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
+    }
+    
+    @Test
+    public void testCommitTxnIgnoreFairness() {
+        CommitRequestHandler requestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        String fairness = "fairness";
+        streamStore.createScope(fairness).join();
+        streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis()).join();
+
+        UUID txn = streamTransactionMetadataTasks.createTxn(fairness, fairness, 30000, null).join().getKey().getId();
+        streamStore.sealTransaction(fairness, fairness, txn, true, Optional.empty(), null, executor).join();
+        
+        // 1. set segment helper mock to throw exception
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), anyString());
+        
+        streamStore.startCommitTransactions(fairness, fairness, 0, null, executor).join();
+        
+        // 2. start process --> this should fail with a retryable exception while talking to segment store!
+        streamStore.setState(fairness, fairness, State.COMMITTING_TXN, null, executor).join();
+
+        assertEquals(State.COMMITTING_TXN, streamStore.getState(fairness, fairness, true, null, executor).join());
+        
+        CommitEvent event = new CommitEvent(fairness, fairness, 0);
+        AssertExtensions.assertFutureThrows("", requestHandler.process(event),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+
+        verify(segmentHelper, atLeastOnce()).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), anyString());
+        
+        // 3. set waiting processor to "random name"
+        streamStore.createWaitingRequestIfAbsent(fairness, fairness, "myProcessor", null, executor).join();
+        
+        // 4. reset segment helper to return success
+        doAnswer(x -> CompletableFuture.completedFuture(null))
+                .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), anyString());
+        
+        // 5. process again. it should succeed while ignoring waiting processor
+        requestHandler.process(event).join();
+        assertEquals(State.ACTIVE, streamStore.getState(fairness, fairness, true, null, executor).join());
+        
+        // 6. run a new update. it should fail because of waiting processor.
+        CommitEvent event2 = new CommitEvent(fairness, fairness, 0);
+        AssertExtensions.assertFutureThrows("", requestHandler.process(event2),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
+    }
+
+    @Test
+    public void testSealIgnoreFairness() {
+        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
+                new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                streamStore,
+                executor);
+        String fairness = "fairness";
+        streamStore.createScope(fairness).join();
+        streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                System.currentTimeMillis()).join();
+
+        // 1. set segment helper mock to throw exception
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+                .when(segmentHelper).sealSegment(anyString(), anyString(), anyLong(), any(), any(), anyString(), anyLong());
+
+        // 2. start process --> this should fail with a retryable exception while talking to segment store!
+        streamStore.setState(fairness, fairness, State.SEALING, null, executor).join();
+        assertEquals(State.SEALING, streamStore.getState(fairness, fairness, true, null, executor).join());
+
+        SealStreamEvent event = new SealStreamEvent(fairness, fairness, 0L);
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+
+        verify(segmentHelper, atLeastOnce())
+                .sealSegment(anyString(), anyString(), anyLong(), any(), any(), anyString(), anyLong());
+
+        // 3. set waiting processor to "random name"
+        streamStore.createWaitingRequestIfAbsent(fairness, fairness, "myProcessor", null, executor).join();
+
+        // 4. reset segment helper to return success
+        doAnswer(x -> CompletableFuture.completedFuture(null))
+                .when(segmentHelper).sealSegment(anyString(), anyString(), anyLong(), any(), any(), anyString(), anyLong());
+
+        // 5. process again. it should succeed while ignoring waiting processor
+        streamRequestHandler.process(event).join();
+        assertEquals(State.SEALED, streamStore.getState(fairness, fairness, true, null, executor).join());
+
+        // 6. run a new update. it should fail because of waiting processor.
+        SealStreamEvent event2 = new SealStreamEvent(fairness, fairness, 0L);
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event2),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        streamStore.deleteWaitingRequestConditionally(fairness, fairness, "myProcessor", null, executor).join();
+    }
+
+    @Test
+    public void testDeleteIgnoreFairness() {
+        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
+                new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
+                new TruncateStreamTask(streamMetadataTasks, streamStore, executor),
+                streamStore,
+                executor);
+        String fairness = "fairness";
+        streamStore.createScope(fairness).join();
+        long createTimestamp = System.currentTimeMillis();
+        streamMetadataTasks.createStream(fairness, fairness, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),
+                createTimestamp).join();
+
+        // 1. set segment helper mock to throw exception
+        doAnswer(x -> Futures.failedFuture(new RuntimeException()))
+                .when(segmentHelper).deleteSegment(anyString(), anyString(), anyLong(), any(), any(), anyString(), anyLong());
+
+        // 2. start process --> this should fail with a retryable exception while talking to segment store!
+        streamStore.setState(fairness, fairness, State.SEALED, null, executor).join();
+        assertEquals(State.SEALED, streamStore.getState(fairness, fairness, true, null, executor).join());
+
+        DeleteStreamEvent event = new DeleteStreamEvent(fairness, fairness, 0L, createTimestamp);
+        AssertExtensions.assertFutureThrows("", streamRequestHandler.process(event),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
+
+        verify(segmentHelper, atLeastOnce())
+                .deleteSegment(anyString(), anyString(), anyLong(), any(), any(), anyString(), anyLong());
+
+        // 3. set waiting processor to "random name"
+        streamStore.createWaitingRequestIfAbsent(fairness, fairness, "myProcessor", null, executor).join();
+
+        // 4. reset segment helper to return success
+        doAnswer(x -> CompletableFuture.completedFuture(null))
+                .when(segmentHelper).deleteSegment(anyString(), anyString(), anyLong(), any(), any(), anyString(), anyLong());
+
+        // 5. process again. it should succeed while ignoring waiting processor
+        streamRequestHandler.process(event).join();
+        AssertExtensions.assertFutureThrows("", streamStore.getState(fairness, fairness, true, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }
 }

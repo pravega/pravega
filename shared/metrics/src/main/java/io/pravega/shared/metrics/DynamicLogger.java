@@ -19,23 +19,26 @@ public interface DynamicLogger {
      *
      * @param name  the name of Counter
      * @param delta the delta to be added
+     * @param tags  the tags associated with the Counter.
      */
-    void incCounterValue(String name, long delta);
+    void incCounterValue(String name, long delta, String... tags);
 
     /**
      * Updates the counter with value <i>value</i>.
      *
-     * @param name              the name of counter
-     * @param value             the value to be updated
+     * @param name  the name of counter
+     * @param value the value to be updated
+     * @param tags  the tags associated with the Counter.
      */
-    void updateCounterValue(String name, long value);
+    void updateCounterValue(String name, long value, String... tags);
 
     /**
      * Notifies that the counter will not be updated.
      *
-     * @param name              the name of counter
+     * @param name the name of counter
+     * @param tags the tags associated with the Counter.
      */
-    void freezeCounter(String name);
+    void freezeCounter(String name, String... tags);
 
     /**
      * Notifies that the counters will not be updated.
@@ -54,21 +57,24 @@ public interface DynamicLogger {
      * @param <T>   the type of value
      * @param name  the name of gauge
      * @param value the value to be reported
+     * @param tags  the tags associated with the Gauge
      */
-    <T extends Number> void reportGaugeValue(String name, T value);
+    <T extends Number> void reportGaugeValue(String name, T value, String... tags);
 
     /**
      * Notifies that the gauge value will not be updated.
      *
      * @param name  the name of gauge
+     * @param tags  the tags associated with the Gauge.
      */
-    void freezeGaugeValue(String name);
+    void freezeGaugeValue(String name, String... tags);
 
     /**
      * Record the occurrence of a given number of events in Meter.
      *
      * @param name   the name of Meter
      * @param number the number of events occurrence
+     * @param tags   the tags associated with the Meter.
      */
-    void recordMeterEvents(String name, long number);
+    void recordMeterEvents(String name, long number, String... tags);
 }
