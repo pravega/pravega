@@ -34,7 +34,7 @@ public class Host {
     public Host(String ipAddr, int port, String endpointId) {
         this.ipAddr = ipAddr;
         this.port = port;
-        this.endpointId = endpointId;
+        this.endpointId = endpointId == null ? "" : endpointId;
         hostId = String.format("%s-%s", this.ipAddr, this.endpointId); 
     }
 

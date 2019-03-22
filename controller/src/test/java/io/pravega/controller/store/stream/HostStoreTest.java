@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClient;
@@ -59,7 +60,7 @@ public class HostStoreTest {
         validateStore(hostStore);
     }
 
-    @Test
+    @Test(timeout = 10000L)
     public void zkHostStoreTests() {
         try {
             @Cleanup
@@ -87,7 +88,10 @@ public class HostStoreTest {
 
             // Update host store map.
             hostStore.updateHostContainersMap(HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount));
-
+            // wait until the map is updated in the node cache
+            while(hostStore.getHostContainersMap().isEmpty()) {
+                Exceptions.handleInterrupted(() -> Thread.sleep(100));
+            }
             validateStore(hostStore);
         } catch (Exception e) {
             log.error("Unexpected error", e);
