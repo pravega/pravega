@@ -27,7 +27,7 @@ public class Cache<T> {
     public Cache(final Function<T, CompletableFuture<Data>> loader) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(MAXIMUM_SIZE)
-                .expireAfterWrite(10, TimeUnit.MINUTES)
+                .expireAfterAccess(2, TimeUnit.MINUTES)
                 .build(new CacheLoader<T, CompletableFuture<Data>>() {
                     @ParametersAreNonnullByDefault
                     @Override

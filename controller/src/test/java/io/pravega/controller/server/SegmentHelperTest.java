@@ -243,7 +243,7 @@ public class SegmentHelperTest {
 
         // On receiving NoSuchSegment true should be returned.
         CompletableFuture<Boolean> result = helper.deleteTableSegment("", "", true, "", System.nanoTime());
-        factory.rp.noSuchSegment(new WireCommands.NoSuchSegment(0, getQualifiedStreamSegmentName("", "", 0L), ""));
+        factory.rp.noSuchSegment(new WireCommands.NoSuchSegment(0, getQualifiedStreamSegmentName("", "", 0L), "", 0L));
         AssertExtensions.assertFutureThrows("", result, e -> Exceptions.unwrap(e) instanceof WireCommandFailedException
                 && ((WireCommandFailedException) Exceptions.unwrap(e)).getReason().equals(WireCommandFailedException.Reason.SegmentDoesNotExist));
 
@@ -506,7 +506,7 @@ public class SegmentHelperTest {
 
     private void validateNoSuchSegment(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
         CompletableFuture<?> future = futureSupplier.get();
-        factory.rp.noSuchSegment(new WireCommands.NoSuchSegment(0, "segment", "SomeException"));
+        factory.rp.noSuchSegment(new WireCommands.NoSuchSegment(0, "segment", "SomeException", 0L));
         AssertExtensions.assertThrows("", future::join,
                                       t -> {
                                           Throwable ex = unwrap(t);
