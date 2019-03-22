@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
@@ -88,5 +89,10 @@ public class MetadataScalabilityLargeScalesTest extends MetadataScalabilityTest 
             }
         }
         return newRanges;
+    }
+    
+    @Test
+    public void largeScalesScalability() {
+        scalability();
     }
 }

@@ -96,8 +96,7 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
 
     abstract Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments);
 
-    @Test
-    public void scalability() {
+    void scalability() {
         testState = new TestState(false);
 
         ControllerImpl controller = getController();
