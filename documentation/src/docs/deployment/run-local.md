@@ -105,7 +105,7 @@ The following command sequence is used (in Linux) with the provided certificate 
    - `cd /path/to/pravega/config`
    - Convert the `cert.pem` file to `DER` format: `openssl x509 -in cert.pem -inform pem -out cert.der  -outform der`
    - Import the certificate into the local JVM's trust store:
-    `sudo keytool -importcert -alias local-CA -keystore /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/security/cacerts  -file cert.der` (using the default password `changeit`)
+    `sudo keytool -importcert -alias local-CA -keystore /path/to/jre/lib/security/cacerts  -file cert.der` (using the default password `changeit`)
 
    **Note:** If you want to use a custom truststore instead of adding the certificate to the system truststore, create a new truststore using Java keytool utility, add the certificate to it and configure the JVM to use it by setting the system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
 
@@ -114,7 +114,7 @@ The following command sequence is used (in Linux) with the provided certificate 
 4. Verify that controller REST API is returning response over SSL/TLS:
 
     ```java
-      curl -v -k https://104.215.152.115:9091/v1/scopes
+      curl -v -k https://<host-name>/v1/scopes
     ```
     `-v` is to avoid hostname verification, since we are using the provided certificate which isn't assigned to your hostname. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
 
