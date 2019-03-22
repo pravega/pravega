@@ -496,7 +496,7 @@ public class SynchronizerTest {
         assertEquals("e", syncB.getState().getValue());
         syncB.compact(state -> {
             callCount.incrementAndGet();
-            return new RegularUpdate("e");
+            return new RegularUpdate(state.getValue());
         });
         assertEquals(7, callCount.get());
         assertEquals(0, syncB.bytesWrittenSinceCompaction());
