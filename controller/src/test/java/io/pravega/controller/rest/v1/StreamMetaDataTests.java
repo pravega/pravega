@@ -32,7 +32,6 @@ import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import io.pravega.controller.store.stream.ScaleMetadata;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;

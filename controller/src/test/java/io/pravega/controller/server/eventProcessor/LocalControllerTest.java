@@ -15,7 +15,6 @@ import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.ArrayList;

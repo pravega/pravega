@@ -45,22 +45,6 @@ public class StreamTruncationRecord {
      */
     private final Map<Long, Long> streamCut;
 
-    /**
-     * If a stream cut spans across multiple epochs then this map captures mapping of segments from the stream cut to
-     * epochs they were found in closest to truncation point.
-     * This data structure is used to find active segments wrt a stream cut.
-     * So for example:
-     * epoch 0: 0, 1
-     * epoch 1: 0, 2, 3
-     * epoch 2: 0, 2, 4, 5
-     * epoch 3: 0, 4, 5, 6, 7
-     *
-     * Following is a valid stream cut {0/offset, 3/offset, 6/offset, 7/offset}
-     * This spans from epoch 1 till epoch 3. Any request for segments at epoch 1 or 2 or 3 will need to have this stream cut
-     * applied on it to find segments that are available for consumption.
-     * Refer to TableHelper.getActiveSegmentsAt
-     */
-    private final Map<StreamSegmentRecord, Integer> span;
     private final int spanEpochLow;
     private final int spanEpochHigh;
     /**
@@ -84,7 +68,6 @@ public class StreamTruncationRecord {
     public StreamTruncationRecord(Map<Long, Long> streamCut, Map<StreamSegmentRecord, Integer> span,
                                   Set<Long> deletedSegments, Set<Long> toDelete, long sizeTill, boolean updating) {
         this.streamCut = ImmutableMap.copyOf(streamCut);
-        this.span = ImmutableMap.copyOf(span);
         this.deletedSegments = ImmutableSet.copyOf(deletedSegments);
         this.toDelete = ImmutableSet.copyOf(toDelete);
         this.sizeTill = sizeTill;
@@ -105,7 +88,6 @@ public class StreamTruncationRecord {
 
         return StreamTruncationRecord.builder()
                                      .updating(false)
-                                     .span(toComplete.span)
                                      .streamCut(toComplete.streamCut)
                                      .deletedSegments(deleted)
                                      .toDelete(ImmutableSet.of())
@@ -154,7 +136,6 @@ public class StreamTruncationRecord {
         private void write00(StreamTruncationRecord streamTruncationRecord, RevisionDataOutput revisionDataOutput)
                 throws IOException {
             revisionDataOutput.writeMap(streamTruncationRecord.getStreamCut(), DataOutput::writeLong, DataOutput::writeLong);
-            revisionDataOutput.writeMap(streamTruncationRecord.getSpan(), StreamSegmentRecord.SERIALIZER::serialize, DataOutput::writeInt);
             revisionDataOutput.writeCollection(streamTruncationRecord.getDeletedSegments(), DataOutput::writeLong);
             revisionDataOutput.writeCollection(streamTruncationRecord.getToDelete(), DataOutput::writeLong);
             revisionDataOutput.writeLong(streamTruncationRecord.sizeTill);
