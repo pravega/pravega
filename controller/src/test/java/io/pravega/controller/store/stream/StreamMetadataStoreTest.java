@@ -23,6 +23,7 @@ import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -111,10 +112,10 @@ public abstract class StreamMetadataStoreTest {
         // endregion
 
         // region checkSegments
-        List<Segment> segments = store.getActiveSegments(scope, stream1, null, executor).get();
+        List<StreamSegmentRecord> segments = store.getActiveSegments(scope, stream1, null, executor).get();
         assertEquals(2, segments.size());
 
-        Map<Segment, Long> historicalSegments = store.getSegmentsAtHead(scope, stream1, null, executor).get();
+        Map<StreamSegmentRecord, Long> historicalSegments = store.getSegmentsAtHead(scope, stream1, null, executor).get();
         assertEquals(2, historicalSegments.size());
 
         segments = store.getActiveSegments(scope, stream2, null, executor).get();
@@ -543,7 +544,7 @@ public abstract class StreamMetadataStoreTest {
         CompletableFuture<VersionedMetadata<EpochTransitionRecord>> resp = store.submitScale(scope, stream, scale3SealedSegments, Arrays.asList(segment6), scaleTs3, null, null, executor);
         updateEpochTransitionCalled.join();
         VersionedMetadata<EpochTransitionRecord> epochRecord = streamObj.getEpochTransition().join();
-        streamObj.updateEpochTransitionNode(new Data(EpochTransitionRecord.EMPTY.toBytes(), epochRecord.getVersion())).join();
+        streamObj.updateEpochTransitionNode(new VersionedMetadata<>(EpochTransitionRecord.EMPTY, epochRecord.getVersion())).join();
         latch.complete(null);
 
         AssertExtensions.assertFutureThrows("", resp, e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
@@ -581,9 +582,9 @@ public abstract class StreamMetadataStoreTest {
         doAnswer(x -> streamObj.updateEpochTransitionNode(any())).when(streamObjSpied).updateEpochTransitionNode(any());
 
         doAnswer(x -> CompletableFuture.runAsync(() -> {
-            Data argument = x.getArgument(0);
+            VersionedMetadata<EpochTransitionRecord> argument = x.getArgument(0);
 
-            EpochTransitionRecord record = EpochTransitionRecord.fromBytes(argument.getData());
+            EpochTransitionRecord record = argument.getObject();
 
             if (record.getSegmentsToSeal().containsAll(segmentsToSeal)) {
                 // wait until we create epoch transition outside of this method
@@ -610,7 +611,7 @@ public abstract class StreamMetadataStoreTest {
                             EpochTransitionRecord record = RecordHelper.computeEpochTransition(epochRecord, segmentsToSeal2,
                                     Arrays.asList(segment2p), scaleTs2);
                             return streamObjSpied.getEpochTransition()
-                                .thenCompose(existing -> streamObjSpied.updateEpochTransitionNode(new Data(record.toBytes(), existing.getVersion())))
+                                .thenCompose(existing -> streamObjSpied.updateEpochTransitionNode(new VersionedMetadata<>(record, existing.getVersion())))
                                     .thenApply(v -> new VersionedMetadata<>(record, v));
                         })
                 .thenCompose(epochRecord -> store.getVersionedState(scope, stream, null, executor)
@@ -787,9 +788,9 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(3, activeEpoch.getEpoch());
         assertEquals(1, activeEpoch.getReferenceEpoch());
         assertEquals(3, activeEpoch.getSegments().size());
-        List<Segment> txnDuplicate = store.getSegmentsInEpoch(scope, stream, 2, null, executor).join();
+        List<StreamSegmentRecord> txnDuplicate = store.getSegmentsInEpoch(scope, stream, 2, null, executor).join();
         assertEquals(2, txnDuplicate.size());
-        List<Segment> activeEpochDuplicate = store.getSegmentsInEpoch(scope, stream, 3, null, executor).join();
+        List<StreamSegmentRecord> activeEpochDuplicate = store.getSegmentsInEpoch(scope, stream, 3, null, executor).join();
         assertEquals(3, activeEpochDuplicate.size());
         EpochRecord txnCommittedEpoch = store.getEpoch(scope, stream, 2, null, executor).join();
         assertEquals(0, txnCommittedEpoch.getReferenceEpoch());
@@ -945,8 +946,6 @@ public abstract class StreamMetadataStoreTest {
 
         truncationProperty = store.getTruncationRecord(scope, stream, null, executor).join().getObject();
         assertEquals(truncation, truncationProperty.getStreamCut());
-
-        assertTrue(truncationProperty.getSpan().size() == 2);
 
         Map<Long, Long> truncation3 = new HashMap<>();
         truncation3.put(0L, 2L);

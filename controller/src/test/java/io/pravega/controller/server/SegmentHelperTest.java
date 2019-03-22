@@ -11,8 +11,10 @@ package io.pravega.controller.server;
 
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.tables.impl.IteratorState;
 import io.pravega.client.tables.impl.IteratorStateImpl;
@@ -71,7 +73,9 @@ public class SegmentHelperTest {
 
     @Before
     public void setUp() throws Exception {
-        helper = new SegmentHelper();
+        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+
+        helper = new SegmentHelper(connectionFactory);
     }
 
     @After

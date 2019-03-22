@@ -9,10 +9,14 @@
  */
 package io.pravega.controller.mocks;
 
+import io.pravega.client.ClientConfig;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+import org.mockito.Mock;
+
 import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -25,7 +29,7 @@ public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
 
     public static SegmentHelper getSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper());
+        SegmentHelper helper = spy(new SegmentHelper(new ConnectionFactoryImpl(ClientConfig.builder().build())));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong(), any());
@@ -61,7 +65,7 @@ public class SegmentHelperMock {
     }
 
     public static SegmentHelper getFailingSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper());
+        SegmentHelper helper = spy(new SegmentHelper(new ConnectionFactoryImpl(ClientConfig.builder().build())));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong(), any());

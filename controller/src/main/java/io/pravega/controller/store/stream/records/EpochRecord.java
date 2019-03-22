@@ -50,12 +50,17 @@ public class EpochRecord {
     private final Map<Long, StreamSegmentRecord> segmentMap = new HashMap<>();
     
     @Builder
-    EpochRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segments, long creationTime) {
+    private EpochRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segments, long creationTime, boolean copyCollections) {
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
-        this.segments = ImmutableList.copyOf(segments);
+        this.segments = copyCollections ? ImmutableList.copyOf(segments) : segments;
         this.creationTime = creationTime;
         this.segmentMap.putAll(segments.stream().collect(Collectors.toMap(StreamSegmentRecord::segmentId, x -> x)));
+    }
+
+    @Builder
+    EpochRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segments, long creationTime) {
+        this(epoch, referenceEpoch, segments, creationTime, true);
     }
 
     @Builder
@@ -109,7 +114,8 @@ public class EpochRecord {
             builder.epoch(revisionDataInput.readInt())
                    .referenceEpoch(revisionDataInput.readInt())
                    .segments(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
-                   .creationTime(revisionDataInput.readLong());
+                   .creationTime(revisionDataInput.readLong())
+                   .copyCollections(false);
         }
 
         private void write00(EpochRecord history, RevisionDataOutput revisionDataOutput) throws IOException {
