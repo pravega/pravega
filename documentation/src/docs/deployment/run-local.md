@@ -100,7 +100,7 @@ SSL/TLS `singlenode.enableTls` is disabled by default in Pravega standalone mode
 
     **Direct Trust:** This type of trust is established by adding the server's certificate to the truststore. It is a non-standard way of establishing trust when using self-signed certificates. If you using self-signed certificates such as those provided by Pravega for standalone mode, ensure that the server's certificate is in the JVM's truststore.
 
-The following command sequence is used (in Linux) with the provided certificate file `cert.pem`  into the JVM's system truststore.
+The following command sequence is used (in Linux) with the provided certificate file `cert.pem` into the JVM's system truststore.
 
    - `cd /path/to/pravega/config`
    - Convert the `cert.pem` file to `DER` format: `openssl x509 -in cert.pem -inform pem -out cert.der  -outform der`
