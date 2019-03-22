@@ -73,10 +73,10 @@ public class ZKHostStore implements HostControllerStore {
     }
 
     @Override
-    public HostContainerMap getHostContainersMap() {
+    public Map<Host, Set<Integer>> getHostContainersMap() {
         tryInit();
 
-        return getCurrentHostMap();
+        return getCurrentHostMap().getHostContainerMap();
     }
 
     @SuppressWarnings("unchecked")

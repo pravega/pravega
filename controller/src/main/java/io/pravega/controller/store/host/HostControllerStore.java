@@ -10,7 +10,6 @@
 package io.pravega.controller.store.host;
 
 import io.pravega.common.cluster.Host;
-import io.pravega.common.cluster.HostContainerMap;
 
 import java.util.Map;
 import java.util.Set;
@@ -25,7 +24,7 @@ public interface HostControllerStore {
      * @return                      The latest host to container mapping.
      * @throws HostStoreException   On error while fetching the Map.
      */
-    HostContainerMap getHostContainersMap();
+    Map<Host, Set<Integer>> getHostContainersMap();
 
     /**
      * Update the existing host to container map with the new one. This operation has to be atomic.
