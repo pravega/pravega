@@ -90,7 +90,7 @@ public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalability
         ControllerImpl controller = getController();
 
         List<List<Segment>> listOfEpochs = scale(controller);
-        // TODO: uncomment truncation as part of 3478
+        // TODO: uncomment truncation as part of #3478
         // truncation(controller, listOfEpochs);
         sealAndDeleteStream(controller);
     }

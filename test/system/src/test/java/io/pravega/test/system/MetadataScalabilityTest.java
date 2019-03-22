@@ -145,7 +145,7 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
          }
          Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < scalesToPerform - 1), () -> {
              // randomly generate a stream cut. 
-             // Note: From epoch 1 till epoch SCALES_TO_PERFORM each epoch is made up of 10k segments
+             // Note: From epoch 1 till epoch SCALES_TO_PERFORM each epoch is made up of numOfSegments segments
              // and the range is statically partitioned evenly. 
              // So a random, correct streamcut would be choosing numSegments disjoint segments from numSegments random epochs. 
              Map<Segment, Long> map = new HashMap<>();
