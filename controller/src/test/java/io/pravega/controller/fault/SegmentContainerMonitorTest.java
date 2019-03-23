@@ -13,6 +13,7 @@ import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
+import io.pravega.controller.store.host.ZKHostStore;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -30,10 +31,14 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -68,7 +73,7 @@ public class SegmentContainerMonitorTest {
         zkTestServer.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testMonitorWithZKStore() throws Exception {
         HostMonitorConfig config = HostMonitorConfigImpl.builder()
                 .hostMonitorEnabled(true)
@@ -77,7 +82,16 @@ public class SegmentContainerMonitorTest {
                 .build();
         HostControllerStore hostStore = HostStoreFactory.createStore(config,
                 StoreClientFactory.createZKStoreClient(zkClient));
-        testMonitor(hostStore);
+        // 6 latches to match 6 operations of register/deregiter done in the test
+        List<CompletableFuture<Void>> latches = Arrays.asList(
+                new CompletableFuture<>(), new CompletableFuture<>(),
+                new CompletableFuture<>(), new CompletableFuture<>(),
+                new CompletableFuture<>(), new CompletableFuture<>());
+        AtomicInteger next = new AtomicInteger(0);
+        ((ZKHostStore) hostStore).addListener(() -> {
+            latches.get(next.getAndIncrement()).complete(null);
+        });
+        testMonitor(hostStore, latches);
     }
 
     @Test
@@ -90,10 +104,10 @@ public class SegmentContainerMonitorTest {
                         Config.SERVICE_PORT, Config.HOST_STORE_CONTAINER_COUNT))
                 .build();
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(config);
-        testMonitor(hostStore);
+        testMonitor(hostStore, null);
     }
 
-    private void testMonitor(HostControllerStore hostStore) throws Exception {
+    private void testMonitor(HostControllerStore hostStore, List<CompletableFuture<Void>> latches) throws Exception {
         //To coordinate the test cases.
         Semaphore sync = new Semaphore(0);
 
@@ -132,10 +146,16 @@ public class SegmentContainerMonitorTest {
         //Rebalance should be triggered for the very first attempt. Verify that no hosts are added to the store.
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(0, hostStore.getHostContainersMap().size());
+        if (latches != null) {
+            latches.get(0).join();
+        }
 
         //New host added.
         cluster.registerHost(new Host("localhost1", 1, null));
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
+        if (latches != null) {
+            latches.get(1).join();
+        }
         assertEquals(1, hostStore.getHostContainersMap().size());
 
         //Multiple hosts added and removed.
@@ -143,17 +163,22 @@ public class SegmentContainerMonitorTest {
         cluster.registerHost(new Host("localhost3", 3, null));
         cluster.registerHost(new Host("localhost4", 4, null));
         cluster.deregisterHost(new Host("localhost1", 1, null));
+        if (latches != null) {
+            latches.get(2).join();
+        }
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(3, hostStore.getHostContainersMap().size());
 
         //Add a host.
         cluster.registerHost(new Host("localhost1", 1, null));
-
         //Rebalance should not have been triggered since the min rebalance interval is not yet elapsed.
         assertEquals(3, hostStore.getHostContainersMap().size());
 
         //Wait for rebalance and verify the host update.
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
+        if (latches != null) {
+            latches.get(3).join();
+        }
         assertEquals(4, hostStore.getHostContainersMap().size());
 
         monitor.shutDown();

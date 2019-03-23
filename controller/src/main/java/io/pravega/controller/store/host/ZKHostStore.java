@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.host;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.HostContainerMap;
@@ -46,9 +47,11 @@ public class ZKHostStore implements HostControllerStore {
 
     private final NodeCache hostContainerMapNode;
 
-    private final Object lock = new Object();
-    private AtomicReference<HostContainerMap> hostContainerMap;
-    
+    private final AtomicReference<HostContainerMap> hostContainerMap;
+    /**
+     * The tests can add listeners to get notification when the update has happed in the store. 
+     */
+    private final AtomicReference<Listener> listenerRef;
     /**
      * Zookeeper based host store implementation.
      *
@@ -62,6 +65,7 @@ public class ZKHostStore implements HostControllerStore {
         segmentMapper = new SegmentToContainerMapper(containerCount);
         hostContainerMapNode = new NodeCache(zkClient, zkPath);
         hostContainerMap = new AtomicReference<>(HostContainerMap.EMPTY);
+        listenerRef = new AtomicReference<>();
     }
 
     //Ensure required zk node is present in zookeeper.
@@ -80,6 +84,10 @@ public class ZKHostStore implements HostControllerStore {
     @Synchronized
     private void updateMap() {
         hostContainerMap.set(HostContainerMap.fromBytes(hostContainerMapNode.getCurrentData().getData()));
+        Listener consumer = listenerRef.get();
+        if (consumer != null) {
+            consumer.signal();
+        }
     }
 
     @Override
@@ -93,7 +101,7 @@ public class ZKHostStore implements HostControllerStore {
     public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
         Preconditions.checkNotNull(newMapping, "newMapping");
         tryInit();
-        byte[] serializedMap = HostContainerMap.getHostContainerMap(newMapping).toBytes();
+        byte[] serializedMap = HostContainerMap.createHostContainerMap(newMapping).toBytes();
         try {
             zkClient.setData().forPath(zkPath, serializedMap);
             log.info("Successfully updated segment container map");
@@ -125,5 +133,15 @@ public class ZKHostStore implements HostControllerStore {
     public Host getHostForSegment(String scope, String stream, long segmentId) {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
+    }
+    
+    @VisibleForTesting
+    public void addListener(Listener listener) {
+        this.listenerRef.set(listener);
+    }
+    
+    @FunctionalInterface
+    public interface Listener {
+        void signal();
     }
 }

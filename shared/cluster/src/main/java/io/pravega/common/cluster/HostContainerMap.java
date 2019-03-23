@@ -34,7 +34,7 @@ public class HostContainerMap {
         this.map = ImmutableMap.copyOf(map);
     }
 
-    public static HostContainerMap getHostContainerMap(Map<Host, Set<Integer>> map) {
+    public static HostContainerMap createHostContainerMap(Map<Host, Set<Integer>> map) {
         return new HostContainerMap(map.entrySet().stream().collect(Collectors
                 .toMap(Map.Entry::getKey, x -> new ContainerSet(x.getValue()))));
     }
