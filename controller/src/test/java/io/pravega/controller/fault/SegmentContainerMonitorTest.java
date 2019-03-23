@@ -163,10 +163,10 @@ public class SegmentContainerMonitorTest {
         cluster.registerHost(new Host("localhost3", 3, null));
         cluster.registerHost(new Host("localhost4", 4, null));
         cluster.deregisterHost(new Host("localhost1", 1, null));
+        assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         if (latches != null) {
             latches.get(2).join();
         }
-        assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         assertEquals(3, hostStore.getHostContainersMap().size());
 
         //Add a host.
