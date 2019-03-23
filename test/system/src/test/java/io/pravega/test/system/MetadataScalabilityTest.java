@@ -49,13 +49,11 @@ import java.util.stream.Collectors;
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public abstract class MetadataScalabilityTest extends AbstractScaleTests {
-    private final String streamName = getStreamName();
-
-    private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
-
     @Rule
     public Timeout globalTimeout = Timeout.seconds(60 * 60);
-
+    private final String streamName = getStreamName();
+    private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
+    
     @Environment
     public static void initialize() {
         URI zkUri = startZookeeperInstance();
