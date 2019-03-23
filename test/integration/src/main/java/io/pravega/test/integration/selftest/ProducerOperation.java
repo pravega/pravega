@@ -21,13 +21,16 @@ import lombok.Setter;
 /**
  * Represents an Operation for a Producer
  */
-class ProducerOperation {
+class ProducerOperation<T extends ProducerUpdate> {
     //region Members
 
     @Getter
     private final ProducerOperationType type;
     @Getter
     private final String target;
+    @Getter
+    @Setter
+    private T update;
     @Getter
     @Setter
     private Object result;
@@ -38,9 +41,9 @@ class ProducerOperation {
     @Setter
     private CompletableFuture<Void> waitOn;
     @Setter
-    private Consumer<ProducerOperation> completionCallback;
+    private Consumer<ProducerOperation<T>> completionCallback;
     @Setter
-    private BiConsumer<ProducerOperation, Throwable> failureCallback;
+    private BiConsumer<ProducerOperation<T>, Throwable> failureCallback;
     @Getter
     private long elapsedMillis = 0;
 
@@ -73,7 +76,7 @@ class ProducerOperation {
      */
     void completed(long elapsedMillis) {
         this.elapsedMillis = elapsedMillis;
-        Consumer<ProducerOperation> callback = this.completionCallback;
+        Consumer<ProducerOperation<T>> callback = this.completionCallback;
         if (callback != null) {
             Callbacks.invokeSafely(callback, this, null);
         }
@@ -84,7 +87,7 @@ class ProducerOperation {
      * with it.
      */
     void failed(Throwable ex) {
-        BiConsumer<ProducerOperation, Throwable> callback = this.failureCallback;
+        BiConsumer<ProducerOperation<T>, Throwable> callback = this.failureCallback;
         if (callback != null) {
             Callbacks.invokeSafely(callback, this, ex, null);
         }
