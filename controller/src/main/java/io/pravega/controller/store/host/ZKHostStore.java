@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.host;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.cluster.Host;
@@ -50,7 +51,10 @@ public class ZKHostStore implements HostControllerStore {
     private final NodeCache hostContainerMapNode;
 
     private AtomicReference<ImmutableMap<Host, Set<Integer>>> hostContainerMap;
-    
+    /**
+     * The tests can add listeners to get notification when the update has happed in the store. 
+     */
+    private final AtomicReference<Listener> listenerRef;
     /**
      * Zookeeper based host store implementation.
      *
@@ -64,6 +68,7 @@ public class ZKHostStore implements HostControllerStore {
         hostContainerMapNode = new NodeCache(zkClient, zkPath);
         hostContainerMap = new AtomicReference<>(ImmutableMap.of());
         segmentMapper = new SegmentToContainerMapper(containerCount);
+        listenerRef = new AtomicReference<>();
     }
 
     //Ensure required zk node is present in zookeeper.
@@ -74,9 +79,8 @@ public class ZKHostStore implements HostControllerStore {
             ZKUtils.createPathIfNotExists(zkClient, zkPath, SerializationUtils.serialize(new HashMap<Host,
                     Set<Integer>>()));
             this.hostContainerMapNode.getListenable().addListener(this::updateMap);
+            hostContainerMapNode.start(true);
 
-            hostContainerMapNode.start();
-            
             zkInit = true;
         }
     }
@@ -84,6 +88,10 @@ public class ZKHostStore implements HostControllerStore {
     @Synchronized
     private void updateMap() {
         hostContainerMap.set(ImmutableMap.copyOf(getCurrentHostMap()));
+        Listener consumer = listenerRef.get();
+        if (consumer != null) {
+            consumer.signal();
+        }
     }
 
     @Override
@@ -142,5 +150,15 @@ public class ZKHostStore implements HostControllerStore {
     public Host getHostForSegment(String scope, String stream, long segmentId) {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
+    }
+    
+    @VisibleForTesting
+    public void addListener(Listener listener) {
+        this.listenerRef.set(listener);
+    }
+    
+    @FunctionalInterface
+    public interface Listener {
+        void signal();
     }
 }
