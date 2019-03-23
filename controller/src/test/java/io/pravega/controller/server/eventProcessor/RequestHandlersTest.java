@@ -716,7 +716,7 @@ public class RequestHandlersTest {
         doAnswer(x -> Futures.failedFuture(new RuntimeException()))
                 .when(segmentHelper).commitTransaction(anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), anyString());
         
-        streamStore.startCommitTransactions(fairness, fairness, 0, null, executor).join();
+        streamStore.startCommitTransactions(fairness, fairness, null, executor).join();
         
         // 2. start process --> this should fail with a retryable exception while talking to segment store!
         streamStore.setState(fairness, fairness, State.COMMITTING_TXN, null, executor).join();
