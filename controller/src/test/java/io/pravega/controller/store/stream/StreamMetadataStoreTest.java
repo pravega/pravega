@@ -27,6 +27,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
@@ -39,12 +40,14 @@ import org.junit.rules.Timeout;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -961,7 +964,7 @@ public abstract class StreamMetadataStoreTest {
     public void streamCutTest() throws Exception {
         final String scope = "ScopeStreamCut";
         final String stream = "StreamCut";
-        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final ScalingPolicy policy = ScalingPolicy.fixed(100);
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
 
         long start = System.currentTimeMillis();
@@ -970,15 +973,48 @@ public abstract class StreamMetadataStoreTest {
         store.createStream(scope, stream, configuration, start, null, executor).get();
         store.setState(scope, stream, State.ACTIVE, null, executor).get();
 
+        // perform 10 scales
+        for (int i = 0; i < 10; i++) {
+            scale(scope, stream, 100);
+        }
+        
         Map<Long, Long> invalid = new HashMap<>();
         invalid.put(0L, 0L);
 
         Map<Long, Long> valid = new HashMap<>();
-        valid.put(0L, 0L);
-        valid.put(1L, 0L);
-
+        
+        Random random = new Random();
+        for (int i = 0; i < 100; i++) {
+            int epoch = random.nextInt(10);
+            valid.put(StreamSegmentNameUtils.computeSegmentId(epoch * 100 + i, epoch), 0L);
+        }
+        
         assertTrue(store.isStreamCutValid(scope, stream, valid, null, executor).join());
         assertFalse(store.isStreamCutValid(scope, stream, invalid, null, executor).join());
+    }
+
+    protected void scale(String scope, String stream, int numOfSegments) {
+        List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
+        double delta = 1.0 / numOfSegments;
+        for (int i = 0; i < numOfSegments; i++) {
+            double low = delta * i;
+            double high = i == numOfSegments - 1 ? 1.0 : delta * (i + 1);
+
+            newRanges.add(new SimpleEntry<>(low, high));
+        }
+
+        List<Long> segmentsToSeal = store.getActiveSegments(scope, stream, null, executor).join()
+                                         .stream().map(StreamSegmentRecord::segmentId).collect(Collectors.toList());
+        VersionedMetadata<EpochTransitionRecord> versioned = store.submitScale(scope, stream, segmentsToSeal,
+                newRanges, System.currentTimeMillis(), null, null, executor).join();
+        VersionedMetadata<State> state = store.getVersionedState(scope, stream, null, executor).join();
+        state = store.updateVersionedState(scope, stream, State.SCALING, state, null, executor).join();
+        store.startScale(scope, stream, false, versioned, state, null, executor).join();
+        store.scaleCreateNewEpochs(scope, stream, versioned, null, executor).join();
+        store.scaleSegmentsSealed(scope, stream, segmentsToSeal.stream().collect(Collectors.toMap(x -> x, x -> 10L)), versioned,
+                null, executor).join();
+        store.completeScale(scope, stream, versioned, null, executor).join();
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
     }
 
     @Test

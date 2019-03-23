@@ -34,6 +34,8 @@ import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+
+import java.util.AbstractMap;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -61,6 +63,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toMap;
 
 @Slf4j
@@ -625,9 +628,22 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Boolean> isStreamCutValid(Map<Long, Long> streamCut) {
-        return Futures.allOfWithResults(streamCut.keySet().stream().map(x -> getSegment(x).thenApply(segment ->
-                new SimpleEntry<>(segment.getKeyStart(), segment.getKeyEnd())))
-                                                 .collect(Collectors.toList()))
+        Map<Integer, List<Long>> groupByEpoch = streamCut.keySet().stream().collect(groupingBy(StreamSegmentNameUtils::getEpoch));
+
+        CompletableFuture<List<List<Map.Entry<Double, Double>>>> segmentRangesByEpoch = Futures.allOfWithResults(groupByEpoch.entrySet().stream().map(epochGroup -> {
+            return getEpochRecord(epochGroup.getKey())
+                    .thenApply(epochRecord -> {
+                        return epochGroup.getValue().stream().map(segmentId -> {
+                            StreamSegmentRecord segment = epochRecord.getSegment(segmentId);
+                            return (Map.Entry<Double, Double>) new SimpleEntry<>(segment.getKeyStart(), segment.getKeyEnd());
+                        }).collect(Collectors.toList());
+                    });
+        }).collect(Collectors.toList()));
+
+        CompletableFuture<List<Map.Entry<Double, Double>>> segmentRangesFlattened = segmentRangesByEpoch
+                .thenApply(listOfList -> listOfList.stream().flatMap(Collection::stream).collect(Collectors.toList()));
+        
+        return segmentRangesFlattened
                       .thenAccept(x -> RecordHelper.validateStreamCut(new ArrayList<>(x)))
                       .handle((r, e) -> {
                           if (e != null) {
@@ -1474,10 +1490,6 @@ public abstract class PersistentStreamBase implements Stream {
 
     private List<Segment> transform(List<StreamSegmentRecord> segmentRecords) {
         return segmentRecords.stream().map(this::transform).collect(Collectors.toList());
-    }
-
-    private Set<Segment> transform(Set<StreamSegmentRecord> segmentRecords) {
-        return segmentRecords.stream().map(this::transform).collect(Collectors.toSet());
     }
     
     @VisibleForTesting

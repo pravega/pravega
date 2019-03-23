@@ -10,10 +10,6 @@
 package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.RemovalListener;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCounted;
 import io.pravega.auth.AuthenticationException;
@@ -35,7 +31,6 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
-import io.pravega.controller.util.Config;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -49,15 +44,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.ParametersAreNonnullByDefault;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
@@ -70,27 +62,10 @@ public class SegmentHelper {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
 
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
-    // cache of connection manager for segment store nodes.
-    // Pravega Connection Manager maintains a pool of connection for a segment store and returns a connection from 
-    // the pool on the need basis. 
-    private final LoadingCache<PravegaNodeUri, SegmentHelperConnectionManager> cache;
 
+    private final SegmentStoreConnectionManager connectionManager;
     public SegmentHelper(final ConnectionFactory clientCF) {
-        cache = CacheBuilder.newBuilder()
-                            .maximumSize(Config.HOST_STORE_CONTAINER_COUNT)
-                            // if a host is not accessed for 5 minutes, remove it from the cache
-                            .expireAfterAccess(5, TimeUnit.MINUTES)
-                            .removalListener((RemovalListener<PravegaNodeUri, SegmentHelperConnectionManager>) removalNotification -> {
-                                // Whenever a connection manager is evicted from the cache call shutdown on it. 
-                                removalNotification.getValue().shutdown();
-                            })
-                            .build(new CacheLoader<PravegaNodeUri, SegmentHelperConnectionManager>() {
-                                @Override
-                                @ParametersAreNonnullByDefault
-                                public SegmentHelperConnectionManager load(PravegaNodeUri nodeUri) {
-                                    return new SegmentHelperConnectionManager(nodeUri, clientCF);
-                                }
-                            });
+        connectionManager = new SegmentStoreConnectionManager(clientCF);
     }
 
     public Controller.NodeUri getSegmentUri(final String scope,
@@ -1283,10 +1258,10 @@ public class SegmentHelper {
     private <ResultT> void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
                                             final CompletableFuture<ResultT> resultFuture,
                                             final ConnectionFactory connectionFactory, final PravegaNodeUri uri) {
-        // get connection manager for the segment store node from the cache. 
-        SegmentHelperConnectionManager connectionManager = cache.getUnchecked(uri);
+        // get connection manager for the segment store node from the connectionmanager. 
+        SegmentStoreConnectionManager.SegmentStoreConnectionPool pool = connectionManager.getPool(uri);
         // take a new connection from the connection manager
-        CompletableFuture<SegmentHelperConnectionManager.ConnectionObject> connectionFuture = connectionManager.getConnection(replyProcessor);
+        CompletableFuture<SegmentStoreConnectionManager.ConnectionObject> connectionFuture = pool.getConnection(replyProcessor);
         connectionFuture.whenComplete((connection, e) -> {
             if (connection == null || e != null) {
                 ConnectionFailedException cause = e != null ? new ConnectionFailedException(e) : new ConnectionFailedException();
@@ -1300,7 +1275,7 @@ public class SegmentHelper {
         resultFuture.whenComplete((result, e) -> {
             // when processing completes, return the connection back to connection manager asynchronously.
             // Note: If result future is complete, connectionFuture is definitely complete. 
-            connectionFuture.thenAccept(connectionManager::returnConnection);
+            connectionFuture.thenAccept(pool::returnConnection);
         });
     }
 
