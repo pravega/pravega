@@ -21,9 +21,9 @@ import lombok.Getter;
 import lombok.SneakyThrows;
 
 /**
- * Represents an Event with a Routing Key and payload.
+ * Represents an Event with a Routing Key and payload that can be appended to a Stream.
  */
-public class Event {
+public class Event implements ProducerUpdate {
     //region Members
 
     private static final int PREFIX_LENGTH = Integer.BYTES;

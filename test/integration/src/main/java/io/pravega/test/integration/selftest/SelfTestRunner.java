@@ -211,6 +211,8 @@ public class SelfTestRunner {
                     new Shortcut("reads", TestConfig.READS_ENABLED),
                     new Shortcut("txnf", TestConfig.TRANSACTION_FREQUENCY),
                     new Shortcut("txnc", TestConfig.MAX_TRANSACTION_SIZE),
+                    new Shortcut("tcu", TestConfig.TABLE_CONDITIONAL_UPDATES),
+                    new Shortcut("tct", TestConfig.TABLE_CONSUMERS_PER_TABLE),
                     new Shortcut("pause", TestConfig.PAUSE_BEFORE_EXIT)));
 
             SHORTCUTS = Collections.unmodifiableMap(s);

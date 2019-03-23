@@ -12,12 +12,16 @@ package io.pravega.test.integration.selftest.adapters;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import io.pravega.test.integration.selftest.TestLogger;
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -49,7 +53,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
 
     //endregion
 
-    //region Operations
+    //region Stream Operations
 
     /**
      * Appends the given Event.
@@ -109,7 +113,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout    Timeout for the operation.
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
-    public abstract CompletableFuture<Void> seal(String streamName, Duration timeout);
+    public abstract CompletableFuture<Void> sealStream(String streamName, Duration timeout);
 
     /**
      * Deletes a Stream.
@@ -118,7 +122,73 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @param timeout    Timeout for the operation.
      * @return A CompletableFuture that will be completed when the operation is complete.
      */
-    public abstract CompletableFuture<Void> delete(String streamName, Duration timeout);
+    public abstract CompletableFuture<Void> deleteStream(String streamName, Duration timeout);
+
+    //endregion
+
+    //region Table Operations
+
+    /**
+     * Creates a new Table.
+     *
+     * @param tableName The name of the Table to create.
+     * @param timeout   Timeout for the operation.
+     * @return A CompletableFuture that will be completed when the Table has been created.
+     */
+    public abstract CompletableFuture<Void> createTable(String tableName, Duration timeout);
+
+    /**
+     * Deletes an existing Table.
+     *
+     * @param tableName The name of the Table to delete.
+     * @param timeout   Timeout for the operation.
+     * @return A CompletableFuture that will be completed when the Table has been deleted.
+     */
+    public abstract CompletableFuture<Void> deleteTable(String tableName, Duration timeout);
+
+    /**
+     * Updates a Table Entry in a Table.
+     *
+     * @param tableName      The name of the Table to update the entry in.
+     * @param key            The Key to update.
+     * @param value          The Value to associate with the Key.
+     * @param compareVersion (Optional) If provided, the update will be conditioned on this being the current Key version.
+     * @param timeout        Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the latest version of the Key.
+     */
+    public abstract CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout);
+
+    /**
+     * Removes a Table Entry from a Table.
+     *
+     * @param tableName      The name of the Table to remove the key from.
+     * @param key            The Key to remove.
+     * @param compareVersion (Optional) If provided, the update will be conditioned on this being the current Key version.
+     * @param timeout        Timeout for the operation.
+     * @return A CompletableFuture that will be completed when the key has been removed.
+     */
+    public abstract CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout);
+
+    /**
+     * Retrieves the latest value of for multiple Table Entry from a Table.
+     *
+     * @param tableName The name of the Table to retrieve the Entry from.
+     * @param keys      The Keys to retrieve.
+     * @param timeout   Timeout for the operation.
+     * @return A CompletableFuture that, when completed, will contain the result.
+     */
+    public abstract CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout);
+
+    /**
+     * Iterates through all the Entries in a Table.
+     *
+     * @param tableName The name of the Table to iterate over.
+     * @param timeout   Timeout for the operation.
+     * @return A CompletableFuture that will return an {@link AsyncIterator} to iterate through all entries in the table.
+     */
+    public abstract CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout);
+
+    //endregion
 
     /**
      * Gets a Snapshot of the SegmentStore thread pool.
@@ -134,7 +204,6 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
      * @return True if supported, false otherwise.
      */
     public abstract boolean isFeatureSupported(Feature feature);
-
 
     protected void ensureRunning() {
         Preconditions.checkState(state() == State.RUNNING, "%s is not running.", logId);
@@ -161,6 +230,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
         StoreAdapter result;
         switch (testConfig.getTestType()) {
             case SegmentStore:
+            case SegmentStoreTable:
                 result = new SegmentStoreAdapter(testConfig, builderConfig, executor);
                 break;
             case InProcessMock:
@@ -195,11 +265,12 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
         /**
          * Creating new Streams.
          */
-        Create,
+        CreateStream,
+
         /**
          * Deleting Streams.
          */
-        Delete,
+        DeleteStream,
 
         /**
          * Appending Events.
@@ -209,7 +280,7 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
         /**
          * Sealing Streams.
          */
-        Seal,
+        SealStream,
 
         /**
          * Tail-Reading from Streams.
@@ -229,7 +300,12 @@ public abstract class StoreAdapter extends AbstractIdleService implements AutoCl
         /**
          * Direct Storage Access.
          */
-        StorageDirect;
+        StorageDirect,
+
+        /**
+         * Table Operations, such as Put/ConditionalPut, Remove/ConditionalRemove, Get, Iterators.
+         */
+        Tables;
 
         /**
          * Ensures that the given StoreAdapter supports the given operation name.
