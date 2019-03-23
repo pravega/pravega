@@ -27,6 +27,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.net.URI;
@@ -50,6 +52,9 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
     private final String streamName = getStreamName();
 
     private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(60 * 60);
 
     @Environment
     public static void initialize() {

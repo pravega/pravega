@@ -18,9 +18,7 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.util.ArrayList;
@@ -41,12 +39,7 @@ public class MetadataScalabilityLargeScalesTest extends MetadataScalabilityTest 
     private static final StreamConfiguration CONFIG = StreamConfiguration.builder()
                                                                          .scalingPolicy(ScalingPolicy.fixed(NUM_SEGMENTS)).build();
     private static final int SCALES_TO_PERFORM = 1010;
-
-    // we create stream with 10 segments and then scale it 1010 times followed by 100s of truncations followed by 
-    // sealing and deleting 1010 * 10 (=~10k) segments. 
-    @Rule
-    public Timeout globalTimeout = Timeout.seconds(60 * 60);
-
+    
     private final Map<Double, Double> newRanges = new HashMap<>();
     
     @Override
