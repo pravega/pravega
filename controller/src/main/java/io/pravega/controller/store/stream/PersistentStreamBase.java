@@ -1007,7 +1007,7 @@ public abstract class PersistentStreamBase implements Stream {
         final long commitTime = txnData.getCommitTime();
         final long position = txnData.getPosition();
         final ActiveTxnRecord newData = new ActiveTxnRecord(creationTime, System.currentTimeMillis() + lease,
-                maxExecutionExpiryTime, status);
+                maxExecutionExpiryTime, status, writerId, commitTime, position);
         final Data data = new Data(newData.toBytes(), version);
 
         return updateActiveTx(txnId, data)
