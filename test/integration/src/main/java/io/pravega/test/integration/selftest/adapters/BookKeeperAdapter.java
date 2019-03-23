@@ -15,6 +15,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.ProcessStarter;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -30,6 +31,8 @@ import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -85,7 +88,7 @@ class BookKeeperAdapter extends StoreAdapter {
 
     @Override
     public boolean isFeatureSupported(Feature feature) {
-        return feature == Feature.Create
+        return feature == Feature.CreateStream
                 || feature == Feature.Append;
     }
 
@@ -203,13 +206,43 @@ class BookKeeperAdapter extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> seal(String streamName, Duration timeout) {
+    public CompletableFuture<Void> sealStream(String streamName, Duration timeout) {
         throw new UnsupportedOperationException("seal() is not supported on " + this.logId);
     }
 
     @Override
-    public CompletableFuture<Void> delete(String streamName, Duration timeout) {
+    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
         throw new UnsupportedOperationException("delete() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("createTable() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("deleteTable() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("updateTableEntry() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("removeTableEntry() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
+        throw new UnsupportedOperationException("getTableEntry() is not supported on " + this.logId);
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

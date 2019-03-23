@@ -114,12 +114,12 @@ class ExternalAdapter extends ClientAdapterBase {
     @Override
     public boolean isFeatureSupported(Feature feature) {
         // Even though it does support it, Feature.RandomRead is not enabled because it currently has very poor performance.
-        return feature == Feature.Create
+        return feature == Feature.CreateStream
                 || feature == Feature.Append
                 || feature == Feature.TailRead
                 || feature == Feature.Transaction
-                || feature == Feature.Seal
-                || feature == Feature.Delete;
+                || feature == Feature.SealStream
+                || feature == Feature.DeleteStream;
     }
 
     @Override
