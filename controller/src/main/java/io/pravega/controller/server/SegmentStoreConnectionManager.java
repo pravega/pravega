@@ -364,6 +364,7 @@ class SegmentStoreConnectionManager {
         private final CompletableFuture<ConnectionObject> future;
         private final ReplyProcessor replyProcessor;
     }
+    
     /**
      *  A reusable reply processor class which can be initialized and uninitialized with new ReplyProcessor. 
      *  This same replyProcessor can be reused with the same connection for handling different replies from servers for
