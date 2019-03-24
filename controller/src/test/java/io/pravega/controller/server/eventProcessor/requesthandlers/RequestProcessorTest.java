@@ -28,6 +28,10 @@ import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
 
@@ -67,6 +71,24 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         @Override
         public CompletableFuture<Void> process(RequestProcessor processor) {
             return ((TestRequestProcessor2) processor).testProcess(this);
+        }
+    }
+
+    @Data
+    public static class FailingEvent implements ControllerEvent {
+        private final String scope;
+        private final String stream;
+        private final CompletableFuture<Boolean> hasStartedFuture;
+        private final CompletableFuture<Void> executeFuture;
+        
+        @Override
+        public String getKey() {
+            return scope + stream;
+        }
+
+        @Override
+        public CompletableFuture<Void> process(RequestProcessor processor) {
+            return ((FailingRequestProcessor) processor).testProcess(this);
         }
     }
 
@@ -126,6 +148,31 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         @Override
         public CompletableFuture<Boolean> hasTaskStarted(TestEvent2 event) {
             return CompletableFuture.completedFuture(false);
+        }
+    }
+
+    public static class FailingRequestProcessor extends AbstractRequestProcessor<FailingEvent> implements StreamTask<FailingEvent> {
+        public FailingRequestProcessor(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor) {
+            super(streamMetadataStore, executor);
+        }
+
+        public CompletableFuture<Void> testProcess(FailingEvent event) {
+            return withCompletion(this, event, event.scope, event.stream, e -> true);
+        }
+
+        @Override
+        public CompletableFuture<Void> execute(FailingEvent event) {
+            return event.executeFuture;
+        }
+
+        @Override
+        public CompletableFuture<Void> writeBack(FailingEvent event) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Boolean> hasTaskStarted(FailingEvent event) {
+            return event.hasStartedFuture;
         }
     }
 
@@ -271,5 +318,28 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         // waiting processor should not change.
         waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
         assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
+    }
+    
+    @Test(timeout = 10000)
+    public void testFailingProcessor() {
+        FailingRequestProcessor processor = spy(new FailingRequestProcessor(getStore(), executorService()));
+        FailingEvent event1 = new FailingEvent("scope", "stream", 
+                Futures.failedFuture(new RuntimeException("hasStarted")), CompletableFuture.completedFuture(null));
+
+        AssertExtensions.assertFutureThrows("exception should be thrown after has started", processor.process(event1),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("hasStarted"));
+
+        verify(processor, times(1)).hasTaskStarted(event1);
+        verify(processor, never()).writeBack(event1);
+        verify(processor, never()).execute(event1);
+        
+        FailingEvent event2 = new FailingEvent("scope", "stream", 
+                CompletableFuture.completedFuture(true), Futures.failedFuture(new RuntimeException("execute")));
+
+        AssertExtensions.assertFutureThrows("exception should be thrown after execute", processor.process(event2),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("execute"));
+        verify(processor, times(1)).writeBack(event2);
+        verify(processor, times(1)).hasTaskStarted(event2);
+        verify(processor, times(1)).execute(event2);
     }
 }
