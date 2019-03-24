@@ -75,7 +75,7 @@ class ZKStream extends PersistentStreamBase {
     private static final String ID_PATH = STREAM_PATH + "/id";
     private static final String STREAM_ACTIVE_TX_PATH = ZKStreamMetadataStore.ACTIVE_TX_ROOT_PATH + "/%s/%S";
     private static final String STREAM_COMPLETED_TX_BATCH_PATH = ZKStreamMetadataStore.COMPLETED_TX_BATCH_PATH + "/%s/%s";
-    
+
     private final ZKStoreHelper store;
     private final AtomicReference<String> creationPath = new AtomicReference<>();
     private final AtomicReference<String> configurationPath = new AtomicReference<>();
@@ -99,7 +99,7 @@ class ZKStream extends PersistentStreamBase {
 
     private final Supplier<Integer> currentBatchSupplier;
     private final AtomicReference<String> idRef;
-    
+
     @VisibleForTesting
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
         this(scopeName, streamName, storeHelper, () -> 0);
@@ -808,18 +808,15 @@ class ZKStream extends PersistentStreamBase {
 
     @Override
     public void refresh() {
-        String id = this.idRef.get();
-        if (id != null) {
-            // invalidate all mutable records in the cache 
-            store.invalidateCache(getStatePath(), id);
-            store.invalidateCache(getConfigurationPath(), id);
-            store.invalidateCache(getTruncationPath(), id);
-            store.invalidateCache(getEpochTransitionPath(), id);
-            store.invalidateCache(getCommittingTxnsPath(), id);
-            store.invalidateCache(getCurrentEpochRecordPath(), id);
-            // reset id to null so that its retrieved from the store again
-            this.idRef.set(null);
-        }
+        String id = this.idRef.getAndSet(null);
+        id = id == null ? "" : id;
+        // invalidate all mutable records in the cache 
+        store.invalidateCache(getStatePath(), id);
+        store.invalidateCache(getConfigurationPath(), id);
+        store.invalidateCache(getTruncationPath(), id);
+        store.invalidateCache(getEpochTransitionPath(), id);
+        store.invalidateCache(getCommittingTxnsPath(), id);
+        store.invalidateCache(getCurrentEpochRecordPath(), id);
     }
 
     /**

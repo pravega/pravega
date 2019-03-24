@@ -37,12 +37,12 @@ public class Cache {
                             .maximumSize(MAX_CACHE_SIZE)
                             .expireAfterAccess(2, TimeUnit.MINUTES)
                             .build(new CacheLoader<CacheKey, CompletableFuture<VersionedMetadata<?>>>() {
-                    @ParametersAreNonnullByDefault
-                    @Override
-                    public CompletableFuture<VersionedMetadata<?>> load(final CacheKey key) {
-                        return loader.apply(key);
-                    }
-                });
+                                @ParametersAreNonnullByDefault
+                                @Override
+                                public CompletableFuture<VersionedMetadata<?>> load(final CacheKey key) {
+                                    return loader.apply(key);
+                                }
+                            });
     }
 
     CompletableFuture<VersionedMetadata<?>> getCachedData(CacheKey key) {
