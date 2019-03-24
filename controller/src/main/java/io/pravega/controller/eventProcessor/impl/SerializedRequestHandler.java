@@ -10,6 +10,7 @@
 package io.pravega.controller.eventProcessor.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.RequestHandler;
 import io.pravega.shared.controller.event.ControllerEvent;
 import lombok.AllArgsConstructor;
@@ -86,7 +87,10 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
      */
     private void run(String key, ConcurrentLinkedQueue<Work> workQueue) {
         Work work = workQueue.poll();
-        processEvent(work.getEvent()).whenComplete((r, e) -> {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        Futures.completeAfter(() -> processEvent(work.getEvent()), result);
+        
+        result.whenComplete((r, e) -> {
             if (e != null && toPostpone(work.getEvent(), work.getPickupTime(), e)) {
                 handleWorkPostpone(key, workQueue, work);
             } else {
