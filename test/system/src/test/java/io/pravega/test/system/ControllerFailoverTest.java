@@ -120,12 +120,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
         controller1.startScale(stream1, segmentsToSeal, newRangesToCreate).join();
-
-        // Ensure that scale is not yet done.
-        boolean scaleStatus = controller1.checkScaleStatus(stream1, 0).join();
-        log.info("Status of scale operation isDone={}", scaleStatus);
-        Assert.assertTrue(!scaleStatus);
-
+        
         // Now stop the controller instance executing scale operation.
         Futures.getAndHandleExceptions(controllerService1.scaleService(1), ExecutionException::new);
         log.info("Successfully stopped one instance of controller service");
@@ -161,6 +156,8 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
         // Scale operation should now complete on the second controller instance.
         // Note: if scale does not complete within desired time, test will timeout. 
+        // Ensure that scale is not yet done.
+        boolean scaleStatus = controller1.checkScaleStatus(stream1, 0).join();
         while (!scaleStatus) {
             scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
             Thread.sleep(30000);
