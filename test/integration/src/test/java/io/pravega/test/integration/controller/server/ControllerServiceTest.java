@@ -217,7 +217,7 @@ public class ControllerServiceTest {
             
             log.info("SUCCESS: Positions cannot be fetched for non existent stream");
         } catch (ExecutionException | CompletionException e) {
-            assertTrue("FAILURE: Fetching positions for non existent stream", e.getCause() instanceof StoreException.DataNotFoundException);
+            assertTrue("FAILURE: Fetching positions for non existent stream", Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
             log.info("SUCCESS: Positions cannot be fetched for non existent stream");
         }
     }
