@@ -1334,6 +1334,8 @@ public abstract class PersistentStreamBase implements Stream {
                                         int epoch = RecordHelper.getTransactionEpoch(firstEntry.getKey());
                                         CommittingTransactionsRecord record = CommittingTransactionsRecord.builder()
                                                                               .epoch(epoch).transactionsToCommit(txIdList).build();
+                                        // TODO: shivesh remove this log
+                                        log.info("committing transactions {}", record.getTransactionsToCommit());
                                         return updateCommittingTxnRecord(new Data(record.toBytes(), versioned.getVersion()))
                                                 // now that we have included transactions from positions for commit, we
                                                 // can safely remove the position references in orderer. 

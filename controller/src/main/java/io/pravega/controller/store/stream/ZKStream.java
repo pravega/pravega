@@ -517,6 +517,8 @@ class ZKStream extends PersistentStreamBase {
                                           // if entry matches record's position then include it
                                           transactionsMap.put(UUID.fromString(txnId), txnRecord);
                                       } else {
+                                          // TODO: shivesh: remove the log
+                                          log.info("duplicate txn {} at position {}. removing {}", txnId, txnRecord.getCommitOrder(), order);
                                           toPurge.add(order);
                                       }
                                       break;
@@ -530,6 +532,8 @@ class ZKStream extends PersistentStreamBase {
                                   case ABORTED:
                                   case UNKNOWN:
                                       // Aborting, aborted, unknown and committed 
+                                      // TODO: shivesh: remove the log
+                                      log.info("stale txn {} with status. removing {}", txnId, txnRecord.getTxnStatus(), order);
                                       toPurge.add(order);
                                       break;
                               }
