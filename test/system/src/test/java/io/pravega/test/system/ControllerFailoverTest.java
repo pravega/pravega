@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -154,14 +155,12 @@ public class ControllerFailoverTest extends AbstractSystemTest {
             controller2.abortTransaction(stream1, txnSegments.getTxnId()).join();
         }
 
-        // Scale operation should now complete on the second controller instance.
         // Note: if scale does not complete within desired time, test will timeout. 
-        // Ensure that scale is not yet done.
-        boolean scaleStatus = controller1.checkScaleStatus(stream1, 0).join();
-        while (!scaleStatus) {
-            scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
-            Thread.sleep(30000);
-        }
+        AtomicBoolean scaleDone = new AtomicBoolean(false);
+        Futures.loop(() -> !scaleDone.get(), 
+                () -> Futures.delayedFuture(() -> controller2.checkScaleStatus(stream1, 0)
+                                                             .thenAccept(scaleDone::set), 3000, executorService), 
+                executorService).join();
 
         // Ensure that the stream has 3 segments now.
         log.info("Checking whether scale operation succeeded by fetching current segments");
