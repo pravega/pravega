@@ -44,7 +44,7 @@ public class ZKStoreHelper {
         client = cf;
         this.executor = executor;
         this.cache = new Cache(x -> {
-            // This is a shared cache across all streams. The cache key has zk path (key.getPath) of the entity to cache 
+            // The cache key has zk path (key.getPath) of the entity to cache 
             // and a function (key.getFromBytesFunc()) for deserializing the byte array into meaningful data objects.
             // The cache stores CompletableFutures which upon completion will hold the deserialized data object. 
             ZkCacheKey<?> key = (ZkCacheKey<?>) x;

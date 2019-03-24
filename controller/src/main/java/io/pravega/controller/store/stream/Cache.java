@@ -15,6 +15,7 @@ import com.google.common.cache.LoadingCache;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -39,18 +40,16 @@ public class Cache {
                     @ParametersAreNonnullByDefault
                     @Override
                     public CompletableFuture<VersionedMetadata<?>> load(final CacheKey key) {
-                        CompletableFuture<VersionedMetadata<?>> result = loader.apply(key);
-                        result.exceptionally(ex -> {
-                            invalidateCache(key);
-                            return null;
-                        });
-                        return result;
+                        return loader.apply(key);
                     }
                 });
     }
 
     CompletableFuture<VersionedMetadata<?>> getCachedData(CacheKey key) {
-        return cache.getUnchecked(key);
+        return cache.getUnchecked(key).exceptionally(ex -> {
+            invalidateCache(key);
+            throw new CompletionException(ex);
+        });
     }
 
     void invalidateCache(final CacheKey key) {
