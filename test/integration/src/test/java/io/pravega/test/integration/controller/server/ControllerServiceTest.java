@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -23,6 +24,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -227,12 +229,9 @@ public class ControllerServiceTest {
     }
 
     private static void getActiveSegmentsForNonExistentStream(Controller controller) throws InterruptedException {
-        try {
-            CompletableFuture<StreamSegments> getActiveSegments = controller.getCurrentSegments("scope", "streamName");
-            assertTrue("FAILURE: Fetching active segments for non existent stream", getActiveSegments.get().getSegments().isEmpty());
-        } catch (ExecutionException | CompletionException e) {
-            assertTrue("FAILURE: Fetching active segments for non existent stream", e.getCause() instanceof StoreException.DataNotFoundException);
-        }
+        
+        AssertExtensions.assertFutureThrows("", controller.getCurrentSegments("scope", "streamName"),
+            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }
 
     private static void getActiveSegments(Controller controller, final String scope,
