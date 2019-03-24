@@ -142,7 +142,8 @@ public abstract class AbstractService implements Service {
                 // Controller properties.
                 .put("controller.transaction.maxLeaseValue", "60000")
                 .put("controller.retention.frequencyMinutes", "2")
-                .put("log.level", "DEBUG")
+                // TODO: shivesh: revert this. adding this only for running system tests at info level logs
+                .put("log.level", "INFO")
                 .build();
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                                                                                       .put("segmentStoreReplicas", segmentStoreCount)
