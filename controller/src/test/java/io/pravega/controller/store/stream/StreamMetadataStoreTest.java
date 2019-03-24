@@ -178,11 +178,8 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(0, store.getActiveSegments(scope, stream1, null, executor).get().size());
 
         // seal a non-existent stream.
-        try {
-            store.setSealed(scope, "streamNonExistent", null, executor).join();
-        } catch (CompletionException e) {
-            assertEquals(StoreException.DataNotFoundException.class, e.getCause().getClass());
-        }
+        AssertExtensions.assertFutureThrows("", store.setSealed(scope, "streamNonExistent", null, executor),
+            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         // endregion
 
         // region delete scope and stream
@@ -194,7 +191,7 @@ public abstract class StreamMetadataStoreTest {
         // Delete a deleted stream, should fail with node not found error.
         AssertExtensions.assertFutureThrows("Should throw StoreException",
                 store.deleteStream(scope, stream1, null, executor),
-                (Throwable t) -> t instanceof StoreException.DataNotFoundException);
+                (Throwable t) -> Exceptions.unwrap(t) instanceof StoreException.DataNotFoundException);
 
         // Delete other stream from the scope.
         assertNull(store.deleteStream(scope, stream2, null, executor).join());

@@ -418,11 +418,8 @@ public class ZkStreamTest {
         assertEquals(0, store.getActiveSegments(SCOPE, streamName, context, executor).get().size());
 
         //seal a non existing stream.
-        try {
-            store.setSealed(SCOPE, "nonExistentStream", null, executor).get();
-        } catch (Exception e) {
-            assertEquals(StoreException.DataNotFoundException.class, e.getCause().getClass());
-        }
+        AssertExtensions.assertFutureThrows("", store.setSealed(SCOPE, "nonExistentStream", null, executor), 
+            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
         store.markCold(SCOPE, streamName, 0L, System.currentTimeMillis() + 1000, null, executor).get();
         assertTrue(store.isCold(SCOPE, streamName, 0L, null, executor).get());
