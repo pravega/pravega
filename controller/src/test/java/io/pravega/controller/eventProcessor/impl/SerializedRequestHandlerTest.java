@@ -16,6 +16,7 @@ import io.pravega.shared.controller.event.RequestProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Data;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -33,6 +35,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 
 public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
 
@@ -226,6 +229,62 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         stop.set(true);
     }
 
+    @Test(timeout = 10000)
+    public void testThrowsSynchronousException() throws InterruptedException, ExecutionException {
+        LinkedBlockingQueue<Pair<CompletableFuture<Void>, CompletableFuture<Void>>> signalQueue = new LinkedBlockingQueue<>();
+        SerializedRequestHandler<FailingEvent> throwingRequestHandler = new SerializedRequestHandler<FailingEvent>(executorService()) {
+            @Override
+            public CompletableFuture<Void> processEvent(FailingEvent event) {
+                Pair<CompletableFuture<Void>, CompletableFuture<Void>> pair = signalQueue.poll();
+                pair.getKey().complete(null);
+                pair.getValue().join();
+                throw new RuntimeException(event.eventId);
+            }
+        };
+        
+        FailingEvent event = new FailingEvent("scope", "stream", "1");
+        FailingEvent event2 = new FailingEvent("scope", "stream", "2");
+        FailingEvent event3 = new FailingEvent("scope", "stream", "3");
+        signalQueue.add(new ImmutablePair<>(new CompletableFuture<>(), CompletableFuture.completedFuture(null)));
+        // we should have first event processing throw a synchronous exception
+        AssertExtensions.assertFutureThrows("Processing should have failed in procesEvent method with synchronous exception", 
+                throwingRequestHandler.process(event), 
+                e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("1"));
+
+        // verify that the processing is complete and the event is removed from the queue for the stream. 
+        List<Pair<FailingEvent, CompletableFuture<Void>>> queue = throwingRequestHandler.getEventQueueForKey(event.getKey());
+        assertTrue(queue == null || queue.isEmpty());
+
+        CompletableFuture<Void> wait2 = new CompletableFuture<>();
+        CompletableFuture<Void> signal2 = new CompletableFuture<>();
+        CompletableFuture<Void> wait3 = new CompletableFuture<>();
+        CompletableFuture<Void> signal3 = new CompletableFuture<>();
+        signalQueue.add(new ImmutablePair<>(wait2, signal2));
+        signalQueue.add(new ImmutablePair<>(wait3, signal3));
+        CompletableFuture<Void> future2 = throwingRequestHandler.process(event2);
+        CompletableFuture<Void> future3 = throwingRequestHandler.process(event3);
+        
+        // processing for 2nd event is called. 
+        wait2.join();
+
+        queue = throwingRequestHandler.getEventQueueForKey(event.getKey());
+        assertFalse(queue.isEmpty());
+        assertEquals(queue.size(), 1);
+        assertEquals(queue.get(0).getKey().eventId, "3");
+
+        assertFalse(wait3.isDone());
+        // signal 2nd processing to complete
+        signal2.complete(null);
+        
+        // we should be able to process addiional events. 
+        AssertExtensions.assertFutureThrows("Second processing should should have failed in procesEvent method with synchronous exception",
+                future2, e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("2"));
+        
+        signal3.complete(null);
+        AssertExtensions.assertFutureThrows("Third processing should have failed in procesEvent method with synchronous exception",
+                future3, e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("3"));
+    }
+
     private void runBackgroundStreamProcessing(String streamName, SerializedRequestHandler<TestEvent> requestHandler, AtomicBoolean stop) {
         CompletableFuture.runAsync(() -> {
             while (!stop.get()) {
@@ -266,6 +325,24 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
             future.complete(null);
         }
     }
+
+    @Data
+    public static class FailingEvent implements ControllerEvent {
+        private final String scope;
+        private final String stream;
+        private final String eventId;
+        
+        @Override
+        public String getKey() {
+            return scope + stream;
+        }
+
+        @Override
+        public CompletableFuture<Void> process(RequestProcessor processor) {
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
 
     private static class TestPostponeException extends RuntimeException {
     }
