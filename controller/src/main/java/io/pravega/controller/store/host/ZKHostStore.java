@@ -28,6 +28,8 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.utils.ZKPaths;
 
+import javax.annotation.concurrent.GuardedBy;
+
 /**
  * Zookeeper based implementation of the HostControllerStore.
  */
@@ -40,8 +42,11 @@ public class ZKHostStore implements HostControllerStore {
     //The supplied curator framework instance.
     private final CuratorFramework zkClient;
 
+    private final Object lock = new Object();
+    
+    @GuardedBy("$lock")
     //To bootstrap zookeeper on first use.
-    private volatile boolean zkInit = false;
+    private boolean zkInit = false;
 
     private final SegmentToContainerMapper segmentMapper;
 
@@ -73,8 +78,10 @@ public class ZKHostStore implements HostControllerStore {
     @SneakyThrows(Exception.class)
     private void tryInit() {
         if (!zkInit) {
+            // we are making remote calls under a lock but this is only done for initialization at 
+            // the start of controller process.
             ZKUtils.createPathIfNotExists(zkClient, zkPath, HostContainerMap.EMPTY.toBytes());
-            this.hostContainerMapNode.getListenable().addListener(this::updateMap);
+            hostContainerMapNode.getListenable().addListener(this::updateMap);
             hostContainerMapNode.start(true);
 
             zkInit = true;
@@ -84,6 +91,7 @@ public class ZKHostStore implements HostControllerStore {
     @Synchronized
     private void updateMap() {
         hostContainerMap.set(HostContainerMap.fromBytes(hostContainerMapNode.getCurrentData().getData()));
+        // Following signal is meant only for testing
         Listener consumer = listenerRef.get();
         if (consumer != null) {
             consumer.signal();
@@ -140,7 +148,11 @@ public class ZKHostStore implements HostControllerStore {
         this.listenerRef.set(listener);
     }
     
+    @VisibleForTesting
     @FunctionalInterface
+    /**
+     * Functional interface to notify tests about changes to the map as they occur.  
+     */
     public interface Listener {
         void signal();
     }
