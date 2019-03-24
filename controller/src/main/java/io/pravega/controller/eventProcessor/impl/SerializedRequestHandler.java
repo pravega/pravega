@@ -86,7 +86,7 @@ public abstract class SerializedRequestHandler<T extends ControllerEvent> implem
      */
     private void run(String key, ConcurrentLinkedQueue<Work> workQueue) {
         Work work = workQueue.poll();
-        processEvent(work.getEvent()).whenComplete((r, e) -> {
+        CompletableFuture.completedFuture(null).thenCompose(x -> processEvent(work.getEvent())).whenComplete((r, e) -> {
             if (e != null && toPostpone(work.getEvent(), work.getPickupTime(), e)) {
                 handleWorkPostpone(key, workQueue, work);
             } else {
