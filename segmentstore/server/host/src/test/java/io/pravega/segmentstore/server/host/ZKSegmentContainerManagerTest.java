@@ -27,7 +27,6 @@ import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
