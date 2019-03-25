@@ -156,6 +156,9 @@ public abstract class AbstractRequestProcessor<T extends ControllerEvent> extend
                                 StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Postponed "
                                         + event + " so that waiting processor" + waitingRequestProcessor + " can work. "));
                     }
+                }).exceptionally(e -> {
+                    resultFuture.completeExceptionally(e);
+                    return null;
                 });
 
         return resultFuture;
