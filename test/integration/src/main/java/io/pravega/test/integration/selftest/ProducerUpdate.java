@@ -7,22 +7,10 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-
-package io.pravega.shared.metrics;
-
-import io.micrometer.core.instrument.Meter.Id;
+package io.pravega.test.integration.selftest;
 
 /**
- * Defines common methods for a Metric.
+ * Defines a modification that the SelfTester can apply to a Target (Stream/Table).
  */
-interface Metric extends AutoCloseable {
-    /**
-     * Gets Id of metric.
-     *
-     * @return the id of metric.
-     */
-    Id getId();
-
-    @Override
-    void close();
+interface ProducerUpdate {
 }

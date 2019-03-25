@@ -23,6 +23,21 @@ final class ConsumerOperationType extends OperationType {
      */
     static final ConsumerOperationType CATCHUP_READ = new ConsumerOperationType("Catchup Read");
 
+    /**
+     * A Table Get processed on the Consumer.
+     */
+    static final ConsumerOperationType TABLE_GET = new ConsumerOperationType("Table Get");
+
+    /**
+     * A Table Entry Iterator (initial call) processed on the Consumer.
+     */
+    static final ConsumerOperationType TABLE_ITERATOR = new ConsumerOperationType("Tbl Iterator Init.");
+
+    /**
+     * A Table Entry Iterator iteration processed on the Consumer.
+     */
+    static final ConsumerOperationType TABLE_ITERATOR_STEP = new ConsumerOperationType("Tbl Iterator Loop");
+
     private ConsumerOperationType(String name) {
         super(name);
     }
