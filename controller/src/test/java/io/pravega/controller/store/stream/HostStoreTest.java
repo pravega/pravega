@@ -61,7 +61,7 @@ public class HostStoreTest {
         validateStore(hostStore);
     }
 
-    @Test
+    @Test(timeout = 10000L)
     public void zkHostStoreTests() {
         try {
             @Cleanup

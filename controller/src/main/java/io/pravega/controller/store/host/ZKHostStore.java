@@ -11,12 +11,10 @@ package io.pravega.controller.store.host;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.controller.util.ZKUtils;
 import io.pravega.shared.segment.SegmentToContainerMapper;
-import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -26,10 +24,11 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.utils.ZKPaths;
+
+import javax.annotation.concurrent.GuardedBy;
 
 /**
  * Zookeeper based implementation of the HostControllerStore.
@@ -43,14 +42,17 @@ public class ZKHostStore implements HostControllerStore {
     //The supplied curator framework instance.
     private final CuratorFramework zkClient;
 
+    private final Object lock = new Object();
+    
+    @GuardedBy("$lock")
     //To bootstrap zookeeper on first use.
-    private volatile boolean zkInit = false;
+    private boolean zkInit = false;
 
     private final SegmentToContainerMapper segmentMapper;
 
     private final NodeCache hostContainerMapNode;
 
-    private AtomicReference<ImmutableMap<Host, Set<Integer>>> hostContainerMap;
+    private final AtomicReference<HostContainerMap> hostContainerMap;
     /**
      * The tests can add listeners to get notification when the update has happed in the store. 
      */
@@ -65,9 +67,9 @@ public class ZKHostStore implements HostControllerStore {
 
         zkClient = client;
         zkPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
-        hostContainerMapNode = new NodeCache(zkClient, zkPath);
-        hostContainerMap = new AtomicReference<>(ImmutableMap.of());
         segmentMapper = new SegmentToContainerMapper(containerCount);
+        hostContainerMapNode = new NodeCache(zkClient, zkPath);
+        hostContainerMap = new AtomicReference<>(HostContainerMap.EMPTY);
         listenerRef = new AtomicReference<>();
     }
 
@@ -76,9 +78,10 @@ public class ZKHostStore implements HostControllerStore {
     @SneakyThrows(Exception.class)
     private void tryInit() {
         if (!zkInit) {
-            ZKUtils.createPathIfNotExists(zkClient, zkPath, SerializationUtils.serialize(new HashMap<Host,
-                    Set<Integer>>()));
-            this.hostContainerMapNode.getListenable().addListener(this::updateMap);
+            // we are making remote calls under a lock but this is only done for initialization at 
+            // the start of controller process.
+            ZKUtils.createPathIfNotExists(zkClient, zkPath, HostContainerMap.EMPTY.toBytes());
+            hostContainerMapNode.getListenable().addListener(this::updateMap);
             hostContainerMapNode.start(true);
 
             zkInit = true;
@@ -87,7 +90,8 @@ public class ZKHostStore implements HostControllerStore {
 
     @Synchronized
     private void updateMap() {
-        hostContainerMap.set(ImmutableMap.copyOf(getCurrentHostMap()));
+        hostContainerMap.set(HostContainerMap.fromBytes(hostContainerMapNode.getCurrentData().getData()));
+        // Following signal is meant only for testing
         Listener consumer = listenerRef.get();
         if (consumer != null) {
             consumer.signal();
@@ -98,28 +102,14 @@ public class ZKHostStore implements HostControllerStore {
     public Map<Host, Set<Integer>> getHostContainersMap() {
         tryInit();
 
-        return getCurrentHostMap();
+        return hostContainerMap.get().getHostContainerMap();
     }
-
-    @SuppressWarnings("unchecked")
-    private Map<Host, Set<Integer>> getCurrentHostMap() {
-        try {
-            return (Map<Host, Set<Integer>>) SerializationUtils.deserialize(hostContainerMapNode.getCurrentData().getData());
-        } catch (Exception e) {
-            throw new HostStoreException("Failed to fetch segment container map from zookeeper", e);
-        }
-    }
-
+    
     @Override
     public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
         Preconditions.checkNotNull(newMapping, "newMapping");
         tryInit();
-        byte[] serializedMap;
-        if (newMapping instanceof Serializable) {
-            serializedMap = SerializationUtils.serialize((Serializable) newMapping);
-        } else {
-            serializedMap = SerializationUtils.serialize(new HashMap<>(newMapping));
-        }
+        byte[] serializedMap = HostContainerMap.createHostContainerMap(newMapping).toBytes();
         try {
             zkClient.setData().forPath(zkPath, serializedMap);
             log.info("Successfully updated segment container map");
@@ -131,8 +121,9 @@ public class ZKHostStore implements HostControllerStore {
     private Host getHostForContainer(int containerId) {
         tryInit();
 
-        Optional<Host> host = hostContainerMap.get().entrySet().stream()
-                .filter(x -> x.getValue().contains(containerId)).map(x -> x.getKey()).findAny();
+        // Note: the reference for hostContainerMap may be updated as we are accessing it. However, the map is immutable. 
+        Optional<Host> host = hostContainerMap.get().getHostContainerMap().entrySet().stream()
+                                     .filter(x -> x.getValue().contains(containerId)).map(Map.Entry::getKey).findAny();
         if (host.isPresent()) {
             log.debug("Found owning host: {} for containerId: {}", host.get(), containerId);
             return host.get();
@@ -157,7 +148,11 @@ public class ZKHostStore implements HostControllerStore {
         this.listenerRef.set(listener);
     }
     
+    @VisibleForTesting
     @FunctionalInterface
+    /**
+     * Functional interface to notify tests about changes to the map as they occur.  
+     */
     public interface Listener {
         void signal();
     }
