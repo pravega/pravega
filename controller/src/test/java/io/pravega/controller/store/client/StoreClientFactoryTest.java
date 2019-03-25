@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.client;
 
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -20,7 +21,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -29,15 +34,17 @@ import static org.junit.Assert.assertEquals;
 
 public class StoreClientFactoryTest {
     TestingServer zkServer;
-    
+    ScheduledExecutorService executor;
     @Before
     public void setUp() throws Exception {
         zkServer = new TestingServerStarter().start();
+        executor = Executors.newSingleThreadScheduledExecutor();
     }
     
     @After
     public void tearDown() throws IOException {
         zkServer.stop();
+        executor.shutdown();
     }
     
     @Test
@@ -61,6 +68,17 @@ public class StoreClientFactoryTest {
         client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
         
         sessionExpiry.join();
+
+        Supplier<Boolean> isAliveSupplier = () -> {
+            try {
+                return client.getZookeeperClient().getZooKeeper().getState().isAlive();
+            } catch (Exception e) {
+                throw new CompletionException(e);
+            }
+        };
+        
+        Futures.loop(isAliveSupplier, 
+                () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
         
         // verify that we fail with session expiry and we fail without retrying.
         AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/test"));
