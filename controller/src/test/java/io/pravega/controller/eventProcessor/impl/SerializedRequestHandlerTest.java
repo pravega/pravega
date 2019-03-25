@@ -276,8 +276,8 @@ public class SerializedRequestHandlerTest extends ThreadPooledTestSuite {
         // signal 2nd processing to complete
         signal2.complete(null);
         
-        // we should be able to process addiional events. 
-        AssertExtensions.assertFutureThrows("Second processing should should have failed in procesEvent method with synchronous exception",
+        // we should be able to process additional events. 
+        AssertExtensions.assertFutureThrows("Second processing should have failed in procesEvent method with synchronous exception",
                 future2, e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("2"));
         
         signal3.complete(null);
