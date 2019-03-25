@@ -30,6 +30,7 @@ All the requests and replies have 8 byte headers with two fields (all data is wr
 | `Offset`   | Long (8 bytes). The `Offset` in the Stream Segment to read from. |
 | `suggestedLength` of Reply|Integer (4 bytes). The clients can request for the required length to the server (but the server may allot a different number of bytes.|
 |`delegationToken`|String (2 byte) followed by that many bytes of Java's Modified UTF-8. This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
+|`RequestId`| Long (8 bytes). This field contains the client-generated _ID_ that has been propagated to identify a client request.|
 
 
 ## Segment Read - Reply
@@ -41,6 +42,7 @@ All the requests and replies have 8 byte headers with two fields (all data is wr
 |`Tail`|Boolean (1 bit). If the read was performed at the tail of the Stream Segment.|
 | `EndOfSegment`| Boolean (1 bit). If the read was performed at the end of the Stream Segment.|
 | `Data`| Binary (remaining length in the message).|
+|`RequestId`| Long (8 bytes). This field contains the client-generated _ID_ that has been propagated to identify a client request.|
 
 The client requests to read from a particular Segment at a particular `Offset`. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server may decide transferring to the client more or less data than it was asked for, splitting that data in a suitable number of reply messages.
 
@@ -88,6 +90,7 @@ The follwoing Paramters will be used by all the below mentioned APIs.
 |-------------|----------|
 | `writerId`| UUID (16 bytes). It identifies the requesting appender.|
 | `Data`| This holds the contents of the block.|
+|`RequestId`| Long (8 bytes). This field contains the client-generated _ID_ that has been propagated to identify a client request.|
 
 ## AppendBlockEnd - Request
 
@@ -98,6 +101,7 @@ The follwoing Paramters will be used by all the below mentioned APIs.
 | `Data`| This holds the contents of the block.|
 | `numEvents`| Integer (4 bytes). It specifies the current number of events.|
 | `lastEventNumber`| Long (8 bytes). It specifies the value of last event number in the Stream.|
+|`RequestId`| Long (8 bytes). This field contains the client-generated _ID_ that has been propagated to identify a client request.|
 
 The `ApppendBlockEnd` has a `sizeOfWholeEvents` to allow the append block to be less than full. This allows the client to begin writing a block before it has a large number of events. This avoids the need to buffer up events in the client and allows for lower latency.
 
@@ -118,6 +122,7 @@ The `ApppendBlockEnd` has a `sizeOfWholeEvents` to allow the append block to be 
 | `writerId`| UUID (16 bytes).It identifies the requesting appender.|
 | `eventNumber`|Long (8 bytes). This matches the `lastEventNumber` in the append block.|
 | `previousEventNumber`| Long (8 bytes). This is the previous value of `eventNumber` that was returned in the last `DataAppeneded`.|
+|`RequestId`| Long (8 bytes). This field contains the client-generated _ID_ that has been propagated to identify a client request.|
 
 When appending a client:
 
