@@ -37,6 +37,8 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
@@ -535,33 +537,44 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<ScaleStatusResponse> checkScale(String scope, String stream, int epoch,
                                                                         OperationContext context) {
-        return streamMetadataStore.getEpochTransition(scope, stream, context, executor)
-                        .handle((epochTransition, ex) -> {
-                            ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
+        CompletableFuture<VersionedMetadata<EpochTransitionRecord>> epochTransitionFuture =
+                streamMetadataStore.getEpochTransition(scope, stream, context, executor);
+        CompletableFuture<EpochRecord> activeEpochFuture =
+                streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor);
+        return CompletableFuture.allOf(epochTransitionFuture, activeEpochFuture)
+                                .handle((r, ex) -> {
+                                    ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
 
-                            if (ex != null) {
-                                Throwable e = Exceptions.unwrap(ex);
-                                if (e instanceof StoreException.DataNotFoundException) {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
-                                } else {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
-                                }
-                            } else {
-                                Preconditions.checkNotNull(epochTransition);
-                            
-                                boolean isEmpty = epochTransition.getObject().equals(EpochTransitionRecord.EMPTY);
+                                    if (ex != null) {
+                                        Throwable e = Exceptions.unwrap(ex);
+                                        if (e instanceof StoreException.DataNotFoundException) {
+                                            response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                        } else {
+                                            response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
+                                        }
+                                    } else {
+                                        VersionedMetadata<EpochTransitionRecord> epochTransition = epochTransitionFuture.join();
+                                        EpochRecord activeEpoch = activeEpochFuture.join();
 
-                                if (!isEmpty && epochTransition.getObject().getActiveEpoch() < epoch) {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
-                                } else if (isEmpty || epochTransition.getObject().getActiveEpoch() > epoch) {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
-                                } else {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
-                                } 
-                            }
+                                        if (!epochTransition.getObject().equals(EpochTransitionRecord.EMPTY)) {
+                                            if (epochTransition.getObject().getActiveEpoch() < epoch) {
+                                                response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                            } else if (epochTransition.getObject().getActiveEpoch() == epoch){
+                                                response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
+                                            } else {
+                                                response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
+                                            }
+                                        } else if (epoch > activeEpoch.getEpoch()) {
+                                            response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                        } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch) {
+                                            response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
+                                        } else {
+                                            response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
+                                        }
+                                    }
 
-                            return response.build();
-                        });
+                                    return response.build();
+                                });
     }
 
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
