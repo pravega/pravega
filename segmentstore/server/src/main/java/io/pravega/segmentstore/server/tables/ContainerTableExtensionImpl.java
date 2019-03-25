@@ -18,8 +18,10 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.IllegalDataFormatException;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -220,17 +222,33 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         val bucketReader = TableBucketReader.entry(segment, this.keyIndex::getBackpointerOffset, this.executor);
         int resultSize = builder.getHashes().size();
         for (int i = 0; i < resultSize; i++) {
-            long offset = bucketOffsets.get(builder.getHashes().get(i));
+            UUID keyHash = builder.getHashes().get(i);
+            long offset = bucketOffsets.get(keyHash);
             if (offset == TableKey.NOT_EXISTS) {
                 // Bucket does not exist, hence neither does the key.
                 builder.includeResult(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
-                builder.includeResult(bucketReader.find(builder.getKeys().get(i), offset, timer));
+                // We first attempt an optimistic read, which involves fewer steps, and only initiate the more complex
+                // retry logic if we encounter a StreamSegmentTruncatedException.
+                ArrayView key = builder.getKeys().get(i);
+                builder.includeResult(Futures.exceptionallyComposeExpecting(
+                        bucketReader.find(key, offset, timer),
+                        ex -> ex instanceof StreamSegmentTruncatedException,
+                        () -> getSingleEntryWithRetries(segment, bucketReader, key, keyHash, timer)));
             }
         }
 
         return builder.getResultFutures();
+    }
+
+    private CompletableFuture<TableEntry> getSingleEntryWithRetries(DirectSegmentAccess segment, TableBucketReader<TableEntry> bucketReader,
+                                                                    ArrayView key, UUID keyHash, TimeoutTimer timer) {
+        return Retry.withExpBackoff(1, 10, 4)
+                    .retryWhen(ex -> ex instanceof StreamSegmentTruncatedException)
+                    .runAsync(() -> this.keyIndex.getBucketOffsetDirect(segment, keyHash, timer)
+                                                 .thenComposeAsync(offset -> bucketReader.find(key, offset, timer), this.executor),
+                            this.executor);
     }
 
     @Override

@@ -228,6 +228,36 @@ public final class BitConverter {
     }
 
     /**
+     * Reads a 64-bit long from the given InputStream that was encoded using BitConverter.writeLong.
+     *
+     * @param source The InputStream to read from.
+     * @return The read number.
+     * @throws IOException If an exception got thrown.
+     */
+    public static long readLong(InputStream source) throws IOException {
+        int b1 = source.read();
+        int b2 = source.read();
+        int b3 = source.read();
+        int b4 = source.read();
+        int b5 = source.read();
+        int b6 = source.read();
+        int b7 = source.read();
+        int b8 = source.read();
+        if ((b1 | b2 | b3 | b4 | b5 | b6 | b7 | b8) < 0) {
+            throw new EOFException();
+        } else {
+            return ((long) b1 << 56) +
+                    ((long) (b2 & 255) << 48) +
+                    ((long) (b3 & 255) << 40) +
+                    ((long) (b4 & 255) << 32) +
+                    ((long) (b5 & 255) << 24) +
+                    (long) ((b6 & 255) << 16) +
+                    (long) ((b7 & 255) << 8) +
+                    (long) ((b8 & 255));
+        }
+    }
+
+    /**
      * Writes the given 64-bit Unsigned Long to the given byte array at the given offset. This value can then be
      * deserialized using {@link #readUnsignedLong}. This method is not interoperable with {@link #readLong}.
      *

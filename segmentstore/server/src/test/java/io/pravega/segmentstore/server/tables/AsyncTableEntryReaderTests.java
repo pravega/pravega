@@ -62,7 +62,9 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
 
             // Get the result and compare it with the original key.
             val result = keyReader.getResult().get(BASE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
-            val expectedVersion = e.isRemoval ? TableKey.NOT_EXISTS : 1L;
+            val expectedVersion = e.isRemoval
+                    ? TableKey.NOT_EXISTS
+                    : (e.explicitVersion == TableKey.NO_VERSION) ? 1L : e.explicitVersion;
             Assert.assertEquals("Unexpected version.", expectedVersion, result.getVersion());
             AssertExtensions.assertArrayEquals("Unexpected key read back.", e.key, 0,
                     result.getKey().array(), result.getKey().arrayOffset(), e.key.length);
@@ -74,7 +76,7 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testReadEmptyKey() {
-        val testItem = generateTestItem(new byte[0], new byte[0], false);
+        val testItem = generateTestItem(new byte[0], new byte[0], false, false);
 
         // Start a new reader & processor for this key-serialization pair.
         val keyReader = AsyncTableEntryReader.readKey(1L, SERIALIZER, new TimeoutTimer(TIMEOUT));
@@ -141,7 +143,11 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
                 Assert.assertNull("Not expecting a value for a removal.", result.getValue());
             } else {
                 // Verify we have a value and that it matches.
-                Assert.assertEquals("Unexpected key version for existing key.", keyVersion, result.getKey().getVersion());
+                if (item.explicitVersion == TableKey.NO_VERSION) {
+                    Assert.assertEquals("Unexpected key version for existing key.", keyVersion, result.getKey().getVersion());
+                } else {
+                    Assert.assertEquals("Unexpected (explicit) key version for existing key.", item.explicitVersion, result.getKey().getVersion());
+                }
                 Assert.assertNotNull("Expecting a value for non removal.", result.getValue());
                 val resultValue = result.getValue();
                 Assert.assertEquals("Unexpected value length.", item.value.length, resultValue.getLength());
@@ -210,24 +216,31 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
             byte[] value = new byte[rnd.nextInt(10)];
             rnd.nextBytes(key);
             rnd.nextBytes(value);
-            result.add(generateTestItem(key, value, i % 2 == 0));
+            result.add(generateTestItem(key, value, i % 2 == 0, i % 5 == 0));
         }
 
         return result;
     }
 
-    private static TestItem generateTestItem(byte[] key, byte[] value, boolean removal) {
+    private static TestItem generateTestItem(byte[] key, byte[] value, boolean removal, boolean explicitVersion) {
         byte[] serialization;
         if (removal) {
             val keyData = TableKey.unversioned(new ByteArraySegment(key));
             serialization = new byte[SERIALIZER.getRemovalLength(keyData)];
             SERIALIZER.serializeRemoval(Collections.singletonList(keyData), serialization);
+            return new TestItem(key, value, removal, TableKey.NO_VERSION, serialization);
         } else {
-            val entry = TableEntry.unversioned(new ByteArraySegment(key), new ByteArraySegment(value));
+            val entry = TableEntry.versioned(new ByteArraySegment(key), new ByteArraySegment(value), key.length);
             serialization = new byte[SERIALIZER.getUpdateLength(entry)];
-            SERIALIZER.serializeUpdate(Collections.singletonList(entry), serialization);
+            if (explicitVersion) {
+                SERIALIZER.serializeUpdateWithExplicitVersion(Collections.singletonList(entry), serialization);
+                return new TestItem(key, value, removal, entry.getKey().getVersion(), serialization);
+            } else {
+                SERIALIZER.serializeUpdate(Collections.singletonList(entry), serialization);
+                return new TestItem(key, value, removal, TableKey.NO_VERSION, serialization);
+            }
         }
-        return new TestItem(key, value, removal, serialization);
+
     }
 
     @RequiredArgsConstructor
@@ -235,6 +248,7 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
         final byte[] key;
         final byte[] value;
         final boolean isRemoval;
+        final long explicitVersion;
         final byte[] serialization;
     }
 }

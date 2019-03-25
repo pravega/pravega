@@ -15,11 +15,11 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
-import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.BadKeyVersionException;
 import io.pravega.segmentstore.contracts.tables.ConditionalTableUpdateException;
 import io.pravega.segmentstore.contracts.tables.KeyNotExistsException;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
@@ -149,7 +149,7 @@ class ContainerKeyIndex implements AutoCloseable {
     }
 
     /**
-     * Find the Last Bucket Offsets for the given KeyHashes.
+     * Finds the Last Bucket Offsets for the given KeyHashes.
      *
      * @param segment Segment to look up Bucket Offsets for.
      * @param hashes  A Collection of Key Hashes to identify the Buckets.
@@ -207,6 +207,26 @@ class ContainerKeyIndex implements AutoCloseable {
             // Fetch information for missing hashes.
             return this.recoveryTracker.waitIfNeeded(segment, () -> getBucketOffsetFromSegment(segment, result, toLookup, timer));
         }
+    }
+
+    /**
+     * Finds the Bucket Offset for the given Key Hash directly from the index (excluding the cache). If the index contains
+     * an updated offset for this Bucket (i.e., as a result of a compaction), the cache will be automatically updated in
+     * the process. If the index contains an obsolete offset for this Bucket (compared to the cache), the cache value
+     * will be returned.
+     *
+     * @param segment Segment to look up the Bucket Offset for.
+     * @param keyHash The Key Hash to look up.
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain the sought offset. If the  bucket does not exist,
+     * it will contain {@link TableKey#NOT_EXISTS}.
+     * associated with it.
+     */
+    CompletableFuture<Long> getBucketOffsetDirect(DirectSegmentAccess segment, UUID keyHash, TimeoutTimer timer) {
+        // Get the bucket offset from the segment, which will update the cache if actually newer.
+        return this.recoveryTracker.waitIfNeeded(segment,
+                () -> getBucketOffsetFromSegment(segment, Collections.synchronizedMap(new HashMap<>()), Collections.singleton(keyHash), timer)
+                        .thenApply(result -> result.get(keyHash)));
     }
 
     private CompletableFuture<Map<UUID, Long>> getBucketOffsetFromSegment(DirectSegmentAccess segment, Map<UUID, Long> result,
@@ -422,7 +442,7 @@ class ContainerKeyIndex implements AutoCloseable {
     }
 
     /**
-     * Notifies this ContainerKeyIndex instance that the {@link Attributes#TABLE_INDEX_OFFSET} attribute value for the
+     * Notifies this ContainerKeyIndex instance that the {@link TableAttributes#INDEX_OFFSET} attribute value for the
      * given Segment has been changed.
      *
      * @param segmentId   The Id of the Segment whose Index Offset has changed.

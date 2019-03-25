@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import java.time.Duration;
@@ -51,10 +51,10 @@ interface TableWriterConnector extends AutoCloseable {
 
     /**
      * This method will be invoked by the {@link WriterTableProcessor} after every successful call to
-     * {@link WriterTableProcessor#flush} which advanced the value of the {@link Attributes#TABLE_INDEX_OFFSET} attribute
+     * {@link WriterTableProcessor#flush} which advanced the value of the {@link TableAttributes#INDEX_OFFSET} attribute
      * on the Table Segment this connector refers to.
      *
-     * @param lastIndexedOffset The current value of the {@link Attributes#TABLE_INDEX_OFFSET} attribute.
+     * @param lastIndexedOffset The current value of the {@link TableAttributes#INDEX_OFFSET} attribute.
      */
     void notifyIndexOffsetChanged(long lastIndexedOffset);
 

@@ -51,6 +51,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     private final EntrySerializer serializer;
     @Getter(AccessLevel.PROTECTED)
     private EntrySerializer.Header header;
+    private final long keyVersion;
 
     //endregion
 
@@ -59,9 +60,12 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     /**
      * Creates a new instance of the AsyncTableEntryReader class.
      *
+     * @param keyVersion The version of the item that is located at this position.
+     * @param serializer The {@link EntrySerializer} to use.
      * @param timer Timer for the whole operation.
      */
-    private AsyncTableEntryReader(@NonNull EntrySerializer serializer, @NonNull TimeoutTimer timer) {
+    private AsyncTableEntryReader(long keyVersion, @NonNull EntrySerializer serializer, @NonNull TimeoutTimer timer) {
+        this.keyVersion = keyVersion;
         this.serializer = serializer;
         this.timer = timer;
         this.readData = new EnhancedByteArrayOutputStream();
@@ -117,6 +121,10 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      */
     protected void complete(ResultT result) {
         this.result.complete(result);
+    }
+
+    protected long getKeyVersion() {
+        return this.header.getEntryVersion() == TableKey.NO_VERSION ? this.keyVersion : this.header.getEntryVersion();
     }
 
     //endregion
@@ -187,11 +195,8 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      * AsyncTableEntryReader implementation that reads a Key from a ReadResult.
      */
     private static class KeyReader extends AsyncTableEntryReader<TableKey> {
-        private final long keyVersion;
-
         KeyReader(long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
-            super(serializer, timer);
-            this.keyVersion = keyVersion;
+            super(keyVersion, serializer, timer);
         }
 
         @Override
@@ -205,7 +210,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
                 if (header.isDeletion()) {
                     complete(TableKey.notExists(keyData));
                 } else {
-                    complete(TableKey.versioned(keyData, this.keyVersion));
+                    complete(TableKey.versioned(keyData, getKeyVersion()));
                 }
 
                 return true; // We are done.
@@ -224,13 +229,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      */
     private static class EntryReader extends AsyncTableEntryReader<TableEntry> {
         private final ArrayView soughtKey;
-        private final long keyVersion;
         private boolean keyValidated;
 
         private EntryReader(ArrayView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
-            super(serializer, timer);
+            super(keyVersion, serializer, timer);
             this.soughtKey = soughtKey;
-            this.keyVersion = keyVersion;
             this.keyValidated = soughtKey == null;
         }
 
@@ -285,7 +288,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
                 valueData = readData.subSegment(header.getValueOffset(), header.getValueLength());
             }
 
-            complete(TableEntry.versioned(getKeyData(this.soughtKey, readData, header), valueData, this.keyVersion));
+            complete(TableEntry.versioned(getKeyData(this.soughtKey, readData, header), valueData, getKeyVersion()));
             return true; // Now we are truly done.
         }
 
