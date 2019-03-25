@@ -568,7 +568,8 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         });
         // Verify the order of WireCommands sent.
         inOrder.verify(connection).send(new WireCommands.KeepAlive());
-        // Two invocations of Setup Append are sent, since the first connection try encounters a connection drop.
+        // Two SetupAppend WireCommands are sent since the connection is dropped right after the first KeepAlive WireCommand is sent.
+        // The second SetupAppend WireCommand is sent while trying to re-establish connection.
         inOrder.verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         // Ensure the pending append is sent over the connection. The exact verification of the append data is performed while setting up
         // the when clause of setting up append.
