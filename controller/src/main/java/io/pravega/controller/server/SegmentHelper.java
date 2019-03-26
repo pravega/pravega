@@ -1284,7 +1284,25 @@ public class SegmentHelper {
         resultFuture.whenComplete((result, e) -> {
             // when processing completes, return the connection back to connection manager asynchronously.
             // Note: If result future is complete, connectionFuture is definitely complete. 
-            connectionFuture.thenAccept(pool::returnConnection);
+            if (resultFuture.isCompletedExceptionally()) {
+                resultFuture.exceptionally(ex -> {
+                    Throwable unwrap = Exceptions.unwrap(ex);
+                    if (unwrap instanceof WireCommandFailedException && 
+                            (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed) ||
+                            (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionDropped))
+                            )) {
+                        connectionFuture.thenAccept(connectionObject -> {
+                            connectionObject.failConnection();
+                            pool.returnConnection(connectionObject);
+                        });
+                    } else {
+                        connectionFuture.thenAccept(pool::returnConnection);
+                    }
+                    return null;
+                });
+            } else {
+                connectionFuture.thenAccept(pool::returnConnection);
+            }
         });
     }
 
