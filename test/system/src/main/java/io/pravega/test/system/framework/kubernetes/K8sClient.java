@@ -47,6 +47,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.TestFrameworkException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -54,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -498,7 +500,7 @@ public class K8sClient {
         Retry.RetryAndThrowConditionally retryConfig = retryWithBackoff
                 .retryWhen(t -> {
                     Throwable ex = Exceptions.unwrap(t);
-                    if (ex.getCause() instanceof IOException) {
+                    if (ex.getCause() instanceof IOException && !(ex.getCause() instanceof UnknownHostException)) {
                         log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
                         return true;
                     }
@@ -615,6 +617,10 @@ public class K8sClient {
                             Files.copy(logStream, Paths.get(logFile));
                             log.debug("Logs downloaded from pod {} to {}", podName, logFile);
                         } catch (ApiException | IOException e) {
+                            if (e instanceof UnknownHostException) {
+                                // do not retry if an UnknownHostException is observed.
+                                throw new CompletionException("UnknownHostException encountered while downloading the test logs", e);
+                            }
                             log.warn("Retryable error while downloading logs from pod {}. Error message: {} ", podName, e.getMessage());
                             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while downloading logs");
                         }
