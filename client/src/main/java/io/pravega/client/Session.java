@@ -46,6 +46,15 @@ public class Session {
     }
 
     /**
+     * Obtain a Session from a {@code long} representation.
+     * @param sessionAsLong a {@code long} representation of {@link Session}.
+     * @return Session.
+     */
+    public static Session from(long sessionAsLong) {
+        return new Session((int) (sessionAsLong >> 32), (int) sessionAsLong);
+    }
+
+    /**
      * Return a {@code long} representation of {@link Session}.
      * @return long representation.
      */

@@ -22,6 +22,7 @@ public class SessionTest {
         assertEquals(id.getSessionId(), (int) (id.asLong() >> 32));
         assertEquals("SequenceNumber should be 0 for " + id, 0, (int) id.asLong());
         assertEquals("SequenceNumber should be incremented", (int) id.asLong() + 1, (int) id.getNextSequenceNumber());
+        assertEquals(id, Session.from(id.asLong()));
     }
 
     @Test

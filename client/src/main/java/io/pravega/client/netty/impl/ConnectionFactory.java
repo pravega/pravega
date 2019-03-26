@@ -30,6 +30,9 @@ public interface ConnectionFactory extends AutoCloseable {
      */
     CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
 
+
+    CompletableFuture<ClientConnection> establishConnection(int sessionId, PravegaNodeUri endpoint, ReplyProcessor rp);
+
     /**
      * Get the internal executor which is used by the client.
      * @return A ScheduledExecutorService.

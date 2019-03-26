@@ -59,6 +59,8 @@ public class ClientConfig implements Serializable {
      */
     private boolean validateHostName;
 
+    private int maxConnectionPerSegmentStore;
+
     public boolean isEnableTls() {
         String scheme = this.controllerURI.getScheme();
         if (scheme == null) {
@@ -89,6 +91,8 @@ public class ClientConfig implements Serializable {
 
         private boolean validateHostName = true;
 
+        private int maxConnectionsPerSegmentStore = 2;
+
         public ClientConfig build() {
             if (controllerURI == null) {
                 controllerURI = URI.create("tcp://localhost:9090");
@@ -97,7 +101,7 @@ public class ClientConfig implements Serializable {
             if (credentials == null) {
                 log.warn("The credentials are not specified or could not be extracted.");
             }
-            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName);
+            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore);
         }
 
         /**
