@@ -11,8 +11,8 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCounted;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -40,6 +40,7 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -62,6 +63,11 @@ public class SegmentHelper {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
 
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
+
+    private final SegmentStoreConnectionManager connectionManager;
+    public SegmentHelper(final ConnectionFactory clientCF) {
+        connectionManager = new SegmentStoreConnectionManager(clientCF);
+    }
 
     public Controller.NodeUri getSegmentUri(final String scope,
                                             final String stream,
@@ -114,7 +120,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "CreateSegment {} threw exception", qualifiedStreamSegmentName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -177,7 +183,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "truncateSegment {} error", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -236,7 +242,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "deleteSegment {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -314,7 +320,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "sealSegment {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -371,7 +377,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error("createTransaction {} failed", transactionName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -446,7 +452,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error("commitTransaction {} failed", transactionName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -503,7 +509,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.info("abortTransaction {} failed", transactionName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -551,7 +557,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "updatePolicy {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -600,7 +606,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error("getSegmentInfo {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -671,7 +677,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "CreateTableSegment {} threw exception", qualifiedStreamSegmentName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -750,7 +756,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "deleteTableSegment {} failed.", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -834,7 +840,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "updateTableEntries {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -845,16 +851,21 @@ public class SegmentHelper {
             }
         };
 
+        List<ByteBuf> buffersToRelease = new ArrayList<>();
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries = entries.stream().map(te -> {
             final WireCommands.TableKey key = convertToWireCommand(te.getKey());
-            final WireCommands.TableValue value = new WireCommands.TableValue(wrappedBuffer(te.getValue()));
+            ByteBuf valueBuffer = wrappedBuffer(te.getValue());
+            buffersToRelease.add(key.getData());
+            buffersToRelease.add(valueBuffer);
+            final WireCommands.TableValue value = new WireCommands.TableValue(valueBuffer);
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
         WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, delegationToken,
                                                                                       new WireCommands.TableEntries(wireCommandEntries));
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
-        return result;
+        return result
+                .whenComplete((r, e) -> buffersToRelease.forEach(ReferenceCounted::release));
     }
 
     /**
@@ -928,7 +939,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "removeTableKeys {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -939,11 +950,17 @@ public class SegmentHelper {
             }
         };
 
-        List<WireCommands.TableKey> keyList = keys.stream().map(this::convertToWireCommand).collect(Collectors.toList());
+        List<ByteBuf> buffersToRelease = new ArrayList<>(keys.size());
+        List<WireCommands.TableKey> keyList = keys.stream().map(x -> {
+            WireCommands.TableKey key = convertToWireCommand(x);
+            buffersToRelease.add(key.getData());
+            return key;
+        }).collect(Collectors.toList());
 
         WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
-        return result;
+        return result
+                .whenComplete((r, e) -> buffersToRelease.forEach(ReferenceCounted::release));
     }
 
     /**
@@ -1019,7 +1036,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTable {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1030,14 +1047,18 @@ public class SegmentHelper {
             }
         };
 
+        List<ByteBuf> buffersToRelease = new ArrayList<>();
         // the version is always NO_VERSION as read returns the latest version of value.
-        List<WireCommands.TableKey> keyList = keys.stream().map(k -> new WireCommands.TableKey(wrappedBuffer(k.getKey()),
-                                                                                               WireCommands.TableKey.NO_VERSION))
-                                                  .collect(Collectors.toList());
+        List<WireCommands.TableKey> keyList = keys.stream().map(k -> {
+            ByteBuf buffer = wrappedBuffer(k.getKey());
+            buffersToRelease.add(buffer);
+            return new WireCommands.TableKey(buffer, WireCommands.TableKey.NO_VERSION);
+        }).collect(Collectors.toList());
 
         WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
-        return result;
+        return result
+                .whenComplete((r, e) -> buffersToRelease.forEach(ReferenceCounted::release));
     }
 
     /**
@@ -1108,7 +1129,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTableKeys {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1199,7 +1220,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTableEntries {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1220,7 +1241,16 @@ public class SegmentHelper {
         final byte[] bytes = new byte[buf.readableBytes()];
         final int readerIndex = buf.readerIndex();
         buf.getBytes(readerIndex, bytes);
+        buf.release();
         return bytes;
+    }
+
+    private <T> void handleError(Exception error, CompletableFuture<T> result, WireCommandType type) {
+        if (Exceptions.unwrap(error) instanceof ConnectionFailedException) {
+            result.completeExceptionally(new WireCommandFailedException(error, type, WireCommandFailedException.Reason.ConnectionFailed));
+        } else {
+            result.completeExceptionally(error);
+        }
     }
 
     private WireCommands.TableKey convertToWireCommand(final TableKey<byte[]> k) {
@@ -1237,27 +1267,42 @@ public class SegmentHelper {
     private <ResultT> void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
                                             final CompletableFuture<ResultT> resultFuture,
                                             final ConnectionFactory connectionFactory, final PravegaNodeUri uri) {
-        CompletableFuture<ClientConnection> connectionFuture = connectionFactory.establishConnection(uri, replyProcessor);
+        // get connection manager for the segment store node from the connectionmanager. 
+        SegmentStoreConnectionManager.SegmentStoreConnectionPool pool = connectionManager.getPool(uri);
+        // take a new connection from the connection manager
+        CompletableFuture<SegmentStoreConnectionManager.ConnectionObject> connectionFuture = pool.getConnection(replyProcessor);
         connectionFuture.whenComplete((connection, e) -> {
-            if (connection == null) {
-                resultFuture.completeExceptionally(new WireCommandFailedException(new ConnectionFailedException(e),
+            if (connection == null || e != null) {
+                ConnectionFailedException cause = e != null ? new ConnectionFailedException(e) : new ConnectionFailedException();
+                resultFuture.completeExceptionally(new WireCommandFailedException(cause,
                         request.getType(),
                         WireCommandFailedException.Reason.ConnectionFailed));
             } else {                
-                connection.sendAsync(request, cfe -> {
-                    if (cfe != null) {
-                        Throwable cause = Exceptions.unwrap(cfe);
-                        if (cause instanceof ConnectionFailedException) {
-                            resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
-                        } else {
-                            resultFuture.completeExceptionally(new RuntimeException(cause));
-                        }                        
-                    }
-                });                
+                connection.sendAsync(request, resultFuture);
             }
         });
         resultFuture.whenComplete((result, e) -> {
-            connectionFuture.thenAccept(ClientConnection::close);
+            // when processing completes, return the connection back to connection manager asynchronously.
+            // Note: If result future is complete, connectionFuture is definitely complete. 
+            if (resultFuture.isCompletedExceptionally()) {
+                resultFuture.exceptionally(ex -> {
+                    Throwable unwrap = Exceptions.unwrap(ex);
+                    if (unwrap instanceof WireCommandFailedException && 
+                            (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed) ||
+                            (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionDropped))
+                            )) {
+                        connectionFuture.thenAccept(connectionObject -> {
+                            connectionObject.failConnection();
+                            pool.returnConnection(connectionObject);
+                        });
+                    } else {
+                        connectionFuture.thenAccept(pool::returnConnection);
+                    }
+                    return null;
+                });
+            } else {
+                connectionFuture.thenAccept(pool::returnConnection);
+            }
         });
     }
 
