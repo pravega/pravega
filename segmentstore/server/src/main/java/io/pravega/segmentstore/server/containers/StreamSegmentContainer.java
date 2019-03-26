@@ -219,7 +219,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (this.durableLog.isOffline()) {
             // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that
             // completes successfully.
-            log.info("{}: DurableLog is OFFLINE. Not starting secondary services yet.");
+            log.info("{}: DurableLog is OFFLINE. Not starting secondary services yet.", this.traceObjectId);
             isReady = CompletableFuture.completedFuture(null);
             delayedStart = this.durableLog.awaitOnline()
                     .thenComposeAsync(v -> initializeSecondaryServices(), this.executor);
