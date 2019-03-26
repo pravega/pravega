@@ -48,6 +48,12 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
+/**
+ * Base class for scalability tests. This class takes a stream name and number of segments and scales to perform and then 
+ * performs that many scales. The scale input is supplied by derived class. 
+ * Then we perform truncation arbitrary number of times but the moment any truncation stream cut contains a segment from latest epoch, 
+ * the test concludes. Post which we seal and delete the stream. 
+ */
 public abstract class MetadataScalabilityTest extends AbstractScaleTests {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(60 * 60);
@@ -98,7 +104,7 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
 
     abstract Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments);
 
-    List<List<Segment>>  scale(ControllerImpl controller) {
+    List<List<Segment>> scale(ControllerImpl controller) {
         int numSegments = getStreamConfig().getScalingPolicy().getMinNumSegments();
         int scalesToPerform = getScalesToPerform();
 
