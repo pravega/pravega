@@ -169,8 +169,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
                                                         final String streamName) {
-        return Futures.exceptionallyExpecting(getStream(scopeName, streamName, null)
-                .getState(true).thenApply(v -> true), DATA_NOT_FOUND_PREDICATE, false);
+        return ((PravegaTableScope) getScope(scopeName)).checkStreamExistsInScope(streamName);
     }
 
     @Override
