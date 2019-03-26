@@ -39,11 +39,12 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
+import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -208,8 +209,23 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isUpdated(String scope, String stream, StreamConfiguration newConfig, OperationContext context) {
-        return streamMetadataStore.getConfigurationRecord(scope, stream, context, executor)
-                .thenApply(configProperty -> !configProperty.getObject().isUpdating() || !configProperty.getObject().getStreamConfiguration().equals(newConfig));
+        CompletableFuture<State> stateFuture = streamMetadataStore.getState(scope, stream, true, context, executor);
+        CompletableFuture<StreamConfigurationRecord> configPropertyFuture
+                = streamMetadataStore.getConfigurationRecord(scope, stream, context, executor).thenApply(VersionedMetadata::getObject);
+        return CompletableFuture.allOf(stateFuture, configPropertyFuture)
+                                .thenApply(v -> {
+                                    State state = stateFuture.join();
+                                    StreamConfigurationRecord configProperty = configPropertyFuture.join();
+
+                                    // if property is updating and doesnt match our request, its a subsequent update
+                                    if (configProperty.isUpdating()) {
+                                        return !configProperty.getStreamConfiguration().equals(newConfig);
+                                    } else {
+                                        // if property is not updating, then update is complete if property matches our expectation 
+                                        // and state is not updating 
+                                        return !(configProperty.getStreamConfiguration().equals(newConfig) && state.equals(State.UPDATING));
+                                    }
+                                });
     }
 
     /**
@@ -388,8 +404,23 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isTruncated(String scope, String stream, Map<Long, Long> streamCut, OperationContext context) {
-        return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
-                .thenApply(truncationProp -> !truncationProp.getObject().isUpdating() || !truncationProp.getObject().getStreamCut().equals(streamCut));
+        CompletableFuture<State> stateFuture = streamMetadataStore.getState(scope, stream, true, context, executor);
+        CompletableFuture<StreamTruncationRecord> configPropertyFuture
+                = streamMetadataStore.getTruncationRecord(scope, stream, context, executor).thenApply(VersionedMetadata::getObject);
+        return CompletableFuture.allOf(stateFuture, configPropertyFuture)
+                                .thenApply(v -> {
+                                    State state = stateFuture.join();
+                                    StreamTruncationRecord truncationRecord = configPropertyFuture.join();
+
+                                    // if property is updating and doesnt match our request, its a subsequent update
+                                    if (truncationRecord.isUpdating()) {
+                                        return !truncationRecord.getStreamCut().equals(streamCut);
+                                    } else {
+                                        // if property is not updating, then update is complete if property matches our expectation 
+                                        // and state is not updating 
+                                        return !(truncationRecord.getStreamCut().equals(streamCut) && state.equals(State.TRUNCATING));
+                                    }
+                                });
     }
 
     /**
@@ -537,44 +568,41 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<ScaleStatusResponse> checkScale(String scope, String stream, int epoch,
                                                                         OperationContext context) {
-        CompletableFuture<VersionedMetadata<EpochTransitionRecord>> epochTransitionFuture =
-                streamMetadataStore.getEpochTransition(scope, stream, context, executor);
         CompletableFuture<EpochRecord> activeEpochFuture =
                 streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor);
-        return CompletableFuture.allOf(epochTransitionFuture, activeEpochFuture)
-                                .handle((r, ex) -> {
-                                    ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
+        CompletableFuture<State> stateFuture =
+                streamMetadataStore.getState(scope, stream, true, context, executor);
+        return CompletableFuture.allOf(stateFuture, activeEpochFuture)
+                        .handle((r, ex) -> {
+                            ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
 
-                                    if (ex != null) {
-                                        Throwable e = Exceptions.unwrap(ex);
-                                        if (e instanceof StoreException.DataNotFoundException) {
-                                            response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
-                                        } else {
-                                            response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
-                                        }
+                            if (ex != null) {
+                                Throwable e = Exceptions.unwrap(ex);
+                                if (e instanceof StoreException.DataNotFoundException) {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                } else {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
+                                }
+                            } else {
+                                EpochRecord activeEpoch = activeEpochFuture.join();
+                                State state = stateFuture.join();
+                                if (epoch > activeEpoch.getEpoch()) {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch) {
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
+                                } else {
+                                    // active epoch > requested epoch. If state is scaling and etr matches current request 
+                                    // then inprogress else success
+                                    if (epoch == activeEpoch.getReferenceEpoch() + 1 && state.equals(State.SCALING)) {
+                                        response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
                                     } else {
-                                        VersionedMetadata<EpochTransitionRecord> epochTransition = epochTransitionFuture.join();
-                                        EpochRecord activeEpoch = activeEpochFuture.join();
-
-                                        if (!epochTransition.getObject().equals(EpochTransitionRecord.EMPTY)) {
-                                            if (epochTransition.getObject().getActiveEpoch() < epoch) {
-                                                response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
-                                            } else if (epochTransition.getObject().getActiveEpoch() == epoch) {
-                                                response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
-                                            } else {
-                                                response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
-                                            }
-                                        } else if (epoch > activeEpoch.getEpoch()) {
-                                            response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
-                                        } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch) {
-                                            response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
-                                        } else {
-                                            response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
-                                        }
+                                        response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
                                     }
+                                }
+                            }
 
-                                    return response.build();
-                                });
+                            return response.build();
+                        });
     }
 
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
