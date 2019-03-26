@@ -77,7 +77,7 @@ public class K8sClient {
 
     private static final int DEFAULT_TIMEOUT_MINUTES = 10; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 1_000; // max time between retries to check if pod has completed.
-    private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
+    private static final int RETRY_COUNT = 50; // Max duration incase of an exception is around 50 * RETRY_MAX_DELAY_MS = 50 seconds.
     private static final int LOG_DOWNLOAD_RETRY_COUNT = 7;
     // Delay before starting to download the logs. The K8s api server responds with error code 400 if immediately requested for log download.
     private static final long LOG_DOWNLOAD_INIT_DELAY_MS = SECONDS.toMillis(20);
@@ -505,6 +505,7 @@ public class K8sClient {
                         return true;
                     }
                     log.error("Exception while fetching status of pod", ex);
+                    future.completeExceptionally(ex);
                     return false;
                 });
 
@@ -603,7 +604,7 @@ public class K8sClient {
         return Retry.withExpBackoff(LOG_DOWNLOAD_INIT_DELAY_MS, 10, LOG_DOWNLOAD_RETRY_COUNT, RETRY_MAX_DELAY_MS)
                     .retryingOn(TestFrameworkException.class)
                     .throwingOn(RuntimeException.class)
-                    .runInExecutor(() -> {
+                    .runAsync(() -> {
                         final String podName = fromPod.getMetadata().getName();
                         log.debug("Download logs from pod {}", podName);
                         try {
@@ -616,9 +617,11 @@ public class K8sClient {
                             String logFile = toFile + "-" + retryCount.incrementAndGet() + ".log";
                             Files.copy(logStream, Paths.get(logFile));
                             log.debug("Logs downloaded from pod {} to {}", podName, logFile);
+                            return null;
                         } catch (ApiException | IOException e) {
                             if (e instanceof UnknownHostException) {
                                 // do not retry if an UnknownHostException is observed.
+                                log.debug("UnknownHostException observed, failing download logs.", e.getMessage());
                                 throw new CompletionException("UnknownHostException encountered while downloading the test logs", e);
                             }
                             log.warn("Retryable error while downloading logs from pod {}. Error message: {} ", podName, e.getMessage());
