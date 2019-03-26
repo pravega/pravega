@@ -156,7 +156,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             String serviceId = Exceptions.handleInterrupted(() -> dockerClient.listServices(criteria).get(0).id());
             EndpointSpec endpointSpec = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId).spec().endpointSpec());
             Service service = Exceptions.handleInterrupted(() -> dockerClient.inspectService(serviceId));
-            Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).build()));
+            Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).networks(service.spec().networks()).build()));
 
             return Exceptions.handleInterrupted(() -> waitUntilServiceRunning());
         } catch (DockerException e) {
