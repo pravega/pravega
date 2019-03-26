@@ -11,7 +11,6 @@ package io.pravega.controller.task.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
@@ -85,9 +84,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     protected final ScheduledExecutorService executor;
 
     private final StreamMetadataStore streamMetadataStore;
-    private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
-    private final ConnectionFactory connectionFactory;
     private final AuthHelper authHelper;
     @Getter
     @VisibleForTesting
@@ -104,46 +101,38 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final ConnectionFactory connectionFactory,
                                           AuthHelper authHelper) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
-        this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        this.connectionFactory = connectionFactory;
         this.authHelper = authHelper;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                          final HostControllerStore hostControllerStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final ConnectionFactory connectionFactory, AuthHelper authHelper) {
+                                          AuthHelper authHelper) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
-        this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        this.connectionFactory = connectionFactory;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig);
         this.authHelper = authHelper;
         readyLatch = new CountDownLatch(1);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                          final HostControllerStore hostControllerStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final ConnectionFactory connectionFactory,
                                           AuthHelper authHelper) {
-        this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId,
-                TimeoutServiceConfig.defaultConfig(), connectionFactory, authHelper);
+        this(streamMetadataStore, segmentHelper, executor, hostId,
+                TimeoutServiceConfig.defaultConfig(), authHelper);
     }
 
     protected void setReady() {
@@ -663,8 +652,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 stream,
                 segmentId,
                 txnId,
-                this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken()), executor);
+                this.retrieveDelegationToken()), executor);
     }
 
     private CompletableFuture<Void> checkReady() {

@@ -148,11 +148,11 @@ public class StreamMetadataTasksTest {
 
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory,  new AuthHelper(authEnabled, "key"), requestTracker));
+        streamMetadataTasks = spy(new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", new AuthHelper(authEnabled, "key"), requestTracker));
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStorePartialMock, hostStore, segmentHelperMock, executor, "host", connectionFactory,
+                streamStorePartialMock, segmentHelperMock, executor, "host", 
                 new AuthHelper(authEnabled, "key"));
 
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStorePartialMock, executor),
@@ -163,7 +163,7 @@ public class StreamMetadataTasksTest {
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 streamStorePartialMock,
                 executor);
-        consumer = new ControllerService(streamStorePartialMock, hostStore, streamMetadataTasks,
+        consumer = new ControllerService(streamStorePartialMock, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());

@@ -108,10 +108,10 @@ public class ControllerServiceWithZKStreamTest {
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
+                segmentHelperMock, executor, "host", AuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
@@ -122,8 +122,7 @@ public class ControllerServiceWithZKStreamTest {
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+        consumer = new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, segmentHelperMock, executor, null);
     }
 
     @After

@@ -68,7 +68,6 @@ import org.apache.commons.lang3.tuple.Pair;
 public class ControllerService {
 
     private final StreamMetadataStore streamStore;
-    private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final SegmentHelper segmentHelper;
@@ -77,11 +76,10 @@ public class ControllerService {
     private final StreamMetrics streamMetrics;
     private final TransactionMetrics transactionMetrics;
 
-    public ControllerService(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks,
+    public ControllerService(StreamMetadataStore streamStore, StreamMetadataTasks streamMetadataTasks,
                              StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
                              Executor executor, Cluster cluster) {
         this.streamStore = streamStore;
-        this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.segmentHelper = segmentHelper;
@@ -273,7 +271,7 @@ public class ControllerService {
 
         return CompletableFuture.completedFuture(
                 segmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
-                        segment.getSegmentId(), hostStore)
+                        segment.getSegmentId())
         );
     }
 
