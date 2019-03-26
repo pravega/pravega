@@ -25,10 +25,10 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ClientConnectionImpl implements ClientConnection {
     private final String connectionName;
-    private final SessionInboundHandler nettyHandler;
+    private final SessionHandler nettyHandler;
     private final AppendBatchSizeTracker batchSizeTracker;
 
-    public ClientConnectionImpl(String connectionName,  AppendBatchSizeTracker batchSizeTracker, SessionInboundHandler nettyHandler) {
+    public ClientConnectionImpl(String connectionName,  AppendBatchSizeTracker batchSizeTracker, SessionHandler nettyHandler) {
         this.connectionName = connectionName;
         this.batchSizeTracker = batchSizeTracker;
         this.nettyHandler = nettyHandler;

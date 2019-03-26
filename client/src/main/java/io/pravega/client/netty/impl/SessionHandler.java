@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class SessionInboundHandler extends ChannelInboundHandlerAdapter {
+public class SessionHandler extends ChannelInboundHandlerAdapter {
 
     private final String connectionName;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
@@ -40,7 +40,7 @@ public class SessionInboundHandler extends ChannelInboundHandlerAdapter {
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
     private final ConcurrentHashMap<Integer, ReplyProcessor> sessionIdReplyProcessorMap = new ConcurrentHashMap<>();
 
-    public SessionInboundHandler(String connectionName, AppendBatchSizeTracker batchSizeTracker) {
+    public SessionHandler(String connectionName, AppendBatchSizeTracker batchSizeTracker) {
         this.connectionName = connectionName;
         this.batchSizeTracker = batchSizeTracker;
     }

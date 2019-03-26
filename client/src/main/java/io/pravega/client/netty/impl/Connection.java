@@ -9,16 +9,19 @@
  */
 package io.pravega.client.netty.impl;
 
-import io.pravega.client.Session;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
-import java.util.concurrent.CompletableFuture;
+import lombok.Data;
 
-public interface ConnectionPool {
-
-    CompletableFuture<ClientConnection> getClientConnection(Session session, PravegaNodeUri uri, ReplyProcessor rp);
-
-    void releaseConnection(ClientConnection connection);
-
+@Data
+public class Connection {
+    private final SessionHandler sessionHandler;
+    private final PravegaNodeUri uri;
+    /**
+     * This provides a count of Event writers using this connection.
+     */
+    private final int writerCount;
+    private final int readerCount;
+    private final int sessionCount;
 }
+
 

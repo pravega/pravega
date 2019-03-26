@@ -35,6 +35,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.Session;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.CommandDecoder;
@@ -46,13 +47,18 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collector;
+import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -63,10 +69,15 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @Getter(AccessLevel.PACKAGE)
     private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
+    @GuardedBy("$LOCK")
+    private final List<Connection> connectionList = new ArrayList<>();
+    private final Collector<Connection, ConnectionSummaryStats, ConnectionSummaryStats> collectorStats =
+            Collector.of(ConnectionSummaryStats::new, ConnectionSummaryStats::accept, ConnectionSummaryStats::combine,
+                         Collector.Characteristics.IDENTITY_FINISH);
 
     public ConnectionPoolImpl(ClientConfig clientConfig) {
         this.clientConfig = clientConfig;
-        // EventLoopGroup are expensive, do not create a new one for every connection.
+        // EventLoopGroup objects are expensive, do not create a new one for every connection.
         this.group = getEventLoopGroup();
     }
 
@@ -80,7 +91,23 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     @Override
-    public CompletableFuture<ClientConnection> getConnection(PravegaNodeUri location, ReplyProcessor rp) {
+    @Synchronized
+    public CompletableFuture<ClientConnection> getClientConnection(Session session, PravegaNodeUri location, ReplyProcessor rp) {
+        /*
+           - Check if a sessionHandler already exists for a location.
+           - Check if number of sessionHandlers for a location equals max number of connections.
+           - if ( not then establish a connection)
+           - create a session out of the session handler.
+           - if the session terminates clientConnection close is invoked which is internally might or might not close the connection.
+         */
+        Collector<Connection, ConnectionSummaryStats, ConnectionSummaryStats> collectorStats = Collector.of(ConnectionSummaryStats::new, ConnectionSummaryStats::accept, ConnectionSummaryStats::combine,
+                                                                                                            Collector.Characteristics.IDENTITY_FINISH);
+        connectionList.stream()
+        CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
+        return sessionHandlerFuture.thenApply(sessionHandler -> sessionHandler.createSession(session, rp));
+    }
+
+    private CompletableFuture<SessionHandler> establishConnection(PravegaNodeUri location) {
         Preconditions.checkNotNull(location);
         Exceptions.checkNotClosed(closed.get(), this);
         final SslContext sslCtx;
@@ -103,7 +130,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
             sslCtx = null;
         }
         AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        SessionInboundHandler handler = new SessionInboundHandler(location.getEndpoint(), batchSizeTracker);
+        SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
         Bootstrap b = new Bootstrap();
 
         ChannelInitializer<SocketChannel> channelInitializer = new ChannelInitializer<SocketChannel>() {
@@ -135,7 +162,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
          .handler(channelInitializer);
 
         // Start the client.
-        CompletableFuture<ClientConnection> connectionComplete = new CompletableFuture<>();
+        CompletableFuture<SessionHandler> connectionComplete = new CompletableFuture<>();
         try {
 
             b.connect(location.getEndpoint(), location.getPort()).addListener(new ChannelFutureListener() {
@@ -160,7 +187,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //check if channel is registered.
         handler.completeWhenRegistered(channelRegisteredFuture);
 
-        return connectionComplete.thenCombine(channelRegisteredFuture, (clientConnection, v) -> clientConnection);
+        return connectionComplete.thenCombine(channelRegisteredFuture, (sessionHandler, v) -> sessionHandler);
     }
 
     @Override
