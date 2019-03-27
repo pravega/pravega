@@ -33,7 +33,13 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.eventProcessor.requesthandlers.*;
+import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.DeleteStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
+import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
+import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
@@ -59,7 +65,6 @@ import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -78,7 +83,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
-import static org.junit.Assert.*;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -88,18 +96,14 @@ import static org.mockito.Mockito.when;
  */
 public class ControllerGrpcAuthFocusedTest {
 
-    private StreamMetadataTasks streamMetadataTasks;
-    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private Server grpcServer;
-    private ManagedChannel inProcessChannel;
-
     /**
-     * We share these two members for all of the tests in this class, for efficiency reasons
+     * These two members are shared across the tests in this class for efficiency reasons.
      */
-    private static ScheduledExecutorService executorService;
-    private static File authFile = null;
+    private final static ScheduledExecutorService EXECUTOR =
+            ExecutorServiceHelpers.newScheduledThreadPool(20, MethodHandles.lookup().lookupClass() + "-pool");
+    private final static File AUTH_FILE = createAuthFile();
 
-    private static String DEFAULT_PASSWORD = "1111_aaaa";
+    private final static String DEFAULT_PASSWORD = "1111_aaaa";
 
     /**
      * This rule makes sure that the tests in this class run in 10 seconds or less.
@@ -113,26 +117,24 @@ public class ControllerGrpcAuthFocusedTest {
     @Rule
     public ExpectedException thrown = ExpectedException.none();
 
-    @BeforeClass
-    public static void classSetup() throws NoSuchAlgorithmException, IOException, InvalidKeySpecException {
-        authFile = createAuthFile();
-        executorService = ExecutorServiceHelpers.newScheduledThreadPool(20,
-                MethodHandles.lookup().lookupClass() + "-pool");
-    }
+    private StreamMetadataTasks streamMetadataTasks;
+    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private Server grpcServer;
+    private ManagedChannel inProcessChannel;
 
     @AfterClass
     public static void classTearDown() {
-        if (authFile != null && authFile.exists()) {
-            authFile.delete();
+        if (AUTH_FILE != null && AUTH_FILE.exists()) {
+            AUTH_FILE.delete();
         }
-        ExecutorServiceHelpers.shutdown(executorService);
+        ExecutorServiceHelpers.shutdown(EXECUTOR);
     }
 
     @Before
     public void setup() throws IOException {
-        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(executorService);
+        TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(EXECUTOR);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executorService);
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(EXECUTOR);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         RequestTracker requestTracker = new RequestTracker(true);
@@ -146,21 +148,21 @@ public class ControllerGrpcAuthFocusedTest {
         AuthHelper authHelper = new AuthHelper(true, "secret");
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
-                executorService, "host", connectionFactory, authHelper, requestTracker);
+                EXECUTOR, "host", connectionFactory, authHelper, requestTracker);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelper,
-                executorService, "host", connectionFactory, authHelper);
+                EXECUTOR, "host", connectionFactory, authHelper);
 
-        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
-                new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
-                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
-                new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
-                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
-                new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
+        StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, EXECUTOR),
+                new ScaleOperationTask(streamMetadataTasks, streamStore, EXECUTOR),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
+                new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, EXECUTOR),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, EXECUTOR),
+                new TruncateStreamTask(streamMetadataTasks, streamStore, EXECUTOR),
                 streamStore,
-                executorService);
+                EXECUTOR);
 
-        streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
+        streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, EXECUTOR));
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
 
@@ -173,7 +175,7 @@ public class ControllerGrpcAuthFocusedTest {
                                       streamMetadataTasks,
                                       streamTransactionMetadataTasks,
                                       new SegmentHelper(),
-                                      executorService,
+                        EXECUTOR,
                                       mockCluster),
                 authHelper,
                 requestTracker,
@@ -181,7 +183,7 @@ public class ControllerGrpcAuthFocusedTest {
                 2);
 
         AuthHandler authHandler = new PasswordAuthHandler();
-        ((PasswordAuthHandler) authHandler).initialize(authFile.getAbsolutePath());
+        ((PasswordAuthHandler) authHandler).initialize(AUTH_FILE.getAbsolutePath());
 
         String uniqueServerName = String.format("Test server name: %s", getClass());
         grpcServer = InProcessServerBuilder.forName(uniqueServerName)
@@ -446,19 +448,23 @@ public class ControllerGrpcAuthFocusedTest {
 
 
 
-    private static File createAuthFile() throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
-        File result = File.createTempFile("auth_file", ".txt");
-        StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
+    private static File createAuthFile() {
+        try {
+            File result = File.createTempFile("auth_file", ".txt");
+            StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
 
-        try (FileWriter writer = new FileWriter(result.getAbsolutePath())) {
-            String defaultPassword = passwordEncryptor.encryptPassword("1111_aaaa");
-            writer.write(credentialsAndAclAsString(UserNames.ADMIN,  defaultPassword, "*,READ_UPDATE;"));
-            writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER, defaultPassword, "/,READ"));
-            writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "scope1/stream1,READ_UPDATE"));
-            writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "scope1/stream1,READ"));
-            writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "scope1/stream2,READ"));
+            try (FileWriter writer = new FileWriter(result.getAbsolutePath())) {
+                String defaultPassword = passwordEncryptor.encryptPassword("1111_aaaa");
+                writer.write(credentialsAndAclAsString(UserNames.ADMIN,  defaultPassword, "*,READ_UPDATE;"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER, defaultPassword, "/,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "scope1/stream1,READ_UPDATE"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "scope1/stream1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "scope1/stream2,READ"));
+            }
+            return result;
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new RuntimeException(e);
         }
-        return result;
     }
 
     //endregion
@@ -467,11 +473,11 @@ public class ControllerGrpcAuthFocusedTest {
      * Holds username strings for use in the parent class.
      */
     private static class UserNames {
-        private static String ADMIN = "admin";
-        private static String SCOPE_READER = "scopereader";
-        private static String SCOPE1_STREAM1_READUPDATE = "authSc1Str1";
-        private static String SCOPE1_STREAM1_READ = "authSc1Str1readonly";
-        private static String SCOPE1_STREAM2_READ = "authSc1Str2readonly";
+        private final static String ADMIN = "admin";
+        private final static String SCOPE_READER = "scopereader";
+        private final static String SCOPE1_STREAM1_READUPDATE = "authSc1Str1";
+        private final static String SCOPE1_STREAM1_READ = "authSc1Str1readonly";
+        private final static String SCOPE1_STREAM2_READ = "authSc1Str2readonly";
     }
 }
 
