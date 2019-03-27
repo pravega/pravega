@@ -496,8 +496,8 @@ public class K8sClient {
             Throwable ex = Exceptions.unwrap(t);
             //Incase of an IO Exception the Kubernetes client wraps the IOException within a RuntimeException.
             if (ex.getCause() instanceof IOException) {
-                // IOException might occur due multiple reasons one among them is SocketTimout timeout  exception obseved on long
-                // running pods.
+                // IOException might occur due multiple reasons, one among them is SocketTimeout exception.
+                // This is observed on long running pods.
                 log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
                 return true;
             }
