@@ -56,6 +56,6 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
 
     @Override
     public void close() {
-        executor.shutdown();
+        ExecutorServiceHelpers.shutdown(executor);
     }
 }

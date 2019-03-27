@@ -188,8 +188,8 @@ public class StreamMetaDataAuthFocusedTests {
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
-                                                                                        .controllerURI(URI.create("tcp://localhost"))
-                                                                                        .build());
+                                                                  .controllerURI(URI.create("tcp://localhost"))
+                                                                  .build());
         restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
                 connectionFactory);
         restServer.startAsync();
