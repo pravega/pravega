@@ -47,7 +47,6 @@ import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.TestFrameworkException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -55,7 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -494,30 +492,24 @@ public class K8sClient {
      * @return A future which is complete once the pod completes.
      */
     public CompletableFuture<V1ContainerStateTerminated> waitUntilPodCompletes(final String namespace, final String podName) {
-
-        CompletableFuture<V1ContainerStateTerminated> future = new CompletableFuture<>();
-
-        Retry.RetryAndThrowConditionally retryConfig = retryWithBackoff
-                .retryWhen(t -> {
-                    Throwable ex = Exceptions.unwrap(t);
-                    if (ex.getCause() instanceof IOException && !(ex.getCause() instanceof UnknownHostException)) {
-                        log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
-                        return true;
-                    }
-                    log.error("Exception while fetching status of pod", ex);
-                    future.completeExceptionally(ex);
-                    return false;
-                });
-
-        retryConfig.runInExecutor(() -> {
-            Optional<V1ContainerStateTerminated> state = createAWatchAndReturnOnTermination(namespace, podName);
-            if (state.isPresent()) {
-                future.complete(state.get());
-            } else {
-                throw new RuntimeException("Watch did not return terminated state for pod " + podName);
+        return retryWithBackoff.retryWhen(t -> {
+            Throwable ex = Exceptions.unwrap(t);
+            //Incase of an IO Exception the Kubernetes client wraps the IOException within a RuntimeException.
+            if (ex.getCause() instanceof IOException) {
+                // IOException might occur due multiple reasons one among them is SocketTimout timeout  exception obseved on long
+                // running pods.
+                log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
+                return true;
             }
+            log.error("Exception while fetching status of pod", ex);
+            return false;
+        }).runAsync(() -> {
+            CompletableFuture<V1ContainerStateTerminated> future = new CompletableFuture<>();
+            V1ContainerStateTerminated state = createAWatchAndReturnOnTermination(namespace, podName)
+                    .orElseThrow(() -> new RuntimeException("Watch did not return terminated state for pod " + podName));
+            future.complete(state);
+            return future;
         }, executor);
-        return future;
     }
 
     /**
@@ -619,11 +611,6 @@ public class K8sClient {
                             log.debug("Logs downloaded from pod {} to {}", podName, logFile);
                             return null;
                         } catch (ApiException | IOException e) {
-                            if (e instanceof UnknownHostException) {
-                                // do not retry if an UnknownHostException is observed.
-                                log.debug("UnknownHostException observed, failing download logs.", e.getMessage());
-                                throw new CompletionException("UnknownHostException encountered while downloading the test logs", e);
-                            }
                             log.warn("Retryable error while downloading logs from pod {}. Error message: {} ", podName, e.getMessage());
                             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while downloading logs");
                         }
