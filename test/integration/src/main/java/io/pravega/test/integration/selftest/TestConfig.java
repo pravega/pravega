@@ -18,7 +18,9 @@ import java.net.InetAddress;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
@@ -40,6 +42,10 @@ public class TestConfig {
     static final Property<Integer> PRODUCER_PARALLELISM = Property.named("producerParallelism", 1);
     static final Property<Integer> MIN_APPEND_SIZE = Property.named("minAppendSize", 100);
     static final Property<Integer> MAX_APPEND_SIZE = Property.named("maxAppendSize", 100);
+    static final Property<Boolean> TABLE_CONDITIONAL_UPDATES = Property.named("tableConditionalUpdates", false);
+    static final Property<Integer> TABLE_REMOVE_PERCENTAGE = Property.named("tableRemovePercentage", 10); // 0..100
+    static final Property<Integer> TABLE_NEW_KEY_PERCENTAGE = Property.named("tableNewKeyPercentage", 30); // 0..100
+    static final Property<Integer> TABLE_CONSUMERS_PER_TABLE = Property.named("consumersPerTable", 10);
     static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 80);
     static final Property<Integer> TIMEOUT_MILLIS = Property.named("timeoutMillis", 3000);
     static final Property<String> TEST_TYPE = Property.named("testType", TestType.SegmentStore.toString());
@@ -88,6 +94,14 @@ public class TestConfig {
     private final int minAppendSize;
     @Getter
     private final int maxAppendSize;
+    @Getter
+    private final boolean tableConditionalUpdates;
+    @Getter
+    private final int tableRemovePercentage;
+    @Getter
+    private final int tableNewKeyPercentage;
+    @Getter
+    private final int consumersPerTable;
     @Getter
     private final int threadPoolSize;
     @Getter
@@ -147,6 +161,18 @@ public class TestConfig {
             throw new ConfigurationException(String.format("Property '%s' (%s) must be smaller than '%s' (%s).",
                     MIN_APPEND_SIZE, this.minAppendSize, MAX_APPEND_SIZE, this.maxAppendSize));
         }
+        this.tableConditionalUpdates = properties.getBoolean(TABLE_CONDITIONAL_UPDATES);
+        this.tableRemovePercentage = properties.getInt(TABLE_REMOVE_PERCENTAGE);
+        if (this.tableRemovePercentage < 0 || this.tableRemovePercentage > 100) {
+            throw new ConfigurationException(String.format("Property '%s' must be a value between 0 and 100. Given %s.",
+                    TABLE_REMOVE_PERCENTAGE, this.tableRemovePercentage));
+        }
+        this.tableNewKeyPercentage = properties.getInt(TABLE_NEW_KEY_PERCENTAGE);
+        if (this.tableNewKeyPercentage < 0 || this.tableNewKeyPercentage > 100) {
+            throw new ConfigurationException(String.format("Property '%s' must be a value between 0 and 100. Given %s.",
+                    TABLE_NEW_KEY_PERCENTAGE, this.tableNewKeyPercentage));
+        }
+        this.consumersPerTable = properties.getInt(TABLE_CONSUMERS_PER_TABLE);
         this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
         this.timeout = Duration.ofMillis(properties.getInt(TIMEOUT_MILLIS));
         this.bookieCount = properties.getInt(BOOKIE_COUNT);
@@ -305,12 +331,16 @@ public class TestConfig {
 
     //endregion
 
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     public enum TestType {
-        SegmentStore,
-        InProcessMock,
-        InProcessStore,
-        OutOfProcess,
-        External,
-        BookKeeper
+        SegmentStore(false),
+        SegmentStoreTable(true),
+        InProcessMock(false),
+        InProcessStore(false),
+        OutOfProcess(false),
+        External(false),
+        BookKeeper(false);
+        @Getter
+        private final boolean tablesTest;
     }
 }

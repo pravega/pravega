@@ -10,17 +10,20 @@
 package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.client.tables.impl.IteratorState;
 import io.pravega.client.tables.impl.KeyVersion;
 import io.pravega.client.tables.impl.KeyVersionImpl;
 import io.pravega.client.tables.impl.TableEntry;
 import io.pravega.client.tables.impl.TableEntryImpl;
 import io.pravega.client.tables.impl.TableKey;
 import io.pravega.client.tables.impl.TableKeyImpl;
+import io.pravega.client.tables.impl.TableSegment;
 import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.RequestTag;
@@ -999,8 +1002,10 @@ public class SegmentHelper {
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
                                                                          .map(e -> {
                                                                              WireCommands.TableKey k = e.getKey();
-                                                                             TableKey<byte[]> tableKey = new TableKeyImpl<>(k.getData().array(), new KeyVersionImpl(k.getKeyVersion()));
-                                                                             return new TableEntryImpl<>(tableKey, e.getValue().getData().array());
+                                                                             TableKey<byte[]> tableKey =
+                                                                                     new TableKeyImpl<>(getArray(k.getData()),
+                                                                                                        new KeyVersionImpl(k.getKeyVersion()));
+                                                                             return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
                                                                          }).collect(Collectors.toList());
                 result.complete(tableEntries);
             }
@@ -1033,6 +1038,189 @@ public class SegmentHelper {
         WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
         return result;
+    }
+
+    /**
+     * The method sends a WireCommand to iterate over table keys.
+     * @param scope Stream scope.
+     * @param stream Stream name.
+     * @param suggestedKeyCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
+     * @param state Last known state of the iterator.
+     * @param hostControllerStore Host Controller store.
+     * @param clientCF Client connection factory.
+     * @param delegationToken The token to be presented to the segmentstore.
+     * @param clientRequestId Request id.
+     * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
+     */
+    public CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> readTableKeys(final String scope,
+                                                                                    final String stream,
+                                                                                    final int suggestedKeyCount,
+                                                                                    final IteratorState state,
+                                                                                    final HostControllerStore hostControllerStore,
+                                                                                    final ConnectionFactory clientCF,
+                                                                                    final String delegationToken,
+                                                                                    final long clientRequestId) {
+
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
+        final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
+        final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
+        final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
+
+        final CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> result = new CompletableFuture<>();
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                log.warn(requestId, "readTableKeys {} Connection dropped", qualifiedName);
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn(requestId, "readTableKeys {} wrong host", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                log.warn(requestId, "readTableKeys {} NoSuchSegment", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
+            }
+
+            @Override
+            public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
+                log.info(requestId, "readTableKeys {} successful.", qualifiedName);
+                final IteratorState state = IteratorState.fromBytes(tableKeysRead.getContinuationToken());
+                final List<TableKey<byte[]>> keys =
+                        tableKeysRead.getKeys().stream().map(k -> new TableKeyImpl<>(getArray(k.getData()),
+                                                                                     new KeyVersionImpl(k.getKeyVersion()))).collect(Collectors.toList());
+                result.complete(new TableSegment.IteratorItem<>(state, keys));
+            }
+
+            @Override
+            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
+                log.warn(requestId, "readTableKeys request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                log.error(requestId, "readTableKeys {} failed", qualifiedName, error);
+                result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
+                                                       type, WireCommandFailedException.Reason.AuthFailed));
+            }
+        };
+
+        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, delegationToken, suggestedKeyCount,
+                                                                        token.toBytes());
+        sendRequestAsync(cmd, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        return result;
+    }
+
+
+    /**
+     * The method sends a WireCommand to iterate over table entries.
+     * @param scope Stream scope.
+     * @param stream Stream name.
+     * @param suggestedEntryCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
+     * @param state Last known state of the iterator.
+     * @param hostControllerStore Host Controller store.
+     * @param clientCF Client connection factory.
+     * @param delegationToken The token to be presented to the segmentstore.
+     * @param clientRequestId Request id.
+     * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
+     */
+    public CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> readTableEntries(final String scope,
+                                                                               final String stream,
+                                                                               final int suggestedEntryCount,
+                                                                               final IteratorState state,
+                                                                               final HostControllerStore hostControllerStore,
+                                                                               final ConnectionFactory clientCF,
+                                                                               final String delegationToken,
+                                                                               final long clientRequestId) {
+
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final String qualifiedName = getScopedStreamName(scope, stream);
+        final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
+        final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
+        final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
+
+        final CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
+        final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+                log.warn(requestId, "readTableEntries {} Connection dropped", qualifiedName);
+                result.completeExceptionally(
+                        new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
+            }
+
+            @Override
+            public void wrongHost(WireCommands.WrongHost wrongHost) {
+                log.warn(requestId, "readTableEntries {} wrong host", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
+            }
+
+            @Override
+            public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
+                log.warn(requestId, "readTableEntries {} NoSuchSegment", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
+            }
+
+            @Override
+            public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
+                log.info(requestId, "readTableEntries {} successful.", qualifiedName);
+                final IteratorState state = IteratorState.fromBytes(tableEntriesRead.getContinuationToken());
+                final List<TableEntry<byte[], byte[]>> entries =
+                        tableEntriesRead.getEntries().getEntries().stream()
+                                        .map(e -> {
+                                            WireCommands.TableKey k = e.getKey();
+                                            TableKey<byte[]> tableKey = new TableKeyImpl<>(getArray(k.getData()),
+                                                                                           new KeyVersionImpl(k.getKeyVersion()));
+                                            return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
+                                        }).collect(Collectors.toList());
+                result.complete(new TableSegment.IteratorItem<>(state, entries));
+            }
+
+            @Override
+            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
+                log.warn(requestId, "readTableEntries request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
+                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+                log.error(requestId, "readTableEntries {} failed", qualifiedName, error);
+                result.completeExceptionally(error);
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+                result.completeExceptionally(
+                        new WireCommandFailedException(new AuthenticationException(authTokenCheckFailed.toString()),
+                                                       type, WireCommandFailedException.Reason.AuthFailed));
+            }
+        };
+
+        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, delegationToken,
+                                                                        suggestedEntryCount, token.toBytes());
+        sendRequestAsync(cmd, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        return result;
+    }
+
+    private byte[] getArray(ByteBuf buf) {
+        final byte[] bytes = new byte[buf.readableBytes()];
+        final int readerIndex = buf.readerIndex();
+        buf.getBytes(readerIndex, bytes);
+        return bytes;
     }
 
     private WireCommands.TableKey convertToWireCommand(final TableKey<byte[]> k) {

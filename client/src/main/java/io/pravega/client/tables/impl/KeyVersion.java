@@ -21,7 +21,6 @@ public interface KeyVersion extends Serializable {
     /**
      * A special KeyVersion which indicates the Key must not exist when performing Conditional Updates.
      */
-
     KeyVersion NOT_EXISTS = new KeyVersion() {
         private static final long serialVersionUID = 1L;
 
@@ -47,11 +46,13 @@ public interface KeyVersion extends Serializable {
 
     /**
      * Gets a value representing the internal version inside the Table Segment for this Key.
+     * @return Segment version.
      */
     long getSegmentVersion();
 
     /**
      * Serializes the KeyVersion instance to a compact byte array.
+     * @return byte representation.
      */
     ByteBuffer toBytes();
 

@@ -10,16 +10,18 @@
 
 package io.pravega.shared.metrics;
 
+import io.micrometer.core.instrument.Meter.Id;
+
 /**
  * Defines common methods for a Metric.
  */
 interface Metric extends AutoCloseable {
     /**
-     * Gets name.
+     * Gets Id of metric.
      *
-     * @return the name.
+     * @return the id of metric.
      */
-    String getName();
+    Id getId();
 
     @Override
     void close();

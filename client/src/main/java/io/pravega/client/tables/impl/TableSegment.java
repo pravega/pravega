@@ -33,7 +33,7 @@ import lombok.Data;
  * @param <KeyT>   Table Key Type.
  * @param <ValueT> Table Value Type.
  */
-interface TableSegment<KeyT, ValueT> extends AutoCloseable {
+public interface TableSegment<KeyT, ValueT> extends AutoCloseable {
 
     /**
      * Inserts or updates an existing Table Entry into this Table Segment.

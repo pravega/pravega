@@ -11,7 +11,8 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
@@ -22,11 +23,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.utils.ZKPaths;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
-import java.util.Base64;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -226,6 +225,21 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     }
 
     @Override
+    public CompletableFuture<CreateStreamResponse> createStream(String scope, String name, StreamConfiguration configuration, 
+                                                                long createTimestamp, OperationContext context, Executor executor) {
+        ZKScope zkScope = (ZKScope) getScope(scope);
+        ZKStream zkStream = (ZKStream) getStream(scope, name, context);
+
+        return super.createStream(scope, name, configuration, createTimestamp, context, executor)
+                        .thenCompose(status -> zkScope.getNextStreamPosition()
+                                    .thenCompose(zkStream::createStreamPositionNodeIfAbsent)
+                                    .thenCompose(v -> zkStream.getStreamPosition())
+                                    .thenCompose(id -> zkScope.addStreamToScope(name, id))
+                                                  .thenApply(x -> status));
+
+    }
+
+    @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
                                                         final String streamName) {
         ZKStream stream = newStream(scopeName, streamName);
@@ -276,19 +290,15 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                           });
     }
 
-    private String encodedScopedStreamName(String scope, String stream) {
-        String scopedStreamName = getScopedStreamName(scope, stream);
-        return Base64.getEncoder().encodeToString(scopedStreamName.getBytes());
-    }
-
-    private String decodedScopedStreamName(String encodedScopedStreamName) {
-        return new String(Base64.getDecoder().decode(encodedScopedStreamName));
-    }
-
-    private StreamImpl getStreamFromPath(String path) {
-        String scopedStream = decodedScopedStreamName(ZKPaths.getNodeFromPath(path));
-        String[] splits = scopedStream.split("/");
-        return new StreamImpl(splits[0], splits[1]);
+    @Override
+    public CompletableFuture<Void> deleteStream(String scope, String name, OperationContext context, Executor executor) {
+        ZKScope zkScope = (ZKScope) getScope(scope);
+        ZKStream zkStream = (ZKStream) getStream(scope, name, context);
+        return Futures.exceptionallyExpecting(zkStream.getStreamPosition()
+                .thenCompose(id -> zkScope.removeStreamFromScope(name, id)),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                .thenCompose(v -> super.deleteStream(scope, name, context, executor)); 
+                
     }
 
     // region getters and setters for testing
