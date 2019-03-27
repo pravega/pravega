@@ -186,6 +186,10 @@ public class ControllerGrpcAuthFocusedTest {
         ((PasswordAuthHandler) authHandler).initialize(AUTH_FILE.getAbsolutePath());
 
         String uniqueServerName = String.format("Test server name: %s", getClass());
+
+        // Using a builder that creates a server for servicing in-process requests.
+        // Also, using a direct executor which executes app code directly in transport thread. See
+        // https://grpc.io/grpc-java/javadoc/io/grpc/inprocess/InProcessServerBuilder.html for more information.
         grpcServer = InProcessServerBuilder.forName(uniqueServerName)
                 .addService(ServerInterceptors.intercept(controllerServiceImplBase,
                         new PravegaInterceptor(authHandler)))
@@ -203,7 +207,6 @@ public class ControllerGrpcAuthFocusedTest {
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
         }
-
         inProcessChannel.shutdownNow();
         grpcServer.shutdownNow();
     }
@@ -382,7 +385,6 @@ public class ControllerGrpcAuthFocusedTest {
         return response.getTxnId();
     }
 
-
     private SegmentId segmentId(String scope, String stream, long segmentId) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(scope, "stream");
@@ -391,7 +393,6 @@ public class ControllerGrpcAuthFocusedTest {
                 .setSegmentId(segmentId)
                 .build();
     }
-
 
     private ControllerServiceBlockingStub prepareCallStub(String username, String password) {
         Exceptions.checkNotNullOrEmpty(username, "username");
@@ -408,7 +409,6 @@ public class ControllerGrpcAuthFocusedTest {
         }
         return stub;
     }
-
 
     private ScalingPolicy prepareFromFixedScaleTypePolicy(int numSegments) {
         return ScalingPolicy.newBuilder()
@@ -434,7 +434,6 @@ public class ControllerGrpcAuthFocusedTest {
         createScopeAndStream(scope, streamConfig);
     }
 
-
     private void createScopeAndStream(String scope, StreamConfig streamConfig) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Preconditions.checkNotNull(streamConfig, "streamConfig");
@@ -444,9 +443,6 @@ public class ControllerGrpcAuthFocusedTest {
         stub.createScope(Controller.ScopeInfo.newBuilder().setScope(scope).build());
         stub.createStream(streamConfig);
     }
-
-
-
 
     private static File createAuthFile() {
         try {
@@ -480,5 +476,3 @@ public class ControllerGrpcAuthFocusedTest {
         private final static String SCOPE1_STREAM2_READ = "authSc1Str2readonly";
     }
 }
-
-
