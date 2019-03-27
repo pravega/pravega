@@ -108,7 +108,7 @@ public class PasswordAuthHandler implements AuthHandler {
      *                     by this instance.
      */
     @VisibleForTesting
-    public void initialize(String passwordFile) {
+    void initialize(String passwordFile) {
         loadPasswordFile(passwordFile);
     }
 
