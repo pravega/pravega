@@ -186,7 +186,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream()),
-                AuthHandler.Permissions.READ),
+                AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream())
                                        .thenApply(segments -> {
