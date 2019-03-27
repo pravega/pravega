@@ -236,6 +236,18 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the ability to retrieve and/or iterate over entries during compaction (when entries were moved and their
+     * original location was truncated out).
+     */
+    @Test
+    public void testTableSegmentCompacted() {
+        // TODO: implement this
+        // Batch update a number of entries and wait to persist.
+        // Force-compact.
+        // Execute an iterator, get() and conditional update over compacted entries and verify they still work.
+    }
+
+    /**
      * Tests the ability to resume operations after a recovery event. Scenarios include:
      * - Index is up-to-date ({@link TableAttributes#INDEX_OFFSET} equals Segment.Length.
      * - Index is not up-to-date ({@link TableAttributes#INDEX_OFFSET} is less than Segment.Length.

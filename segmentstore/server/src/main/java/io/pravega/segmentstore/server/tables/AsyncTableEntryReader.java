@@ -24,11 +24,14 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
@@ -55,7 +58,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
     //endregion
 
-    //region Constructor
+    //region Constructor and Static Methods
 
     /**
      * Creates a new instance of the AsyncTableEntryReader class.
@@ -103,6 +106,25 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         return new KeyReader(keyVersion, serializer, timer);
     }
 
+    /**
+     * Reads a single {@link TableEntry} from the given InputStream. The {@link TableEntry} itself is not constructed,
+     * rather all of its components are returned individually.
+     *
+     * @param input         An InputStream to read from.
+     * @param segmentOffset The Segment Offset that the first byte of the InputStream maps to. This wll be used as a Version,
+     *                      unless the deserialized segment's Header contains an explicit version.
+     * @param serializer    The {@link EntrySerializer} to ues for deserializing entries.
+     * @return A {@link DeserializedEntry} that contains all the components of the {@link TableEntry}.
+     * @throws IOException If an Exception occurred while reading from the given InputStream.
+     */
+    static DeserializedEntry readEntryComponents(InputStream input, long segmentOffset, EntrySerializer serializer) throws IOException {
+        val h = serializer.readHeader(input);
+        long version = getKeyVersion(h, segmentOffset);
+        byte[] key = StreamHelpers.readAll(input, h.getKeyLength());
+        byte[] value = h.isDeletion() ? null : h.getValueLength() == 0 ? new byte[0] : StreamHelpers.readAll(input, h.getValueLength());
+        return new DeserializedEntry(h, version, key, value);
+    }
+
     //endregion
 
     //region Internal Operations
@@ -123,8 +145,12 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         this.result.complete(result);
     }
 
+    private static long getKeyVersion(EntrySerializer.Header header, long segmentOffset) {
+        return header.getEntryVersion() == TableKey.NO_VERSION ? segmentOffset : header.getEntryVersion();
+    }
+
     protected long getKeyVersion() {
-        return this.header.getEntryVersion() == TableKey.NO_VERSION ? this.keyVersion : this.header.getEntryVersion();
+        return getKeyVersion(this.header, this.keyVersion);
     }
 
     //endregion
@@ -302,4 +328,13 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     }
 
     //endregion
+
+    @Getter
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    public static class DeserializedEntry {
+        private final EntrySerializer.Header header;
+        private final long version;
+        private final byte[] key;
+        private final byte[] value;
+    }
 }

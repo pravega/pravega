@@ -23,9 +23,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +43,7 @@ abstract class TableBucketReader<ResultT> {
     protected final EntrySerializer serializer = new EntrySerializer();
     private final DirectSegmentAccess segment;
     private final GetBackpointer getBackpointer;
-    private final ScheduledExecutorService executor;
+    private final Executor executor;
 
     //endregion
 
@@ -59,7 +59,7 @@ abstract class TableBucketReader<ResultT> {
      * @return A new instance of the {@link TableBucketReader} class.
      */
     static TableBucketReader<TableEntry> entry(@NonNull DirectSegmentAccess segment,
-                                               @NonNull GetBackpointer getBackpointer, @NonNull ScheduledExecutorService executor) {
+                                               @NonNull GetBackpointer getBackpointer, @NonNull Executor executor) {
         return new TableBucketReader.Entry(segment, getBackpointer, executor);
     }
 
@@ -73,7 +73,7 @@ abstract class TableBucketReader<ResultT> {
      * @return A new instance of the {@link TableBucketReader} class.
      */
     static TableBucketReader<TableKey> key(@NonNull DirectSegmentAccess segment,
-                                           @NonNull GetBackpointer getBackpointer, @NonNull ScheduledExecutorService executor) {
+                                           @NonNull GetBackpointer getBackpointer, @NonNull Executor executor) {
         return new TableBucketReader.Key(segment, getBackpointer, executor);
     }
 
@@ -94,7 +94,7 @@ abstract class TableBucketReader<ResultT> {
 
         // This handler ensures that items are only added once (per key) and only if they are not deleted. Since the items
         // are processed in descending version order, the first time we encounter its key is its latest value.
-        Consumer<ResultT> handler = item -> {
+        BiConsumer<ResultT, Long> handler = (item, offset) -> {
             TableKey key = getKey(item);
             HashedArray indexedKey = new HashedArray(key.getKey());
             if (!result.containsKey(indexedKey)) {
@@ -109,12 +109,13 @@ abstract class TableBucketReader<ResultT> {
      * Locates all {@link ResultT} instances in a TableBucket.
      *
      * @param bucketOffset The current segment offset of the Table Bucket we are looking into.
-     * @param handler      A {@link Consumer} that will be invoked every time a {@link ResultT} is fetched. This will not
-     *                     be invoked for any {@link ResultT} item that is marked as deleted.
+     * @param handler      A {@link BiConsumer} that will be invoked every time a {@link ResultT} is fetched. This will not
+     *                     be invoked for any {@link ResultT} item that is marked as deleted. The second argument indicates
+     *                     the Segment Offset where the given item resides.
      * @param timer        A {@link TimeoutTimer} for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation completed.
      */
-    CompletableFuture<Void> findAll(long bucketOffset, Consumer<ResultT> handler, TimeoutTimer timer) {
+    CompletableFuture<Void> findAll(long bucketOffset, BiConsumer<ResultT, Long> handler, TimeoutTimer timer) {
         AtomicLong offset = new AtomicLong(bucketOffset);
         return Futures.loop(
                 () -> offset.get() >= 0,
@@ -126,7 +127,7 @@ abstract class TableBucketReader<ResultT> {
                     return reader.getResult()
                             .thenComposeAsync(entryResult -> {
                                 // Record the entry, but only if we haven't processed its Key before and only if it exists.
-                                handler.accept(entryResult);
+                                handler.accept(entryResult, offset.get());
 
                                 // Get the next Key Location for this bucket.
                                 return this.getBackpointer.apply(segment, offset.get(), timer.getRemaining());
@@ -221,7 +222,7 @@ abstract class TableBucketReader<ResultT> {
      * {@link TableBucketReader} implementation that can read {@link TableEntry} instances.
      */
     private static class Entry extends TableBucketReader<TableEntry> {
-        private Entry(DirectSegmentAccess segment, GetBackpointer getBackpointer, ScheduledExecutorService executor) {
+        private Entry(DirectSegmentAccess segment, GetBackpointer getBackpointer, Executor executor) {
             super(segment, getBackpointer, executor);
         }
 
@@ -263,7 +264,7 @@ abstract class TableBucketReader<ResultT> {
      * {@link TableBucketReader} implementation that can read {@link TableKey} instances.
      */
     private static class Key extends TableBucketReader<TableKey> {
-        private Key(DirectSegmentAccess segment, GetBackpointer getBackpointer, ScheduledExecutorService executor) {
+        private Key(DirectSegmentAccess segment, GetBackpointer getBackpointer, Executor executor) {
             super(segment, getBackpointer, executor);
         }
 

@@ -14,7 +14,6 @@ import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -46,7 +45,6 @@ import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.commons.io.IOUtils;
 
 /**
  * A {@link WriterSegmentProcessor} that handles the asynchronous indexing of Table Entries.
@@ -162,18 +160,14 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     public CompletableFuture<WriterFlushResult> flush(Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.connector.getSegment(timer.getRemaining())
-                .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer), this.executor)
-                .thenApply(lastIndexedOffset -> {
-                    // We're done processing. Reset the aggregator.
-                    this.aggregator.reset();
-
-                    // Update the Last Indexed Offset and then notify the connector.
-                    this.aggregator.setLastIndexedOffset(lastIndexedOffset);
-                    this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
-                    log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
-                    return new WriterFlushResult();
-                });
+        return this.connector
+                .getSegment(timer.getRemaining())
+                .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer)
+                        .thenAccept(this::flushComplete)
+                        .thenComposeAsync(ignored ->
+                                TableCompactor.compactIfNeeded(segment, this.connector, this.indexWriter,
+                                        this.executor, timer.getRemaining()), this.executor), this.executor)
+                .thenApply(v -> new WriterFlushResult());
     }
 
     @Override
@@ -216,6 +210,18 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                     reconcileTableIndexOffset();
                     return flushOnce(segment, timer);
                 });
+    }
+
+    /**
+     * Updates the internal state post flush and notifies the {@link TableWriterConnector} of the fact.
+     *
+     * @param lastIndexedOffset The last offset in the Table Segment that was indexed.
+     */
+    private void flushComplete(long lastIndexedOffset) {
+        this.aggregator.reset();
+        this.aggregator.setLastIndexedOffset(lastIndexedOffset);
+        this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
+        log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
     }
 
     /**
@@ -310,18 +316,12 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      */
     private int indexSingleKey(InputStream input, long entryOffset, KeyUpdateCollection keyUpdateCollection) throws IOException {
         // Retrieve the next entry, get its Key and hash it.
-        EntrySerializer.Header h = this.connector.getSerializer().readHeader(input);
-        HashedArray key = new HashedArray(StreamHelpers.readAll(input, h.getKeyLength()));
+        val e = AsyncTableEntryReader.readEntryComponents(input, entryOffset, this.connector.getSerializer());
+        HashedArray key = new HashedArray(e.getKey());
 
         // Index the Key. If it was used before, it must have had a lower offset, so this supersedes it.
-        keyUpdateCollection.add(new BucketUpdate.KeyUpdate(key, entryOffset, h.isDeletion()), h.getTotalLength());
-
-        // We don't care about the value; so skip over it.
-        if (h.getValueLength() > 0) {
-            IOUtils.skipFully(input, h.getValueLength());
-        }
-
-        return h.getTotalLength();
+        keyUpdateCollection.add(new BucketUpdate.KeyUpdate(key, entryOffset, e.getHeader().isDeletion()), e.getHeader().getTotalLength());
+        return e.getHeader().getTotalLength();
     }
 
     /**
@@ -383,7 +383,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         return TableBucketReader
                 .key(segment, this.indexWriter::getBackpointerOffset, this.executor)
                 .findAll(bucketUpdate.getBucket().getSegmentOffset(),
-                        k -> bucketUpdate.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(k.getKey()), k.getVersion())),
+                        (k, o) -> bucketUpdate.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(k.getKey()), o)),
                         timer);
 
     }
