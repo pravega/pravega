@@ -596,7 +596,7 @@ public class K8sClient {
         return Retry.withExpBackoff(LOG_DOWNLOAD_INIT_DELAY_MS, 10, LOG_DOWNLOAD_RETRY_COUNT, RETRY_MAX_DELAY_MS)
                     .retryingOn(TestFrameworkException.class)
                     .throwingOn(RuntimeException.class)
-                    .runAsync(() -> {
+                    .runInExecutor(() -> {
                         final String podName = fromPod.getMetadata().getName();
                         log.debug("Download logs from pod {}", podName);
                         try {
@@ -609,7 +609,6 @@ public class K8sClient {
                             String logFile = toFile + "-" + retryCount.incrementAndGet() + ".log";
                             Files.copy(logStream, Paths.get(logFile));
                             log.debug("Logs downloaded from pod {} to {}", podName, logFile);
-                            return null;
                         } catch (ApiException | IOException e) {
                             log.warn("Retryable error while downloading logs from pod {}. Error message: {} ", podName, e.getMessage());
                             throw new TestFrameworkException(TestFrameworkException.Type.RequestFailed, "Error while downloading logs");
