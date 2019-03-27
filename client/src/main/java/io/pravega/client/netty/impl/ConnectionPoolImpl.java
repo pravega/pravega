@@ -94,26 +94,22 @@ public class ConnectionPoolImpl implements ConnectionPool {
     @Override
     @Synchronized
     public CompletableFuture<ClientConnection> getClientConnection(Session session, PravegaNodeUri location, ReplyProcessor rp) {
-        /*
-           - Check if a sessionHandler already exists for a location.
-           - Check if number of sessionHandlers for a location equals max number of connections.
-           - if ( not then establish a connection)
-           - create a session out of the session handler.
-           - if the session terminates clientConnection close is invoked which is internally might or might not close the connection.
-         */
-
-        ConnectionSummaryStats stats = connectionList.stream().collect(collectorStats);
+        // Fetch the Connection related stats.
+        ConnectionSummaryStats stats = connectionList.parallelStream().collect(collectorStats);
+        // Choose the connection with the least number of sessions.
         Optional<Connection> suggestedConnection = stats.getConnectionWithMinimumSession(location);
 
         final Connection connection;
-        if (suggestedConnection.isPresent()) {
+        if (suggestedConnection.isPresent() && stats.getConnectionCount(location) == clientConfig.getMaxConnectionPerSegmentStore()) {
+            // reuse the connection.
             Connection oldConnection = suggestedConnection.get();
             connectionList.remove(oldConnection);
             connection = new Connection(oldConnection.getUri(), oldConnection.getSessionHandler(), oldConnection.getWriterCount(), oldConnection.getReaderCount(),
                                         oldConnection.getSessionCount() + 1);
         } else {
+            // create a new connection.
             CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
-            connection = new Connection(location, sessionHandlerFuture, 0, 0, 0);
+            connection = new Connection(location, sessionHandlerFuture, 0, 0, 1);
         }
         connectionList.add(connection);
 
@@ -145,6 +141,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         }
         AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
         SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
+        // TODO: we can reuse the Bootstrap instance, instead of creating a new one.
         Bootstrap b = new Bootstrap();
 
         ChannelInitializer<SocketChannel> channelInitializer = new ChannelInitializer<SocketChannel>() {

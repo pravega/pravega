@@ -59,6 +59,9 @@ public class ClientConfig implements Serializable {
      */
     private boolean validateHostName;
 
+    /**
+     * Maximum number of connections per Segment store.
+     */
     private int maxConnectionPerSegmentStore;
 
     public boolean isEnableTls() {
@@ -91,7 +94,7 @@ public class ClientConfig implements Serializable {
 
         private boolean validateHostName = true;
 
-        private int maxConnectionsPerSegmentStore = 2;
+        private int maxConnectionPerSegmentStore = 1;
 
         public ClientConfig build() {
             if (controllerURI == null) {
@@ -101,7 +104,7 @@ public class ClientConfig implements Serializable {
             if (credentials == null) {
                 log.warn("The credentials are not specified or could not be extracted.");
             }
-            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore);
+            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionPerSegmentStore);
         }
 
         /**
