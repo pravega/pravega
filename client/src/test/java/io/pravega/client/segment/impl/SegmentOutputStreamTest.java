@@ -561,13 +561,19 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         //Verify behavior
         AssertExtensions.assertBlocks(() -> {
             output.close();
-        }, () -> {            
+        }, () -> {
+            // close is unblocked once the connection is setup and data is appended on Segment store.
             cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
-            inOrder.verify(connection).send(new WireCommands.KeepAlive());
-            inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-            inOrder.verify(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
             cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0));
         });
+        // Verify the order of WireCommands sent.
+        inOrder.verify(connection).send(new WireCommands.KeepAlive());
+        // Two SetupAppend WireCommands are sent since the connection is dropped right after the first KeepAlive WireCommand is sent.
+        // The second SetupAppend WireCommand is sent while trying to re-establish connection.
+        inOrder.verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        // Ensure the pending append is sent over the connection. The exact verification of the append data is performed while setting up
+        // the when clause of setting up append.
+        inOrder.verify(connection).sendAsync(Mockito.anyList(), Mockito.any());
         inOrder.verify(connection).close();
         assertEquals(true, acked.isDone());
         inOrder.verifyNoMoreInteractions();
