@@ -223,7 +223,7 @@ class EntrySerializer {
      */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     static class Header {
-        private final byte version;
+        private final byte serializationVersion;
         @Getter
         private final int keyLength;
         @Getter

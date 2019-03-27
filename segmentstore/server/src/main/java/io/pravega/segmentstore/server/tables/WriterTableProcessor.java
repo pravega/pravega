@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
+import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
@@ -60,6 +61,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private final AtomicLong lastAddedOffset;
     private final AtomicBoolean closed;
     private final String traceObjectId;
+    private final TableCompactor compactor;
 
     //endregion
 
@@ -79,6 +81,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         this.lastAddedOffset = new AtomicLong(-1);
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableProcessor[%d-%d]", this.connector.getMetadata().getContainerId(), this.connector.getMetadata().getId());
+        this.compactor = new TableCompactor(connector, this.indexWriter, this.executor);
     }
 
     //endregion
@@ -163,10 +166,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         return this.connector
                 .getSegment(timer.getRemaining())
                 .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer)
-                        .thenAccept(this::flushComplete)
-                        .thenComposeAsync(ignored ->
-                                TableCompactor.compactIfNeeded(segment, this.connector, this.indexWriter,
-                                        this.executor, timer.getRemaining()), this.executor), this.executor)
+                                .thenAccept(this::flushComplete)
+                                .thenComposeAsync(ignored -> compactIfNeeded(segment, timer), this.executor),
+                        this.executor)
                 .thenApply(v -> new WriterFlushResult());
     }
 
@@ -184,6 +186,18 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     //endregion
 
     //region Helpers
+
+    private CompletableFuture<TableCompactor.CompactionResult> compactIfNeeded(DirectSegmentAccess segment, TimeoutTimer timer) {
+        // Decide if compaction is needed. If not, bail out early.
+        SegmentProperties info = segment.getInfo();
+        if (!this.compactor.isCompactionRequired(info)) {
+            log.debug("{}: No compaction required at this time.");
+            return CompletableFuture.completedFuture(null);
+        }
+
+        // TODO: collect last compacted offset and "max-version(TBD)" from flush to truncate segment.
+        return this.compactor.compact(segment, timer);
+    }
 
     /**
      * Performs a flush attempt, and retries it in case it failed with {@link BadAttributeUpdateException} for the

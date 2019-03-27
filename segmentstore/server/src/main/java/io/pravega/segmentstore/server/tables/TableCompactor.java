@@ -9,29 +9,36 @@
  */
 package io.pravega.segmentstore.server.tables;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.HashedArray;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -48,67 +55,103 @@ class TableCompactor {
     private static final int MAX_READ_LENGTH = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
 
     @NonNull
-    private final DirectSegmentAccess segment;
+    private final TableWriterConnector connector;
     @NonNull
-    private final KeyHasher hasher;
-    @NonNull
-    private final EntrySerializer serializer;
-    @NonNull
-    private final IndexWriter indexWriter;
+    private final IndexReader indexReader;
     @NonNull
     private final Executor executor;
-    @NonNull
-    private final String traceObjectId;
 
-    static CompletableFuture<Void> compactIfNeeded(DirectSegmentAccess segment, TableWriterConnector connector,
-                                                   IndexWriter indexWriter, Executor executor, Duration timeout) {
-        // Decide if compaction is needed. If not, bail out early.
-        SegmentState state = new SegmentState(segment.getInfo());
-        long startOffset = Math.max(state.compactionOffset, state.startOffset);
-        int maxLength = (int) Math.min(MAX_READ_LENGTH, state.lastIndexOffset - startOffset);
-        if (state.utilization >= state.utilizationThreshold || maxLength <= 0) {
-            // TODO: log.debug().
-            return CompletableFuture.completedFuture(null);
+    /**
+     * Determines if Table Compaction is required on a Table Segment.
+     *
+     * @param info The {@link SegmentProperties} associated with the Table Segment to inquire about.
+     * @return True if compaction is required, false otherwise.
+     */
+    boolean isCompactionRequired(SegmentProperties info) {
+        long startOffset = getCompactionStartOffset(info);
+        long lastIndexOffset = this.indexReader.getLastIndexedOffset(info);
+        if (startOffset >= lastIndexOffset) {
+            // Either nothing was indexed or compaction has already reached the indexed limit.
+            return false;
         }
 
-        String traceObjectId = String.format("TableCompactor[%d-%d]", connector.getMetadata().getContainerId(), connector.getMetadata().getId());
-        TableCompactor c = new TableCompactor(segment, connector.getKeyHasher(), connector.getSerializer(), indexWriter, executor, traceObjectId);
-        return c.compactOnce(startOffset, maxLength, timeout);
+        long totalEntryCount = this.indexReader.getTotalEntryCount(info);
+        long entryCount = this.indexReader.getEntryCount(info);
+        long utilization = totalEntryCount == 0 ? 0 : MathHelpers.minMax(Math.round(100.0 * entryCount / totalEntryCount), 0, 100);
+        long utilizationThreshold = (int) MathHelpers.minMax(this.indexReader.getCompactionUtilizationThreshold(info), 0, 100);
+        return utilization < utilizationThreshold;
     }
 
-    @VisibleForTesting
-    CompletableFuture<Void> compactOnce(long startOffset, int maxLength, Duration timeout) {
-        Preconditions.checkArgument(startOffset >= 0, "startOffset must be a non-negative number.");
-        Preconditions.checkArgument(maxLength > 0, "maxLength must be a positive number.");
+    /**
+     * Performs a compaction of a Table Segment. Refer to this class' Javadoc for a description of the compaction process.
+     *
+     * @param segment A {@link DirectSegmentAccess} providing access to the Table Segment to compact.
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain a {@link CompactionResult} summarizing the changes
+     * performed. When this future completes, the some of the Segment's Table Attributes may change to reflect the
+     * modifications to the Segment and/or compaction progress.
+     */
+    CompletableFuture<CompactionResult> compact(@NonNull DirectSegmentAccess segment, TimeoutTimer timer) {
+        SegmentProperties info = segment.getInfo();
+        long startOffset = getCompactionStartOffset(info);
+        int maxLength = (int) MathHelpers.minMax(0, MAX_READ_LENGTH, this.indexReader.getLastIndexedOffset(info) - startOffset);
+        if (startOffset < 0 || maxLength < 0) {
+            return Futures.failedFuture(new DataCorruptionException(String.format(
+                    "Segment[%s] (%s) has CompactionStartOffset=%s and CompactionLength=%s.", segment.getSegmentId(), info.getName(),
+                    startOffset, maxLength)));
+        } else if (maxLength == 0) {
+            // Nothing to do.
+            return CompletableFuture.completedFuture(new CompactionResult(0, startOffset));
+        }
 
         // Read the Table Entries beginning at the specified offset, without exceeding the given maximum length.
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return readEntriesFromSegment(this.segment, startOffset, maxLength, timer)
-                .thenComposeAsync(candidates -> excludeObsolete(candidates, timer), this.executor)
-                .thenComposeAsync(candidates -> moveCandidates(candidates, timer), this.executor);
+        return readCandidates(segment, startOffset, maxLength, timer)
+                .thenComposeAsync(candidates -> this.indexReader
+                                .locateBuckets(segment, candidates.candidates.keySet(), timer)
+                                .thenComposeAsync(buckets -> excludeObsolete(segment, candidates, buckets, timer), this.executor)
+                                .thenComposeAsync(v -> moveCandidates(segment, candidates, timer), this.executor),
+                        this.executor);
     }
 
-    private CompletableFuture<CandidateCollection> readEntriesFromSegment(DirectSegmentAccess segment, long startOffset, int maxLength, TimeoutTimer timer) {
+    /**
+     * Reads a set of compaction candidates from the Segment and generates a {@link Args} with them grouped
+     * by their Key Hash.
+     *
+     * @param segment     The Segment to read from.
+     * @param startOffset The offset to start reading from.
+     * @param maxLength   The maximum number of bytes to read. The actual number of bytes read will be at most this, since
+     *                    we can only read whole Table Entries.
+     * @param timer       Timer for the operation.
+     * @return A CompletableFuture that, when completed, will contain a {@link Args} with the result.
+     */
+    private CompletableFuture<Args> readCandidates(DirectSegmentAccess segment, long startOffset, int maxLength, TimeoutTimer timer) {
         ReadResult rr = segment.read(startOffset, maxLength, timer.getRemaining());
         return AsyncReadResultProcessor.processAll(rr, this.executor, timer.getRemaining())
                 .thenApply(inputStream -> parseEntries(inputStream, startOffset));
     }
 
+    // TODO: continue writing Javadoc from here; re-examine logic and make sure segment offsets and versions are not confused.
     @SneakyThrows(IOException.class)
-    private CandidateCollection parseEntries(InputStream input, long startOffset) {
-        val entries = new HashMap<UUID, List<Candidate>>();
+    private Args parseEntries(InputStream input, long startOffset) {
+        val entries = new HashMap<UUID, CandidateSet>();
+        int count = 0;
         long nextOffset = startOffset;
         try {
             while (true) {
-                val e = AsyncTableEntryReader.readEntryComponents(input, nextOffset, this.serializer);
+                val e = AsyncTableEntryReader.readEntryComponents(input, nextOffset, this.connector.getSerializer());
                 if (!e.getHeader().isDeletion()) {
                     // We only care about updates, and not removals.
-                    val hash = this.hasher.hash(e.getKey());
-                    List<Candidate> candidateList = entries.computeIfAbsent(hash, h -> new ArrayList<>());
+                    val hash = this.connector.getKeyHasher().hash(e.getKey());
+                    CandidateSet candidateList = entries.computeIfAbsent(hash, h -> new CandidateSet());
                     candidateList.add(new Candidate(nextOffset,
                             TableEntry.versioned(new ByteArraySegment(e.getKey()), new ByteArraySegment(e.getValue()), e.getVersion())));
                 }
 
+                // Every entry, even if a deletion, must be counted, as we will need to adjust the Segment's TOTAL_ENTRY_COUNT
+                // attribute at the end.
+                count++;
+
+                // Update the offset to the beginning of the next entry.
                 nextOffset += e.getHeader().getTotalLength();
             }
         } catch (EOFException ex) {
@@ -118,91 +161,142 @@ class TableCompactor {
             input.close();
         }
 
-        return new CandidateCollection(startOffset, nextOffset, entries);
+        return new Args(startOffset, nextOffset, count, entries);
     }
 
-    private CompletableFuture<CandidateCollection> excludeObsolete(CandidateCollection candidates, TimeoutTimer timer) {
-        return this.indexWriter.locateBuckets(this.segment, candidates.candidates.keySet(), timer)
-                .thenComposeAsync(buckets -> excludeObsolete(candidates, buckets, timer), this.executor);
-    }
-
-    private CompletableFuture<CandidateCollection> excludeObsolete(CandidateCollection candidates, Map<UUID, TableBucket> buckets, TimeoutTimer timer) {
+    private CompletableFuture<Void> excludeObsolete(DirectSegmentAccess segment, Args candidates,
+                                                    Map<UUID, TableBucket> buckets, TimeoutTimer timer) {
         // Exclude all those Table Entries whose buckets altogether do not exist.
-        val deletedBuckets = new ArrayList<UUID>();
-        for (val keyHash : candidates.candidates.keySet()) {
-            val bucket = buckets.get(keyHash);
+        val toDelete = new ArrayList<UUID>();
+        for (val hash : candidates.candidates.keySet()) {
+            val bucket = buckets.get(hash);
             if (bucket == null || !bucket.exists()) {
-                deletedBuckets.add(keyHash);
+                toDelete.add(hash);
             }
         }
 
-        deletedBuckets.forEach(candidates.candidates::remove);
+        toDelete.forEach(candidates.candidates::remove);
 
         // For every Bucket that still exists, find all its Keys and match with our candidates.
         // - If a candidate exists with higher version/offset, exclude it.
         // - If a candidate in the index at the current offset, keep it, but remember any backpointers pointing at/from it.
-        // TODO: fix method below and handler. See TODO file.
-        val br = TableBucketReader.key(this.segment, this.indexWriter::getBackpointerOffset, this.executor);
+        val br = TableBucketReader.key(segment, this.indexReader::getBackpointerOffset, this.executor);
         return Futures.loop(
                 candidates.candidates.entrySet(),
-                e -> br.findAll(buckets.get(e.getKey()).getSegmentOffset(), null, timer).thenApply(v -> true),
-                this.executor)
-                .thenApply(ignored -> candidates);
+                e -> {
+                    long bucketOffset = buckets.get(e.getKey()).getSegmentOffset();
+                    BiConsumer<TableKey, Long> handler = (key, offset) -> e.getValue().removeAnyWithLowerOffset(key, offset);
+                    return br.findAll(bucketOffset, handler, timer).thenApply(v -> true);
+                },
+                this.executor);
     }
 
-    private CompletableFuture<Void> moveCandidates(CandidateCollection candidateCollection, TimeoutTimer timer) {
-        // 3.1. Perform a Segment Append with re-serialized entries (Explicit versions) and atomic Index Updates.
-        // 3.2. Update Table Attributes and Truncate at the latest offset
-        // TODO: See TODO file.
-        return null;
+    private CompletableFuture<CompactionResult> moveCandidates(DirectSegmentAccess segment, Args candidates, TimeoutTimer timer) {
+        // Collect all the candidates for copying and order them by their version.
+        val toWrite = new ArrayList<TableEntry>();
+        int totalLength = 0;
+        for (val list : candidates.candidates.values()) {
+            for (val c : list.getAll()) {
+                toWrite.add(c.entry);
+                totalLength += this.connector.getSerializer().getUpdateLength(c.entry);
+            }
+        }
+
+        CompactionResult result = new CompactionResult(toWrite.size(), candidates.endOffset);
+        val attributes = generateAttributeUpdates(candidates);
+        if (totalLength == 0) {
+            // Nothing to do; update the necessary segment attributes.
+            return segment.updateAttributes(attributes, timer.getRemaining()).thenApply(ignored -> result);
+        }
+
+        // Perform a Segment Append with re-serialized entries (Explicit versions), and atomically update the necessary
+        // segment attributes.
+        byte[] appendData = new byte[totalLength];
+        toWrite.sort(Comparator.comparingLong(c -> c.getKey().getVersion()));
+        this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite, appendData);
+        return segment.append(appendData, attributes, timer.getRemaining()).thenApply(ignored -> result);
+    }
+
+    /**
+     * Generates a Collection of {@link AttributeUpdate}s that will be applied to the Segment at the end of each compaction.
+     * The following {@link TableAttributes} are modified:
+     * - {@link TableAttributes#COMPACTION_OFFSET}: update to where we finished, so that the next compaction can resume
+     * from there.
+     * - {@link TableAttributes#TOTAL_ENTRY_COUNT}: reduce by the total number of candidates we encountered (including
+     * obsoletes, deletions and those that will be moved); the {@link IndexWriter} will update this back when reindexing
+     * the moved Table Entries.
+     * - {@link TableAttributes#ENTRY_COUNT}: this is not modified - it keeps track of how many Table Entries are active
+     * (there's an index entry for them); the IndexWriter will update it as appropriate based on the state of the Index
+     * at the time the moved Table Entries will be reindexed.
+     *
+     * @param candidates The Candidates for compaction.
+     * @return The result.
+     */
+    private Collection<AttributeUpdate> generateAttributeUpdates(Args candidates) {
+        return Arrays.asList(
+                new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.ReplaceIfEquals, candidates.endOffset, candidates.startOffset),
+                new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, -candidates.count));
+    }
+
+    private long getCompactionStartOffset(SegmentProperties info) {
+        return Math.max(this.indexReader.getCompactionOffset(info), info.getStartOffset());
     }
 
     @RequiredArgsConstructor
-    private static class CandidateCollection {
+    private static class Args {
         final long startOffset;
         final long endOffset;
-        final Map<UUID, List<Candidate>> candidates;
+        final int count;
+        final Map<UUID, CandidateSet> candidates;
+    }
+
+    private static class CandidateSet {
+        final Map<HashedArray, Candidate> byKey = new HashMap<>();
+
+        void add(Candidate c) {
+            val key = new HashedArray(c.entry.getKey().getKey());
+            val existing = this.byKey.get(key);
+            if (existing == null || existing.entry.getKey().getVersion() < c.entry.getKey().getVersion()) {
+                // Either first time seeing this key or we saw it before with a smaller version - use this one.
+                this.byKey.put(key, c);
+            }
+        }
+
+        void removeAnyWithLowerOffset(TableKey existingKey, long existingKeyOffset) {
+            val key = new HashedArray(existingKey.getKey());
+            val c = this.byKey.get(key);
+            if (c != null && c.segmentOffset < existingKeyOffset) {
+                this.byKey.remove(key);
+            }
+        }
+
+        Collection<Candidate> getAll() {
+            return this.byKey.values();
+        }
     }
 
     @RequiredArgsConstructor
     private static class Candidate {
-        final long offset;
+        final long segmentOffset;
         final TableEntry entry;
     }
 
-    //region SegmentState
-
-    @RequiredArgsConstructor
-    private static class SegmentState {
-        final long compactionOffset;
-        final long lastIndexOffset;
-        final long startOffset;
-        final long entryCount;
-        final long totalEntryCount;
-        final int utilization;
-        final int utilizationThreshold;
-
-        SegmentState(SegmentProperties segmentInfo) {
-            this.startOffset = segmentInfo.getStartOffset();
-
-            Map<UUID, Long> attributes = segmentInfo.getAttributes();
-            //TODO: use methods from IndexReader?
-            this.compactionOffset = attributes.getOrDefault(TableAttributes.COMPACTION_OFFSET, this.startOffset);
-            this.lastIndexOffset = attributes.getOrDefault(TableAttributes.INDEX_OFFSET, 0L);
-            this.entryCount = attributes.getOrDefault(TableAttributes.ENTRY_COUNT, 0L);
-            this.totalEntryCount = attributes.getOrDefault(TableAttributes.TOTAL_ENTRY_COUNT, 0L);
-            this.utilizationThreshold = (int) MathHelpers.minMax(attributes.getOrDefault(TableAttributes.MIN_UTILIZATION, 0L), 0, 100);
-            this.utilization = this.totalEntryCount == 0
-                    ? 0
-                    : MathHelpers.minMax((int) Math.round(100.0 * this.entryCount / this.totalEntryCount), 0, 100);
-        }
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    @Getter
+    static class CompactionResult {
+        /**
+         * Number of {@link TableEntry} instances moved.
+         */
+        private final int movedEntryCount;
+        /**
+         * Last Offset in the Table Segment that was processed as part of this compaction. The next compaction iteration
+         * should start at this offset.
+         */
+        private final long lastProcessedOffset;
 
         @Override
         public String toString() {
-            return String.format("Start=%d/%d, End=%d, Entries=%d/%d, Util=%d%%/%d%%", this.compactionOffset, this.startOffset,
-                    this.lastIndexOffset, this.entryCount, this.totalEntryCount, this.utilization, this.utilizationThreshold);
+            return String.format("Count = %d, LastOffset = %d", this.movedEntryCount, this.lastProcessedOffset);
         }
     }
-
-    //endregion
 }

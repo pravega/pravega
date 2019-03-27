@@ -9,14 +9,18 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.collect.Iterators;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
+import java.io.ByteArrayInputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -206,6 +210,39 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
         }
     }
 
+    /**
+     * Tests the {@link AsyncTableEntryReader#readEntryComponents} method.
+     */
+    @Test
+    public void testReadEntryComponents() throws Exception {
+        val testItems = generateTestItems();
+        val input = new SequenceInputStream(Iterators.asEnumeration(testItems.stream().map(i -> new ByteArrayInputStream(i.serialization)).iterator()));
+        long offset = 0;
+        for (int i = 0; i < testItems.size(); i++) {
+            val expected = testItems.get(i);
+            val actual = AsyncTableEntryReader.readEntryComponents(input, offset, SERIALIZER);
+
+            // Check Key.
+            Assert.assertTrue("Unexpected key parsed at index " + i,
+                    HashedArray.arrayEquals(new ByteArraySegment(expected.key), new ByteArraySegment(actual.getKey())));
+
+            Assert.assertEquals("Unexpected Header.isDeletion() at index " + i, expected.isRemoval, actual.getHeader().isDeletion());
+            if (expected.isRemoval) {
+                Assert.assertNull("Not expecting a value for a deletion at index " + i, actual.getValue());
+                Assert.assertEquals("Unexpected Header.getEntryVersion() for removal at index " + i,
+                        TableKey.NO_VERSION, actual.getHeader().getEntryVersion());
+            } else {
+                Assert.assertNotNull("Expecting a value for a non-deletion at index " + i, actual.getValue());
+                Assert.assertTrue("Unexpected value parsed at index " + i,
+                        HashedArray.arrayEquals(new ByteArraySegment(expected.value), new ByteArraySegment(actual.getValue())));
+                long expectedVersion = expected.explicitVersion == TableKey.NO_VERSION ? offset : expected.explicitVersion;
+                Assert.assertEquals("Unexpected version at index " + i, expectedVersion, actual.getVersion());
+            }
+
+            offset += actual.getHeader().getTotalLength();
+        }
+    }
+
     //endregion
 
     private static ArrayList<TestItem> generateTestItems() {
@@ -240,7 +277,6 @@ public class AsyncTableEntryReaderTests extends ThreadPooledTestSuite {
                 return new TestItem(key, value, removal, TableKey.NO_VERSION, serialization);
             }
         }
-
     }
 
     @RequiredArgsConstructor
