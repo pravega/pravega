@@ -14,11 +14,23 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import java.util.concurrent.CompletableFuture;
 
-public interface ConnectionPool {
+/**
+ * This represents a ConnectionPool that manages the actual network connections to different SegmentStore instances.
+ */
+public interface ConnectionPool extends AutoCloseable {
 
+    /**
+     * This is used to create a {@link ClientConnection} on an existing Connection pool. The Connection pool implementation
+     * decides if a new connection needs to be established to the PravegaNode or an existing connection can be reused to establish
+     * the connection.
+     * @param session Session
+     * @param uri The Pravega Node Uri.
+     * @param rp ReplyProcessor instance.
+     * @return An instance of client connection.
+     */
     CompletableFuture<ClientConnection> getClientConnection(Session session, PravegaNodeUri uri, ReplyProcessor rp);
 
-    void releaseConnection(ClientConnection connection);
-
+    @Override
+    void close();
 }
 

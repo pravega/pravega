@@ -12,6 +12,7 @@ package io.pravega.client;
 import com.google.common.annotations.VisibleForTesting;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Synchronized;
 import lombok.ToString;
@@ -24,6 +25,7 @@ import lombok.ToString;
  * The <i>requestSequenceNumber</i> is used to represent the requestSequence for a given session.
  */
 @ToString
+@EqualsAndHashCode
 public class Session {
     private static final AtomicInteger ID_GENERATOR = new AtomicInteger(0);
     @Getter

@@ -169,7 +169,6 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         // Start the client.
         CompletableFuture<ClientConnection> connectionComplete = new CompletableFuture<>();
         try {
-
             b.connect(location.getEndpoint(), location.getPort()).addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future) {
@@ -193,12 +192,6 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         handler.completeWhenRegistered(channelRegisteredFuture);
 
         return connectionComplete.thenCombine(channelRegisteredFuture, (clientConnection, v) -> clientConnection);
-    }
-
-    @Override
-    public CompletableFuture<ClientConnection> establishConnection(int sessionId, PravegaNodeUri endpoint, ReplyProcessor rp) {
-        ConnectionPool pool = new ConnectionPoolImpl(clientConfig);
-        return pool.getConnection(endpoint, rp);
     }
 
     @Override

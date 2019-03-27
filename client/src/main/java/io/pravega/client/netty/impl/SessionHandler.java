@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class SessionHandler extends ChannelInboundHandlerAdapter {
+public class SessionHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
 
     private final String connectionName;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
@@ -95,6 +95,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
 
     /**
      * Disconnected.
+     *
      * @see io.netty.channel.ChannelInboundHandler#channelUnregistered(ChannelHandlerContext)
      */
     @Override
@@ -108,7 +109,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
         sessionIdReplyProcessorMap.forEach((sessionId, rp) -> {
             rp.connectionDropped();
             log.debug("Connection dropped for session id : {}", sessionId);
-        } );
+        });
         super.channelUnregistered(ctx);
     }
 
@@ -133,17 +134,17 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
         sessionIdReplyProcessorMap.forEach((sessionId, rp) -> {
             rp.processingFailure(new ConnectionFailedException(cause));
             log.debug("Exception observed for session id : {}", sessionId);
-        } );
+        });
     }
 
-    //    @Override
-    //    public void close() {
-    //        Channel ch = channel.get();
-    //        if (ch != null) {
-    //            log.debug("Closing channel:{}", ch);
-    //            ch.close();
-    //        }
-    //    }
+    @Override
+    public void close() {
+        Channel ch = channel.get();
+        if (ch != null) {
+            log.debug("Closing channel:{}", ch);
+            ch.close();
+        }
+    }
 
     private final class KeepAliveTask implements Runnable {
         @Override
@@ -163,7 +164,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
     private ReplyProcessor getReplyProcessor(Reply cmd) {
         final Session session = Session.from(cmd.getRequestId());
         final ReplyProcessor processor = sessionIdReplyProcessorMap.get(session.getSessionId());
-        if ( processor == null) {
+        if (processor == null) {
             log.error("No ReplyProcessor found for the provided sessionId {}", session.getSessionId());
             throw new IllegalArgumentException("Invalid message received");
         }

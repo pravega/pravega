@@ -10,12 +10,13 @@
 package io.pravega.client.netty.impl;
 
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import java.util.concurrent.CompletableFuture;
 import lombok.Data;
 
 @Data
 public class Connection {
-    private final SessionHandler sessionHandler;
     private final PravegaNodeUri uri;
+    private final CompletableFuture<SessionHandler> sessionHandler;
     /**
      * This provides a count of Event writers using this connection.
      */

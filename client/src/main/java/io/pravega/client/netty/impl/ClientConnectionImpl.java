@@ -96,12 +96,8 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void close() {
-        //        Channel ch = nettyHandler.close();
-        //        if (ch != null) {
-        //            // TODO: reference count until
-        //            log.debug("Closing channel:{}", ch);
-        //            ch.close();
-        //        }
+        log.debug("Closing session connection {}", connectionName);
+        nettyHandler.closeSession(this);
     }
 
 }

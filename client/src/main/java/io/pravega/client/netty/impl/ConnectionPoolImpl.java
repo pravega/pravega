@@ -49,6 +49,7 @@ import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collector;
@@ -64,8 +65,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ConnectionPoolImpl implements ConnectionPool {
 
-    private EventLoopGroup group;
     private final ClientConfig clientConfig;
+    private final EventLoopGroup group;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @Getter(AccessLevel.PACKAGE)
     private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
@@ -100,12 +101,25 @@ public class ConnectionPoolImpl implements ConnectionPool {
            - create a session out of the session handler.
            - if the session terminates clientConnection close is invoked which is internally might or might not close the connection.
          */
-        Collector<Connection, ConnectionSummaryStats, ConnectionSummaryStats> collectorStats = Collector.of(ConnectionSummaryStats::new, ConnectionSummaryStats::accept, ConnectionSummaryStats::combine,
-                                                                                                            Collector.Characteristics.IDENTITY_FINISH);
-        connectionList.stream()
-        CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
-        return sessionHandlerFuture.thenApply(sessionHandler -> sessionHandler.createSession(session, rp));
+
+        ConnectionSummaryStats stats = connectionList.stream().collect(collectorStats);
+        Optional<Connection> suggestedConnection = stats.getConnectionWithMinimumSession(location);
+
+        final Connection connection;
+        if (suggestedConnection.isPresent()) {
+            Connection oldConnection = suggestedConnection.get();
+            connectionList.remove(oldConnection);
+            connection = new Connection(oldConnection.getUri(), oldConnection.getSessionHandler(), oldConnection.getWriterCount(), oldConnection.getReaderCount(),
+                                        oldConnection.getSessionCount() + 1);
+        } else {
+            CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
+            connection = new Connection(location, sessionHandlerFuture, 0, 0, 0);
+        }
+        connectionList.add(connection);
+
+        return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createSession(session, rp));
     }
+
 
     private CompletableFuture<SessionHandler> establishConnection(PravegaNodeUri location) {
         Preconditions.checkNotNull(location);
@@ -191,7 +205,12 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     @Override
-    public void releaseConnection(ClientConnection connection) {
+    public void close() {
+        log.info("Shutting down connection pool");
+        if (closed.compareAndSet(false, true)) {
+            // Shut down the event loop to terminate all threads.
+            group.shutdownGracefully();
+        }
 
     }
 }
