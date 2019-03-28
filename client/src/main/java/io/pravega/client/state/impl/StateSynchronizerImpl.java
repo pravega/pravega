@@ -200,6 +200,9 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             if (oldMark == null || oldMark.compareTo(newMark) < 0) {
                 client.compareAndSetMark(oldMark, newMark);
             }
+            if (oldMark != null) {
+                client.truncateToRevision(oldMark);
+            }
         }
     }
 
