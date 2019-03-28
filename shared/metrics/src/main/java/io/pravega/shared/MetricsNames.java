@@ -49,18 +49,38 @@ package io.pravega.shared;
  */
 
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.primitives.Ints;
+import lombok.Data;
 
 public final class MetricsNames {
     // Metrics in Segment Store Service
     // Segment-related stats
     public static final String SEGMENT_CREATE_LATENCY = "segmentstore.segment.create_latency_ms"; // Histogram
+    public static final String SEGMENT_DELETE_LATENCY = "segmentstore.segment.delete_latency_ms"; // Histogram
     public static final String SEGMENT_READ_LATENCY = "segmentstore.segment.read_latency_ms";     // Histogram
     public static final String SEGMENT_WRITE_LATENCY = "segmentstore.segment.write_latency_ms";   // Histogram
     public static final String SEGMENT_READ_BYTES = "segmentstore.segment.read_bytes";            // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_BYTES = "segmentstore.segment.write_bytes";          // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_EVENTS = "segmentstore.segment.write_events";        // Counter and Per-segment Counter
+
+    // Table Segment stats
+    public static final String TABLE_SEGMENT_UPDATE_LATENCY = "segmentstore.tablesegment.update_latency_ms";                         // Histogram
+    public static final String TABLE_SEGMENT_UPDATE_CONDITIONAL_LATENCY = "segmentstore.tablesegment.update_conditional_latency_ms"; // Histogram
+    public static final String TABLE_SEGMENT_REMOVE_LATENCY = "segmentstore.tablesegment.remove_latency_ms";                         // Histogram
+    public static final String TABLE_SEGMENT_REMOVE_CONDITIONAL_LATENCY = "segmentstore.tablesegment.remove_conditional_latency_ms"; // Histogram
+    public static final String TABLE_SEGMENT_GET_LATENCY = "segmentstore.tablesegment.get_latency_ms";                               // Histogram
+    public static final String TABLE_SEGMENT_ITERATE_KEYS_LATENCY = "segmentstore.tablesegment.iterate_keys_latency_ms";             // Histogram
+    public static final String TABLE_SEGMENT_ITERATE_ENTRIES_LATENCY = "segmentstore.tablesegment.iterate_entries_latency_ms";       // Histogram
+
+    public static final String TABLE_SEGMENT_UPDATE = "segmentstore.tablesegment.update";                         // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_UPDATE_CONDITIONAL = "segmentstore.tablesegment.update_conditional"; // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_REMOVE = "segmentstore.tablesegment.remove";                         // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_REMOVE_CONDITIONAL = "segmentstore.tablesegment.remove_conditional"; // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_GET = "segmentstore.tablesegment.get";                               // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_ITERATE_KEYS = "segmentstore.tablesegment.iterate_keys";             // Counter and Per-segment Counter
+    public static final String TABLE_SEGMENT_ITERATE_ENTRIES = "segmentstore.tablesegment.iterate_entries";       // Counter and Per-segment Counter
 
     // Storage stats
     public static final String STORAGE_READ_LATENCY = "segmentstore.storage.read_latency_ms";   // Histogram
@@ -166,6 +186,13 @@ public final class MetricsNames {
     public static final String RETENTION_FREQUENCY = "controller.retention.frequency";   // Per-stream Counter
     public static final String TRUNCATED_SIZE = "controller.retention.truncated_size";   // Per-stream Gauge
 
+    // Metric Type Suffix
+    public static final String COUNTER_SUFFIX = ".Counter";
+    public static final String GAUGE_SUFFIX = ".Gauge";
+    public static final String METER_SUFFIX = ".Meter";
+    public static final String TIMER_SUFFIX = ".Timer";
+    public static final String NONE_SUFFIX = "";
+
     private static String escapeSpecialChar(String name) {
         return name.replace('/', '.').replace(':', '.').replace('|', '.').replaceAll("\\s+", "_");
     }
@@ -228,5 +255,59 @@ public final class MetricsNames {
         } else {
             return metricName + "_fail";
         }
+    }
+
+    /**
+     * Convenient method to join two Strings with dot.
+     *
+     * @param element1 the first String object.
+     * @param element2 the second String object.
+     * @return String object with element1 and element2 joined with dot.
+     */
+    public static String joinWithDot(String element1, String element2) {
+        return element1 + "." + element2;
+    }
+
+    /**
+     * Create an MetricKey based on metric name, metric type and tags associated.
+     *
+     * e.g.
+     * for flat metric name "append_count.6" (without tag), its cache key is:
+     *   "append_count.6.Counter", and its registry key is "append_count.6.Counter".
+     * for metric name "append_count" with tag "container=6", the cache key is:
+     *   "append_count.6.Counter", but the registry key is "append_count".
+     *
+     * @param metric the metric name.
+     * @param typeSuffix the metric type suffix, e.g. ".Counter", ".Gauge", ".Meter"
+     * @param tags the tag(s) associated with the metric.
+     * @return the MetricKey object which holds both cache lookup key and metric registry key.
+     */
+    public static MetricKey metricKey(String metric, String typeSuffix, String... tags) {
+
+        StringBuilder sb = new StringBuilder(metric);
+        if (tags == null || tags.length == 0) {  //no tags: append suffix to form cache & registry key
+            sb.append(typeSuffix);
+            String key = sb.toString();
+            return new MetricKey(key, key);
+        } else { //tags: append tag values and suffix to form cache key, original name is registry key
+            Preconditions.checkArgument((tags.length % 2) == 0, "Tags is a set of key/value pair so the size must be even: %s", tags.length);
+            for (int i = 0; i < tags.length; i += 2) {
+                Preconditions.checkArgument(!Strings.isNullOrEmpty(tags[i]) || !Strings.isNullOrEmpty(tags[i + 1]), "Tag name or value cannot be empty or null");
+                sb.append('.').append(tags[i + 1]);
+            }
+            sb.append(typeSuffix);
+            return new MetricKey(sb.toString(), metric);
+        }
+    }
+
+    /**
+     * MetricKey is a place holder to hold metric cache lookup key and registry key.
+     * This class is provided to keep the metric name convention backwards compatible.
+     *
+     */
+    @Data
+    public static class MetricKey {
+        private final String cacheKey;
+        private final String registryKey;
     }
 }

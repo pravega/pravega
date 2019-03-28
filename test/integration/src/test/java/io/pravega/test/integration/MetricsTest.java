@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import com.codahale.metrics.Counter;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -38,6 +37,7 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -105,7 +105,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
         monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
 
         this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, mock(TableStore.class),
-                monitor.getRecorder(), new PassingTokenVerifier(), null, null, true);
+                monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(), null, null, true);
         this.server.startListening();
 
         // 3. Start Pravega Controller service
@@ -118,13 +118,13 @@ public class MetricsTest extends ThreadPooledTestSuite {
         log.info("Initializing metrics provider ...");
 
         MetricsConfig metricsConfig = MetricsConfig.builder()
-                .with(MetricsConfig.ENABLE_CSV_REPORTER, false).with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
         metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(5));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start();
+        statsProvider.startWithoutExporting();
         log.info("Metrics Stats provider is started");
     }
 
@@ -202,7 +202,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 Counter count = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter");
-                return count == null ? 0 : count.getCount();
+                return count == null ? 0 : count.get();
             }, 10000);
 
             String readerGroupName2 = readerGroupName + "2";
@@ -221,7 +221,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
             readAllEvents(reader2);
 
-            long countAfterCacheEvicted = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
+            long countAfterCacheEvicted = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").get();
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
@@ -247,7 +247,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 Counter count = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter");
-                return count == null ? 0 : count.getCount();
+                return count == null ? 0 : count.get();
             }, 10000);
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);

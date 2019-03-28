@@ -59,10 +59,10 @@ services:
     command: controller
     environment:
       WAIT_FOR: zookeeper:2181
-      REST_SERVER_PORT: 10080
-      CONTROLLER_SERVER_PORT: 9090
-      ZK_URL: zookeeper:2181
       JAVA_OPTS: |
+        -Dcontroller.service.port=9090
+        -Dcontroller.service.restPort=10080
+        -Dcontroller.zk.url=zookeeper:2181
         -Dconfig.controller.metricenableCSVReporter=false
         -Xmx512m
         -XX:OnError="kill -9 p%"
