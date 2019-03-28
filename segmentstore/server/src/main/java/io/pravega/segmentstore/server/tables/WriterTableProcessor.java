@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -163,10 +164,11 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         return this.connector
                 .getSegment(timer.getRemaining())
                 .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer)
-                                .thenAccept(this::flushComplete)
-                                .thenComposeAsync(ignored -> compactIfNeeded(segment, timer), this.executor),
-                        this.executor)
-                .thenApply(v -> new WriterFlushResult());
+                                .thenComposeAsync(flushResult -> {
+                                    flushComplete(flushResult.lastIndexedOffset);
+                                    return compactIfNeeded(segment, flushResult, timer);
+                                }, this.executor),
+                        this.executor);
     }
 
     @Override
@@ -184,7 +186,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     //region Helpers
 
-    private CompletableFuture<TableCompactor.CompactionResult> compactIfNeeded(DirectSegmentAccess segment, TimeoutTimer timer) {
+    private CompletableFuture<WriterFlushResult> compactIfNeeded(DirectSegmentAccess segment, TableWriterFlushResult flushResult,
+                                                                 TimeoutTimer timer) {
         // Decide if compaction is needed. If not, bail out early.
         SegmentProperties info = segment.getInfo();
         if (!this.compactor.isCompactionRequired(info)) {
@@ -192,8 +195,18 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             return CompletableFuture.completedFuture(null);
         }
 
-        // TODO: collect last compacted offset and "max-version(TBD)" from flush to truncate segment.
-        return this.compactor.compact(segment, timer);
+        return this.compactor.compact(segment, timer)
+                .thenComposeAsync(cr -> truncateIfNeeded(segment, flushResult, cr, timer), this.executor);
+    }
+
+    private CompletableFuture<WriterFlushResult> truncateIfNeeded(DirectSegmentAccess segment, TableWriterFlushResult flushResult,
+                                                                  TableCompactor.CompactionResult compactionResult, TimeoutTimer timer) {
+        // TODO: if flushResult.MaxExplicitVersion is set, then we can safely truncate up to that value (validate it's less than COMPACTION OFFSET).
+        // if not set, and LAST_INDEXED_OFFSET == Segment Length, then we can truncate up to COMPACTED_OFFSET.
+        // WE might not need "compaction result" afterall.
+
+        return CompletableFuture.completedFuture(flushResult);
+
     }
 
     /**
@@ -213,7 +226,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * <li>{@link DataCorruptionException} If the reconciliation failed (in which case no flush is attempted.
      * </ul>
      */
-    private CompletableFuture<Long> flushWithSingleRetry(DirectSegmentAccess segment, TimeoutTimer timer) {
+    private CompletableFuture<TableWriterFlushResult> flushWithSingleRetry(DirectSegmentAccess segment, TimeoutTimer timer) {
         return Futures.exceptionallyComposeExpecting(
                 flushOnce(segment, timer),
                 this::canRetryFlushException,
@@ -246,7 +259,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
      * <li>{@link BadAttributeUpdateException} If a conditional update on the {@link TableAttributes#INDEX_OFFSET} attribute failed.
      * </ul>
      */
-    private CompletableFuture<Long> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
+    private CompletableFuture<TableWriterFlushResult> flushOnce(DirectSegmentAccess segment, TimeoutTimer timer) {
         // Index all the keys in the segment range pointed to by the aggregator.
         KeyUpdateCollection keyUpdates = readKeysFromSegment(segment, this.aggregator.getFirstOffset(), this.aggregator.getLastOffset(), timer);
         log.debug("{}: Flush.ReadFromSegment {} UpdateKeys(s).", this.traceObjectId, keyUpdates.getUpdates().size());
@@ -257,15 +270,14 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 .groupByBucket(segment, keyUpdates.getUpdates(), timer)
                 .thenComposeAsync(builders -> fetchExistingKeys(builders, segment, timer)
                                 .thenComposeAsync(v -> {
-                                            val bucketUpdates = builders.stream().map(BucketUpdate.Builder::build).collect(Collectors.toList());
-                                            logBucketUpdates(bucketUpdates);
-                                            return this.indexWriter.updateBuckets(segment, bucketUpdates,
-                                                    this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
-                                                    keyUpdates.getTotalUpdateCount(), timer.getRemaining());
-                                        },
-                                        this.executor)
-                                .thenApply(ignored -> keyUpdates.getLastIndexedOffset()),
-                        this.executor);
+                                    val bucketUpdates = builders.stream().map(BucketUpdate.Builder::build).collect(Collectors.toList());
+                                    logBucketUpdates(bucketUpdates);
+                                    return this.indexWriter.updateBuckets(segment, bucketUpdates,
+                                            this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
+                                            keyUpdates.getTotalUpdateCount(), timer.getRemaining());
+                                }, this.executor),
+                        this.executor)
+                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestExplicitVersion()));
     }
 
     @SneakyThrows(DataCorruptionException.class)
@@ -333,7 +345,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
         // Index the Key. If it was used before, then their versions will be compared to determine which one prevails.
         val update = new BucketUpdate.KeyUpdate(key, entryOffset, e.getVersion(), e.getHeader().isDeletion());
-        keyUpdateCollection.add(update, e.getHeader().getTotalLength());
+        keyUpdateCollection.add(update, e.getHeader().getTotalLength(), e.getHeader().getEntryVersion());
         return e.getHeader().getTotalLength();
     }
 
@@ -505,6 +517,12 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             return String.format("Count = %d, FirstSN = %d, FirstOffset = %d, LastOffset = %d, LIdx = %s",
                     this.appendOffsets.size(), this.firstSeqNo, getFirstOffset(), getLastOffset(), getLastIndexedOffset());
         }
+    }
+
+    @RequiredArgsConstructor
+    private static class TableWriterFlushResult extends WriterFlushResult {
+        final long lastIndexedOffset;
+        final long highestExplicitVersion;
     }
 
     //endregion

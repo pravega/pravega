@@ -87,8 +87,7 @@ class TableCompactor {
         long entryCount = this.indexReader.getEntryCount(info);
         long utilization = totalEntryCount == 0 ? 100 : MathHelpers.minMax(Math.round(100.0 * entryCount / totalEntryCount), 0, 100);
         long utilizationThreshold = (int) MathHelpers.minMax(this.indexReader.getCompactionUtilizationThreshold(info), 0, 100);
-        //return utilization < utilizationThreshold;
-        return  false;
+        return utilization < utilizationThreshold;
     }
 
     /**
