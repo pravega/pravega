@@ -68,18 +68,18 @@ class IndexWriter extends IndexReader {
      * @param segment    The Segment to read from.
      * @param keyUpdates A Collection of {@link BucketUpdate.KeyUpdate} instances to index.
      * @param timer      Timer for the operation.
-     * @return A CompletableFuture that, when completed, will contain the a collection of {@link BucketUpdate}s.
+     * @return A CompletableFuture that, when completed, will contain the a collection of {@link BucketUpdate.Builder}s.
      */
-    CompletableFuture<Collection<BucketUpdate>> groupByBucket(DirectSegmentAccess segment, Collection<BucketUpdate.KeyUpdate> keyUpdates,
+    CompletableFuture<Collection<BucketUpdate.Builder>> groupByBucket(DirectSegmentAccess segment, Collection<BucketUpdate.KeyUpdate> keyUpdates,
                                                               TimeoutTimer timer) {
         val updatesByHash = keyUpdates.stream()
                                       .collect(Collectors.groupingBy(k -> this.hasher.hash(k.getKey())));
         return locateBuckets(segment, updatesByHash.keySet(), timer)
                 .thenApplyAsync(buckets -> {
-                    val result = new HashMap<TableBucket, BucketUpdate>();
+                    val result = new HashMap<TableBucket, BucketUpdate.Builder>();
                     buckets.forEach((keyHash, bucket) -> {
                         // Add the bucket to the result and record this Key as a "new" key in it.
-                        BucketUpdate bu = result.computeIfAbsent(bucket, BucketUpdate::new);
+                        BucketUpdate.Builder bu = result.computeIfAbsent(bucket, BucketUpdate::forBucket);
                         updatesByHash.get(keyHash).forEach(bu::withKeyUpdate);
                     });
 

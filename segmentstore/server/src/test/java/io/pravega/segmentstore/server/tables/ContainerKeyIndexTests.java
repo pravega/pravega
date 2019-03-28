@@ -29,6 +29,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -296,15 +297,15 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Update the keys in the segment (via their buckets).
         val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
-        val bucketUpdates = buckets.entrySet().stream()
+        Collection<BucketUpdate> bucketUpdates = buckets.entrySet().stream()
                 .map(e -> {
-                    BucketUpdate bu = new BucketUpdate(e.getValue());
+                    val builder = BucketUpdate.forBucket(e.getValue());
                     val ko = keysWithOffsets.get(e.getKey());
                     if (ko != null) {
-                        bu.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, false));
+                        builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
                     }
 
-                    return bu;
+                    return builder.build();
                 })
                 .collect(Collectors.toList());
 
@@ -364,12 +365,12 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Update everything in the underlying index.
         val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
-        val bucketUpdates = buckets.entrySet().stream()
+        Collection<BucketUpdate> bucketUpdates = buckets.entrySet().stream()
                                    .map(e -> {
-                                       BucketUpdate bu = new BucketUpdate(e.getValue());
+                                       val builder = BucketUpdate.forBucket(e.getValue());
                                        val ko = keysWithOffsets.get(e.getKey());
-                                       bu.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, false));
-                                       return bu;
+                                       builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
+                                       return builder.build();
                                    })
                                    .collect(Collectors.toList());
         iw.updateBuckets(context.segment, bucketUpdates, 0L, 1L, 0, TIMEOUT).join();
@@ -421,12 +422,12 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Update the keys in the segment (via their buckets).
         val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
-        val bucketUpdates = buckets.entrySet().stream()
+        Collection<BucketUpdate> bucketUpdates = buckets.entrySet().stream()
                                    .map(e -> {
-                                       BucketUpdate bu = new BucketUpdate(e.getValue());
+                                       val builder = BucketUpdate.forBucket(e.getValue());
                                        val ko = keysWithOffsets.get(e.getKey());
-                                       bu.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, false));
-                                       return bu;
+                                       builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
+                                       return builder.build();
                                    })
                                    .collect(Collectors.toList());
 

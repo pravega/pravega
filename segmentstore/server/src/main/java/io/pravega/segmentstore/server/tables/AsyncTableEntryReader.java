@@ -331,10 +331,26 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
 
     @Getter
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    public static class DeserializedEntry {
+    static class DeserializedEntry {
+        /**
+         * The Entry's Header.
+         */
         private final EntrySerializer.Header header;
+
+        /**
+         * The computed Entry's Version. If explicitly defined in the Header, this mirrors it, otherwise this is the
+         * offset at which this Entry resides in the Segment.
+         */
         private final long version;
+
+        /**
+         * Key Data.
+         */
         private final byte[] key;
+
+        /**
+         * Value data. Null if a deletion.
+         */
         private final byte[] value;
     }
 }

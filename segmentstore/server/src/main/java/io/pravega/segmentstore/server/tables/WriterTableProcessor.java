@@ -32,16 +32,13 @@ import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
-import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -258,8 +255,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         // for each such bucket and finally (reindex) update the bucket.
         return this.indexWriter
                 .groupByBucket(segment, keyUpdates.getUpdates(), timer)
-                .thenComposeAsync(bucketUpdates -> fetchExistingKeys(bucketUpdates, segment, timer)
+                .thenComposeAsync(builders -> fetchExistingKeys(builders, segment, timer)
                                 .thenComposeAsync(v -> {
+                                            val bucketUpdates = builders.stream().map(BucketUpdate.Builder::build).collect(Collectors.toList());
                                             logBucketUpdates(bucketUpdates);
                                             return this.indexWriter.updateBuckets(segment, bucketUpdates,
                                                     this.aggregator.getLastIndexedOffset(), keyUpdates.getLastIndexedOffset(),
@@ -333,8 +331,9 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         val e = AsyncTableEntryReader.readEntryComponents(input, entryOffset, this.connector.getSerializer());
         HashedArray key = new HashedArray(e.getKey());
 
-        // Index the Key. If it was used before, it must have had a lower offset, so this supersedes it.
-        keyUpdateCollection.add(new BucketUpdate.KeyUpdate(key, entryOffset, e.getHeader().isDeletion()), e.getHeader().getTotalLength());
+        // Index the Key. If it was used before, then their versions will be compared to determine which one prevails.
+        val update = new BucketUpdate.KeyUpdate(key, entryOffset, e.getVersion(), e.getHeader().isDeletion());
+        keyUpdateCollection.add(update, e.getHeader().getTotalLength());
         return e.getHeader().getTotalLength();
     }
 
@@ -368,17 +367,18 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     /**
      * Fetches the existing keys for all buckets in the given collection of {@link BucketUpdate}s.
      *
-     * @param bucketUpdates The BucketUpdateCollection to fetch for. Upon completion of this method, this will be updated
-     *                      with the existing keys.
+     * @param builders A Collection of {@link BucketUpdate.Builder}s to fetch for. Upon completion of this method,
+     *                      this will be updated with the existing keys.
      * @param segment       The segment to operate on.
      * @param timer         Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the collection of {@link BucketUpdate}s that was
      * passed in, with the existing keys populated.
      */
-    private CompletableFuture<Void> fetchExistingKeys(Collection<BucketUpdate> bucketUpdates, DirectSegmentAccess segment, TimeoutTimer timer) {
+    private CompletableFuture<Void> fetchExistingKeys(Collection<BucketUpdate.Builder> builders, DirectSegmentAccess segment,
+                                                      TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return Futures.loop(
-                bucketUpdates,
+                builders,
                 bucketUpdate -> fetchExistingKeys(bucketUpdate, segment, timer).thenApply(v -> true),
                 this.executor);
     }
@@ -386,18 +386,18 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     /**
      * Fetches the existing keys for the given {@link BucketUpdate}.
      *
-     * @param bucketUpdate The BucketUpdate to fetch keys for. Upon completion of this method, this will be updated with
-     *                     the existing keys.
-     * @param segment      The segment to operate on.
-     * @param timer        Timer for the operation.
+     * @param builder The BucketUpdate to fetch keys for. Upon completion of this method, this will be updated with
+     *                the existing keys.
+     * @param segment The segment to operate on.
+     * @param timer   Timer for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation is done.
      */
-    private CompletableFuture<Void> fetchExistingKeys(BucketUpdate bucketUpdate, DirectSegmentAccess segment, TimeoutTimer timer) {
+    private CompletableFuture<Void> fetchExistingKeys(BucketUpdate.Builder builder, DirectSegmentAccess segment, TimeoutTimer timer) {
         // Get all Key locations, using the bucket's last offset and backpointers.
         return TableBucketReader
                 .key(segment, this.indexWriter::getBackpointerOffset, this.executor)
-                .findAll(bucketUpdate.getBucket().getSegmentOffset(),
-                        (k, o) -> bucketUpdate.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(k.getKey()), o)),
+                .findAll(builder.getBucket().getSegmentOffset(),
+                        (key, offset) -> builder.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(key.getKey()), offset, key.getVersion())),
                         timer);
 
     }
@@ -504,35 +504,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         public synchronized String toString() {
             return String.format("Count = %d, FirstSN = %d, FirstOffset = %d, LastOffset = %d, LIdx = %s",
                     this.appendOffsets.size(), this.firstSeqNo, getFirstOffset(), getLastOffset(), getLastIndexedOffset());
-        }
-    }
-
-    /**
-     * Collection of Keys to their associated {@link BucketUpdate.KeyUpdate}s.
-     */
-    @NotThreadSafe
-    private static class KeyUpdateCollection {
-        private final HashMap<HashedArray, BucketUpdate.KeyUpdate> updates = new HashMap<>();
-        @Getter
-        private int totalUpdateCount;
-
-        /**
-         * The Segment offset before which every single byte has been indexed (i.e., the last offset of the last update).
-         */
-        @Getter
-        private long lastIndexedOffset = -1L;
-
-        void add(BucketUpdate.KeyUpdate update, int entryLength) {
-            this.updates.put(update.getKey(), update);
-            this.totalUpdateCount++;
-            long lastOffset = update.getOffset() + entryLength;
-            if (lastOffset > this.lastIndexedOffset) {
-                this.lastIndexedOffset = lastOffset;
-            }
-        }
-
-        Collection<BucketUpdate.KeyUpdate> getUpdates() {
-            return this.updates.values();
         }
     }
 
