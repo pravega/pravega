@@ -226,6 +226,7 @@ class SegmentStoreConnectionManager {
                 if (connectionCount < maxConcurrentConnections) {
                     waiting = waitQueue.poll();
                     if (waiting != null) {
+                        log.debug("Creating new connection for {}. Total connection count = {}", uri, connectionCount);
                         connectionCount++;
                     }
                 }
@@ -253,6 +254,7 @@ class SegmentStoreConnectionManager {
             }
             boolean tryCreateNewConnection;
             synchronized (lock) {
+                log.debug("Discarding disconnected connection for {}. count = {}", uri, connectionCount);
                 connectionCount--;
                 tryCreateNewConnection = !waitQueue.isEmpty();
             }
@@ -337,7 +339,8 @@ class SegmentStoreConnectionManager {
                                 WireCommandFailedException.Reason.ConnectionFailed));
                         state.set(ConnectionState.DISCONNECTED);
                     } else {
-                        resultFuture.completeExceptionally(new RuntimeException(cause));
+                        log.debug("connection.sendAsync failed with {}", cause.getClass());
+                        resultFuture.completeExceptionally(cause);
                     }
                 }
             });
