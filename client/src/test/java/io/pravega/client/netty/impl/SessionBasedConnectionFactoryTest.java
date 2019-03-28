@@ -30,6 +30,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.Session;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -52,6 +53,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 
 public class SessionBasedConnectionFactoryTest {
@@ -92,7 +94,6 @@ public class SessionBasedConnectionFactoryTest {
 
     @Before
     public void setUp() throws Exception {
-
         // Configure SSL.
         port = TestUtils.getAvailableListenPort();
         final SslContext sslCtx;
@@ -183,22 +184,46 @@ public class SessionBasedConnectionFactoryTest {
             }
         };
 
-        Session session = new Session(1, 0);
+        Session session1 = new Session(1, 0);
         @Cleanup
-        ClientConnection connection1 = factory.establishConnection(session, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection1 = factory.establishConnection(session1, new PravegaNodeUri("localhost", port), rp).join();
 
-        connection1.send(readRequestGenerator.apply(new Session(1, 0).asLong()));
+        connection1.send(readRequestGenerator.apply(session1.asLong()));
 
         WireCommands.SegmentRead msg = msgRead.take();
-        assertEquals(readResponseGenerator.apply(new Session(1, 0).asLong()), msg);
+        assertEquals(readResponseGenerator.apply(session1.asLong()), msg);
 
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
         Session session2 = new Session(2, 0);
         @Cleanup
         ClientConnection connection2 = factory.establishConnection(session2, new PravegaNodeUri("localhost", port), rp).join();
-        connection2.send(readRequestGenerator.apply(session2.asLong()));
 
+        // send data over connection2 and verify.
+        connection2.send(readRequestGenerator.apply(session2.asLong()));
         msg = msgRead.take();
         assertEquals(readResponseGenerator.apply(session2.asLong()), msg);
+
+        // send data over connection1 and verify.
+        connection1.send(readRequestGenerator.apply(session1.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(session1.asLong()), msg);
+
+        // send data over connection2 and verify.
+        connection2.send(readRequestGenerator.apply(session2.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(session2.asLong()), msg);
+
+        // close a client connection, this should not close the channel.
+        connection2.close();
+        assertThrows(ObjectClosedException.class, () -> connection2.send(readRequestGenerator.apply(session2.asLong())));
+        // verify we are able to send data over connection1.
+        connection1.send(readRequestGenerator.apply(session1.asLong()));
+        msg = msgRead.take();
+        assertEquals(readResponseGenerator.apply(session1.asLong()), msg);
+
+        // close connection1
+        connection1.close();
+        assertThrows(ObjectClosedException.class, () -> connection1.send(readRequestGenerator.apply(session2.asLong())));
+
     }
 }

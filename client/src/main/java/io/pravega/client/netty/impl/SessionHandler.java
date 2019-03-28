@@ -49,12 +49,14 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         if (sessionIdReplyProcessorMap.put(session.getSessionId(), rp) != null) {
             throw new IllegalArgumentException("Multiple sessions cannot be created with the same Session id {}" + session.getSessionId());
         }
-        ClientConnection connection = new ClientConnectionImpl(connectionName + session.getSessionId(), batchSizeTracker, this);
+        ClientConnection connection = new ClientConnectionImpl(connectionName, session.getSessionId(), batchSizeTracker, this);
         return connection;
     }
 
-    public void closeSession(ClientConnection session) {
-        // reduce reference count.
+    public void closeSession(ClientConnection clientConnection) {
+        int session = ((ClientConnectionImpl) clientConnection).getSession();
+        log.info("Closing session with sessionId: {}", session);
+        sessionIdReplyProcessorMap.remove(session);
     }
 
     void setRecentMessage() {
@@ -141,7 +143,8 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     public void close() {
         Channel ch = channel.get();
         if (ch != null) {
-            log.debug("Closing channel:{}", ch);
+            log.debug("Closing channel:{} ", ch);
+            log.warn("{} sessions are not closed", sessionIdReplyProcessorMap.size());
             ch.close();
         }
     }
@@ -156,7 +159,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
                 }
             } catch (Exception e) {
                 log.warn("Keep alive failed, killing connection {} due to {} ", connectionName, e.getMessage());
-                //close();
+                //close(); //TODO:
             }
         }
     }

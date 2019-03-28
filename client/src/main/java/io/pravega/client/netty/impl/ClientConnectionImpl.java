@@ -14,34 +14,45 @@ import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.PromiseCombiner;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
+@Data
 public class ClientConnectionImpl implements ClientConnection {
+
     private final String connectionName;
+    private final int session;
     private final SessionHandler nettyHandler;
     private final AppendBatchSizeTracker batchSizeTracker;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public ClientConnectionImpl(String connectionName,  AppendBatchSizeTracker batchSizeTracker, SessionHandler nettyHandler) {
+    public ClientConnectionImpl(String connectionName,  int session, AppendBatchSizeTracker batchSizeTracker,
+                                SessionHandler nettyHandler) {
         this.connectionName = connectionName;
+        this.session = session;
         this.batchSizeTracker = batchSizeTracker;
         this.nettyHandler = nettyHandler;
     }
 
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
+        Exceptions.checkNotClosed(closed.get(), this);
         nettyHandler.setRecentMessage();
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
     }
 
     @Override
     public void send(Append append) throws ConnectionFailedException {
+        Exceptions.checkNotClosed(closed.get(), this);
         nettyHandler.setRecentMessage();
         batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
@@ -49,6 +60,7 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void sendAsync(WireCommand cmd, CompletedCallback callback) {
+        Exceptions.checkNotClosed(closed.get(), this);
         nettyHandler.setRecentMessage();
         try {
             Channel channel = nettyHandler.getChannel();
@@ -69,6 +81,7 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
+        Exceptions.checkNotClosed(closed.get(), this);
         nettyHandler.setRecentMessage();
         Channel ch;
         try {
@@ -96,8 +109,10 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void close() {
-        log.debug("Closing session connection {}", connectionName);
-        nettyHandler.closeSession(this);
+        if (!closed.getAndSet(true)) {
+            log.debug("Closing session connection {}, session id : {}", connectionName, session);
+            nettyHandler.closeSession(this);
+        }
     }
 
 }

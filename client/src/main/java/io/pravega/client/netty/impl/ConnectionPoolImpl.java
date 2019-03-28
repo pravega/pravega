@@ -29,6 +29,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
@@ -82,18 +84,14 @@ public class ConnectionPoolImpl implements ConnectionPool {
         this.group = getEventLoopGroup();
     }
 
-    private EventLoopGroup getEventLoopGroup() {
-        if (Epoll.isAvailable()) {
-            return new EpollEventLoopGroup();
-        } else {
-            log.warn("Epoll not available. Falling back on NIO.");
-            return new NioEventLoopGroup();
-        }
-    }
-
     @Override
     @Synchronized
     public CompletableFuture<ClientConnection> getClientConnection(Session session, PravegaNodeUri location, ReplyProcessor rp) {
+        Preconditions.checkNotNull(session, "Session");
+        Preconditions.checkNotNull(location, "Location");
+        Preconditions.checkNotNull(rp, "ReplyProcessor");
+        Exceptions.checkNotClosed(closed.get(), this);
+
         // Fetch the Connection related stats.
         ConnectionSummaryStats stats = connectionList.parallelStream().collect(collectorStats);
         // Choose the connection with the least number of sessions.
@@ -112,70 +110,23 @@ public class ConnectionPoolImpl implements ConnectionPool {
             connection = new Connection(location, sessionHandlerFuture, 0, 0, 1);
         }
         connectionList.add(connection);
-
         return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createSession(session, rp));
     }
 
-
+    /**
+     * Establish a new connection to the Pravega Node.
+     * @param location The Pravega Node Uri
+     * @return A future, which completes once the connection has been established, returning a SessionHandler that can be used to create
+     * sessions on the connection.
+     */
     private CompletableFuture<SessionHandler> establishConnection(PravegaNodeUri location) {
-        Preconditions.checkNotNull(location);
-        Exceptions.checkNotClosed(closed.get(), this);
-        final SslContext sslCtx;
-        if (clientConfig.isEnableTls()) {
-            try {
-                SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();
-                if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
-                    clientSslCtxBuilder = clientSslCtxBuilder.trustManager(FingerprintTrustManagerFactory
-                                                                                   .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
-                    log.debug("SslContextBuilder was set to an instance of {}", FingerprintTrustManagerFactory.class);
-                } else {
-                    clientSslCtxBuilder = SslContextBuilder.forClient()
-                                                           .trustManager(new File(clientConfig.getTrustStore()));
-                }
-                sslCtx = clientSslCtxBuilder.build();
-            } catch (SSLException | NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            sslCtx = null;
-        }
-        AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
-        // TODO: we can reuse the Bootstrap instance, instead of creating a new one.
-        Bootstrap b = new Bootstrap();
+        final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
+        final SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
+        final Bootstrap b = getNettyBootStrap().handler(getChannelInitializer(location, batchSizeTracker, handler));
 
-        ChannelInitializer<SocketChannel> channelInitializer = new ChannelInitializer<SocketChannel>() {
-            @Override
-            public void initChannel(SocketChannel ch) throws Exception {
-                ChannelPipeline p = ch.pipeline();
-                if (sslCtx != null) {
-                    SslHandler sslHandler = sslCtx.newHandler(ch.alloc(), location.getEndpoint(), location.getPort());
-
-                    if (clientConfig.isValidateHostName()) {
-                        SSLEngine sslEngine = sslHandler.engine();
-                        SSLParameters sslParameters = sslEngine.getSSLParameters();
-                        sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
-                        sslEngine.setSSLParameters(sslParameters);
-                    }
-                    p.addLast(sslHandler);
-                }
-                // p.addLast(new LoggingHandler(LogLevel.INFO));
-                p.addLast(new ExceptionLoggingHandler(location.getEndpoint()),
-                          new CommandEncoder(batchSizeTracker),
-                          new LengthFieldBasedFrameDecoder(WireCommands.MAX_WIRECOMMAND_SIZE, 4, 4),
-                          new CommandDecoder(),
-                          handler);
-            }
-        };
-        b.group(group)
-         .channel(Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class)
-         .option(ChannelOption.TCP_NODELAY, true)
-         .handler(channelInitializer);
-
-        // Start the client.
-        CompletableFuture<SessionHandler> connectionComplete = new CompletableFuture<>();
+        // Initiate Connection.
+        final CompletableFuture<SessionHandler> connectionComplete = new CompletableFuture<>();
         try {
-
             b.connect(location.getEndpoint(), location.getPort()).addListener(new ChannelFutureListener() {
                 @Override
                 public void operationComplete(ChannelFuture future) {
@@ -195,10 +146,90 @@ public class ConnectionPoolImpl implements ConnectionPool {
             connectionComplete.completeExceptionally(new ConnectionFailedException(e));
         }
 
-        CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //check if channel is registered.
+        final CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //to track channel registration.
         handler.completeWhenRegistered(channelRegisteredFuture);
 
         return connectionComplete.thenCombine(channelRegisteredFuture, (sessionHandler, v) -> sessionHandler);
+    }
+
+    /**
+     * Create {@link Bootstrap}.
+     */
+    private Bootstrap getNettyBootStrap() {
+        Bootstrap b = new Bootstrap();
+        b.group(group)
+         .channel(Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class)
+         .option(ChannelOption.TCP_NODELAY, true);
+        return b;
+    }
+
+    /**
+     * Create a Channel Initializer which is to to setup {@link ChannelPipeline}.
+     */
+    private ChannelInitializer<SocketChannel> getChannelInitializer(final PravegaNodeUri location,
+                                                                    final AppendBatchSizeTracker batchSizeTracker,
+                                                                    final SessionHandler handler) {
+        final SslContext sslCtx = getSslContext();
+
+        return new ChannelInitializer<SocketChannel>() {
+            @Override
+            public void initChannel(SocketChannel ch) throws Exception {
+                ChannelPipeline p = ch.pipeline();
+                if (sslCtx != null) {
+                    SslHandler sslHandler = sslCtx.newHandler(ch.alloc(), location.getEndpoint(), location.getPort());
+
+                    if (clientConfig.isValidateHostName()) {
+                        SSLEngine sslEngine = sslHandler.engine();
+                        SSLParameters sslParameters = sslEngine.getSSLParameters();
+                        sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
+                        sslEngine.setSSLParameters(sslParameters);
+                    }
+                    p.addLast(sslHandler);
+                }
+                p.addLast(
+                        new LoggingHandler(LogLevel.TRACE),
+                        new ExceptionLoggingHandler(location.getEndpoint()),
+                        new CommandEncoder(batchSizeTracker),
+                        new LengthFieldBasedFrameDecoder(WireCommands.MAX_WIRECOMMAND_SIZE, 4, 4),
+                        new CommandDecoder(),
+                        handler);
+            }
+        };
+    }
+
+    /**
+     * Obtain {@link SslContext} based on {@link ClientConfig}.
+     */
+    private SslContext getSslContext() {
+        final SslContext sslCtx;
+        if (clientConfig.isEnableTls()) {
+            try {
+                SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();
+                if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
+                    clientSslCtxBuilder = clientSslCtxBuilder.trustManager(FingerprintTrustManagerFactory
+                                                                                   .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
+                    log.debug("SslContextBuilder was set to an instance of {}", FingerprintTrustManagerFactory.class);
+                } else {
+                    clientSslCtxBuilder = SslContextBuilder.forClient()
+                                                           .trustManager(new File(clientConfig.getTrustStore()));
+                }
+                sslCtx = clientSslCtxBuilder.build();
+            } catch (SSLException | NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            sslCtx = null;
+        }
+        return sslCtx;
+    }
+
+    private EventLoopGroup getEventLoopGroup() {
+        if (Epoll.isAvailable()) {
+            return new EpollEventLoopGroup();
+        } else {
+            log.warn("Epoll not available. Falling back on NIO.");
+            return new NioEventLoopGroup();
+        }
     }
 
     @Override
