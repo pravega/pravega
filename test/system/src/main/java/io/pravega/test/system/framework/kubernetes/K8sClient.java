@@ -75,7 +75,7 @@ public class K8sClient {
 
     private static final int DEFAULT_TIMEOUT_MINUTES = 10; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 1_000; // max time between retries to check if pod has completed.
-    private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
+    private static final int RETRY_COUNT = 50; // Max duration incase of an exception is around 50 * RETRY_MAX_DELAY_MS = 50 seconds.
     private static final int LOG_DOWNLOAD_RETRY_COUNT = 7;
     // Delay before starting to download the logs. The K8s api server responds with error code 400 if immediately requested for log download.
     private static final long LOG_DOWNLOAD_INIT_DELAY_MS = SECONDS.toMillis(20);
@@ -492,29 +492,24 @@ public class K8sClient {
      * @return A future which is complete once the pod completes.
      */
     public CompletableFuture<V1ContainerStateTerminated> waitUntilPodCompletes(final String namespace, final String podName) {
-
-        CompletableFuture<V1ContainerStateTerminated> future = new CompletableFuture<>();
-
-        Retry.RetryAndThrowConditionally retryConfig = retryWithBackoff
-                .retryWhen(t -> {
-                    Throwable ex = Exceptions.unwrap(t);
-                    if (ex.getCause() instanceof IOException) {
-                        log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
-                        return true;
-                    }
-                    log.error("Exception while fetching status of pod", ex);
-                    return false;
-                });
-
-        retryConfig.runInExecutor(() -> {
-            Optional<V1ContainerStateTerminated> state = createAWatchAndReturnOnTermination(namespace, podName);
-            if (state.isPresent()) {
-                future.complete(state.get());
-            } else {
-                throw new RuntimeException("Watch did not return terminated state for pod " + podName);
+        return retryWithBackoff.retryWhen(t -> {
+            Throwable ex = Exceptions.unwrap(t);
+            //Incase of an IO Exception the Kubernetes client wraps the IOException within a RuntimeException.
+            if (ex.getCause() instanceof IOException) {
+                // IOException might occur due multiple reasons, one among them is SocketTimeout exception.
+                // This is observed on long running pods.
+                log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
+                return true;
             }
+            log.error("Exception while fetching status of pod", ex);
+            return false;
+        }).runAsync(() -> {
+            CompletableFuture<V1ContainerStateTerminated> future = new CompletableFuture<>();
+            V1ContainerStateTerminated state = createAWatchAndReturnOnTermination(namespace, podName)
+                    .orElseThrow(() -> new RuntimeException("Watch did not return terminated state for pod " + podName));
+            future.complete(state);
+            return future;
         }, executor);
-        return future;
     }
 
     /**

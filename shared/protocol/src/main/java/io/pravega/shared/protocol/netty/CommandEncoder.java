@@ -17,7 +17,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
-import io.pravega.shared.protocol.netty.WireCommands.Flush;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
@@ -94,7 +93,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 segmentBeingAppendedTo = append.segment;
                 writeMessage(new AppendBlock(append.getRequestId(), session.id), out);
                 if (ctx != null) {
-                    ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
+                    ctx.executor().schedule(new BlockTimeouter(ctx.channel(), currentBlockSize),
                                             blockSizeSupplier.getBatchTimeout(),
                                             TimeUnit.MILLISECONDS);
                 }
@@ -127,9 +126,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(setup.getSegment(), new Session(setup.getWriterId()));
-        } else if (msg instanceof Flush) {
-            Flush flush = (Flush) msg;
-            if (currentBlockSize == flush.getBlockSize()) {
+        } else if (msg instanceof BlockTimeout) {
+            BlockTimeout timeoutMsg = (BlockTimeout) msg;
+            if (currentBlockSize == timeoutMsg.ifStillBlockSize) {
                 breakFromAppend(out);
             }
         } else if (msg instanceof WireCommand) {
@@ -201,13 +200,18 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     @RequiredArgsConstructor
-    private static class Flusher implements Runnable {
+    private static final class BlockTimeout {
+        private final int ifStillBlockSize;
+    }
+    
+    @RequiredArgsConstructor
+    private static final class BlockTimeouter implements Runnable {
         private final Channel channel;
         private final int blockSize;
 
         @Override
         public void run() {
-            channel.writeAndFlush(new Flush(blockSize));
+            channel.writeAndFlush(new BlockTimeout(blockSize));
         }
     }
 

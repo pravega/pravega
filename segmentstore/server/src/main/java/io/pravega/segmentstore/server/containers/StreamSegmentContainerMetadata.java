@@ -256,8 +256,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             count = this.metadataById.size();
         }
 
-        log.info("{}: EvictedStreamSegments Count = {}, Active = {}", this.traceObjectId, evictedSegments.size(), count);
-        this.metrics.segmentCount(count);
+        if (evictedSegments.size() > 0) {
+            log.info("{}: EvictedStreamSegments Count = {}, Active = {}", this.traceObjectId, evictedSegments.size(), count);
+            this.metrics.segmentCount(count);
+        }
+
         return evictedSegments;
     }
 
@@ -274,7 +277,10 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             count += sm.cleanupAttributes(maximumAttributeCount, adjustedCutoff);
         }
 
-        log.info("{}: EvictedExtendedAttributes Count = {}", this.traceObjectId, count);
+        if (count > 0) {
+            log.info("{}: EvictedExtendedAttributes Count = {}", this.traceObjectId, count);
+        }
+
         return count;
     }
 
