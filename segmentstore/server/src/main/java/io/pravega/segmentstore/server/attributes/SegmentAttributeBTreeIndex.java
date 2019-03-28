@@ -226,7 +226,9 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         }
 
         removeFromCache(entries);
-        log.info("{}: Cleared all cache entries ({}).", this.traceObjectId, entries.size());
+        if (entries.size() > 0) {
+            log.debug("{}: Cleared all cache entries ({}).", this.traceObjectId, entries.size());
+        }
     }
 
     //endregion

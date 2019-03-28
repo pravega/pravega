@@ -455,7 +455,7 @@ public class SegmentInputStreamTest {
 
         fakeNetwork2.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, false, wireData.slice(), requestId));
         fakeNetwork3.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, wireData.slice(), requestId));
-        fakeNetwork4.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, ByteBuffer.allocate(0), requestId));
+        fakeNetwork4.complete(0, new WireCommands.SegmentRead(segment.getScopedName(), 0, false, true, ByteBufferUtils.EMPTY, requestId));
         fakeNetwork5.completeExceptionally(0, new SegmentTruncatedException());
         
         Orderer o = new Orderer();

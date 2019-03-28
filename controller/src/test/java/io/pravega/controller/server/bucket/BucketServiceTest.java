@@ -70,8 +70,8 @@ public abstract class BucketServiceTest {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, hostStore, taskMetadataStore, 
-                segmentHelper, executor, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 
+                segmentHelper, executor, hostId, AuthHelper.getDisabledAuthHelper(), requestTracker);
         BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2, executor);
         PeriodicRetention periodicRetention = new PeriodicRetention(streamMetadataStore, streamMetadataTasks, executor, requestTracker);
         service = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention);
