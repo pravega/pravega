@@ -581,7 +581,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        getRequestWriter().writeEvent(event).whenComplete((r, e) -> {
+        getRequestWriter().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
             if (e != null) {
                 log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
                 if (e instanceof TaskExceptions.ProcessingDisabledException) {

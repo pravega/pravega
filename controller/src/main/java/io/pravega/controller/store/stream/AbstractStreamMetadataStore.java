@@ -64,6 +64,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
     public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+    public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
     private static final int MAXIMUM_SIZE = 1000;

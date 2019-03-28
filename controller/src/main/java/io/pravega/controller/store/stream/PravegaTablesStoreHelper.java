@@ -33,6 +33,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
 
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -81,7 +82,7 @@ public class PravegaTablesStoreHelper {
         log.debug("create table called for table: {}/{}", scope, tableName);
 
         return Futures.toVoid(withRetries(() -> segmentHelper.createTableSegment(scope, tableName, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                String.format("create table: %s/%s", scope, tableName)))
+                () -> String.format("create table: %s/%s", scope, tableName)))
                 .whenCompleteAsync((r, e) -> {
                     if (e != null) {
                         log.warn("create table {}/{} threw exception", scope, tableName, e);
@@ -94,8 +95,8 @@ public class PravegaTablesStoreHelper {
     public CompletableFuture<Void> deleteTable(String scope, String tableName, boolean mustBeEmpty) {
         log.debug("delete table called for table: {}/{}", scope, tableName);
         return withRetries(() -> segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                        String.format("delete table: %s/%s", scope, tableName))
-                                   .thenAcceptAsync(v -> log.debug("table {}/{} deleted successfully", scope, tableName), executor);
+                () -> String.format("delete table: %s/%s", scope, tableName))
+                .thenAcceptAsync(v -> log.debug("table {}/{} deleted successfully", scope, tableName), executor);
     }
 
     public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, @NonNull byte[] value) {
@@ -103,13 +104,13 @@ public class PravegaTablesStoreHelper {
 
         List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
                 new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), value));
-        String errorMessage = String.format("addNewEntry: key: %s table: %s/%s", key, scope, tableName);
+        Supplier<String> errorMessage = () -> String.format("addNewEntry: key: %s table: %s/%s", key, scope, tableName);
         return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 errorMessage)
                 .exceptionally(e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
                     if (unwrap instanceof StoreException.WriteConflictException) {
-                        throw StoreException.create(StoreException.Type.DATA_EXISTS, errorMessage);
+                        throw StoreException.create(StoreException.Type.DATA_EXISTS, errorMessage.get());
                     } else {
                         log.debug("add new entry {} to {}/{} threw exception {} {}", key, scope, tableName, unwrap.getClass(), unwrap.getMessage());
                         throw new CompletionException(e);
@@ -128,6 +129,33 @@ public class PravegaTablesStoreHelper {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null);
     }
 
+    public CompletableFuture<Void> addNewEntriesIfAbsent(String scope, String tableName, Map<String, byte[]> toAdd) {
+        // What happens if we get data exists for one such record? though pravegatablestream, only creates these keys in batch
+        // so ignoring the exception of data exists is safe. But what happens otherwise?
+        List<TableEntry<byte[], byte[]>> entries = toAdd.entrySet().stream().map(x -> 
+                new TableEntryImpl<>(new TableKeyImpl<>(x.getKey().getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), x.getValue()))
+                                                        .collect(Collectors.toList());
+        Supplier<String> errorMessage = () -> String.format("addNewEntriesIfAbsent: table: %s/%s", scope, tableName);
+        return withRetries(() ->
+                Futures.exceptionallyExpecting(
+                        segmentHelper.updateTableEntries(scope, tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null), errorMessage)
+                .handle((r, e) -> {
+                    if (e != null) {
+                        Throwable unwrap = Exceptions.unwrap(e);
+                        if (unwrap instanceof StoreException.WriteConflictException) {
+                            throw StoreException.create(StoreException.Type.DATA_EXISTS, errorMessage.get());
+                        } else {
+                            log.debug("add new entries to {}/{} threw exception {} {}", scope, tableName, unwrap.getClass(), unwrap.getMessage());
+                            throw new CompletionException(e);
+                        }
+                    } else {
+                        log.debug("entries added to table {}/{}", scope, tableName);
+                        return null;
+                    }
+                });
+    }
+    
     public CompletableFuture<Version> updateEntry(String scope, String tableName, String key, Data value) {
         log.debug("updateEntry entry called for : {}/{} key : {} version {}", scope, tableName, key, value.getVersion().asLongVersion().getLongValue());
 
@@ -137,7 +165,7 @@ public class PravegaTablesStoreHelper {
         List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
                 new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version), value.getData()));
         return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                String.format("updateEntry: key: %s table: %s/%s", key, scope, tableName))
+                () -> String.format("updateEntry: key: %s table: %s/%s", key, scope, tableName))
                 .thenApplyAsync(x -> {
                     KeyVersion first = x.get(0);
                     log.debug("entry for key {} updated to table {}/{} with new version {}", key, scope, tableName, first.getSegmentVersion());
@@ -150,7 +178,7 @@ public class PravegaTablesStoreHelper {
         List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         CompletableFuture<Data> result = new CompletableFuture<>();
         withRetries(() -> segmentHelper.readTable(scope, tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                String.format("get entry: key: %s table: %s/%s", key, scope, tableName))
+                () -> String.format("get entry: key: %s table: %s/%s", key, scope, tableName))
                 .thenApplyAsync(x -> {
                     TableEntry<byte[], byte[]> first = x.get(0);
                     log.debug("returning entry for : {}/{} key : {} with version {}", scope, tableName, key, 
@@ -173,16 +201,16 @@ public class PravegaTablesStoreHelper {
 
         List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                String.format("remove entry: key: %s table: %s/%s", key, scope, tableName))
+                () -> String.format("remove entry: key: %s table: %s/%s", key, scope, tableName))
                 .thenAcceptAsync(v -> log.debug("entry for key {} removed from table {}/{}", key, scope, tableName), executor);
     }
 
-    public CompletableFuture<Void> removeEntries(String scope, String tableName, List<String> keys) {
-        log.debug("remove entry called for : {}/{} keys : {}", scope, tableName, keys);
+    public CompletableFuture<Void> removeEntries(String scope, String tableName, Collection<String> keys) {
+        log.debug("remove entries called for : {}/{} keys : {}", scope, tableName, keys);
 
         List<TableKey<byte[]>> listOfKeys = keys.stream().map(x -> new TableKeyImpl<>(x.getBytes(Charsets.UTF_8), null)).collect(Collectors.toList());
         return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, listOfKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName))
+                () -> String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName))
                 .thenAcceptAsync(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName), executor);
     }
 
@@ -191,7 +219,7 @@ public class PravegaTablesStoreHelper {
 
         return withRetries(() -> 
                 segmentHelper.readTableKeys(scope, tableName, limit, IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
-                        String.format("get keys paginated for table: %s/%s", scope, tableName))
+                () -> String.format("get keys paginated for table: %s/%s", scope, tableName))
                              .thenApplyAsync(result -> {
                                  List<String> items = result.getItems().stream().map(x -> new String(x.getKey(), Charsets.UTF_8))
                                                             .collect(Collectors.toList());
@@ -206,7 +234,7 @@ public class PravegaTablesStoreHelper {
 
         return withRetries(() -> segmentHelper.readTableEntries(scope, tableName, limit,
                 IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
-                String.format("get entries paginated for table: %s/%s", scope, tableName))
+                () -> String.format("get entries paginated for table: %s/%s", scope, tableName))
                 .thenApplyAsync(result -> {
                     List<Pair<String, Data>> items = result.getItems().stream().map(x -> {
                         String key = new String(x.getKey().getKey(), Charsets.UTF_8);
@@ -230,8 +258,9 @@ public class PravegaTablesStoreHelper {
                 IteratorState.EMPTY.toBytes());
     }
 
-    private <T> Supplier<CompletableFuture<T>> exceptionallCallback(Supplier<CompletableFuture<T>> future, String errorMessage) {
+    private <T> Supplier<CompletableFuture<T>> exceptionallCallback(Supplier<CompletableFuture<T>> future, Supplier<String> errorMessageSupplier) {
         return () -> CompletableFuture.completedFuture(null).thenComposeAsync(v -> future.get(), executor).exceptionally(t -> {
+            String errorMessage = errorMessageSupplier.get();
             Throwable cause = Exceptions.unwrap(t);
             Throwable toThrow;
             if (cause instanceof WireCommandFailedException) {
@@ -276,7 +305,7 @@ public class PravegaTablesStoreHelper {
         });
     }
 
-    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, String errorMessage) {
+    private <T> CompletableFuture<T> withRetries(Supplier<CompletableFuture<T>> futureSupplier, Supplier<String> errorMessage) {
         return RetryHelper.withRetriesAsync(exceptionallCallback(futureSupplier, errorMessage), 
                 e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException, NUM_OF_TRIES, executor);
     }
