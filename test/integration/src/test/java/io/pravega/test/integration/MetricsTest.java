@@ -37,7 +37,6 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.metrics.Counter;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -201,8 +200,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             readAllEvents(reader1);
 
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
-                Counter count = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter");
-                return count == null ? 0 : count.get();
+                return (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").count();
             }, 10000);
 
             String readerGroupName2 = readerGroupName + "2";
@@ -221,7 +219,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
             readAllEvents(reader2);
 
-            long countAfterCacheEvicted = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").get();
+            long countAfterCacheEvicted = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").count();
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
@@ -246,8 +244,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             readAllEvents(reader1);
 
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
-                Counter count = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter");
-                return count == null ? 0 : count.get();
+                return (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter").count();
             }, 10000);
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);
