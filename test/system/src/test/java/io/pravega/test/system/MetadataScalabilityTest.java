@@ -46,8 +46,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -156,16 +156,16 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
              indexes.add(new AtomicInteger(1));
          }
          Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < scalesToPerform - 1), () -> {
-            // We randomly generate a stream cut in each iteration of this loop. A valid stream
-            // cut in this scenario contains for each position i in [0, numSegments -1], a segment
-            // from one of the scale epochs of the stream. For each position i, we randomly
-            // choose an epoch and pick the segment at position i. It increments the epoch
-            // index accordingly (indexes list) so that in the next iteration it chooses a later
-            // epoch for the same i.
-            //
-            // Because the segment in position i always contain the range [d * (i-1), d * i],
-            // where d = 1 / (number of segments), the stream cut is guaranteed to cover
-            // the entire key space. 
+             // We randomly generate a stream cut in each iteration of this loop. A valid stream
+             // cut in this scenario contains for each position i in [0, numSegments -1], a segment
+             // from one of the scale epochs of the stream. For each position i, we randomly
+             // choose an epoch and pick the segment at position i. It increments the epoch
+             // index accordingly (indexes list) so that in the next iteration it chooses a later
+             // epoch for the same i.
+             //
+             // Because the segment in position i always contain the range [d * (i-1), d * i],
+             // where d = 1 / (number of segments), the stream cut is guaranteed to cover
+             // the entire key space. 
              Map<Segment, Long> map = new HashMap<>();
              for (int i = 0; i < numSegments; i++) {
                  AtomicInteger index = indexes.get(i);
