@@ -37,8 +37,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -91,15 +89,46 @@ class TableCompactor {
     }
 
     /**
+     * Calculates the offset in the Segment where it is safe to truncate based on the current state of the Segment and
+     * the highest copied offset encountered during an index update.
+     *
+     * @param info                The {@link SegmentProperties} associated with the Table Segment to inquire about.
+     * @param highestCopiedOffset The highest offset that was copied from a lower offset during a compaction. If the copied
+     *                            entry has already been index then it is guaranteed that every entry prior to this
+     *                            offset is no longer part of the index and can be safely truncated away.
+     * @return The calculated truncation offset or a negative number if no truncation is required or possible given the
+     * arguments we got.
+     */
+    long calculateTruncationOffset(SegmentProperties info, long highestCopiedOffset) {
+        // Due to the nature of compaction (all entries are copied in order of their original versions), if we encounter
+        // any copied Table Entries then the highest explicit version defined on any of them is
+        if (highestCopiedOffset > 0) {
+            return highestCopiedOffset;
+        }
+        // Did not encounter any copied entries. If we were able to index the whole segment, then we should be safe
+        // to truncate at wherever the compaction last finished.
+        long truncateOffset = -1;
+        if (this.indexReader.getLastIndexedOffset(info) >= info.getLength()) {
+            truncateOffset = this.indexReader.getCompactionOffset(info);
+        }
+
+        if (truncateOffset <= info.getStartOffset()) {
+            // The segment is already truncated at the compaction offset; no need for more.
+            truncateOffset = -1;
+        }
+
+        return truncateOffset;
+    }
+
+    /**
      * Performs a compaction of a Table Segment. Refer to this class' Javadoc for a description of the compaction process.
      *
      * @param segment A {@link DirectSegmentAccess} providing access to the Table Segment to compact.
      * @param timer   Timer for the operation.
-     * @return A CompletableFuture that, when completed, will contain a {@link CompactionResult} summarizing the changes
-     * performed. When this future completes, the some of the Segment's Table Attributes may change to reflect the
-     * modifications to the Segment and/or compaction progress.
+     * @return A CompletableFuture that, when completed, indicate the compaction completed. When this future completes,
+     * some of the Segment's Table Attributes may change to reflect the modifications to the Segment and/or compaction progress.
      */
-    CompletableFuture<CompactionResult> compact(@NonNull DirectSegmentAccess segment, TimeoutTimer timer) {
+    CompletableFuture<Void> compact(@NonNull DirectSegmentAccess segment, TimeoutTimer timer) {
         // TODO: retry in case of BadAttributeUpdateException
         SegmentProperties info = segment.getInfo();
         long startOffset = getCompactionStartOffset(info);
@@ -111,7 +140,7 @@ class TableCompactor {
                     segment.getSegmentId(), info.getName(), startOffset, maxLength)));
         } else if (maxLength == 0) {
             // Nothing to do.
-            return CompletableFuture.completedFuture(new CompactionResult(0, startOffset));
+            return CompletableFuture.completedFuture(null);
         }
 
         // Read the Table Entries beginning at the specified offset, without exceeding the given maximum length.
@@ -139,8 +168,6 @@ class TableCompactor {
         return AsyncReadResultProcessor.processAll(rr, this.executor, timer.getRemaining())
                 .thenApply(inputStream -> parseEntries(inputStream, startOffset));
     }
-
-    // TODO: continue writing Javadoc from here; re-examine logic and make sure segment offsets and versions are not confused.
 
     /**
      * Parses out a {@link CompactionArgs} object containing Compaction {@link Candidate}s from the given InputStream
@@ -228,10 +255,9 @@ class TableCompactor {
      * @param segment A {@link DirectSegmentAccess} representing the Segment to operate on.
      * @param args    A {@link CompactionArgs} containing the {@link Candidate}s to copy.
      * @param timer   Timer for the operation.
-     * @return A CompletableFuture that, when completed, will contain a {@link CompactionResult} summarizing the actions
-     * taken.
+     * @return A CompletableFuture that, when completed, indicate the candidates have been copied.
      */
-    private CompletableFuture<CompactionResult> copyCandidates(DirectSegmentAccess segment, CompactionArgs args, TimeoutTimer timer) {
+    private CompletableFuture<Void> copyCandidates(DirectSegmentAccess segment, CompactionArgs args, TimeoutTimer timer) {
         // Collect all the candidates for copying and calculate the total serialization length.
         val toWrite = new ArrayList<TableEntry>();
         int totalLength = 0;
@@ -258,7 +284,7 @@ class TableCompactor {
             result = segment.append(appendData, attributes, timer.getRemaining());
         }
 
-        return result.thenApply(ignored -> new CompactionResult(toWrite.size(), args.endOffset));
+        return Futures.toVoid(result);
     }
 
     /**
@@ -378,26 +404,6 @@ class TableCompactor {
         @Override
         public String toString() {
             return String.format("Offset = %d, Entry = {%s}", this.segmentOffset, this.entry);
-        }
-    }
-
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    @Getter
-    static class CompactionResult {
-        /**
-         * Number of {@link TableEntry} instances moved.
-         */
-        private final int movedEntryCount;
-
-        /**
-         * Last Offset in the Table Segment that was processed as part of this compaction. The next compaction iteration
-         * should start at this offset.
-         */
-        private final long lastProcessedOffset;
-
-        @Override
-        public String toString() {
-            return String.format("Count = %d, LastOffset = %d", this.movedEntryCount, this.lastProcessedOffset);
         }
     }
 

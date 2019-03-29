@@ -191,22 +191,22 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         // Decide if compaction is needed. If not, bail out early.
         SegmentProperties info = segment.getInfo();
         if (!this.compactor.isCompactionRequired(info)) {
-            log.debug("{}: No compaction required at this time.");
+            log.debug("{}: No compaction required at this time.", this.traceObjectId);
             return CompletableFuture.completedFuture(null);
         }
 
         return this.compactor.compact(segment, timer)
-                .thenComposeAsync(cr -> truncateIfNeeded(segment, flushResult, cr, timer), this.executor);
+                             .thenComposeAsync(ignored -> truncateIfNeeded(segment, flushResult, timer), this.executor);
     }
 
-    private CompletableFuture<WriterFlushResult> truncateIfNeeded(DirectSegmentAccess segment, TableWriterFlushResult flushResult,
-                                                                  TableCompactor.CompactionResult compactionResult, TimeoutTimer timer) {
-        // TODO: if flushResult.MaxExplicitVersion is set, then we can safely truncate up to that value (validate it's less than COMPACTION OFFSET).
-        // if not set, and LAST_INDEXED_OFFSET == Segment Length, then we can truncate up to COMPACTED_OFFSET.
-        // WE might not need "compaction result" afterall.
+    private CompletableFuture<WriterFlushResult> truncateIfNeeded(DirectSegmentAccess segment, TableWriterFlushResult flushResult, TimeoutTimer timer) {
+        // Calculate the safe truncation offset.
+        long truncateOffset = this.compactor.calculateTruncationOffset(segment.getInfo(), flushResult.highestCopiedOffset);
 
-        return CompletableFuture.completedFuture(flushResult);
-
+        // Truncate if necessary.
+        return truncateOffset < 0
+                ? CompletableFuture.completedFuture(flushResult)
+                : segment.truncate(truncateOffset, timer.getRemaining()).thenApply(v -> flushResult);
     }
 
     /**
@@ -277,7 +277,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                             keyUpdates.getTotalUpdateCount(), timer.getRemaining());
                                 }, this.executor),
                         this.executor)
-                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestExplicitVersion()));
+                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset()));
     }
 
     @SneakyThrows(DataCorruptionException.class)
@@ -421,6 +421,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         }
         log.trace("{}: Updating {} TableBucket(s).", this.traceObjectId, bucketUpdates.size());
         bucketUpdates.forEach(bu -> log.trace("{}: TableBucket [Offset={}, {}]: ExistingKeys=[{}], Updates=[{}].",
+                this.traceObjectId,
                 bu.getBucketOffset(),
                 bu.getBucket(),
                 bu.getExistingKeys().stream().map(Object::toString).collect(Collectors.joining("; ")),
@@ -522,7 +523,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     @RequiredArgsConstructor
     private static class TableWriterFlushResult extends WriterFlushResult {
         final long lastIndexedOffset;
-        final long highestExplicitVersion;
+        final long highestCopiedOffset;
     }
 
     //endregion

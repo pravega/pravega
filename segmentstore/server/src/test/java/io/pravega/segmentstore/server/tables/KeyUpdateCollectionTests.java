@@ -32,6 +32,7 @@ public class KeyUpdateCollectionTests {
         final int duplication = 2;
         val rnd = new Random(0);
         long maxOffset = 0;
+        long maxHighestOffset = -1;
         val allUpdates = new ArrayList<BucketUpdate.KeyUpdate>();
         val c = new KeyUpdateCollection();
         for (int i = 0; i < keyCount; i++) {
@@ -40,16 +41,23 @@ public class KeyUpdateCollectionTests {
             for (int j = 0; j < duplication; j++) {
                 long offset = 1 + rnd.nextInt(10000);
                 int length = key.length + rnd.nextInt(200);
-                long version = offset / 2 + (i % 2 == j % 2 ? 1 : -1);
+                boolean copiedEntry = i % 2 == j % 2;
+                long version = offset / 2 + (copiedEntry ? 1 : -1);
+                long originalOffset = copiedEntry ? version : -1;
                 val update = new BucketUpdate.KeyUpdate(new HashedArray(key), offset, version, false);
-                c.add(update, length);
+                c.add(update, length, originalOffset);
                 maxOffset = Math.max(maxOffset, offset + length);
+                if (originalOffset >= 0) {
+                    maxHighestOffset = Math.max(maxHighestOffset, originalOffset + length);
+                }
+
                 allUpdates.add(update);
             }
         }
 
         Assert.assertEquals("Unexpected TotalUpdateCount.", keyCount * duplication, c.getTotalUpdateCount());
         Assert.assertEquals("Unexpected LastIndexedOffset.", maxOffset, c.getLastIndexedOffset());
+        Assert.assertEquals("Unexpected HighestCopiedOffset.", maxHighestOffset, c.getHighestCopiedOffset());
 
         val allByKey = allUpdates.stream().collect(Collectors.groupingBy(BucketUpdate.KeyInfo::getKey));
         val expected = allByKey.values().stream()
