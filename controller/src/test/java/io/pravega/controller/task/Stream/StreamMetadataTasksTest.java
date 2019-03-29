@@ -1068,11 +1068,28 @@ public class StreamMetadataTasksTest {
         scaleStatusResult = streamMetadataTasks.checkScale("UNKNOWN", "test", 0, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
         
-        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 0, null).get();
-        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
-        
         scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 5, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
+        
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
+
+        // perform scale steps and check scale after each step
+        VersionedMetadata<EpochTransitionRecord> etr = streamStorePartialMock.getEpochTransition(SCOPE, "test", null, executor).join();
+        streamStorePartialMock.scaleCreateNewEpochs(SCOPE, "test", etr, null, executor).join();
+
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
+
+        streamStorePartialMock.scaleSegmentsSealed(SCOPE, "test", Collections.singletonMap(0L, 0L), etr, null, executor).join();
+
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
+
+        streamStorePartialMock.completeScale(SCOPE, "test", etr, null, executor).join();
+
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS, scaleStatusResult.getStatus());
     }
 
     @Test(timeout = 30000)
