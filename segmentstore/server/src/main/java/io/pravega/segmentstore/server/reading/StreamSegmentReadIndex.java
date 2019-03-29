@@ -190,7 +190,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             this.indexEntries.clear();
         }
 
-        log.info("{}: Cleared all cache entries ({}).", this.traceObjectId, count);
+        if (count > 0) {
+            log.debug("{}: Cleared all cache entries ({}).", this.traceObjectId, count);
+        }
     }
 
     //endregion
@@ -315,7 +317,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         this.metadata = newMetadata;
         this.recoveryMode = false;
-        log.info("{}: Exit RecoveryMode.", this.traceObjectId);
+        log.debug("{}: Exit RecoveryMode.", this.traceObjectId);
     }
 
     //endregion

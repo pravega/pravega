@@ -147,7 +147,6 @@ public class DurableLog extends AbstractService implements OperationLog {
                         .whenComplete((v, ex) -> {
                             if (ex == null) {
                                 // We are done.
-                                log.info("{}: Online.", this.traceObjectId);
                                 notifyDelayedStartComplete(null);
                             } else {
                                 if (Exceptions.unwrap(ex) instanceof DataLogDisabledException) {
@@ -409,7 +408,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     }
 
     private CompletableFuture<Void> queueMetadataCheckpoint() {
-        log.info("{}: MetadataCheckpointOperation queued.", this.traceObjectId);
+        log.debug("{}: Queuing MetadataCheckpointOperation.", this.traceObjectId);
         return this.operationProcessor
                 .process(new MetadataCheckpointOperation())
                 .thenAccept(seqNo -> log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId));

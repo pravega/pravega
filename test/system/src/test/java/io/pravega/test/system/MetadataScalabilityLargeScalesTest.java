@@ -86,7 +86,7 @@ public class MetadataScalabilityLargeScalesTest extends MetadataScalabilityTest 
     }
     
     @Test
-    public void largeScalesScalability() {
+    public void largeNumScalesScalability() {
         testState = new TestState(false);
 
         ControllerImpl controller = getController();

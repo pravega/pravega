@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables.impl;
 
+import io.pravega.common.util.ByteBufferUtils;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
@@ -30,7 +31,7 @@ public interface KeyVersion extends Serializable {
 
         @Override
         public ByteBuffer toBytes() {
-            return ByteBuffer.allocate(0);
+            return ByteBufferUtils.EMPTY;
         }
 
         @Override

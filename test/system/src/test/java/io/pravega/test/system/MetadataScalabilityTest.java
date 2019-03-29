@@ -46,14 +46,23 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 @Slf4j
 @RunWith(SystemTestRunner.class)
+/**
+ * Base class for scalability tests. This class takes a stream name and number of segments and scales to perform and then 
+ * performs that many scales. The scale input is supplied by derived class. 
+ * Then we perform truncation arbitrary number of times but the moment any truncation stream cut contains a segment from latest epoch, 
+ * the test concludes. Post which we seal and delete the stream. 
+ */
 public abstract class MetadataScalabilityTest extends AbstractScaleTests {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(60 * 60);
     private final String streamName = getStreamName();
     private final ScheduledExecutorService scaleExecutorService = Executors.newScheduledThreadPool(5);
-    
+
     @Environment
     public static void initialize() {
         URI zkUri = startZookeeperInstance();
@@ -98,7 +107,7 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
 
     abstract Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments);
 
-    List<List<Segment>>  scale(ControllerImpl controller) {
+    List<List<Segment>> scale(ControllerImpl controller) {
         int numSegments = getStreamConfig().getScalingPolicy().getMinNumSegments();
         int scalesToPerform = getScalesToPerform();
 
@@ -147,10 +156,16 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
              indexes.add(new AtomicInteger(1));
          }
          Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < scalesToPerform - 1), () -> {
-             // randomly generate a stream cut. 
-             // Note: From epoch 1 till epoch SCALES_TO_PERFORM each epoch is made up of numOfSegments segments
-             // and the range is statically partitioned evenly. 
-             // So a random, correct streamcut would be choosing numSegments disjoint segments from numSegments random epochs. 
+             // We randomly generate a stream cut in each iteration of this loop. A valid stream
+             // cut in this scenario contains for each position i in [0, numSegments -1], a segment
+             // from one of the scale epochs of the stream. For each position i, we randomly
+             // choose an epoch and pick the segment at position i. It increments the epoch
+             // index accordingly (indexes list) so that in the next iteration it chooses a later
+             // epoch for the same i.
+             //
+             // Because the segment in position i always contain the range [d * (i-1), d * i],
+             // where d = 1 / (number of segments), the stream cut is guaranteed to cover
+             // the entire key space. 
              Map<Segment, Long> map = new HashMap<>();
              for (int i = 0; i < numSegments; i++) {
                  AtomicInteger index = indexes.get(i);
@@ -163,10 +178,11 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
              return controller.truncateStream(SCOPE, streamName, cut).
                      thenCompose(truncated -> {
                          log.info("stream truncated successfully at {}", cut);
-                         assert truncated;
+                         assertTrue(truncated);
                          // we will just validate that a non empty value is returned. 
                          return controller.getSuccessors(cut)
                                           .thenAccept(successors -> {
+                                              assertEquals(successors.getSegments().size(), numSegments);
                                               log.info("Successors for streamcut {} are {}", cut, successors);
                                           });
                      });

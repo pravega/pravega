@@ -35,6 +35,9 @@ import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
@@ -526,31 +529,35 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<ScaleStatusResponse> checkScale(String scope, String stream, int epoch,
                                                                         OperationContext context) {
-        return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
-                        .handle((activeEpoch, ex) -> {
-                            ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
-
-                            if (ex != null) {
-                                Throwable e = Exceptions.unwrap(ex);
-                                if (e instanceof StoreException.DataNotFoundException) {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+        CompletableFuture<EpochTransitionRecord> epochTransitionFuture = streamMetadataStore.getEpochTransition(scope, stream, context, executor)
+                                                                                                         .thenApply(VersionedMetadata::getObject);
+        CompletableFuture<EpochRecord> activeEpochFuture = streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor);
+        return CompletableFuture.allOf(epochTransitionFuture, activeEpochFuture)
+                            .handle((r, ex) -> {
+                                ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
+    
+                                if (ex != null) {
+                                    Throwable e = Exceptions.unwrap(ex);
+                                    if (e instanceof StoreException.DataNotFoundException) {
+                                        response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                    } else {
+                                        response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
+                                    }
                                 } else {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
+                                    EpochRecord activeEpoch = activeEpochFuture.join();
+                                    EpochTransitionRecord epochTransitionRecord = epochTransitionFuture.join(); 
+                                    if (epoch > activeEpoch.getEpoch()) {
+                                        response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
+                                    } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch ||
+                                            (epochTransitionRecord.getNewEpoch() == activeEpoch.getEpoch() && activeEpoch.getReferenceEpoch() == epoch + 1)) {
+                                        response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
+                                    } else {
+                                        response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
+                                    }
                                 }
-                            } else {
-                                Preconditions.checkNotNull(activeEpoch);
-
-                                if (epoch > activeEpoch.getEpoch()) {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
-                                } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch) {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
-                                } else {
-                                    response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
-                                }
-                            }
-
-                            return response.build();
-                        });
+    
+                                return response.build();
+                            });
     }
 
     /**

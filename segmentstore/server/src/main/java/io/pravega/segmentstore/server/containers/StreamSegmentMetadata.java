@@ -91,7 +91,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
         Preconditions.checkArgument(containerId >= 0, "containerId");
 
-        this.traceObjectId = String.format("StreamSegment[%d]", streamSegmentId);
+        this.traceObjectId = String.format("StreamSegment[%d-%d]", containerId, streamSegmentId);
         this.name = streamSegmentName;
         this.streamSegmentId = streamSegmentId;
         this.containerId = containerId;

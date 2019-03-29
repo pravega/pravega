@@ -76,7 +76,7 @@ public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalability
     }
 
     @Test
-    public void largeSegmentsScalability() {
+    public void largeNumSegmentsScalability() {
         testState = new TestState(false);
 
         ControllerImpl controller = getController();
