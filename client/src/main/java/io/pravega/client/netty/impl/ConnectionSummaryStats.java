@@ -20,7 +20,7 @@ import java.util.Optional;
  */
 public final class ConnectionSummaryStats {
 
-    // This need not be threadsafe as because the parallel implementation of Stream.collect() provides the necessary partitioning and
+    // This need not be threadsafe because the parallel implementation of Stream.collect() provides the necessary partitioning and
     // isolation for efficient parallel execution.
     private Map<PravegaNodeUri, Connection> minSessionCountMap = new HashMap<>();
     private Map<PravegaNodeUri, Integer> connectionCountMap = new HashMap<>();
