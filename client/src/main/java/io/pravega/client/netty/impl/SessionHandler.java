@@ -58,8 +58,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         if (sessionIdReplyProcessorMap.put(session.getSessionId(), rp) != null) {
             throw new IllegalArgumentException("Multiple sessions cannot be created with the same Session id {}" + session.getSessionId());
         }
-        ClientConnection connection = new ClientConnectionImpl(connectionName, session.getSessionId(), batchSizeTracker, this);
-        return connection;
+        return new ClientConnectionImpl(connectionName, session.getSessionId(), batchSizeTracker, this);
     }
 
     /**
@@ -110,6 +109,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         log.info("Connection established {} ", ctx);
         c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), c.voidPromise());
+        // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
         ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
         if (old != null) {
             old.cancel(false);
