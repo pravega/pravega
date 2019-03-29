@@ -33,7 +33,9 @@ import lombok.extern.slf4j.Slf4j;
 @Builder(toBuilder = true)
 public class ClientConfig implements Serializable {
 
+    static final int DEFAULT_MAX_CONNECTION_PER_SEGMENT_STORE = 2;
     private static final long serialVersionUID = 1L;
+
 
     /** controllerURI The controller rpc URI. This can be of 2 types
      1. tcp://ip1:port1,ip2:port2,...
@@ -62,7 +64,7 @@ public class ClientConfig implements Serializable {
     /**
      * Maximum number of connections per Segment store.
      */
-    private int maxConnectionPerSegmentStore;
+    private int maxConnectionsPerSegmentStore;
 
     public boolean isEnableTls() {
         String scheme = this.controllerURI.getScheme();
@@ -89,12 +91,9 @@ public class ClientConfig implements Serializable {
         private static final String AUTH_METHOD = "method";
         private static final String AUTH_METHOD_LOAD_DYNAMIC = "loadDynamic";
         private static final String AUTH_TOKEN = "token";
-
         private static final String AUTH_PROPS_PREFIX_ENV = "pravega_client_auth_";
 
         private boolean validateHostName = true;
-
-        private int maxConnectionPerSegmentStore = 1;
 
         public ClientConfig build() {
             if (controllerURI == null) {
@@ -104,7 +103,10 @@ public class ClientConfig implements Serializable {
             if (credentials == null) {
                 log.warn("The credentials are not specified or could not be extracted.");
             }
-            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionPerSegmentStore);
+            if (maxConnectionsPerSegmentStore == 0) {
+                maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTION_PER_SEGMENT_STORE;
+            }
+            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore);
         }
 
         /**

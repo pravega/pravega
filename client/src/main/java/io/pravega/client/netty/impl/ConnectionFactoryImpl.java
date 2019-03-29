@@ -61,6 +61,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+/**
+ * ConnectionFactory Implementation.
+ */
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
@@ -71,10 +74,6 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     @Getter(AccessLevel.PACKAGE)
     private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
-    /**
-     * Actual implementation of ConnectionFactory interface.
-     * @param clientConfig Configuration object holding details about connection to the segmentstore.
-     */
     public ConnectionFactoryImpl(ClientConfig clientConfig) {
         this(clientConfig, (Integer) null);
     }
@@ -213,7 +212,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
         return (int) channelGroup.stream()
                                  .filter(Channel::isActive)
                                  .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.",
-                                                      ch.id(), ch.localAddress(), ch.remoteAddress()))
+                                                       ch.id(), ch.localAddress(), ch.remoteAddress()))
                                  .count();
     }
     

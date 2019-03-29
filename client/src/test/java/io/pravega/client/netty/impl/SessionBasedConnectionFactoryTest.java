@@ -158,7 +158,7 @@ public class SessionBasedConnectionFactoryTest {
         SessionBasedConnectionFactory factory = new SessionBasedConnectionFactory(ClientConfig.builder()
                                                                                               .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
                                                                                               .trustStore("../config/cert.pem")
-                                                                                              .maxConnectionPerSegmentStore(1)
+                                                                                              .maxConnectionsPerSegmentStore(1)
                                                                                               .build());
 
         ArrayBlockingQueue<WireCommands.SegmentRead> msgRead = new ArrayBlockingQueue<>(10);

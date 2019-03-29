@@ -98,7 +98,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         Optional<Connection> suggestedConnection = stats.getConnectionWithMinimumSession(location);
 
         final Connection connection;
-        if (suggestedConnection.isPresent() && stats.getConnectionCount(location) == clientConfig.getMaxConnectionPerSegmentStore()) {
+        if (suggestedConnection.isPresent() && stats.getConnectionCount(location) == clientConfig.getMaxConnectionsPerSegmentStore()) {
             // reuse the connection.
             Connection oldConnection = suggestedConnection.get();
             connectionList.remove(oldConnection);

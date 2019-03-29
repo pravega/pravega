@@ -38,4 +38,13 @@ public class ClientConfigTest {
         ClientConfig actual = s.deserialize(s.serialize(expected));
         assertEquals(expected, actual);
     }
+
+    @Test
+    public void testDefault() {
+        ClientConfig defaultConfig = ClientConfig.builder().build();
+        assertEquals(ClientConfig.DEFAULT_MAX_CONNECTION_PER_SEGMENT_STORE, defaultConfig.getMaxConnectionsPerSegmentStore());
+        ClientConfig config2 = ClientConfig.builder().maxConnectionsPerSegmentStore(1).build();
+        assertEquals(1, config2.getMaxConnectionsPerSegmentStore());
+
+    }
 }
