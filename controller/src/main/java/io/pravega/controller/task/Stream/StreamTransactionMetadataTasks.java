@@ -597,12 +597,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         return commitWriterFuture
                 .thenCompose(commitWriter -> commitWriter.writeEvent(event.getKey(), event));
     }
-
-    public CompletableFuture<Void> writeAbortEvent(AbortEvent event) {
-        return abortWriterFuture
-                .thenCompose(abortWriter -> abortWriter.writeEvent(event.getKey(), event));
-    }
-
+    
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         CommitEvent event = new CommitEvent(scope, stream, epoch);
         return TaskStepsRetryHelper.withRetries(() -> writeCommitEvent(event)
@@ -613,6 +608,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     log.debug("Transaction {}, failed posting abort event. Retrying...", txnId);
                     throw new WriteFailedException(ex);
                 }), executor).thenApply(v -> status);
+    }
+
+    public CompletableFuture<Void> writeAbortEvent(AbortEvent event) {
+        return abortWriterFuture
+                .thenCompose(abortWriter -> abortWriter.writeEvent(event.getKey(), event));
     }
 
     CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
@@ -628,6 +628,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
+                                 
                                                       final List<Segment> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
