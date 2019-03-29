@@ -9,8 +9,7 @@
  */
 package io.pravega.controller.mocks;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -28,10 +27,8 @@ import static org.mockito.Mockito.spy;
 
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
-    private static ConnectionFactoryImpl clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-
     public static SegmentHelper getSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper(clientCF, mock(HostControllerStore.class)));
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
@@ -67,7 +64,7 @@ public class SegmentHelperMock {
     }
 
     public static SegmentHelper getFailingSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper(clientCF, mock(HostControllerStore.class)));
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
