@@ -52,7 +52,6 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.store.stream.VersionedTransactionData;
-import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -72,7 +71,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
@@ -570,13 +568,12 @@ public class StreamTransactionMetadataTasksTest {
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", connectionFactory,
                 new AuthHelper(this.authEnabled, "secret"));
 
-
         streamStore.createScope(SCOPE).join();
-        streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),1L, null, executor).join();
+        streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
         CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createFuture = txnTasks.createTxn(SCOPE, STREAM, 100L, null);
-        
+
         // create and ping transactions should not wait for writer initialization and complete immediately.
         createFuture.join();
         assertTrue(Futures.await(createFuture));
@@ -586,7 +583,7 @@ public class StreamTransactionMetadataTasksTest {
 
         CompletableFuture<TxnStatus> commitFuture = txnTasks.commitTxn(SCOPE, STREAM, txnId, null);
         assertFalse(commitFuture.isDone());
-        
+
         EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
         EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
 
@@ -606,7 +603,7 @@ public class StreamTransactionMetadataTasksTest {
                 new AuthHelper(this.authEnabled, "secret"));
 
         streamStore.createScope(SCOPE).join();
-        streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(),1L, null, executor).join();
+        streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
         TestEventStreamWriter<CommitEvent> commitWriter = new TestEventStreamWriter<>();
@@ -617,7 +614,7 @@ public class StreamTransactionMetadataTasksTest {
         UUID txnId = UUID.randomUUID();
         txnTasks.writeAbortEvent(SCOPE, STREAM, 0, txnId, TxnStatus.ABORTING).join();
         Pair<String, AbortEvent> request = abortWriter.requestsReceived.take();
-        assertEquals(request.getKey(), request.getValue().getKey()); 
+        assertEquals(request.getKey(), request.getValue().getKey());
         txnTasks.writeAbortEvent(new AbortEvent(SCOPE, STREAM, 0, txnId)).join();
         Pair<String, AbortEvent> request2 = abortWriter.requestsReceived.take();
         assertEquals(request2.getKey(), request2.getValue().getKey());
