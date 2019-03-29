@@ -37,8 +37,13 @@ public class HistoryTimeSeries {
     private final List<HistoryTimeSeriesRecord> historyRecords;
 
     @Builder
+    HistoryTimeSeries(List<HistoryTimeSeriesRecord> historyRecords, boolean copyCollection) {
+        this.historyRecords = copyCollection ? ImmutableList.copyOf(historyRecords) : historyRecords;
+    }
+
+    @Builder
     HistoryTimeSeries(List<HistoryTimeSeriesRecord> historyRecords) {
-        this.historyRecords = ImmutableList.copyOf(historyRecords);
+        this(historyRecords, true);
     }
 
     @SneakyThrows(IOException.class)
@@ -87,7 +92,8 @@ public class HistoryTimeSeries {
 
         private void read00(RevisionDataInput revisionDataInput, HistoryTimeSeries.HistoryTimeSeriesBuilder builder) throws IOException {
             builder.historyRecords(revisionDataInput.readCollection(HistoryTimeSeriesRecord.SERIALIZER::deserialize,
-                    ArrayList::new));
+                    ArrayList::new))
+                   .copyCollection(false);
         }
 
         private void write00(HistoryTimeSeries history, RevisionDataOutput revisionDataOutput) throws IOException {

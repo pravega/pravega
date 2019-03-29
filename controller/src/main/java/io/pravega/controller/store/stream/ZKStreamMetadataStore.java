@@ -161,10 +161,10 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
-        return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
+        return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)), x -> BitConverter.readInt(x, 0))
                           .handleAsync((data, ex) -> {
                               if (ex == null) {
-                                  return BitConverter.readInt(data.getData(), 0) + 1;
+                                  return data.getObject() + 1;
                               } else if (ex instanceof StoreException.DataNotFoundException) {
                                   return 0;
                               } else {
@@ -181,7 +181,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
         final String deletePath = String.format(DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
         byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
-        return storeHelper.getData(deletePath)
+        return storeHelper.getData(deletePath, x -> BitConverter.readInt(x, 0))
                           .exceptionally(e -> {
                               if (e instanceof StoreException.DataNotFoundException) {
                                   return null;
@@ -194,11 +194,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
                               if (data == null) {
                                   return Futures.toVoid(storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
                               } else {
-                                  final int oldLastActiveSegment = BitConverter.readInt(data.getData(), 0);
+                                  final int oldLastActiveSegment = data.getObject();
                                   Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
                                           "Old last active segment ({}) for {}/{} is higher than current one {}.",
                                           oldLastActiveSegment, scope, stream, lastActiveSegment);
-                                  return Futures.toVoid(storeHelper.setData(deletePath, new Data(maxSegmentNumberBytes, data.getVersion())));
+                                  return Futures.toVoid(storeHelper.setData(deletePath, maxSegmentNumberBytes, data.getVersion()));
                               }
                           });
     }
