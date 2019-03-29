@@ -91,14 +91,15 @@ public class ControllerServiceTest {
         final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, disabledAuthHelper);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
-                segmentHelper, executor, "host", requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper, executor, "host");
 
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                new SegmentHelper(hostStore, connectionFactory, disabledAuthHelper), executor, null);
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
+                segmentHelper, executor, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
+                segmentHelper, executor, "host", AuthHelper.getDisabledAuthHelper());
+
+        consumer = new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                new SegmentHelper(connectionFactory, hostStore), executor, null);
     }
 
     @Before

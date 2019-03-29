@@ -27,6 +27,7 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
@@ -104,25 +105,27 @@ public class StreamMetadataTasks extends TaskBase {
     private String requestStreamName;
 
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
+    private final AuthHelper authHelper;
     private final RequestTracker requestTracker;
     private final AtomicBoolean streamWritersInitialized;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
-                               RequestTracker requestTracker) {
+                               AuthHelper authHelper, RequestTracker requestTracker) {
         this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
-                requestTracker);
+                authHelper, requestTracker);
     }
 
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
-                                RequestTracker requestTracker) {
+                                AuthHelper authHelper, RequestTracker requestTracker) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
         this.segmentHelper = segmentHelper;
+        this.authHelper = authHelper;
         this.requestTracker = requestTracker;
         this.streamWritersInitialized = new AtomicBoolean(false);
         this.setReady();
@@ -858,7 +861,8 @@ public class StreamMetadataTasks extends TaskBase {
                 stream,
                 segmentNumber,
                 segmentNumber,
-                txnId, this.retrieveDelegationToken()), executor);
+                txnId,
+                this.retrieveDelegationToken()), executor);
     }
 
     public CompletableFuture<Void> notifyTxnAbort(final String scope, final String stream,
@@ -890,6 +894,7 @@ public class StreamMetadataTasks extends TaskBase {
                 segmentHelper,
                 executor,
                 context,
+                authHelper,
                 requestTracker);
     }
 
@@ -902,6 +907,6 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     public String retrieveDelegationToken() {
-        return segmentHelper.retrieveMasterToken();
+        return authHelper.retrieveMasterToken();
     }
 }

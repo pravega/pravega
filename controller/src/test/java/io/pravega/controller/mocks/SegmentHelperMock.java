@@ -45,43 +45,44 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
-    public static SegmentHelper getSegmentHelperMock(HostControllerStore hostControllerStore, ConnectionFactory clientCF, AuthHelper authHelper) {
-        SegmentHelper helper = spy(new SegmentHelper(hostControllerStore, clientCF, authHelper));
+    public static SegmentHelper getSegmentHelperMock() {
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).sealSegment(
-                anyString(), anyString(), anyLong(), anyString(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), anyString(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).deleteSegment(
-                anyString(), anyString(), anyLong(), anyString(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), anyString());
+                anyString(), anyString(), anyLong(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), anyString());
+                anyString(), anyString(), anyLong(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).updatePolicy(
-                anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
+                anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).truncateSegment(
-                anyString(), anyString(), anyLong(), anyLong(), anyString(), anyLong());
+                anyString(), anyString(), anyLong(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
                 anyString(), anyString(), anyLong(), anyString());
@@ -89,45 +90,38 @@ public class SegmentHelperMock {
         return helper;
     }
 
-    public static SegmentHelper getFailingSegmentHelperMock(HostControllerStore hostControllerStore, ConnectionFactory clientCF, AuthHelper authHelper) {
-        SegmentHelper helper = spy(new SegmentHelper(hostControllerStore, clientCF, authHelper));
+    public static SegmentHelper getFailingSegmentHelperMock() {
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).sealSegment(
-                anyString(), anyString(), anyLong(), anyString(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), anyString(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).deleteSegment(
-                anyString(), anyString(), anyLong(), anyString(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), anyString());
+                anyString(), anyString(), anyLong(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), anyString());
+                anyString(), anyString(), anyLong(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), anyString());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
-                anyString(), anyString(), any(), anyLong(), anyString(), anyLong());
+                anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
         return helper;
     }
 
     public static SegmentHelper getSegmentHelperMockForTables(ScheduledExecutorService executor) {
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
-        return getSegmentHelperMockForTables(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper(), executor);
-    }
-    
-    public static SegmentHelper getSegmentHelperMockForTables(HostControllerStore hostControllerStore, ConnectionFactory clientCF, 
-                                                              AuthHelper authHelper, ScheduledExecutorService executor) {
-        SegmentHelper helper = getSegmentHelperMock(hostControllerStore, clientCF, authHelper);
+        SegmentHelper helper = getSegmentHelperMock();
         final Object lock = new Object();
         final Map<String, Map<ByteBuffer, TableEntry<byte[], byte[]>>> mapOfTables = new HashMap<>();
         final Map<String, Map<ByteBuffer, Long>> mapOfTablesPosition = new HashMap<>();

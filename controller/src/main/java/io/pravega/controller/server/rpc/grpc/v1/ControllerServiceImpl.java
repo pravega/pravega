@@ -436,7 +436,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     public void stop() {
-        stopFuture.completeExceptionally(new ServiceUnavailableException());    
+        stopFuture.completeExceptionally(new ServiceUnavailableException("Service is shutting down."));    
     }
     
     // Convert responses from CompletableFuture to gRPC's Observer pattern.

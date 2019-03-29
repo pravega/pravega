@@ -147,11 +147,11 @@ public class ControllerGrpcAuthFocusedTest {
 
         AuthHelper authHelper = new AuthHelper(true, "secret");
 
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
-                EXECUTOR, "host", connectionFactory, authHelper, requestTracker);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
+                EXECUTOR, "host", authHelper, requestTracker);
 
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelper,
-                EXECUTOR, "host", connectionFactory, authHelper);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
+                EXECUTOR, "host", authHelper);
 
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, EXECUTOR),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, EXECUTOR),
@@ -171,11 +171,10 @@ public class ControllerGrpcAuthFocusedTest {
 
         ControllerServiceGrpc.ControllerServiceImplBase controllerServiceImplBase = new ControllerServiceImpl(
                 new ControllerService(streamStore,
-                                      hostStore,
                                       streamMetadataTasks,
                                       streamTransactionMetadataTasks,
-                                      new SegmentHelper(),
-                        EXECUTOR,
+                                      segmentHelper,
+                                      EXECUTOR,
                                       mockCluster),
                 authHelper,
                 requestTracker,

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.timeout;
 
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -16,8 +17,10 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.EventStreamWriterMock;
+import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
@@ -59,6 +62,8 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import javax.ws.rs.HEAD;
 
 /**
  * Test class for TimeoutService.
@@ -107,19 +112,18 @@ public abstract class TimeoutServiceTest {
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore,
-                segmentHelper, executor, hostId, requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                segmentHelper,
-                executor, hostId, TimeoutServiceConfig.defaultConfig(),
-                new LinkedBlockingQueue<>(5));
-                streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
+                SegmentHelperMock.getSegmentHelperMock(), executor, hostId, AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
+                SegmentHelperMock.getSegmentHelperMock(), executor, hostId, TimeoutServiceConfig.defaultConfig(),
+                new LinkedBlockingQueue<>(5), AuthHelper.getDisabledAuthHelper());
+        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
 
         // Create TimeoutService
         timeoutService = (TimerWheelTimeoutService) streamTransactionMetadataTasks.getTimeoutService();
 
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelper, executor, null);
+        controllerService = new ControllerService(streamStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, SegmentHelperMock.getSegmentHelperMock(), executor, null);
 
         // Create scope and stream
         streamStore.createScope(SCOPE).join();
@@ -252,21 +256,22 @@ public abstract class TimeoutServiceTest {
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createStore(storeClient, executor);
 
+        SegmentHelper helperMock = SegmentHelperMock.getSegmentHelperMock();
         @Cleanup
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamStore2, bucketStore, taskMetadataStore,
-                segmentHelper, executor, "2", requestTracker);
+                helperMock, executor, "2", AuthHelper.getDisabledAuthHelper(), requestTracker);
         @Cleanup
-        StreamTransactionMetadataTasks streamTransactionMetadataTasks2 = new StreamTransactionMetadataTasks(streamStore2, 
-                segmentHelper, executor, "2", 
-                TimeoutServiceConfig.defaultConfig(), new LinkedBlockingQueue<>(5));
+        StreamTransactionMetadataTasks streamTransactionMetadataTasks2 = new StreamTransactionMetadataTasks(streamStore2,
+                helperMock, executor, "2", TimeoutServiceConfig.defaultConfig(),
+                new LinkedBlockingQueue<>(5), AuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks2.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
                 "abortStream", new EventStreamWriterMock<>());
 
         // Create TimeoutService
         TimerWheelTimeoutService timeoutService2 = (TimerWheelTimeoutService) streamTransactionMetadataTasks2.getTimeoutService();
 
-        ControllerService controllerService2 = new ControllerService(streamStore2, hostStore, streamMetadataTasks2,
-                streamTransactionMetadataTasks2, segmentHelper, executor, null);
+        ControllerService controllerService2 = new ControllerService(streamStore2, streamMetadataTasks2,
+                streamTransactionMetadataTasks2, helperMock, executor, null);
 
         TxnId txnId = controllerService.createTransaction(SCOPE, STREAM, LEASE)
                 .thenApply(x -> ModelHelper.decode(x.getKey()))

@@ -135,14 +135,16 @@ public abstract class RequestHandlersTest {
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
-        segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, disabledAuthHelper);
+        segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         clientFactory = mock(EventStreamClientFactory.class);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executor, hostId, requestTracker);
+                executor, hostId, AuthHelper.getDisabledAuthHelper(), requestTracker);
         doAnswer(x -> new EventStreamWriterMock<>()).when(clientFactory).createEventWriter(anyString(), any(), any());
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
+                executor, hostId, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper, executor, hostId);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
+                segmentHelper, executor, hostId, AuthHelper.getDisabledAuthHelper());
         streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), 
                 "abortStream", new EventStreamWriterMock<>());
         long createTimestamp = System.currentTimeMillis();

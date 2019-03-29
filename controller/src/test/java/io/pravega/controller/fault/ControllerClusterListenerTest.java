@@ -44,6 +44,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -131,38 +133,36 @@ public class ControllerClusterListenerTest {
                 new TestTasks(taskStore, executor, host.getHostId()));
         
         // Create txn sweeper.
-        try (StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor)) {
-            HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-            ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
-            SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
-            StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper, executor, host.getHostId());
-            txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
-                    new EventStreamWriterMock<>());
-            TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
-            RequestSweeper requestSweeper = new RequestSweeper(streamStore, executor, mock(StreamMetadataTasks.class));
+        @Cleanup
+        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore,
+                segmentHelper, executor, host.getHostId(), AuthHelper.getDisabledAuthHelper());
+        txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
+                new EventStreamWriterMock<>());
+        TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
-            // Create ControllerClusterListener.
-            ControllerClusterListener clusterListener = new ControllerClusterListener(host, clusterZK, executor,
-                    Lists.newArrayList(taskSweeper, txnSweeper, requestSweeper));
-            clusterListener.startAsync();
+        // Create ControllerClusterListener.
+        ControllerClusterListener clusterListener = new ControllerClusterListener(host, clusterZK, executor,
+                Lists.newArrayList(taskSweeper, txnSweeper));
+        clusterListener.startAsync();
 
-            clusterListener.awaitRunning();
+        clusterListener.awaitRunning();
 
-            validateAddedNode(host.getHostId());
+        validateAddedNode(host.getHostId());
 
-            // Add a new host
-            Host host1 = new Host(hostName, 20, "host2");
-            clusterZK.registerHost(host1);
-            validateAddedNode(host1.getHostId());
+        // Add a new host
+        Host host1 = new Host(hostName, 20, "host2");
+        clusterZK.registerHost(host1);
+        validateAddedNode(host1.getHostId());
 
-            clusterZK.deregisterHost(host1);
-            validateRemovedNode(host1.getHostId());
+        clusterZK.deregisterHost(host1);
+        validateRemovedNode(host1.getHostId());
 
-            clusterListener.stopAsync();
+        clusterListener.stopAsync();
 
-            clusterListener.awaitTerminated();
-            validateRemovedNode(host.getHostId());
-        }
+        clusterListener.awaitTerminated();
+        validateRemovedNode(host.getHostId());
     }
 
     @Test(timeout = 60000L)
@@ -208,13 +208,11 @@ public class ControllerClusterListenerTest {
 
         // Create txn sweeper.
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         // create streamtransactionmetadatatasks but dont initialize it with writers. this will not be
         // ready until writers are supplied.
-        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper, executor, 
-                host.getHostId());
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
+                segmentHelper, executor, host.getHostId(), AuthHelper.getDisabledAuthHelper());
 
         TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
         // any attempt to sweep txnHost should have been ignored
@@ -238,7 +236,7 @@ public class ControllerClusterListenerTest {
 
         // Create request sweeper.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, mock(BucketStore.class), taskStore, segmentHelper, executor,
-                host.getHostId(), new RequestTracker(true));
+                host.getHostId(), AuthHelper.getDisabledAuthHelper(), new RequestTracker(true));
 
         RequestSweeper requestSweeper = spy(new RequestSweeper(streamStore, executor, streamMetadataTasks));
         // any attempt to sweep requests should have been ignored

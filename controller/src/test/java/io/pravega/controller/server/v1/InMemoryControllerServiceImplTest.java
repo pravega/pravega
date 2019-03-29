@@ -41,6 +41,7 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import java.net.URI;
 import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.mockito.Mockito.mock;
@@ -74,12 +75,10 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                                         .build());
-        AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
-        segmentHelper = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, disabledAuthHelper);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executorService, "host", requestTracker);
+                executorService, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
-                executorService, "host");
+                executorService, "host", AuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
@@ -96,9 +95,8 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         controllerService = new ControllerServiceImpl(
-                new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      new SegmentHelper(hostStore, connectionFactory, disabledAuthHelper), executorService, mockCluster), 
-                disabledAuthHelper, requestTracker, true, 2);
+                new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                                      SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster), AuthHelper.getDisabledAuthHelper(), requestTracker, true, 2, new CompletableFuture<>());
     }
 
     @Override

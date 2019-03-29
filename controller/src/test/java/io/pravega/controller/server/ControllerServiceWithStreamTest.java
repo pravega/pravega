@@ -108,10 +108,10 @@ public abstract class ControllerServiceWithStreamTest {
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
         AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
-        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, disabledAuthHelper);
+        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock(connectionFactory, hostStore);
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host");
+                executor, "host", disabledAuthHelper, requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host", disabledAuthHelper);
         StreamRequestHandler streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
@@ -122,8 +122,7 @@ public abstract class ControllerServiceWithStreamTest {
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+        consumer = new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, segmentHelperMock, executor, null);
     }
 
     abstract StreamMetadataStore getStore();

@@ -20,9 +20,6 @@ import lombok.extern.slf4j.Slf4j;
  */
 @Slf4j
 public class PravegaTableTaskTest extends TaskTest {
-    public PravegaTableTaskTest() throws Exception {
-    }
-
     @Override
     protected StreamMetadataStore getStream() {
         return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), cli, executor);

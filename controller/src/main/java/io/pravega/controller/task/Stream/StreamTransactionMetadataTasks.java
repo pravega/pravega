@@ -631,7 +631,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 txnId,
                 this.retrieveDelegationToken()), executor);
     }
-
+    
     private OperationContext getNonNullOperationContext(final String scope,
                                                         final String stream,
                                                         final OperationContext contextOpt) {
