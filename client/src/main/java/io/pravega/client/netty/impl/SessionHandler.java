@@ -15,6 +15,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.client.Session;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableFutureLatch;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -36,6 +37,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
+    private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AppendBatchSizeTracker batchSizeTracker;
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
     private final ConcurrentHashMap<Integer, ReplyProcessor> sessionIdReplyProcessorMap = new ConcurrentHashMap<>();
@@ -45,7 +47,14 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         this.batchSizeTracker = batchSizeTracker;
     }
 
+    /**
+     * Create a session on existing connection.
+     * @param session Session.
+     * @param rp ReplyProcessor for the specified session.
+     * @return Client Connection object.
+     */
     public ClientConnection createSession(final Session session, final ReplyProcessor rp) {
+        Exceptions.checkNotClosed(closed.get(), this);
         if (sessionIdReplyProcessorMap.put(session.getSessionId(), rp) != null) {
             throw new IllegalArgumentException("Multiple sessions cannot be created with the same Session id {}" + session.getSessionId());
         }
@@ -53,16 +62,28 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         return connection;
     }
 
+    /**
+     * Close a session. This is invoked when the ClientConnection is closed.
+     * @param clientConnection Client Connection.
+     */
     public void closeSession(ClientConnection clientConnection) {
         int session = ((ClientConnectionImpl) clientConnection).getSession();
         log.info("Closing session with sessionId: {}", session);
         sessionIdReplyProcessorMap.remove(session);
     }
 
+    /**
+     * Set the Recent Message flag. This is used to avoid sending redundant KeepAlives over the connection.
+     */
     void setRecentMessage() {
         recentMessage.set(true);
     }
 
+    /**
+     * Fetch the netty channel. If {@link Channel} is null then throw a ConnectionFailedException.
+     * @return  The current {@link Channel}
+     * @throws ConnectionFailedException Throw if connection is not established.
+     */
     Channel getChannel() throws ConnectionFailedException {
         Channel ch = channel.get();
         if (ch == null) {
@@ -96,7 +117,8 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     }
 
     /**
-     * Disconnected.
+     * Invoke all the {@link ReplyProcessor#connectionDropped()} for all the registered sessions once the
+     * connection is disconnected.
      *
      * @see io.netty.channel.ChannelInboundHandler#channelUnregistered(ChannelHandlerContext)
      */
@@ -118,7 +140,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Reply cmd = (Reply) msg;
-        log.debug(connectionName + " processing reply: {}", cmd);
+        log.debug(connectionName + " processing reply: {} with session {}.", cmd, Session.from(cmd.getRequestId()));
         if (cmd instanceof WireCommands.DataAppended) {
             batchSizeTracker.recordAck(((WireCommands.DataAppended) cmd).getEventNumber());
         }
@@ -141,11 +163,13 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
 
     @Override
     public void close() {
-        Channel ch = channel.get();
-        if (ch != null) {
-            log.debug("Closing channel:{} ", ch);
-            log.warn("{} sessions are not closed", sessionIdReplyProcessorMap.size());
-            ch.close();
+        if (closed.compareAndSet(false, true)) {
+            Channel ch = channel.get();
+            if (ch != null) {
+                log.debug("Closing channel:{} ", ch);
+                log.warn("{} sessions are not closed", sessionIdReplyProcessorMap.size());
+                ch.close();
+            }
         }
     }
 
@@ -159,7 +183,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
                 }
             } catch (Exception e) {
                 log.warn("Keep alive failed, killing connection {} due to {} ", connectionName, e.getMessage());
-                //close(); //TODO:
+                close();
             }
         }
     }
