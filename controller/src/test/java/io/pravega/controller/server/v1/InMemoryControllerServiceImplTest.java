@@ -41,7 +41,6 @@ import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import java.net.URI;
 import java.util.Collections;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.mockito.Mockito.mock;
@@ -96,7 +95,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster), AuthHelper.getDisabledAuthHelper(), requestTracker, true, 2, new CompletableFuture<>());
+                                      SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster), AuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
     @Override

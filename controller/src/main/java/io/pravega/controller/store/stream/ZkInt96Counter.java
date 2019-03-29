@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
-import io.pravega.common.util.BitConverter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;

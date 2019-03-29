@@ -64,7 +64,6 @@ import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DAT
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.toMap;
 
 @Slf4j
 public abstract class PersistentStreamBase implements Stream {

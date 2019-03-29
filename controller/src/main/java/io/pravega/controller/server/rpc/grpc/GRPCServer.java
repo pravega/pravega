@@ -91,6 +91,7 @@ public class GRPCServer extends AbstractIdleService {
         try {
             log.info("Stopping gRPC server listening on port: {}", this.config.getPort());
             this.server.shutdown();
+            this.controllerServiceImpl.shutdown();
             log.info("Awaiting termination of gRPC server");
             this.server.awaitTermination();
             log.info("gRPC server terminated");
