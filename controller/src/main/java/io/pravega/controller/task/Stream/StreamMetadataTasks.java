@@ -28,7 +28,6 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;

@@ -19,7 +19,6 @@ import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.Segment;
