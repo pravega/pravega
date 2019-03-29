@@ -399,23 +399,8 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     private CompletableFuture<Boolean> isTruncated(String scope, String stream, Map<Long, Long> streamCut, OperationContext context) {
-        CompletableFuture<State> stateFuture = streamMetadataStore.getState(scope, stream, true, context, executor);
-        CompletableFuture<StreamTruncationRecord> configPropertyFuture
-                = streamMetadataStore.getTruncationRecord(scope, stream, context, executor).thenApply(VersionedMetadata::getObject);
-        return CompletableFuture.allOf(stateFuture, configPropertyFuture)
-                                .thenApply(v -> {
-                                    State state = stateFuture.join();
-                                    StreamTruncationRecord truncationRecord = configPropertyFuture.join();
-
-                                    // if property is updating and doesnt match our request, its a subsequent update
-                                    if (truncationRecord.isUpdating()) {
-                                        return !truncationRecord.getStreamCut().equals(streamCut);
-                                    } else {
-                                        // if property is not updating, then update is complete if property matches our expectation 
-                                        // and state is not updating 
-                                        return !(truncationRecord.getStreamCut().equals(streamCut) && state.equals(State.TRUNCATING));
-                                    }
-                                });
+        return streamMetadataStore.getTruncationRecord(scope, stream, context, executor)
+                .thenApply(truncationProp -> !truncationProp.getObject().isUpdating() || !truncationProp.getObject().getStreamCut().equals(streamCut));
     }
 
     /**
@@ -563,12 +548,8 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<ScaleStatusResponse> checkScale(String scope, String stream, int epoch,
                                                                         OperationContext context) {
-        CompletableFuture<EpochRecord> activeEpochFuture =
-                streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor);
-        CompletableFuture<State> stateFuture =
-                streamMetadataStore.getState(scope, stream, true, context, executor);
-        return CompletableFuture.allOf(stateFuture, activeEpochFuture)
-                        .handle((r, ex) -> {
+        return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
+                        .handle((activeEpoch, ex) -> {
                             ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
 
                             if (ex != null) {
@@ -579,20 +560,14 @@ public class StreamMetadataTasks extends TaskBase {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.INTERNAL_ERROR);
                                 }
                             } else {
-                                EpochRecord activeEpoch = activeEpochFuture.join();
-                                State state = stateFuture.join();
+                                Preconditions.checkNotNull(activeEpoch);
+
                                 if (epoch > activeEpoch.getEpoch()) {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
                                 } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch) {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
                                 } else {
-                                    // active epoch > requested epoch. If state is scaling and etr matches current request 
-                                    // then inprogress else success
-                                    if (epoch == activeEpoch.getReferenceEpoch() + 1 && state.equals(State.SCALING)) {
-                                        response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
-                                    } else {
-                                        response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
-                                    }
+                                    response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
                                 }
                             }
 
