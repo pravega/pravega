@@ -123,7 +123,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
         ControllerService controller = new ControllerService(streamStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, new SegmentHelper(connectionFactory, hostStore), executorService, cluster);
-        controllerService = new ControllerServiceImpl(controller, AuthHelper.getDisabledAuthHelper(), requestTracker, true, 2, new CompletableFuture<>());
+        controllerService = new ControllerServiceImpl(controller, AuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
     @Override

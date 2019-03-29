@@ -84,8 +84,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     // A future, which is failed when service is shutting down. 
     private final CompletableFuture<?> stopFuture;
     
+    public ControllerServiceImpl(ControllerService controllerService, AuthHelper authHelper, RequestTracker requestTracker, 
+                                 boolean replyWithStackTraceOnError, int listStreamsInScopeLimit) {
+        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, listStreamsInScopeLimit, new CompletableFuture<>());
+    }
+    
     public ControllerServiceImpl(ControllerService controllerService, AuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
-        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, LIST_STREAMS_IN_SCOPE_LIMIT, new CompletableFuture<>());
+        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, LIST_STREAMS_IN_SCOPE_LIMIT);
     }
 
     @Override
@@ -435,7 +440,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
-    public void stop() {
+    public void shutdown() {
         stopFuture.completeExceptionally(new ServiceUnavailableException("Service is shutting down."));    
     }
     

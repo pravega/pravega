@@ -180,8 +180,7 @@ public class ControllerGrpcAuthFocusedTest {
                 authHelper,
                 requestTracker,
                 true,
-                2, 
-                new CompletableFuture<>());
+                2);
 
         AuthHandler authHandler = new PasswordAuthHandler();
         ((PasswordAuthHandler) authHandler).initialize(AUTH_FILE.getAbsolutePath());
