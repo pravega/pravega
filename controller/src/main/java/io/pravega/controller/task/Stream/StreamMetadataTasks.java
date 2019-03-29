@@ -34,18 +34,14 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.VersionedMetadata;
-import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
-import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
-import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -77,7 +73,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -540,7 +535,8 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<ScaleStatusResponse> checkScale(String scope, String stream, int epoch,
                                                                         OperationContext context) {
-        return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
+        return streamMetadataStore.getEpochTransition(scope, stream, context, executor)
+            .thenCompose(etr -> streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
                         .handle((activeEpoch, ex) -> {
                             ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
 
@@ -553,10 +549,11 @@ public class StreamMetadataTasks extends TaskBase {
                                 }
                             } else {
                                 Preconditions.checkNotNull(activeEpoch);
-
+                                EpochTransitionRecord epochTransitionRecord = etr.getObject();
                                 if (epoch > activeEpoch.getEpoch()) {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
-                                } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch) {
+                                } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch ||
+                                        (epochTransitionRecord.getNewEpoch() == activeEpoch.getEpoch() && activeEpoch.getReferenceEpoch() == epoch + 1)) {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
                                 } else {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
@@ -564,7 +561,7 @@ public class StreamMetadataTasks extends TaskBase {
                             }
 
                             return response.build();
-                        });
+                        }));
     }
 
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
