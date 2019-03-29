@@ -90,9 +90,9 @@ public class PravegaTableScope implements Scope {
     CompletableFuture<UUID> getId() {
         UUID id = idRef.get();
         if (Objects.isNull(id)) {
-            return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName)
+            return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, x -> BitConverter.readUUID(x, 0))
                               .thenCompose(entry -> {
-                                  UUID uuid = BitConverter.readUUID(entry.getData(), 0);
+                                  UUID uuid = entry.getObject();
                                   idRef.compareAndSet(null, uuid);
                                   return getId();
                               });
@@ -153,7 +153,7 @@ public class PravegaTableScope implements Scope {
 
     CompletableFuture<Boolean> checkStreamExistsInScope(String stream) {
         return getStreamsInScopeTableName()
-                .thenCompose(tableName -> Futures.exceptionallyExpecting(storeHelper.getEntry(scopeName, tableName, stream).thenApply(v -> true), 
+                .thenCompose(tableName -> Futures.exceptionallyExpecting(storeHelper.getEntry(scopeName, tableName, stream, x -> x).thenApply(v -> true), 
                         DATA_NOT_FOUND_PREDICATE, false));
     }
 }

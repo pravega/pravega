@@ -94,9 +94,10 @@ public abstract class RequestSweeperTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                                         .build());
-        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
+        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(),
-                TaskStoreFactory.createInMemoryStore(executor), segmentHelperMock, executor, HOSTNAME, requestTracker);
+                TaskStoreFactory.createInMemoryStore(executor), segmentHelperMock, executor, HOSTNAME, AuthHelper.getDisabledAuthHelper(), 
+                requestTracker);
         requestEventWriter = spy(new EventStreamWriterMock<>());
         streamMetadataTasks.setRequestEventWriter(requestEventWriter);
 

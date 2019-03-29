@@ -186,7 +186,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             segmentHelperRef.compareAndSet(null, new SegmentHelper(connectionFactory, hostStore));
             SegmentHelper segmentHelper = segmentHelperRef.get();
             log.info("Creating the stream store");
-            streamStore = StreamStoreFactory.createStore(storeClient, segmentHelper, controllerExecutor);
+            streamStore = StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor);
 
             streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
                     segmentHelper, controllerExecutor, host.getHostId(), authHelper, requestTracker);

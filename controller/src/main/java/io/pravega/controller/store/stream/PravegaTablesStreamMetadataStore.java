@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
@@ -55,19 +56,19 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     private final PravegaTablesStoreHelper storeHelper;
     private final ScheduledExecutorService executor;
     @VisibleForTesting
-    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor) {
-        this(segmentHelper, client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
+    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor, AuthHelper authHelper) {
+        this(segmentHelper, client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), authHelper);
     }
 
     @VisibleForTesting
-    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod) {
+    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod, AuthHelper authHelper) {
         super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
         this.counter = new ZkInt96Counter(zkStoreHelper);
-        this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
+        this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
         this.executor = executor;
     }
 
@@ -112,7 +113,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     CompletableFuture<Boolean> checkScopeExists(String scope) {
-        return Futures.exceptionallyExpecting(storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scope).thenApply(v -> true),
+        return Futures.exceptionallyExpecting(storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scope, x -> x).thenApply(v -> true),
                 DATA_NOT_FOUND_PREDICATE, false);
     }
 
@@ -153,7 +154,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     public CompletableFuture<String> getScopeConfiguration(final String scopeName) {
-        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName)
+        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, x -> x)
                           .thenApply(x -> scopeName);
     }
 
@@ -174,10 +175,11 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
-        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, DELETED_STREAMS_TABLE, getScopedStreamName(scopeName, streamName))
+        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, DELETED_STREAMS_TABLE, getScopedStreamName(scopeName, streamName), 
+                x -> BitConverter.readInt(x, 0))
                           .handle((data, ex) -> {
                               if (ex == null) {
-                                  return BitConverter.readInt(data.getData(), 0) + 1;
+                                  return data.getObject() + 1;
                               } else if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
                                   return 0;
                               } else {
@@ -196,17 +198,18 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
         return storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, DELETED_STREAMS_TABLE)
                           .thenCompose(created -> {
-                              return Futures.exceptionallyExpecting(storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, DELETED_STREAMS_TABLE, key),
+                              return Futures.exceptionallyExpecting(storeHelper.getEntry(
+                                      NameUtils.INTERNAL_SCOPE_NAME, DELETED_STREAMS_TABLE, key, x -> BitConverter.readInt(x, 0)),
                                       DATA_NOT_FOUND_PREDICATE, null)
                                             .thenCompose(existing -> {
                                                 log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
                                                 if (existing != null) {
-                                                    final int oldLastActiveSegment = BitConverter.readInt(existing.getData(), 0);
+                                                    final int oldLastActiveSegment = existing.getObject();
                                                     Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
                                                             "Old last active segment ({}) for {}/{} is higher than current one {}.",
                                                             oldLastActiveSegment, scope, stream, lastActiveSegment);
                                                     return Futures.toVoid(storeHelper.updateEntry(NameUtils.INTERNAL_SCOPE_NAME, DELETED_STREAMS_TABLE,
-                                                            key, new Data(maxSegmentNumberBytes, existing.getVersion())));
+                                                            key, maxSegmentNumberBytes, existing.getVersion()));
                                                 } else {
                                                     return Futures.toVoid(storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, DELETED_STREAMS_TABLE,
                                                             key, maxSegmentNumberBytes));

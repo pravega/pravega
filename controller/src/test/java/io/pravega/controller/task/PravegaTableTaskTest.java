@@ -11,6 +11,7 @@ package io.pravega.controller.task;
 
 
 import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 public class PravegaTableTaskTest extends TaskTest {
     @Override
     protected StreamMetadataStore getStream() {
-        return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), cli, executor);
+        return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor),
+                AuthHelper.getDisabledAuthHelper(), cli, executor);
     }
 }
 

@@ -79,6 +79,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -179,7 +180,8 @@ public class ControllerGrpcAuthFocusedTest {
                 authHelper,
                 requestTracker,
                 true,
-                2);
+                2, 
+                new CompletableFuture<>());
 
         AuthHandler authHandler = new PasswordAuthHandler();
         ((PasswordAuthHandler) authHandler).initialize(AUTH_FILE.getAbsolutePath());

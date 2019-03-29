@@ -13,6 +13,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -49,7 +50,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         SegmentHelper segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
-        store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(1));
+        store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(1), AuthHelper.getDisabledAuthHelper());
         bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
     }
 

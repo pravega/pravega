@@ -565,7 +565,7 @@ public class ZkStreamTest {
         doReturn(Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "txn data not found")))
                 .when(storeHelper).getData(eq(activeTxPath), any());
 
-        Map<String, VersionedMetadata<ActiveTxnRecord>> result = stream.getCurrentTxns().join();
+        Map<UUID, ActiveTxnRecord> result = stream.getActiveTxns().join();
         // verify that call succeeds and no active txns were found
         assertTrue(result.isEmpty());
 
@@ -574,11 +574,11 @@ public class ZkStreamTest {
 
         ZKStream stream2 = new ZKStream("scope", "stream", storeHelper);
         // verify that the call fails
-        AssertExtensions.assertFutureThrows("", stream2.getCurrentTxns(), e -> Exceptions.unwrap(e) instanceof RuntimeException);
+        AssertExtensions.assertFutureThrows("", stream2.getActiveTxns(), e -> Exceptions.unwrap(e) instanceof RuntimeException);
 
         reset(storeHelper);
         ZKStream stream3 = new ZKStream("scope", "stream", storeHelper);
-        result = stream3.getCurrentTxns().join();
+        result = stream3.getActiveTxns().join();
         assertEquals(1, result.size());
     }
 

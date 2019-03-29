@@ -34,6 +34,7 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -108,7 +109,7 @@ public abstract class ControllerServiceWithStreamTest {
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
         AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
-        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock(connectionFactory, hostStore);
+        SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", disabledAuthHelper, requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock, executor, "host", disabledAuthHelper);
@@ -284,7 +285,7 @@ public abstract class ControllerServiceWithStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut023).build();
-        List<Segment> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(4, segments.size());
         assertTrue(segments.stream().anyMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3)));
@@ -343,7 +344,7 @@ public abstract class ControllerServiceWithStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(Collections.emptyMap()).build();
-        List<Segment> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(7, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
@@ -398,7 +399,7 @@ public abstract class ControllerServiceWithStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut01).build();
-        List<Segment> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(2, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1)));
 

@@ -17,6 +17,7 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
@@ -68,7 +69,7 @@ public class StreamTest {
     @Test(timeout = 10000)
     public void testPravegaTablesCreateStream() throws ExecutionException, InterruptedException {
         PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(
-                SegmentHelperMock.getSegmentHelperMockForTables(executor), executor);
+                SegmentHelperMock.getSegmentHelperMockForTables(executor), AuthHelper.getDisabledAuthHelper(), executor);
         PravegaTableScope scope = new PravegaTableScope("test", storeHelper);
         scope.createScope().join();
         scope.addStreamToScope("test").join();
@@ -170,11 +171,12 @@ public class StreamTest {
     @Test(timeout = 10000)
     public void testConcurrentGetSuccessorScalePravegaTables() throws Exception {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
+        AuthHelper authHelper = AuthHelper.getDisabledAuthHelper();
         try (final StreamMetadataStore store = new PravegaTablesStreamMetadataStore(
-                segmentHelper, cli, executor)) {
+                segmentHelper, cli, executor, authHelper)) {
 
             testConcurrentGetSuccessorScale(store, (x, y) -> {
-                PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, executor);
+                PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
                 PravegaTableScope scope = new PravegaTableScope(x, storeHelper);
                 Futures.exceptionallyExpecting(scope.createScope(), e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null).join();
                 scope.addStreamToScope(y).join();

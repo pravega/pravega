@@ -1221,16 +1221,7 @@ public abstract class PersistentStreamBase implements Stream {
             }
         });
     }
-
-    @Override
-    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
-        return getCurrentTxns()
-                .thenApply(x -> x.entrySet()
-                                 .stream()
-                                 .collect(toMap(k -> UUID.fromString(k.getKey()),
-                                         v -> v.getValue().getObject())));
-    }
-
+    
     @Override
     public CompletableFuture<EpochRecord> getActiveEpoch(boolean ignoreCached) {
         return getCurrentEpochRecordData(ignoreCached).thenApply(VersionedMetadata::getObject);
@@ -1337,7 +1328,7 @@ public abstract class PersistentStreamBase implements Stream {
      * Get transactions in epoch. If no transactions exist return null.
      */
     private CompletableFuture<List<UUID>> getTxnCommitList(int epoch) {
-        return getTransactionsInEpoch(epoch)
+        return getTxnInEpoch(epoch)
                 .thenApply(transactions -> transactions.entrySet().stream()
                                                        .filter(entry -> entry.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
                                                        .map(Map.Entry::getKey).collect(Collectors.toList()));
@@ -1367,14 +1358,6 @@ public abstract class PersistentStreamBase implements Stream {
         return future
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new VersionedMetadata<>(CommittingTransactionsRecord.EMPTY,
                         record.getVersion()))));
-    }
-
-    private CompletableFuture<Map<UUID, ActiveTxnRecord>> getTransactionsInEpoch(final int epoch) {
-        return getTxnInEpoch(epoch)
-                .thenApply(x -> x.entrySet()
-                                 .stream()
-                                 .collect(toMap(k -> UUID.fromString(k.getKey()),
-                                         v -> v.getValue().getObject())));
     }
 
     @Override
@@ -1714,10 +1697,8 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, CompletedTxnRecord data);
-
-    abstract CompletableFuture<Map<String, VersionedMetadata<ActiveTxnRecord>>> getCurrentTxns();
-
-    abstract CompletableFuture<Map<String, VersionedMetadata<ActiveTxnRecord>>> getTxnInEpoch(int epoch);
+    
+    abstract CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch);
     // endregion
 
     // region marker

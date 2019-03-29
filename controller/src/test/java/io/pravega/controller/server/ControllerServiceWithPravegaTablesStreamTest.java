@@ -10,6 +10,7 @@
 package io.pravega.controller.server;
 
 import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ControllerServiceWithPravegaTablesStreamTest extends ControllerServiceWithStreamTest {
     @Override
     StreamMetadataStore getStore() {
-        return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), zkClient, executor);
+        return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), 
+                AuthHelper.getDisabledAuthHelper(), zkClient, executor);
     }
 }

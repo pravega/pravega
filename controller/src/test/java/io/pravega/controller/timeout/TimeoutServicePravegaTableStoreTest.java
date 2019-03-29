@@ -11,6 +11,7 @@ package io.pravega.controller.timeout;
 
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.Version;
@@ -28,7 +29,7 @@ public class TimeoutServicePravegaTableStoreTest extends TimeoutServiceTest {
 
     @Override
     protected StreamMetadataStore getStore() {
-        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, client, executor);
+        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, AuthHelper.getDisabledAuthHelper(), client, executor);
     }
 
     @Override

@@ -12,6 +12,7 @@ package io.pravega.controller.store.stream;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
+import io.pravega.common.util.BitConverter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -105,11 +106,11 @@ public class ZkInt96Counter {
     @VisibleForTesting
     CompletableFuture<Void> getRefreshFuture() {
         return storeHelper.createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
-                          .thenCompose(v -> storeHelper.getData(COUNTER_PATH)
+                          .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
                                                        .thenCompose(data -> {
-                                                           Int96 previous = Int96.fromBytes(data.getData());
+                                                           Int96 previous = data.getObject();
                                                            Int96 nextLimit = previous.add(COUNTER_RANGE);
-                                                           return storeHelper.setData(COUNTER_PATH, new Data(nextLimit.toBytes(), data.getVersion()))
+                                                           return storeHelper.setData(COUNTER_PATH, nextLimit.toBytes(), data.getVersion())
                                                                              .thenAccept(x -> {
                                                                                  // Received new range, we should reset the counter and limit under the lock
                                                                                  // and then reset refreshfutureref to null

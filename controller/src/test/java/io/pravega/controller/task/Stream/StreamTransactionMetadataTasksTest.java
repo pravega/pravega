@@ -573,7 +573,7 @@ public class StreamTransactionMetadataTasksTest {
         streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
-        CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createFuture = txnTasks.createTxn(SCOPE, STREAM, 100L, null);
+        CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createFuture = txnTasks.createTxn(SCOPE, STREAM, 100L, null);
 
         // create and ping transactions should not wait for writer initialization and complete immediately.
         createFuture.join();

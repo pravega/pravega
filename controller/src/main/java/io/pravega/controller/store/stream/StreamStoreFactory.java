@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.client.StoreClient;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.util.Config;
@@ -20,23 +21,24 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class StreamStoreFactory {
-    public static StreamMetadataStore createStore(final StoreClient storeClient, SegmentHelper segmentHelper, ScheduledExecutorService executor) {
+    public static StreamMetadataStore createStore(final StoreClient storeClient, final SegmentHelper segmentHelper,
+                                                  final AuthHelper authHelper, final ScheduledExecutorService executor) {
         switch (storeClient.getType()) {
             case InMemory:
                 return new InMemoryStreamMetadataStore(executor);
             case Zookeeper:
                 return new ZKStreamMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             case PravegaTable:
-                return new PravegaTablesStreamMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(), executor);
+                return new PravegaTablesStreamMetadataStore(segmentHelper, (CuratorFramework) storeClient.getClient(), executor, authHelper);
             default:
                 throw new NotImplementedException(storeClient.getType().toString());
         }
     }
 
     @VisibleForTesting
-    public static StreamMetadataStore createPravegaTablesStore(final SegmentHelper segmentHelper, 
+    public static StreamMetadataStore createPravegaTablesStore(final SegmentHelper segmentHelper, final AuthHelper authHelper, 
                                                                final CuratorFramework client, final ScheduledExecutorService executor) {
-        return new PravegaTablesStreamMetadataStore(segmentHelper, client, executor);
+        return new PravegaTablesStreamMetadataStore(segmentHelper, client, executor, authHelper);
     }
     
     @VisibleForTesting

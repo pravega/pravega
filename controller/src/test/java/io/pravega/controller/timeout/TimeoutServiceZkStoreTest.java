@@ -33,7 +33,7 @@ public class TimeoutServiceZkStoreTest extends TimeoutServiceTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
 
-        return SegmentHelperMock.getSegmentHelperMock(hostStore, connectionFactory, AuthHelper.getDisabledAuthHelper());
+        return SegmentHelperMock.getSegmentHelperMock();
     }
 
     @Override
