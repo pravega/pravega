@@ -173,10 +173,16 @@ class PravegaTablesStream extends PersistentStreamBase {
         Map<String, byte[]> completedRecords = record.getObject().getTransactionsToCommit().stream()
                                                                .collect(Collectors.toMap(UUID::toString, 
                                                                        x -> new CompletedTxnRecord(time, TxnStatus.COMMITTED).toBytes()));
-        return createCompletedTxEntries(completedRecords)
-                .thenCompose(x -> getTransactionsInEpochTable(record.getObject().getEpoch())
-                        .thenCompose(table -> storeHelper.removeEntries(getScope(), table, completedRecords.keySet())))
-                .thenCompose(x -> tryRemoveOlderTransactionsInEpochTables(epoch -> epoch < record.getObject().getEpoch()))
+        CompletableFuture<Void> future;
+        if (record.getObject().getTransactionsToCommit().size() == 0) {
+            future = CompletableFuture.completedFuture(null);
+        } else {
+            future = createCompletedTxEntries(completedRecords)
+                    .thenCompose(x -> getTransactionsInEpochTable(record.getObject().getEpoch())
+                            .thenCompose(table -> storeHelper.removeEntries(getScope(), table, completedRecords.keySet())))
+                    .thenCompose(x -> tryRemoveOlderTransactionsInEpochTables(epoch -> epoch < record.getObject().getEpoch()));
+        }
+        return future
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new VersionedMetadata<>(CommittingTransactionsRecord.EMPTY,
                         record.getVersion()))));
     }
@@ -391,9 +397,17 @@ class PravegaTablesStream extends PersistentStreamBase {
         String key = String.format(EPOCH_RECORD_KEY_FORMAT, epoch);
         return getMetadataTable()
                 .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(getScope(), metadataTable, key, data.toBytes())
-                                                         .thenAccept(v -> storeHelper.invalidateCache(getScope(), metadataTable, key)));
+                                                         .thenAccept(v -> storeHelper.invalidateCache(getScope(), metadataTable, key)))
+                .thenCompose(v -> {
+                    if (data.getEpoch() == data.getReferenceEpoch()) {
+                        // this is an original epoch. we should create transactions in epoch table
+                        return createTransactionsInEpochTable(epoch);
+                    } else {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                });
     }
-
+    
     @Override
     CompletableFuture<VersionedMetadata<EpochRecord>> getEpochRecordData(int epoch) {
         return getMetadataTable()
@@ -601,7 +615,18 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getTransactionsInEpochTable(epoch)
                 .thenCompose(epochTable -> storeHelper.addNewEntry(scope, epochTable, txId.toString(), txnRecord.toBytes()));
     }
-    
+
+    private CompletableFuture<Void> createTransactionsInEpochTable(int epoch) {
+        return getEpochsWithTransactionsTable()
+                .thenCompose(epochsWithTxnTable -> {
+                    return storeHelper.addNewEntryIfAbsent(getScope(), epochsWithTxnTable, Integer.toString(epoch), new byte[0]);
+                }).thenCompose(epochTxnEntryCreated -> {
+                    return getTransactionsInEpochTable(epoch)
+                            .thenCompose(epochTable ->
+                                    storeHelper.createTable(getScope(), epochTable));
+                });
+    }
+
     @Override
     CompletableFuture<VersionedMetadata<ActiveTxnRecord>> getActiveTx(final int epoch, final UUID txId) {
         return getTransactionsInEpochTable(epoch)
@@ -628,7 +653,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                 // But remove transaction entry is called from . 
                 .thenCompose(v -> tryRemoveOlderTransactionsInEpochTables(e -> e < epoch));
     }
-
+    
     private CompletableFuture<Void> tryRemoveOlderTransactionsInEpochTables(Predicate<Integer> epochPredicate) {
         return getEpochsWithTransactions()
                 .thenCompose(list -> {
@@ -680,7 +705,10 @@ class PravegaTablesStream extends PersistentStreamBase {
         return Futures.toVoid(Futures.exceptionallyComposeExpecting(
                 storeHelper.addNewEntriesIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, tableName, map),
                 DATA_NOT_FOUND_PREDICATE, () -> tryCreateBatchTable(batch)
-                        .thenCompose(v -> storeHelper.addNewEntriesIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, tableName, map))));
+                        .thenCompose(v -> storeHelper.addNewEntriesIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, tableName, map))))
+                .exceptionally(e -> {
+                    throw new CompletionException(e);
+                });
     }
 
     

@@ -143,7 +143,9 @@ public class PravegaTableScope implements Scope {
 
     CompletableFuture<Void> addStreamToScope(String stream) {
         return getStreamsInScopeTableName()
-                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(scopeName, tableName, stream, newId())));
+                .thenCompose(tableName -> {
+                    return Futures.toVoid(storeHelper.addNewEntryIfAbsent(scopeName, tableName, stream, newId()));
+                });
     }
 
     CompletableFuture<Void> removeStreamFromScope(String stream) {

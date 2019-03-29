@@ -29,13 +29,15 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.doReturn;
 
 /**
- * Zookeeper based stream metadata store tests.
+ * Zookeeper based counter tests.
  */
 public class ZKCounterTest {
     private TestingServer zkServer;
@@ -107,7 +109,7 @@ public class ZKCounterTest {
 
         // set range in store to have lsb = Long.Max - 100
         VersionedMetadata<Int96> data = new VersionedMetadata<>(new Int96(0, Long.MAX_VALUE - 100), null);
-        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(ZkInt96Counter.COUNTER_PATH, Int96::fromBytes);
+        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(eq(ZkInt96Counter.COUNTER_PATH), any());
         // set local limit to {msb, Long.Max - 100}
         zkStore.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
         // now the call to getNextCounter should result in another refresh

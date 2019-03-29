@@ -141,7 +141,7 @@ public abstract class RequestSweeperTest {
         doAnswer(x -> {
             signalQueue.take().complete(x.getArgument(0));
             return waitQueue.take();
-        }).when(requestEventWriter).writeEvent(any());
+        }).when(requestEventWriter).writeEvent(any(), any());
         
         streamMetadataTasks.manualScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), 
                 System.currentTimeMillis(), null);

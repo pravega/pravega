@@ -129,8 +129,9 @@ public class PravegaTablesStoreHelper {
     
     public CompletableFuture<Void> deleteTable(String scope, String tableName, boolean mustBeEmpty) {
         log.debug("delete table called for table: {}/{}", scope, tableName);
-        return withRetries(() -> segmentHelper.deleteTableSegment(scope, tableName, mustBeEmpty, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                () -> String.format("delete table: %s/%s", scope, tableName))
+        return expectingDataNotFound(withRetries(() -> segmentHelper.deleteTableSegment(
+                scope, tableName, mustBeEmpty, authToken.get(), RequestTag.NON_EXISTENT_ID), 
+                () -> String.format("delete table: %s/%s", scope, tableName)), null)
                 .thenAcceptAsync(v -> log.debug("table {}/{} deleted successfully", scope, tableName), executor);
     }
 
@@ -160,8 +161,7 @@ public class PravegaTablesStoreHelper {
 
     public CompletableFuture<Version> addNewEntryIfAbsent(String scope, String tableName, String key, @NonNull byte[] value) {
         // if entry exists, we will get write conflict in attempting to create it again. 
-        return Futures.exceptionallyExpecting(addNewEntry(scope, tableName, key, value),
-                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null);
+        return expectingDataExists(addNewEntry(scope, tableName, key, value), null);
     }
 
     public CompletableFuture<Void> addNewEntriesIfAbsent(String scope, String tableName, Map<String, byte[]> toAdd) {
@@ -171,10 +171,8 @@ public class PravegaTablesStoreHelper {
                 new TableEntryImpl<>(new TableKeyImpl<>(x.getKey().getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), x.getValue()))
                                                         .collect(Collectors.toList());
         Supplier<String> errorMessage = () -> String.format("addNewEntriesIfAbsent: table: %s/%s", scope, tableName);
-        return withRetries(() ->
-                Futures.exceptionallyExpecting(
-                        segmentHelper.updateTableEntries(scope, tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                        e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null), errorMessage)
+        return expectingDataExists(withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, authToken.get(), 
+                        RequestTag.NON_EXISTENT_ID), errorMessage)
                 .handle((r, e) -> {
                     if (e != null) {
                         Throwable unwrap = Exceptions.unwrap(e);
@@ -188,7 +186,7 @@ public class PravegaTablesStoreHelper {
                         log.debug("entries added to table {}/{}", scope, tableName);
                         return null;
                     }
-                });
+                }), null);
     }
     
     public CompletableFuture<Version> updateEntry(String scope, String tableName, String key, byte[] data, Version v) {
@@ -236,18 +234,28 @@ public class PravegaTablesStoreHelper {
         log.debug("remove entry called for : {}/{} key : {}", scope, tableName, key);
 
         List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
-        return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                () -> String.format("remove entry: key: %s table: %s/%s", key, scope, tableName))
+        return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
+                scope, tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID), 
+                () -> String.format("remove entry: key: %s table: %s/%s", key, scope, tableName)), null)
                 .thenAcceptAsync(v -> log.debug("entry for key {} removed from table {}/{}", key, scope, tableName), executor);
     }
-
+    
     public CompletableFuture<Void> removeEntries(String scope, String tableName, Collection<String> keys) {
         log.debug("remove entry called for : {}/{} keys : {}", scope, tableName, keys);
 
         List<TableKey<byte[]>> listOfKeys = keys.stream().map(x -> new TableKeyImpl<>(x.getBytes(Charsets.UTF_8), null)).collect(Collectors.toList());
-        return withRetries(() -> segmentHelper.removeTableKeys(scope, tableName, listOfKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                () -> String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName))
+        return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
+                scope, tableName, listOfKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
+                () -> String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName)), null)
                 .thenAcceptAsync(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName), executor);
+    }
+
+    private <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
+        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, toReturn);
+    }
+
+    private <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
+        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, toReturn);
     }
 
     public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken, int limit) {

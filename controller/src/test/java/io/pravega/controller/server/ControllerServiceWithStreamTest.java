@@ -131,10 +131,10 @@ public abstract class ControllerServiceWithStreamTest {
     public void teardown() throws Exception {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStore.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
-        streamStore.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
