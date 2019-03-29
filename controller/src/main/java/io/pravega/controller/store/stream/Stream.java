@@ -18,6 +18,7 @@ import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 
 import java.util.AbstractMap.SimpleEntry;
@@ -161,7 +162,7 @@ interface Stream {
      * @param segmentId segment number.
      * @return segment at given number.
      */
-    CompletableFuture<Segment> getSegment(final long segmentId);
+    CompletableFuture<StreamSegmentRecord> getSegment(final long segmentId);
 
     /**
      * Fetches all segment ids in the stream between head of the stream and tail of the stream. 
@@ -183,7 +184,7 @@ interface Stream {
      * @param segmentId segment number.
      * @return successors of specified segment mapped to the list of their predecessors
      */
-    CompletableFuture<Map<Segment, List<Long>>> getSuccessorsWithPredecessors(final long segmentId);
+    CompletableFuture<Map<StreamSegmentRecord, List<Long>>> getSuccessorsWithPredecessors(final long segmentId);
 
     /**
      * Method to get all segments between given stream cuts.
@@ -194,7 +195,7 @@ interface Stream {
      * @param to to stream cut.
      * @return Future which when completed gives list of segments between given streamcuts.
      */
-    CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(final Map<Long, Long> from, final Map<Long, Long> to);
+    CompletableFuture<List<StreamSegmentRecord>> getSegmentsBetweenStreamCuts(final Map<Long, Long> from, final Map<Long, Long> to);
 
     /**
      * Method to validate stream cut based on its definition - disjoint sets that cover the entire range of keyspace.
@@ -208,14 +209,14 @@ interface Stream {
      * 
      * @return Future which when completed will contain currently active segments
      */
-    CompletableFuture<List<Segment>> getActiveSegments();
+    CompletableFuture<List<StreamSegmentRecord>> getActiveSegments();
     
     /**
      * Method to get segments at the head of the stream.
      * 
      * @return Future which when completed will contain segments at head of stream with offsets
      */
-    CompletableFuture<Map<Segment, Long>> getSegmentsAtHead();
+    CompletableFuture<Map<StreamSegmentRecord, Long>> getSegmentsAtHead();
     
     /**
      * Returns the active segments in the specified epoch.
@@ -223,7 +224,7 @@ interface Stream {
      * @param epoch epoch number.
      * @return list of numbers of segments active in the specified epoch.
      */
-    CompletableFuture<List<Segment>> getSegmentsInEpoch(int epoch);
+    CompletableFuture<List<StreamSegmentRecord>> getSegmentsInEpoch(int epoch);
 
     /**
      * Method to get versioned Epoch Transition Record from store.

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.function.Function;
 
 @Slf4j
-@Builder
 @Data
 /**
  * Data class to capture a retention set. This contains a sorted (by recording time) list of retention set records.
@@ -41,8 +40,14 @@ public class RetentionSet {
     @Getter
     private final List<StreamCutReferenceRecord> retentionRecords;
 
-    RetentionSet(List<StreamCutReferenceRecord> streamCutReferenceRecords) {
-        this.retentionRecords = ImmutableList.copyOf(streamCutReferenceRecords);
+    @Builder
+    private RetentionSet(List<StreamCutReferenceRecord> retentionRecords, boolean copyCollections) {
+        this.retentionRecords = copyCollections ? ImmutableList.copyOf(retentionRecords) : retentionRecords;
+    }
+
+    @Builder
+    RetentionSet(List<StreamCutReferenceRecord> retentionRecords) {
+        this(retentionRecords, true);
     }
 
     /**
@@ -163,7 +168,7 @@ public class RetentionSet {
         private void read00(RevisionDataInput revisionDataInput, RetentionSet.RetentionSetBuilder retentionRecordBuilder)
                 throws IOException {
             retentionRecordBuilder.retentionRecords(revisionDataInput.readCollection(StreamCutReferenceRecord.SERIALIZER::deserialize,
-                    ArrayList::new));
+                    ArrayList::new)).copyCollections(false);
         }
 
         private void write00(RetentionSet retentionRecord, RevisionDataOutput revisionDataOutput) throws IOException {

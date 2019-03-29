@@ -47,8 +47,8 @@ public class HistoryTimeSeriesRecord {
     private final long scaleTime;
 
     @Builder
-    HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated,
-                            long creationTime) {
+    private HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated,
+                            long creationTime, boolean copyCollections) {
         if (epoch == referenceEpoch) {
             if (epoch != 0) {
                 Exceptions.checkNotNullOrEmpty(segmentsSealed, "segments sealed");
@@ -61,9 +61,16 @@ public class HistoryTimeSeriesRecord {
         }
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
-        this.segmentsSealed = segmentsSealed == null ? null : ImmutableList.copyOf(segmentsSealed);
-        this.segmentsCreated = segmentsCreated == null ? null : ImmutableList.copyOf(segmentsCreated);
+        List<StreamSegmentRecord> segmentsSealedList = copyCollections ? ImmutableList.copyOf(segmentsSealed) : segmentsSealed;
+        this.segmentsSealed = segmentsSealedList == null ? ImmutableList.of() : segmentsSealedList;
+        List<StreamSegmentRecord> segmentsCreatedList = copyCollections ? ImmutableList.copyOf(segmentsCreated) : segmentsCreated;
+        this.segmentsCreated = segmentsCreatedList == null ? ImmutableList.of() : segmentsCreatedList;
         this.scaleTime = creationTime;
+    }
+
+    @Builder
+    HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated, long creationTime) {
+        this(epoch, referenceEpoch, segmentsSealed, segmentsCreated, creationTime, true);
     }
 
     @Builder
@@ -107,7 +114,8 @@ public class HistoryTimeSeriesRecord {
                    .referenceEpoch(revisionDataInput.readInt())
                    .segmentsSealed(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
                    .segmentsCreated(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
-                   .creationTime(revisionDataInput.readLong());
+                   .creationTime(revisionDataInput.readLong())
+                   .copyCollections(false);
         }
 
         private void write00(HistoryTimeSeriesRecord history, RevisionDataOutput revisionDataOutput) throws IOException {

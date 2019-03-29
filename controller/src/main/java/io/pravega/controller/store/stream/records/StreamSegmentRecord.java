@@ -15,6 +15,7 @@ import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 
@@ -23,6 +24,7 @@ import java.util.Map;
 
 @Data
 @Builder
+@AllArgsConstructor
 /**
  * Data class for Stream segment record.
  */
