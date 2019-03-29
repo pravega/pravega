@@ -35,7 +35,6 @@ import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.io.Serializable;
-import java.net.URI;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
