@@ -37,7 +37,6 @@ import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
-import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
@@ -535,8 +534,7 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<ScaleStatusResponse> checkScale(String scope, String stream, int epoch,
                                                                         OperationContext context) {
-        return streamMetadataStore.getEpochTransition(scope, stream, context, executor)
-            .thenCompose(etr -> streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
+        return streamMetadataStore.getActiveEpoch(scope, stream, context, true, executor)
                         .handle((activeEpoch, ex) -> {
                             ScaleStatusResponse.Builder response = ScaleStatusResponse.newBuilder();
 
@@ -549,11 +547,10 @@ public class StreamMetadataTasks extends TaskBase {
                                 }
                             } else {
                                 Preconditions.checkNotNull(activeEpoch);
-                                EpochTransitionRecord epochTransitionRecord = etr.getObject();
+
                                 if (epoch > activeEpoch.getEpoch()) {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.INVALID_INPUT);
-                                } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch ||
-                                        (epochTransitionRecord.getNewEpoch() == activeEpoch.getEpoch() && activeEpoch.getReferenceEpoch() == epoch + 1)) {
+                                } else if (activeEpoch.getEpoch() == epoch || activeEpoch.getReferenceEpoch() == epoch) {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.IN_PROGRESS);
                                 } else {
                                     response.setStatus(ScaleStatusResponse.ScaleStatus.SUCCESS);
@@ -561,7 +558,7 @@ public class StreamMetadataTasks extends TaskBase {
                             }
 
                             return response.build();
-                        }));
+                        });
     }
 
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
