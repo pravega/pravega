@@ -76,13 +76,14 @@ public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalability
     }
 
     @Test
-    public void largeSegmentsScalability() {
+    public void largeNumSegmentsScalability() {
         testState = new TestState(false);
 
         ControllerImpl controller = getController();
 
         List<List<Segment>> listOfEpochs = scale(controller);
-        truncation(controller, listOfEpochs);
+        // TODO: uncomment truncation as part of #3478
+        // truncation(controller, listOfEpochs);
         sealAndDeleteStream(controller);
     }
 }
