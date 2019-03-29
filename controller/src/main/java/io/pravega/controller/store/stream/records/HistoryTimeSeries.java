@@ -33,7 +33,7 @@ import java.util.List;
 public class HistoryTimeSeries {
     public static final HistoryTimeSeriesSerializer SERIALIZER = new HistoryTimeSeriesSerializer();
     public static final int HISTORY_CHUNK_SIZE = 1000;
-    
+
     private final List<HistoryTimeSeriesRecord> historyRecords;
 
     @Builder
