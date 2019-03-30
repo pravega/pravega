@@ -557,29 +557,7 @@ class PravegaTablesStream extends PersistentStreamBase {
             return map;
         });
     }
-
-    @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        List<CompletableFuture<Integer>> futures = new ArrayList<>();
-        return getEpochsWithTransactionsTable()
-                .thenCompose(table -> storeHelper.getAllKeys(getScope(), table)
-                                                 .collectRemaining(x -> {
-                                                     futures.add(getNumberOfOngoingTransactions(Integer.parseInt(x)));
-                                                     return true;
-                                                 })
-                                                 .thenCompose(v -> Futures.allOfWithResults(futures)
-                                                                          .thenApply(list -> list.stream().reduce(0, Integer::sum))));
-    }
-
-    private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
-        AtomicInteger count = new AtomicInteger(0);
-        return getTransactionsInEpochTable(epoch)
-                .thenCompose(tableName -> storeHelper.getAllKeys(getScope(), tableName).collectRemaining(x -> {
-                    count.incrementAndGet();
-                    return true;
-                }).thenApply(x -> count.get()));
-    }
-
+    
     private CompletableFuture<List<Integer>> getEpochsWithTransactions() {
         return getEpochsWithTransactionsTable()
                 .thenCompose(epochWithTxnTable -> {
