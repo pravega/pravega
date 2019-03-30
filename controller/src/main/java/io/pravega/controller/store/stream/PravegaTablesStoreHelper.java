@@ -53,7 +53,7 @@ import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DAT
 
 @Slf4j
 public class PravegaTablesStoreHelper {
-    private static final int NUM_OF_TRIES = Integer.MAX_VALUE;
+    private static final int NUM_OF_TRIES = 15; // approximately 1 minute worth of retries
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
     private final Cache cache;
@@ -289,10 +289,10 @@ public class PravegaTablesStoreHelper {
     }
 
 
-    public <Key, Value> CompletableFuture<Map<Key, Value>> getEntriesWithFilter(
-            String scope, String table, Function<String, Key> fromStringKey,
-            Function<byte[], Value> fromBytesValue, BiFunction<Key, Value, Boolean> filter, int limit) {
-        Map<Key, Value> result = new ConcurrentHashMap<>();
+    public <K, V> CompletableFuture<Map<K, V>> getEntriesWithFilter(
+            String scope, String table, Function<String, K> fromStringKey,
+            Function<byte[], V> fromBytesValue, BiFunction<K, V, Boolean> filter, int limit) {
+        Map<K, V> result = new ConcurrentHashMap<>();
         AtomicBoolean canContinue = new AtomicBoolean(true);
         AtomicReference<ByteBuf> token = new AtomicReference<>(IteratorState.EMPTY.toBytes());
 
@@ -301,10 +301,10 @@ public class PravegaTablesStoreHelper {
                         () -> getEntriesPaginated(scope, table, token.get(), limit, fromBytesValue)
                                 .thenAccept(v -> {
                                     // we exit if we have either received `limit` number of entries
-                                    List<Pair<String, VersionedMetadata<Value>>> pair = v.getValue();
-                                    for (Pair<String, VersionedMetadata<Value>> val : pair) {
-                                        Key key = fromStringKey.apply(val.getKey());
-                                        Value value = val.getValue().getObject();
+                                    List<Pair<String, VersionedMetadata<V>>> pair = v.getValue();
+                                    for (Pair<String, VersionedMetadata<V>> val : pair) {
+                                        K key = fromStringKey.apply(val.getKey());
+                                        V value = val.getValue().getObject();
                                         if (filter.apply(key, value)) {
                                             result.put(key, value);
                                             if (result.size() == limit) {

@@ -1197,7 +1197,7 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.updateStream(SCOPE, test, configuration2, null);
         // wait till configuration is updated
         Supplier<Boolean> configUpdated = () -> !streamStorePartialMock.getConfigurationRecord(SCOPE, test, null, executor).join().getObject().isUpdating();
-        Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor),executor).join();
+        Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
 
         streamStorePartialMock.setState(SCOPE, test, State.UPDATING, null, executor).join();
 
@@ -1215,7 +1215,7 @@ public abstract class StreamMetadataTasksTest {
         // start next update with different configuration. 
         final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         streamMetadataTasks.updateStream(SCOPE, test, configuration3, null);
-        Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor),executor).join();
+        Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
 
         streamStorePartialMock.setState(SCOPE, test, State.UPDATING, null, executor).join();
         // we should still get complete for previous configuration we attempted to update
@@ -1241,7 +1241,7 @@ public abstract class StreamMetadataTasksTest {
         streamMetadataTasks.truncateStream(SCOPE, test, map, null);
         // wait till configuration is updated
         Supplier<Boolean> truncationStarted = () -> !streamStorePartialMock.getTruncationRecord(SCOPE, test, null, executor).join().getObject().isUpdating();
-        Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor),executor).join();
+        Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
 
         streamStorePartialMock.setState(SCOPE, test, State.TRUNCATING, null, executor).join();
 
@@ -1260,7 +1260,7 @@ public abstract class StreamMetadataTasksTest {
         Map<Long, Long> map2 = Collections.singletonMap(0L, 10L);
 
         streamMetadataTasks.truncateStream(SCOPE, test, map2, null);
-        Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor),executor).join();
+        Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
 
         streamStorePartialMock.setState(SCOPE, test, State.TRUNCATING, null, executor).join();
         

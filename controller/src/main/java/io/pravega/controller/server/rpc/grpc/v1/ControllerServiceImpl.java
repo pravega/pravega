@@ -22,7 +22,6 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.server.rpc.grpc.ServiceUnavailableException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -81,14 +80,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     private final boolean replyWithStackTraceOnError;
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
     private final int listStreamsInScopeLimit;
-    // A future, which is failed when service is shutting down. 
-    private final CompletableFuture<?> stopFuture;
-    
-    public ControllerServiceImpl(ControllerService controllerService, AuthHelper authHelper, RequestTracker requestTracker, 
-                                 boolean replyWithStackTraceOnError, int listStreamsInScopeLimit) {
-        this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, listStreamsInScopeLimit, new CompletableFuture<>());
-    }
-    
+
     public ControllerServiceImpl(ControllerService controllerService, AuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
         this(controllerService, authHelper, requestTracker, replyWithStackTraceOnError, LIST_STREAMS_IN_SCOPE_LIMIT);
     }
@@ -440,21 +432,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
-    public void shutdown() {
-        stopFuture.completeExceptionally(new ServiceUnavailableException("Service is shutting down."));    
-    }
-    
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver, RequestTag requestTag) {
         try {
             String delegationToken;
             delegationToken = authenticator.get();
-            CompletableFuture<T> resultFuture = call.apply(delegationToken);
-            // stopFuture is completed exceptionally when service is shutting down. This ensures that when service is 
-            // shutting down, it explicitly completes grpc calls.  
-            CompletableFuture<T> result = CompletableFuture.anyOf(resultFuture, stopFuture)
-                    .thenApply(v -> resultFuture.join());
+            CompletableFuture<T> result = call.apply(delegationToken);
             result.whenComplete(
                     (value, ex) -> {
                         log.debug("result =  {}", value);
