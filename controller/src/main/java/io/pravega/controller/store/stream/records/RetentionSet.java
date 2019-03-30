@@ -19,7 +19,6 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.CollectionHelpers;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -37,7 +36,6 @@ import java.util.function.Function;
 public class RetentionSet {
     public static final RetentionSetSerializer SERIALIZER = new RetentionSetSerializer();
 
-    @Getter
     private final List<StreamCutReferenceRecord> retentionRecords;
 
     @Builder
@@ -45,8 +43,7 @@ public class RetentionSet {
         this.retentionRecords = copyCollections ? ImmutableList.copyOf(retentionRecords) : retentionRecords;
     }
 
-    @Builder
-    RetentionSet(List<StreamCutReferenceRecord> retentionRecords) {
+    public RetentionSet(List<StreamCutReferenceRecord> retentionRecords) {
         this(retentionRecords, true);
     }
 
@@ -96,6 +93,10 @@ public class RetentionSet {
         return retentionRecords.get(beforeIndex);
     }
 
+    public List<StreamCutReferenceRecord> getRetentionRecords() {
+        return Collections.unmodifiableList(retentionRecords);
+    }
+
     /**
      * Get a list of all retention reference stream cut records on or before (inclusive) the given record.
      * @param record reference record
@@ -140,7 +141,7 @@ public class RetentionSet {
         return retentionRecords.get(retentionRecords.size() - 1);
     }
 
-    public static class RetentionSetBuilder implements ObjectBuilder<RetentionSet> {
+    private static class RetentionSetBuilder implements ObjectBuilder<RetentionSet> {
     }
 
     @SneakyThrows(IOException.class)

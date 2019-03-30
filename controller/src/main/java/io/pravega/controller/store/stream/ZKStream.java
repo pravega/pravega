@@ -34,7 +34,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Optional;
@@ -315,19 +314,6 @@ class ZKStream extends PersistentStreamBase {
     }
 
     // region overrides
-
-    @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        return store.getChildren(getActiveTxRoot()).thenCompose(list ->
-                Futures.allOfWithResults(list.stream().map(epoch ->
-                        getNumberOfOngoingTransactions(Integer.parseInt(epoch))).collect(Collectors.toList())))
-                    .thenApply(list -> list.stream().reduce(0, Integer::sum));
-    }
-
-    private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
-        return store.getChildren(getEpochPath(epoch)).thenApply(List::size);
-    }
-
     @Override
     public CompletableFuture<Void> deleteStream() {
         return store.deleteTree(getStreamPath());
@@ -622,11 +608,12 @@ class ZKStream extends PersistentStreamBase {
         return Futures.exceptionallyExpecting(store.getChildren(getEpochPath(epoch)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
                       .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
-                              Collectors.toMap(UUID::fromString, 
+                              Collectors.toMap(x -> x, 
                                       txId -> Futures.exceptionallyExpecting(store.getData(getActiveTxPath(epoch, txId), ActiveTxnRecord::fromBytes),
                                       e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, empty)))
                               ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
-                                                          .collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject())))
+                                                          .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()), 
+                                                                  x -> x.getValue().getObject())))
                       );
     }
 

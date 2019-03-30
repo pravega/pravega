@@ -110,14 +110,7 @@ public class InMemoryStream extends PersistentStreamBase {
         completedTxns = CacheBuilder.newBuilder()
                                     .expireAfterWrite(completedTxnTTL, TimeUnit.MILLISECONDS).build();
     }
-
-    @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        synchronized (txnsLock) {
-            return CompletableFuture.completedFuture(activeTxns.size());
-        }
-    }
-
+    
     @Override
     public void refresh() {
 
@@ -680,8 +673,8 @@ public class InMemoryStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         synchronized (txnsLock) {
-            return CompletableFuture.completedFuture(
-                    activeTxns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject())));
+            return CompletableFuture.completedFuture(Collections.unmodifiableMap(
+                    activeTxns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject()))));
         }
     }
 
@@ -697,7 +690,8 @@ public class InMemoryStream extends PersistentStreamBase {
             } else {
                 map = Collections.emptyMap();
             }
-            return CompletableFuture.completedFuture(map);
+            return CompletableFuture.completedFuture(map.entrySet().stream().collect(
+                    Collectors.toMap(Map.Entry::getKey, x -> x.getValue())));
         }
     }
     

@@ -24,6 +24,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -54,8 +55,8 @@ public class EpochTransitionRecord {
      * Key ranges for new segments to be created.
      */
     final Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange;
-    
-    public static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
+
+    private static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
 
     }
 
@@ -68,9 +69,16 @@ public class EpochTransitionRecord {
         this.newSegmentsWithRange = copyCollection ? ImmutableMap.copyOf(newSegmentsWithRange) : newSegmentsWithRange;
     }
     
-    @Builder
     public EpochTransitionRecord(int activeEpoch, long time, Set<Long> segmentsToSeal, Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange) {
         this(activeEpoch, time, segmentsToSeal, newSegmentsWithRange, true);
+    }
+
+    public Set<Long> getSegmentsToSeal() {
+        return Collections.unmodifiableSet(segmentsToSeal);
+    }
+
+    public Map<Long, Map.Entry<Double, Double>> getNewSegmentsWithRange() {
+        return Collections.unmodifiableMap(newSegmentsWithRange);
     }
 
     public int getNewEpoch() {

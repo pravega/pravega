@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Map;
@@ -93,10 +94,21 @@ public class StreamTruncationRecord {
         this.spanEpochHigh = span.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
     }
     
-    @Builder
     public StreamTruncationRecord(Map<Long, Long> streamCut, Map<StreamSegmentRecord, Integer> span,
                                   Set<Long> deletedSegments, Set<Long> toDelete, long sizeTill, boolean updating) {
         this(streamCut, span, deletedSegments, toDelete, sizeTill, updating, true);
+    }
+
+    public Map<Long, Long> getStreamCut() {
+        return Collections.unmodifiableMap(streamCut);
+    }
+
+    public Set<Long> getDeletedSegments() {
+        return Collections.unmodifiableSet(deletedSegments);
+    }
+
+    public Set<Long> getToDelete() {
+        return Collections.unmodifiableSet(toDelete);
     }
 
     /**
@@ -120,7 +132,7 @@ public class StreamTruncationRecord {
                                      .build();
     }
 
-    public static class StreamTruncationRecordBuilder implements ObjectBuilder<StreamTruncationRecord> {
+    private static class StreamTruncationRecordBuilder implements ObjectBuilder<StreamTruncationRecord> {
 
     }
 

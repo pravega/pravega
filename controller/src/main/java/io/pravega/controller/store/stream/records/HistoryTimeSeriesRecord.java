@@ -24,6 +24,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Data
@@ -39,9 +40,7 @@ public class HistoryTimeSeriesRecord {
     private final int epoch;
     @Getter
     private final int referenceEpoch;
-    @Getter
     private final List<StreamSegmentRecord> segmentsSealed;
-    @Getter
     private final List<StreamSegmentRecord> segmentsCreated;
     @Getter
     private final long scaleTime;
@@ -68,14 +67,20 @@ public class HistoryTimeSeriesRecord {
         this.scaleTime = creationTime;
     }
 
-    @Builder
-    HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated, long creationTime) {
+    public HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated, long creationTime) {
         this(epoch, referenceEpoch, segmentsSealed, segmentsCreated, creationTime, true);
     }
 
-    @Builder
-    HistoryTimeSeriesRecord(int epoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated, long creationTime) {
-        this(epoch, epoch, segmentsSealed, segmentsCreated, creationTime);
+    HistoryTimeSeriesRecord(int epoch, int referenceEpoch, long creationTime) {
+        this(epoch, referenceEpoch, Collections.emptyList(), Collections.emptyList(), creationTime, false);
+    }
+
+    public List<StreamSegmentRecord> getSegmentsSealed() {
+        return Collections.unmodifiableList(segmentsSealed);
+    }
+
+    public List<StreamSegmentRecord> getSegmentsCreated() {
+        return Collections.unmodifiableList(segmentsCreated);
     }
 
     public boolean isDuplicate() {
@@ -93,7 +98,7 @@ public class HistoryTimeSeriesRecord {
         return SERIALIZER.deserialize(inputStream);
     }
 
-    public static class HistoryTimeSeriesRecordBuilder implements ObjectBuilder<HistoryTimeSeriesRecord> {
+    private static class HistoryTimeSeriesRecordBuilder implements ObjectBuilder<HistoryTimeSeriesRecord> {
 
     }
     
