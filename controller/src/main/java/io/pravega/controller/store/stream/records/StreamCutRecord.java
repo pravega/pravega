@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -54,7 +55,6 @@ public class StreamCutRecord {
         this.streamCut = copyCollections ? ImmutableMap.copyOf(streamCut) : streamCut;
     }
 
-    @Builder
     public StreamCutRecord(long recordingTime, long recordingSize, Map<Long, Long> streamCut) {
         this(recordingTime, recordingSize, streamCut, true);
     }
@@ -63,7 +63,11 @@ public class StreamCutRecord {
         return new StreamCutReferenceRecord(recordingTime, recordingSize);
     }
 
-    public static class StreamCutRecordBuilder implements ObjectBuilder<StreamCutRecord> {
+    public Map<Long, Long> getStreamCut() {
+        return Collections.unmodifiableMap(streamCut);
+    }
+
+    private static class StreamCutRecordBuilder implements ObjectBuilder<StreamCutRecord> {
 
     }
 

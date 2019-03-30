@@ -76,9 +76,9 @@ public class InMemoryStream extends PersistentStreamBase {
 
     private final Object txnsLock = new Object();
     @GuardedBy("txnsLock")
-    private final Map<String, VersionedMetadata<ActiveTxnRecord>> activeTxns = new HashMap<>();
+    private final Map<UUID, VersionedMetadata<ActiveTxnRecord>> activeTxns = new HashMap<>();
     @GuardedBy("txnsLock")
-    private final Cache<String, VersionedMetadata<CompletedTxnRecord>> completedTxns;
+    private final Cache<UUID, VersionedMetadata<CompletedTxnRecord>> completedTxns;
     private final Object markersLock = new Object();
     @GuardedBy("markersLock")
     private final Map<Long, VersionedMetadata<Long>> markers = new HashMap<>();
@@ -88,7 +88,7 @@ public class InMemoryStream extends PersistentStreamBase {
      * Note: there can be only two epochs at max concurrently. So using one lock for both of their updates is okay.
      */
     @GuardedBy("txnsLock")
-    private final Map<Integer, Set<String>> epochTxnMap = new HashMap<>();
+    private final Map<Integer, Set<UUID>> epochTxnMap = new HashMap<>();
 
     InMemoryStream(String scope, String name) {
         this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
@@ -523,12 +523,12 @@ public class InMemoryStream extends PersistentStreamBase {
         final VersionedMetadata<ActiveTxnRecord> txnData = new VersionedMetadata<>(data, new Version.IntVersion(0));
 
         synchronized (txnsLock) {
-            activeTxns.putIfAbsent(txId.toString(), txnData);
+            activeTxns.putIfAbsent(txId, txnData);
             epochTxnMap.compute(epoch, (x, y) -> {
                 if (y == null) {
                     y = new HashSet<>();
                 }
-                y.add(txId.toString());
+                y.add(txId);
                 return y;
             });
             result.complete(new Version.IntVersion(0));
@@ -540,12 +540,12 @@ public class InMemoryStream extends PersistentStreamBase {
     @Override
     CompletableFuture<VersionedMetadata<ActiveTxnRecord>> getActiveTx(int epoch, UUID txId) {
         synchronized (txnsLock) {
-            if (!activeTxns.containsKey(txId.toString())) {
+            if (!activeTxns.containsKey(txId)) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Transaction: " + txId.toString()));
             }
 
-            return CompletableFuture.completedFuture(activeTxns.get(txId.toString()));
+            return CompletableFuture.completedFuture(activeTxns.get(txId));
         }
     }
 
@@ -556,11 +556,11 @@ public class InMemoryStream extends PersistentStreamBase {
         CompletableFuture<Version> result = new CompletableFuture<>();
         VersionedMetadata<ActiveTxnRecord> updatedCopy = updatedCopy(data);
         synchronized (txnsLock) {
-            if (!activeTxns.containsKey(txId.toString())) {
+            if (!activeTxns.containsKey(txId)) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Transaction: " + txId.toString()));
             } else {
-                activeTxns.compute(txId.toString(), (x, y) -> {
+                activeTxns.compute(txId, (x, y) -> {
                     if (data.getVersion().equals(y.getVersion())) {
                         result.complete(updatedCopy.getVersion());
                         return updatedCopy;
@@ -570,7 +570,7 @@ public class InMemoryStream extends PersistentStreamBase {
                         return y;
                     }
                 });
-                result.complete(activeTxns.get(txId.toString()).getVersion());
+                result.complete(activeTxns.get(txId).getVersion());
             }
         }
 
@@ -581,7 +581,7 @@ public class InMemoryStream extends PersistentStreamBase {
     CompletableFuture<VersionedMetadata<CompletedTxnRecord>> getCompletedTx(UUID txId) {
         Preconditions.checkNotNull(txId);
         synchronized (txnsLock) {
-            VersionedMetadata<CompletedTxnRecord> value = completedTxns.getIfPresent(txId.toString());
+            VersionedMetadata<CompletedTxnRecord> value = completedTxns.getIfPresent(txId);
             if (value == null) {
                 return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND,
                         "Stream: " + getName() + " Transaction: " + txId.toString()));
@@ -595,9 +595,9 @@ public class InMemoryStream extends PersistentStreamBase {
         Preconditions.checkNotNull(txId);
 
         synchronized (txnsLock) {
-            activeTxns.remove(txId.toString());
+            activeTxns.remove(txId);
             epochTxnMap.computeIfPresent(epoch, (x, y) -> {
-                y.remove(txId.toString());
+                y.remove(txId);
                 return y;
             });
 
@@ -613,9 +613,9 @@ public class InMemoryStream extends PersistentStreamBase {
         Preconditions.checkNotNull(txId);
 
         synchronized (txnsLock) {
-            VersionedMetadata<CompletedTxnRecord> value = completedTxns.getIfPresent(txId.toString());
+            VersionedMetadata<CompletedTxnRecord> value = completedTxns.getIfPresent(txId);
             if (value == null) {
-                completedTxns.put(txId.toString(), new VersionedMetadata<>(complete, new Version.IntVersion(0)));
+                completedTxns.put(txId, new VersionedMetadata<>(complete, new Version.IntVersion(0)));
             }
         }
         return CompletableFuture.completedFuture(null);
@@ -673,17 +673,18 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Map<String, VersionedMetadata<ActiveTxnRecord>>> getCurrentTxns() {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         synchronized (txnsLock) {
-            return CompletableFuture.completedFuture(Collections.unmodifiableMap(activeTxns));
+            return CompletableFuture.completedFuture(Collections.unmodifiableMap(
+                    activeTxns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject()))));
         }
     }
 
     @Override
-    CompletableFuture<Map<String, VersionedMetadata<ActiveTxnRecord>>> getTxnInEpoch(int epoch) {
+    CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
         synchronized (txnsLock) {
-            Set<String> transactions = epochTxnMap.get(epoch);
-            Map<String, VersionedMetadata<ActiveTxnRecord>> map;
+            Set<UUID> transactions = epochTxnMap.get(epoch);
+            Map<UUID, VersionedMetadata<ActiveTxnRecord>> map;
             if (transactions != null) {
                 map = activeTxns.entrySet().stream().filter(x -> transactions.contains(x.getKey()))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -691,7 +692,8 @@ public class InMemoryStream extends PersistentStreamBase {
             } else {
                 map = Collections.emptyMap();
             }
-            return CompletableFuture.completedFuture(map);
+            return CompletableFuture.completedFuture(map.entrySet().stream().collect(
+                    Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject())));
         }
     }
 

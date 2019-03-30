@@ -23,12 +23,12 @@ import lombok.SneakyThrows;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Data
-@Builder
 /**
  * This class is the metadata to capture the currently processing transaction commit work. This captures the list of
  * transactions that current round of processing will attempt to commit. If the processing fails and retries, it will
@@ -54,22 +54,27 @@ public class CommittingTransactionsRecord {
     @Getter(AccessLevel.PRIVATE)
     private Optional<Integer> activeEpoch;
 
-    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
-        this(epoch, transactionsToCommit, Optional.empty());
+    public CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
+        this(epoch, transactionsToCommit, Optional.empty(), true);
     }
 
-    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch) {
-        this(epoch, transactionsToCommit, Optional.of(activeEpoch));
+    public CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch) {
+        this(epoch, transactionsToCommit, Optional.of(activeEpoch), true);
     }
-
-    private CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
+    
+    @Builder
+    private CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch, boolean copyCollections) {
         this.epoch = epoch;
-        this.transactionsToCommit = ImmutableList.copyOf(transactionsToCommit);
+        this.transactionsToCommit = copyCollections ? ImmutableList.copyOf(transactionsToCommit) : transactionsToCommit;
         this.activeEpoch = activeEpoch;
     }
 
-    public static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
+    private static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
         private Optional<Integer> activeEpoch = Optional.empty();
+    }
+
+    public List<UUID> getTransactionsToCommit() {
+        return Collections.unmodifiableList(transactionsToCommit);
     }
 
     @SneakyThrows(IOException.class)
@@ -129,6 +134,7 @@ public class CommittingTransactionsRecord {
             } else {
                 builder.activeEpoch(Optional.of(read));
             }
+            builder.copyCollections(false);
         }
 
         private void write00(CommittingTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {

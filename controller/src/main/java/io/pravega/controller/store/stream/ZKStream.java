@@ -614,12 +614,12 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<String, VersionedMetadata<ActiveTxnRecord>>> getCurrentTxns() {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getActiveTxns() {
         return store.getChildren(getActiveTxRoot())
                     .thenCompose(children -> {
                         return Futures.allOfWithResults(children.stream().map(x -> getTxnInEpoch(Integer.parseInt(x))).collect(Collectors.toList()))
                                       .thenApply(list -> {
-                                          Map<String, VersionedMetadata<ActiveTxnRecord>> map = new HashMap<>();
+                                          Map<UUID, ActiveTxnRecord> map = new HashMap<>();
                                           list.forEach(map::putAll);
                                           return map;
                                       });
@@ -627,7 +627,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<String, VersionedMetadata<ActiveTxnRecord>>> getTxnInEpoch(int epoch) {
+    public CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
         VersionedMetadata<ActiveTxnRecord> empty = getEmptyData();
         return Futures.exceptionallyExpecting(store.getChildren(getEpochPath(epoch)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
@@ -636,7 +636,8 @@ class ZKStream extends PersistentStreamBase {
                                       txId -> Futures.exceptionallyExpecting(store.getData(getActiveTxPath(epoch, txId), ActiveTxnRecord::fromBytes),
                                       e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, empty)))
                               ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
-                                                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                                                          .collect(Collectors.toMap(x -> UUID.fromString(x.getKey()), 
+                                                                  x -> x.getValue().getObject())))
                       );
     }
 
