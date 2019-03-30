@@ -55,7 +55,7 @@ public class EpochTransitionRecord {
      * Key ranges for new segments to be created.
      */
     final Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange;
-    
+
     private static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
 
     }
