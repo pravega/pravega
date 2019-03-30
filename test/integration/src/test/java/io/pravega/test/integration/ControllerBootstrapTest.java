@@ -9,10 +9,7 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.common.Exceptions;
-import io.pravega.controller.store.stream.StoreException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
@@ -27,7 +24,6 @@ import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.test.common.TestUtils;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -35,7 +31,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.mock;
 
 /**

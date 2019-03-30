@@ -51,6 +51,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import lombok.Getter;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -164,27 +165,35 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param clientFactory Client factory reference.
      * @param config Controller event processor configuration.
      */
+    @Synchronized
     public Void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final ControllerEventProcessorConfig config) {
-        commitWriterFuture.complete(clientFactory.createEventWriter(
-                config.getCommitStreamName(),
-                ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build()));
-
-        abortWriterFuture.complete(clientFactory.createEventWriter(
-                config.getAbortStreamName(),
-                ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build()));
-
+        if (!commitWriterFuture.isDone()) {
+            commitWriterFuture.complete(clientFactory.createEventWriter(
+                    config.getCommitStreamName(),
+                    ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
+                    EventWriterConfig.builder().build()));
+        }
+        if (!abortWriterFuture.isDone()) {
+            abortWriterFuture.complete(clientFactory.createEventWriter(
+                    config.getAbortStreamName(),
+                    ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
+                    EventWriterConfig.builder().build()));
+        }
         this.setReady();
         return null;
     }
 
     @VisibleForTesting
+    @Synchronized
     public Void initializeStreamWriters(final String commitStreamName, final EventStreamWriter<CommitEvent> commitWriter,
                                         final String abortStreamName, final EventStreamWriter<AbortEvent> abortWriter) {
-        this.commitWriterFuture.complete(commitWriter);
-        this.abortWriterFuture.complete(abortWriter);
+        if (!commitWriterFuture.isDone()) {
+            this.commitWriterFuture.complete(commitWriter);
+        }
+        if (!abortWriterFuture.isDone()) {
+            this.abortWriterFuture.complete(abortWriter);
+        }
         this.setReady();
         return null;
     }
@@ -656,12 +665,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     @Override
+    @Synchronized
     public void close() throws Exception {
         timeoutService.stopAsync();
         timeoutService.awaitTerminated();
         CompletableFuture<Void> commitCloseFuture = commitWriterFuture.thenAccept(EventStreamWriter::close);
         CompletableFuture<Void> abortCloseFuture = abortWriterFuture.thenAccept(EventStreamWriter::close);
 
+        // since we do the checks under synchronized block, we know the promise for writers cannot be completed 
+        // by anyone if we have the lock and we can simply cancel the futures.  
         if (commitWriterFuture.isDone()) {
             commitCloseFuture.join();
         } else {
