@@ -18,7 +18,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.metrics.StreamMetrics;
-import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;

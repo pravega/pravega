@@ -130,8 +130,8 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     private CompletionStage<Void> createHistoryChunk(EpochRecord epoch0) {
-        HistoryTimeSeriesRecord record = new HistoryTimeSeriesRecord(0, 0, epoch0.getSegments(), 
-                Collections.emptyList(), epoch0.getCreationTime());
+        HistoryTimeSeriesRecord record = new HistoryTimeSeriesRecord(0, 0, 
+                Collections.emptyList(), epoch0.getSegments(), epoch0.getCreationTime());
         return createHistoryTimeSeriesChunk(0, record);
     }
 
