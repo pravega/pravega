@@ -110,14 +110,7 @@ public class InMemoryStream extends PersistentStreamBase {
         completedTxns = CacheBuilder.newBuilder()
                                     .expireAfterWrite(completedTxnTTL, TimeUnit.MILLISECONDS).build();
     }
-
-    @Override
-    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
-        synchronized (txnsLock) {
-            return CompletableFuture.completedFuture(activeTxns.size());
-        }
-    }
-
+    
     @Override
     public void refresh() {
 

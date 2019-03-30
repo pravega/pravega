@@ -118,7 +118,7 @@ public class ControllerMetadataRecordSerializerTest {
         streamCut.put(0L, 0L);
         Set<Long> set = new HashSet<>();
         set.add(0L);
-        StreamTruncationRecord record = new StreamTruncationRecord(streamCut, span, set, set, 0L, true);;
+        StreamTruncationRecord record = new StreamTruncationRecord(streamCut, span, set, set, 0L, true);
         assertEquals(StreamTruncationRecord.fromBytes(record.toBytes()), record);
         assertTrue(record.isUpdating());
         StreamTruncationRecord completed = StreamTruncationRecord.complete(record);

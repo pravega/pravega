@@ -529,12 +529,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                          final OperationContext context,
                                                                          final Executor executor) {
         Stream stream = getStream(scopeName, streamName, context);
-        return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime), executor)
-                .thenApply(result -> {
-                    stream.getNumberOfOngoingTransactions().thenAccept(count ->
-                            TransactionMetrics.reportOpenTransactions(scopeName, streamName, count));
-                    return result;
-                });
+        return withCompletion(stream.createTransaction(txnId, lease, maxExecutionTime), executor);
     }
 
     @Override
@@ -567,12 +562,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                           final UUID txId, final OperationContext context,
                                                           final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        return withCompletion(stream.commitTransaction(txId), executor)
-                .thenApply(result -> {
-                    stream.getNumberOfOngoingTransactions().thenAccept(count ->
-                            TransactionMetrics.reportOpenTransactions(scope, streamName, count));
-                    return result;
-                });
+        return withCompletion(stream.commitTransaction(txId), executor);
     }
 
     @Override
@@ -592,12 +582,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                          final UUID txId, final OperationContext context,
                                                          final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        return withCompletion(stream.abortTransaction(txId), executor)
-                .thenApply(result -> {
-                    stream.getNumberOfOngoingTransactions().thenAccept(count ->
-                            TransactionMetrics.reportOpenTransactions(scope, streamName, count));
-                    return result;
-                });
+        return withCompletion(stream.abortTransaction(txId), executor);
     }
 
     @Override

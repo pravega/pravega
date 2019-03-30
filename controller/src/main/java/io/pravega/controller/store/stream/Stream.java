@@ -442,15 +442,7 @@ interface Stream {
      * @return      transaction status.
      */
     CompletableFuture<TxnStatus> abortTransaction(final UUID txId);
-
-    /**
-     * Return whether any transaction is active on the stream.
-     *
-     * @return a boolean indicating whether a transaction is active on the stream.
-     * Returns the number of transactions ongoing for the stream.
-     */
-    CompletableFuture<Integer> getNumberOfOngoingTransactions();
-
+    
     /**
      * Api to get all active transactions as a map of transaction id to Active transaction record
      * @return A future which upon completion has a map of transaction ids to transaction metadata for all active transactions
