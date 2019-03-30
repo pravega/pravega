@@ -1160,6 +1160,19 @@ public class StreamMetadataTasksTest {
 
         scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS, scaleStatusResult.getStatus());
+
+        // start another scale
+        scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1)),
+                newRanges, 30, null).get();
+        assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
+        streamStorePartialMock.setState(SCOPE, test, State.SCALING, null, executor).join();
+
+        // even now we should get success for epoch 0 
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS, scaleStatusResult.getStatus());
+
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 1, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
         // endregion
     }
     
