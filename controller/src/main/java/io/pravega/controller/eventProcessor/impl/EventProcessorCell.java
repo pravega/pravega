@@ -293,7 +293,7 @@ class EventProcessorCell<T extends ControllerEvent> {
             checkpointStore.setPosition(process, readerGroupName, readerId, position);
             lastCheckpoint.set(position);
         };
-        eventProcessor.selfWriter = selfWriter::writeEvent;
+        eventProcessor.selfWriter = e -> selfWriter.writeEvent(e.getKey(), e);
         return eventProcessor;
     }
 

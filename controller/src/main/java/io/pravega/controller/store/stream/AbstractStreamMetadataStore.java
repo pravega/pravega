@@ -781,7 +781,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return scope;
     }
 
-    private <T> CompletableFuture<T> withCompletion(CompletableFuture<T> future, final Executor executor) {
+    protected <T> CompletableFuture<T> withCompletion(CompletableFuture<T> future, final Executor executor) {
 
         // Following makes sure that the result future given out to caller is actually completed on
         // caller's executor. So any chaining, if done without specifying an executor, will either happen on

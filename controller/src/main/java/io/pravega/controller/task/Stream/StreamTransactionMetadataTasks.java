@@ -441,6 +441,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         //         and fencing other processes from tracking this txn's timeout.
         // Step 4. Add this txn to timeout service and start managing timeout for this txn.
         return streamMetadataStore.getTransactionData(scope, stream, txnId, ctx, executor).thenComposeAsync(txnData -> {
+            if (!txnData.getStatus().equals(TxnStatus.OPEN)) { // transaction is not open, dont ping it
+                return CompletableFuture.completedFuture(createStatus(Status.OK));
+            }
             // Step 1. Sanity check for lease value.
             if (lease > timeoutService.getMaxLeaseValue()) {
                 return CompletableFuture.completedFuture(createStatus(Status.LEASE_TOO_LARGE));
