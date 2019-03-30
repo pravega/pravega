@@ -102,7 +102,7 @@ public class PravegaTablesStoreHelper {
         this.authToken = new AtomicReference<>(authHelper.retrieveMasterToken());
     }
 
-    <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String scope, String table, String key, Function<byte[], T> fromBytes) {
+    public <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String scope, String table, String key, Function<byte[], T> fromBytes) {
         return cache.getCachedData(new TableCacheKey<>(scope, table, key, fromBytes))
                     .thenApply(this::getVersionedMetadata);
     }
@@ -114,7 +114,7 @@ public class PravegaTablesStoreHelper {
         return new VersionedMetadata<>((T) v.getObject(), v.getVersion());
     }
 
-    void invalidateCache(String scope, String table, String key) {
+    public void invalidateCache(String scope, String table, String key) {
         cache.invalidateCache(new TableCacheKey<>(scope, table, key, x -> null));
     }
 
@@ -269,10 +269,10 @@ public class PravegaTablesStoreHelper {
                              }, executor);
     }
 
-    public <T> CompletableFuture<Map.Entry<ByteBuf, List<Pair<String, VersionedMetadata<T>>>>> getEntriesPaginated(String scope, String tableName, 
-                                                                                               ByteBuf continuationToken, int limit, Function<byte[], T> fromBytes) {
-        log.info("get entries paginated called for : {}/{}", scope, tableName);
-
+    public <T> CompletableFuture<Map.Entry<ByteBuf, List<Pair<String, VersionedMetadata<T>>>>> getEntriesPaginated(
+            String scope, String tableName, ByteBuf continuationToken, int limit, 
+            Function<byte[], T> fromBytes) {
+        log.debug("get entries paginated called for : {}/{}", scope, tableName);
         return withRetries(() -> segmentHelper.readTableEntries(scope, tableName, limit,
                 IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("get entries paginated for table: %s/%s", scope, tableName))
@@ -384,8 +384,12 @@ public class PravegaTablesStoreHelper {
             } else if (cause instanceof HostStoreException) {
                 log.warn("Host Store exception {}", cause.getMessage());
                 toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, cause, errorMessage);
+            } else if (cause instanceof ArrayIndexOutOfBoundsException) {
+                // todo: temporary hack added to work around concurrent write and get issue
+                log.warn("received array out of bounds", cause.getMessage());
+                toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, cause, errorMessage);
             } else {
-                log.warn("error {} {}", errorMessage, cause.getClass());
+                log.warn("exception of unknown type thrown {} ", errorMessage, cause);
                 toThrow = StoreException.create(StoreException.Type.UNKNOWN, cause, errorMessage);
             }
 
