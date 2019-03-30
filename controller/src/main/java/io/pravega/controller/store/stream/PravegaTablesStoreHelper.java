@@ -40,11 +40,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 
 @Slf4j
 public class PravegaTablesStoreHelper {
@@ -249,15 +254,7 @@ public class PravegaTablesStoreHelper {
                 () -> String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName)), null)
                 .thenAcceptAsync(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName), executor);
     }
-
-    private <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
-        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, toReturn);
-    }
-
-    private <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
-        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, toReturn);
-    }
-
+    
     public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken, int limit) {
         log.debug("get keys paginated called for : {}/{}", scope, tableName);
 
@@ -291,6 +288,42 @@ public class PravegaTablesStoreHelper {
                 }, executor);
     }
 
+
+    public <Key, Value> CompletableFuture<Map<Key, Value>> getEntriesWithFilter(
+            String scope, String table, Function<String, Key> fromStringKey,
+            Function<byte[], Value> fromBytesValue, BiFunction<Key, Value, Boolean> filter, int limit) {
+        Map<Key, Value> result = new ConcurrentHashMap<>();
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        AtomicReference<ByteBuf> token = new AtomicReference<>(IteratorState.EMPTY.toBytes());
+
+        return Futures.exceptionallyExpecting(
+                Futures.loop(canContinue::get,
+                        () -> getEntriesPaginated(scope, table, token.get(), limit, fromBytesValue)
+                                .thenAccept(v -> {
+                                    // we exit if we have either received `limit` number of entries
+                                    List<Pair<String, VersionedMetadata<Value>>> pair = v.getValue();
+                                    for (Pair<String, VersionedMetadata<Value>> val : pair) {
+                                        Key key = fromStringKey.apply(val.getKey());
+                                        Value value = val.getValue().getObject();
+                                        if (filter.apply(key, value)) {
+                                            result.put(key, value);
+                                            if (result.size() == limit) {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    // if we get less than the requested number, then we will exit the loop. 
+                                    // otherwise if we have collected all the desired results
+                                    canContinue.set(!(v.getValue().size() < limit || result.size() >= limit));
+                                    token.get().release();
+                                    if (canContinue.get()) {
+                                        // set next continuation token
+                                        token.set(v.getKey());
+                                    }
+                                }), executor)
+                       .thenApply(x -> result), DATA_NOT_FOUND_PREDICATE, Collections.emptyMap());
+    }
+
     public AsyncIterator<String> getAllKeys(String scope, String tableName) {
         return new ContinuationTokenAsyncIterator<>(token -> getKeysPaginated(scope, tableName, token, 1000)
                 .thenApplyAsync(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue()), executor),
@@ -303,6 +336,14 @@ public class PravegaTablesStoreHelper {
                     return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
                 }, executor),
                 IteratorState.EMPTY.toBytes());
+    }
+
+    private <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
+        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, toReturn);
+    }
+
+    private <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
+        return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, toReturn);
     }
 
     private <T> Supplier<CompletableFuture<T>> exceptionalCallback(Supplier<CompletableFuture<T>> future, Supplier<String> errorMessageSupplier) {
