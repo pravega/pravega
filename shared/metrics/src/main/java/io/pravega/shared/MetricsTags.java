@@ -11,7 +11,7 @@ package io.pravega.shared;
 
 import com.google.common.base.Preconditions;
 
-public class MetricsTags {
+public final class MetricsTags {
 
     // Metric Tag Names
     public static final String TAG_CONTAINER = "container";

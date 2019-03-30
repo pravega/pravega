@@ -119,7 +119,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
             counter = underlying.createCounter(keys.getRegistryKey(), tags);
         }
         counter.add(value);
-        countersCache.put(name, counter);
+        countersCache.put(keys.getCacheKey(), counter);
     }
 
     @Override

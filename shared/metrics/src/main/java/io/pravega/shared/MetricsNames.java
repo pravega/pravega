@@ -242,9 +242,9 @@ public final class MetricsNames {
      */
     public static MetricKey metricKey(String metric, String... tags) {
 
-        if (tags == null || tags.length == 0) {  //without tags: the original metric name is cache and registry key
+        if (tags == null || tags.length == 0) {  //if no tags supplied, the original metric name is used for both cache key and registry key.
             return new MetricKey(metric, metric);
-        } else { //with tags: append tag values to form cache key, original metric name is registry key
+        } else { //if tag is supplied, append tag value to form cache key; original metric name is registry key.
             StringBuilder sb = new StringBuilder(metric);
             Preconditions.checkArgument((tags.length % 2) == 0, "Tags is a set of key/value pair so the size must be even: %s", tags.length);
             for (int i = 0; i < tags.length; i += 2) {

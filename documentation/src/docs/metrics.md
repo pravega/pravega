@@ -33,7 +33,8 @@ public interface StatsProvider {
 }
 ```
 
-- start(): Initializes [MeterRegistry](https://micrometer.io/docs/concepts#_registry) for our Metrics service. 
+- start(): Initializes [MeterRegistry](https://micrometer.io/docs/concepts#_registry) for our Metrics service.
+- startWithoutExporting(): Initializes SimpleMeterRegistry that holds the latest value of each meter in memory and does not export the data anywhere, typically for unit tests.
 - close(): Shutdown of Metrics service.
 - createStatsLogger(): Creates and returns a StatsLogger instance, which is used to retrieve a metric and do metric insertion and collection in Pravega code. 
 - createDynamicLogger(): Create a dynamic logger.
