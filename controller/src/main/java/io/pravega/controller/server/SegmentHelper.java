@@ -1172,7 +1172,7 @@ public class SegmentHelper {
 
             @Override
             public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
-                log.info(requestId, "readTableEntries {} successful.", qualifiedName);
+                log.debug(requestId, "readTableEntries {} successful.", qualifiedName);
                 final IteratorState state = IteratorState.fromBytes(tableEntriesRead.getContinuationToken());
                 final List<TableEntry<byte[], byte[]>> entries =
                         tableEntriesRead.getEntries().getEntries().stream()
@@ -1205,7 +1205,7 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, delegationToken,
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, delegationToken,
                                                                         suggestedEntryCount, token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
