@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.test.common.TestingServerStarter;
@@ -26,7 +25,6 @@ import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.test.common.TestUtils;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -108,11 +106,6 @@ public class ControllerBootstrapTest {
         CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
 
-        // Attempt to create a transaction as stream is getting created.
-        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
-
-        txIdFuture.join();
-
         // Now start Pravega service.
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
@@ -129,13 +122,9 @@ public class ControllerBootstrapTest {
         } catch (CompletionException ce) {
             Assert.fail();
         }
-
-        // Sleep for a while for initialize to complete
-        boolean initialized = controllerWrapper.awaitTasksModuleInitialization(5000, TimeUnit.MILLISECONDS);
-        Assert.assertTrue(initialized);
-
+        
         // Now create transaction should succeed.
-        txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
+        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
 
         try {
             TxnSegments id = txIdFuture.join();
