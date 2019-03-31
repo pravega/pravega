@@ -611,10 +611,10 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         CommitEvent event = new CommitEvent(scope, stream, epoch);
         return TaskStepsRetryHelper.withRetries(() -> writeCommitEvent(event)
                 .thenAccept(v -> {
-                    log.debug("Transaction {} abort event posted", txnId);
+                    log.debug("Transaction {} commit event posted", txnId);
                 })
                 .exceptionally(ex -> {
-                    log.debug("Transaction {}, failed posting abort event. Retrying...", txnId);
+                    log.debug("Transaction {}, failed posting commit event. Retrying...", txnId);
                     throw new WriteFailedException(ex);
                 }), executor).thenApply(v -> status);
     }
