@@ -32,6 +32,7 @@ import org.apache.curator.utils.ZKPaths;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -495,7 +496,11 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createSegmentSealedEpochRecordData(long segmentToSeal, int epoch) {
+    CompletableFuture<Void> createSegmentSealedEpochRecords(Collection<Long> segmentToSeal, int epoch) {
+        return Futures.allOf(segmentToSeal.stream().map(x -> createSegmentSealedEpochRecordData(x, epoch)).collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Void> createSegmentSealedEpochRecordData(long segmentToSeal, int epoch) {
         String path = String.format(getSegmentSealedEpochPathFormat(), segmentToSeal);
         byte[] epochData = new byte[Integer.BYTES];
         BitConverter.writeInt(epochData, 0, epoch);

@@ -31,6 +31,7 @@ import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -495,7 +496,11 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createSegmentSealedEpochRecordData(long segment, int epoch) {
+    CompletableFuture<Void> createSegmentSealedEpochRecords(Collection<Long> segmentToSeal, int epoch) {
+        return Futures.allOf(segmentToSeal.stream().map(x -> createSegmentSealedEpochRecordData(x, epoch)).collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Void> createSegmentSealedEpochRecordData(long segment, int epoch) {
         Preconditions.checkNotNull(epoch);
 
         synchronized (lock) {

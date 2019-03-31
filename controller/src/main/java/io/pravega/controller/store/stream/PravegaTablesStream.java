@@ -32,6 +32,7 @@ import org.apache.curator.shaded.com.google.common.collect.Lists;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -443,13 +444,15 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createSegmentSealedEpochRecordData(long segmentToSeal, int epoch) {
-        String key = String.format(SEGMENT_SEALED_EPOCH_KEY_FORMAT, segmentToSeal);
+    CompletableFuture<Void> createSegmentSealedEpochRecords(Collection<Long> segmentsToSeal, int epoch) {
         byte[] epochData = new byte[Integer.BYTES];
         BitConverter.writeInt(epochData, 0, epoch);
+
+        Map<String, byte[]> map = segmentsToSeal.stream().collect(Collectors.toMap(
+                x -> String.format(SEGMENT_SEALED_EPOCH_KEY_FORMAT, x), x -> epochData));
+
         return getMetadataTable()
-                .thenCompose(metadataTable -> storeHelper.addNewEntryIfAbsent(getScope(), metadataTable, key, epochData)
-                                                         .thenAccept(v -> storeHelper.invalidateCache(getScope(), metadataTable, key)));
+                .thenCompose(metadataTable -> storeHelper.addNewEntriesIfAbsent(getScope(), metadataTable, map));
     }
 
     @Override

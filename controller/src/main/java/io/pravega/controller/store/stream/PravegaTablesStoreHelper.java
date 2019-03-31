@@ -254,7 +254,7 @@ public class PravegaTablesStoreHelper {
                 () -> String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName)), null)
                 .thenAcceptAsync(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName), executor);
     }
-    
+
     public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken, int limit) {
         log.debug("get keys paginated called for : {}/{}", scope, tableName);
 
@@ -287,7 +287,6 @@ public class PravegaTablesStoreHelper {
                     return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
                 }, executor);
     }
-
 
     public <K, V> CompletableFuture<Map<K, V>> getEntriesWithFilter(
             String scope, String table, Function<String, K> fromStringKey,

@@ -787,20 +787,14 @@ public abstract class PersistentStreamBase implements Stream {
                                         sealedSegments, newSegments, epochRecord.getCreationTime());
                         return createEpochRecord(epochRecord)
                                 .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecord))
-                                .thenCompose(x -> Futures.allOf(epochTransition.getSegmentsToSeal().stream()
-                                                                               .map(segmentToSeal -> recordSegmentSealedEpoch(segmentToSeal, epochTransition.getNewEpoch()))
-                                                                               .collect(Collectors.toList())))
+                                .thenCompose(x -> createSegmentSealedEpochRecords(epochTransition.getSegmentsToSeal(), epochTransition.getNewEpoch()))
                                 .thenApply(x -> versionedMetadata);
                     } else {
                         return CompletableFuture.completedFuture(versionedMetadata);
                     }
                 });
     }
-
-    private CompletableFuture<Void> recordSegmentSealedEpoch(long segmentToSeal, int newEpoch) {
-        return createSegmentSealedEpochRecordData(segmentToSeal, newEpoch);
-    }
-
+ 
     private CompletableFuture<Void> updateHistoryTimeSeries(HistoryTimeSeriesRecord record) {
         int historyChunk = record.getEpoch() / historyChunkSize.get();
         boolean isFirst = record.getEpoch() % historyChunkSize.get() == 0;
@@ -938,10 +932,12 @@ public abstract class PersistentStreamBase implements Stream {
                                     .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordTxnEpoch))
                                     .thenCompose(x -> createEpochRecord(duplicateActiveEpoch))
                                     .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordActiveEpoch))
-                                    .thenCompose(x -> Futures.allOf(activeEpochRecord.getSegments().stream().map(segment ->
-                                            recordSegmentSealedEpoch(segment.segmentId(), duplicateTxnEpoch.getEpoch())).collect(Collectors.toList())))
-                                    .thenCompose(x -> Futures.allOf(duplicateTxnEpoch.getSegments().stream().map(segment ->
-                                            recordSegmentSealedEpoch(segment.segmentId(), duplicateActiveEpoch.getEpoch())).collect(Collectors.toList())));
+                                    .thenCompose(x -> createSegmentSealedEpochRecords(
+                                            activeEpochRecord.getSegments().stream().map(StreamSegmentRecord::segmentId)
+                                                             .collect(Collectors.toList()), duplicateTxnEpoch.getEpoch()))
+                                    .thenCompose(x -> createSegmentSealedEpochRecords(
+                                            duplicateTxnEpoch.getSegments().stream().map(StreamSegmentRecord::segmentId)
+                                                             .collect(Collectors.toList()), duplicateActiveEpoch.getEpoch()));
                         })
                         .thenCompose(r -> updateSealedSegmentSizes(sealedTxnEpochSegments)));
     }
@@ -1203,7 +1199,7 @@ public abstract class PersistentStreamBase implements Stream {
             }
         });
     }
-    
+
     @Override
     public CompletableFuture<EpochRecord> getActiveEpoch(boolean ignoreCached) {
         return getCurrentEpochRecordData(ignoreCached).thenApply(VersionedMetadata::getObject);
@@ -1305,7 +1301,7 @@ public abstract class PersistentStreamBase implements Stream {
                     }
                 });
     }
-    
+
     @Override
     public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommitTransactionsRecord() {
         return getCommitTxnRecord()
@@ -1650,7 +1646,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Version> updateSealedSegmentSizesMapShardData(int shard, VersionedMetadata<SealedSegmentsMapShard> data);
 
-    abstract CompletableFuture<Void> createSegmentSealedEpochRecordData(long segmentToSeal, int epoch);
+    abstract CompletableFuture<Void> createSegmentSealedEpochRecords(Collection<Long> segmentToSeal, int epoch);
 
     abstract CompletableFuture<VersionedMetadata<Integer>> getSegmentSealedRecordData(long segmentId);
     // endregion
