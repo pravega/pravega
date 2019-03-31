@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import io.pravega.common.util.ByteBufferUtils;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import org.junit.Test;
@@ -43,7 +44,7 @@ public class ByteSerializerTest {
         ByteBuffer subBuffer = serializer.serialize(serialized);
         assertEquals(2, serializer.deserialize(subBuffer).capacity());
 
-        ByteBuffer empty = ByteBuffer.allocate(0);
+        ByteBuffer empty = ByteBufferUtils.EMPTY;
         serialized = serializer.serialize(empty);
         assertEquals(empty, serializer.deserialize(serialized));
     }

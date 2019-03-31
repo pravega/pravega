@@ -829,7 +829,7 @@ project('test:system') {
         if(ext.getProperty('awsExecution').toString().equals("true")) {
             commandLine './aws/preTestScript.sh'
             args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch"
-        } else {
+        } else if (project.hasProperty('CLUSTER_NAME')) {
             commandLine "./preTestScript.sh"
             args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
         }
@@ -904,8 +904,10 @@ project('test:system') {
     }
 
     task collectSystemTestLogsFromAws(type: Exec) {
-        commandLine './aws/postTestScript.sh'
-        args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch", "$travis_commit"
+        if (project.hasProperty('aws_secret_key')) {
+            commandLine './aws/postTestScript.sh'
+            args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch", "$travis_commit"
+        }
     }
 }
 

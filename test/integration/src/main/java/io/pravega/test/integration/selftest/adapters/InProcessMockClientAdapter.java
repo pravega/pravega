@@ -113,7 +113,7 @@ class InProcessMockClientAdapter extends ClientAdapterBase {
     public boolean isFeatureSupported(Feature feature) {
         // This uses MockStreamManager, which only supports Create and Append.
         // Also the MockStreamSegmentStore does not support any other features as well.
-        return feature == Feature.Create
+        return feature == Feature.CreateStream
                 || feature == Feature.Append;
     }
 
