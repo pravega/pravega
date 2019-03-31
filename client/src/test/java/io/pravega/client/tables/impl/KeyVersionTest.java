@@ -30,8 +30,16 @@ public class KeyVersionTest {
     }
 
     @Test
-    public void testUnboundedStreamCutSerialization() throws Exception {
+    public void testNotExistsKeySerialization() throws Exception {
         KeyVersion kv = KeyVersion.NOT_EXISTS;
+        assertEquals(kv, KeyVersion.fromBytes(kv.toBytes()));
+        byte[] buf = serialize(kv);
+        assertEquals(kv, deSerializeKeyVersion(buf));
+    }
+
+    @Test
+    public void testNoVersionKeySerialization() throws Exception {
+        KeyVersion kv = KeyVersion.NO_VERSION;
         assertEquals(kv, KeyVersion.fromBytes(kv.toBytes()));
         byte[] buf = serialize(kv);
         assertEquals(kv, deSerializeKeyVersion(buf));

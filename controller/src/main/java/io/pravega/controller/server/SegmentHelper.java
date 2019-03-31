@@ -863,7 +863,8 @@ public class SegmentHelper {
      * @param scope               Stream scope.
      * @param stream              Stream name.
      * @param keys                List of {@link TableKey}s to be removed. Only if all the elements in the list has version as
-     *                            {@link KeyVersion#NOT_EXISTS} then an unconditional update/removal is performed. Else an atomic conditional
+     *                            {@link KeyVersion#NO_VERSION} then an unconditional update/removal is performed. Else an atomic
+     *                            conditional
      *                            update (removal) is performed.
      * @param hostControllerStore Host controller store.
      * @param clientCF            Client connection factory.
@@ -961,6 +962,7 @@ public class SegmentHelper {
      * a value corresponding to the latest version. If the operation failed, the future will be failed with the
      * causing exception. If the exception can be retried then the future will be failed with
      * {@link WireCommandFailedException}.
+     * Note: TableKeyDoesNotExist is not thrown by the readTable Command.
      */
     public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
                                                                          final String stream,
@@ -1000,20 +1002,9 @@ public class SegmentHelper {
             public void tableRead(WireCommands.TableRead tableRead) {
                 log.info(requestId, "readTable {} successful.", qualifiedName);
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
-                                                                         .map(e -> {
-                                                                             WireCommands.TableKey k = e.getKey();
-                                                                             TableKey<byte[]> tableKey =
-                                                                                     new TableKeyImpl<>(getArray(k.getData()),
-                                                                                                        new KeyVersionImpl(k.getKeyVersion()));
-                                                                             return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
-                                                                         }).collect(Collectors.toList());
+                                                                         .map(e -> new TableEntryImpl<>(convertFromWireCommand(e.getKey()), getArray(e.getValue().getData())))
+                                                                         .collect(Collectors.toList());
                 result.complete(tableEntries);
-            }
-
-            @Override
-            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-                log.warn(requestId, "readTable request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
             }
 
             @Override
@@ -1225,11 +1216,21 @@ public class SegmentHelper {
 
     private WireCommands.TableKey convertToWireCommand(final TableKey<byte[]> k) {
         WireCommands.TableKey key;
-        if (k.getVersion() == null) {
+        if (k.getVersion() == null || k.getVersion() == KeyVersion.NO_VERSION) {
             // unconditional update.
             key = new WireCommands.TableKey(wrappedBuffer(k.getKey()), WireCommands.TableKey.NO_VERSION);
         } else {
             key = new WireCommands.TableKey(wrappedBuffer(k.getKey()), k.getVersion().getSegmentVersion());
+        }
+        return key;
+    }
+
+    private TableKey<byte[]> convertFromWireCommand(WireCommands.TableKey k) {
+        final TableKey<byte[]> key;
+        if (k.getKeyVersion() == WireCommands.TableKey.NOT_EXISTS) {
+            key = new TableKeyImpl<>(getArray(k.getData()), KeyVersion.NOT_EXISTS);
+        } else {
+            key = new TableKeyImpl<>(getArray(k.getData()), new KeyVersionImpl(k.getKeyVersion()));
         }
         return key;
     }
@@ -1256,9 +1257,7 @@ public class SegmentHelper {
                 });                
             }
         });
-        resultFuture.whenComplete((result, e) -> {
-            connectionFuture.thenAccept(ClientConnection::close);
-        });
+        resultFuture.whenComplete((result, e) -> connectionFuture.thenAccept(ClientConnection::close));
     }
 
     private Pair<Byte, Integer> extractFromPolicy(ScalingPolicy policy) {
