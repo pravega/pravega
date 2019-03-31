@@ -959,10 +959,8 @@ public class SegmentHelper {
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will contain a list of {@link TableEntry} with
-     * a value corresponding to the latest version. If the operation failed, the future will be failed with the
-     * causing exception. If the exception can be retried then the future will be failed with
-     * {@link WireCommandFailedException}.
-     * Note: TableKeyDoesNotExist is not thrown by the readTable Command.
+     * a value corresponding to the latest version. The version will be set to {@link KeyVersion#NOT_EXISTS} if the
+     * key does not exist. If the operation failed, the future will be failed with the causing exception.
      */
     public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
                                                                          final String stream,
