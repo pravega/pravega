@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.store.client;
 
-import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
@@ -21,9 +20,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,7 +44,7 @@ public class StoreClientFactoryTest {
         executor.shutdown();
     }
     
-    @Test
+    @Test(timeout = 30000)
     public void testZkSessionExpiryRetry() throws Exception {
         CompletableFuture<Void> sessionExpiry = new CompletableFuture<>();
         AtomicInteger expirationRetryCounter = new AtomicInteger();
@@ -65,20 +62,8 @@ public class StoreClientFactoryTest {
                 .namespace("test").maxRetries(10).initialSleepInterval(10).secureConnectionToZooKeeper(false).sessionTimeoutMs(15000).build(),
                 canRetrySupplier, expirationHandler);
         
-        client.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
-        
+        client.getZookeeperClient().getZooKeeper().close();
         sessionExpiry.join();
-
-        Supplier<Boolean> isAliveSupplier = () -> {
-            try {
-                return client.getZookeeperClient().getZooKeeper().getState().isAlive();
-            } catch (Exception e) {
-                throw new CompletionException(e);
-            }
-        };
-        
-        Futures.loop(isAliveSupplier, 
-                () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
         
         // verify that we fail with session expiry and we fail without retrying.
         AssertExtensions.assertThrows(KeeperException.SessionExpiredException.class, () -> client.getData().forPath("/test"));
@@ -95,7 +80,7 @@ public class StoreClientFactoryTest {
      * create a new Zookeeper client and, in fact, we close the existing one to force the restart of the Controller.
      * During the Controller restart, a new Zookeeper client will be created with the new parameters.
      */
-    @Test
+    @Test(timeout = 30000)
     public void testZkSessionExpiryWithChangedParameters() throws Exception {
         final String testZNode = "/test";
 
