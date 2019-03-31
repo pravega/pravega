@@ -202,13 +202,13 @@ class PravegaTablesStream extends PersistentStreamBase {
                                                                      final int startingSegmentNumber) {
         // If stream exists, but is in a partially complete state, then fetch its creation time and configuration and any
         // metadata that is available from a previous run. If the existing stream has already been created successfully earlier,
-        return Futures.exceptionallyExpecting(getCreationTime(), DATA_NOT_FOUND_PREDICATE, null)
+        return storeHelper.expectingDataNotFound(getCreationTime(), null)
                       .thenCompose(storedCreationTime -> {
                           if (storedCreationTime == null) {
                               return CompletableFuture.completedFuture(new CreateStreamResponse(CreateStreamResponse.CreateStatus.NEW,
                                       configuration, creationTime, startingSegmentNumber));
                           } else {
-                              return Futures.exceptionallyExpecting(getConfiguration(), DATA_NOT_FOUND_PREDICATE, null)
+                              return storeHelper.expectingDataNotFound(getConfiguration(), null)
                                             .thenCompose(config -> {
                                                 if (config != null) {
                                                     return handleConfigExists(storedCreationTime, config, startingSegmentNumber,
@@ -227,7 +227,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                                                                        int startingSegmentNumber, boolean creationTimeMatched) {
         CreateStreamResponse.CreateStatus status = creationTimeMatched ?
                 CreateStreamResponse.CreateStatus.NEW : CreateStreamResponse.CreateStatus.EXISTS_CREATING;
-        return Futures.exceptionallyExpecting(getState(true), DATA_NOT_FOUND_PREDICATE, null)
+        return storeHelper.expectingDataNotFound(getState(true), null)
                       .thenApply(state -> {
                           if (state == null) {
                               return new CreateStreamResponse(status, config, creationTime, startingSegmentNumber);
@@ -260,9 +260,8 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getId()
                 .thenCompose(id -> tryRemoveOlderTransactionsInEpochTables(epoch -> true)
                         .thenCompose(v -> getEpochsWithTransactionsTable()
-                                .thenCompose(epochWithTxnTable -> Futures.exceptionallyExpecting(
-                                        storeHelper.deleteTable(scope, epochWithTxnTable, false),
-                                        DATA_NOT_FOUND_PREDICATE, null))
+                                .thenCompose(epochWithTxnTable -> storeHelper.expectingDataNotFound(
+                                        storeHelper.deleteTable(scope, epochWithTxnTable, false), null))
                                 .thenCompose(deleted -> storeHelper.deleteTable(scope, getMetadataTableName(id), false))));
     }
 
@@ -533,8 +532,8 @@ class PravegaTablesStream extends PersistentStreamBase {
     CompletableFuture<VersionedMetadata<Long>> getMarkerData(long segmentId) {
         final String key = String.format(SEGMENT_MARKER_PATH_FORMAT, segmentId);
         return getMetadataTable().thenCompose(metadataTable ->
-                Futures.exceptionallyExpecting(storeHelper.getEntry(getScope(), metadataTable, key, x -> BitConverter.readLong(x, 0)),
-                        DATA_NOT_FOUND_PREDICATE, null));
+                storeHelper.expectingDataNotFound(
+                        storeHelper.getEntry(getScope(), metadataTable, key, x -> BitConverter.readLong(x, 0)), null));
     }
 
     @Override
@@ -571,10 +570,9 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
         return getTransactionsInEpochTable(epoch)
-            .thenCompose(tableName -> Futures.exceptionallyExpecting(storeHelper.getEntriesWithFilter(
+            .thenCompose(tableName -> storeHelper.expectingDataNotFound(storeHelper.getEntriesWithFilter(
                     getScope(), tableName, UUID::fromString, ActiveTxnRecord::fromBytes,
-                    (x, y) -> y.getTxnStatus().equals(TxnStatus.COMMITTING), 1000), 
-                    DATA_NOT_FOUND_PREDICATE, Collections.emptyMap()));
+                    (x, y) -> y.getTxnStatus().equals(TxnStatus.COMMITTING), 1000), Collections.emptyMap()));
     }
 
     @Override
@@ -710,9 +708,8 @@ class PravegaTablesStream extends PersistentStreamBase {
                                   String table = String.format(COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT, batch);
                                   String key = String.format(COMPLETED_TRANSACTIONS_KEY_FORMAT, getScope(), getName(), txId.toString());
 
-                                  return Futures.exceptionallyExpecting(
-                                          storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, table, key, CompletedTxnRecord::fromBytes), 
-                                          DATA_NOT_FOUND_PREDICATE, null);
+                                  return storeHelper.expectingDataNotFound(
+                                          storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, table, key, CompletedTxnRecord::fromBytes), null);
                               }).collect(Collectors.toList()));
                           })
                           .thenCompose(result -> {

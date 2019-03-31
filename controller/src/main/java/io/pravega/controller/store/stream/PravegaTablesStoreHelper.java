@@ -326,23 +326,27 @@ public class PravegaTablesStoreHelper {
 
     public AsyncIterator<String> getAllKeys(String scope, String tableName) {
         return new ContinuationTokenAsyncIterator<>(token -> getKeysPaginated(scope, tableName, token, 1000)
-                .thenApplyAsync(result -> new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue()), executor),
+                .thenApplyAsync(result -> {
+                    token.release();
+                    return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
+                }, executor),
                 IteratorState.EMPTY.toBytes());
     }
 
     public <T> AsyncIterator<Pair<String, VersionedMetadata<T>>> getAllEntries(String scope, String tableName, Function<byte[], T> fromBytes) {
         return new ContinuationTokenAsyncIterator<>(token -> getEntriesPaginated(scope, tableName, token, 1000, fromBytes)
                 .thenApplyAsync(result -> {
+                    token.release();
                     return new AbstractMap.SimpleEntry<>(result.getKey(), result.getValue());
                 }, executor),
                 IteratorState.EMPTY.toBytes());
     }
 
-    private <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
+    public <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, toReturn);
     }
 
-    private <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
+    public <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, toReturn);
     }
 

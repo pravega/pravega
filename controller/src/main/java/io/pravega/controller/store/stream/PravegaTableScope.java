@@ -155,7 +155,7 @@ public class PravegaTableScope implements Scope {
 
     CompletableFuture<Boolean> checkStreamExistsInScope(String stream) {
         return getStreamsInScopeTableName()
-                .thenCompose(tableName -> Futures.exceptionallyExpecting(storeHelper.getEntry(scopeName, tableName, stream, x -> x).thenApply(v -> true), 
-                        DATA_NOT_FOUND_PREDICATE, false));
+                .thenCompose(tableName -> storeHelper.expectingDataNotFound(
+                        storeHelper.getEntry(scopeName, tableName, stream, x -> x).thenApply(v -> true), false));
     }
 }
