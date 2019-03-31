@@ -22,7 +22,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.controller.eventProcessor.EventSerializer;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -31,9 +30,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperatio
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.State;
@@ -92,7 +88,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -100,7 +95,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public abstract class ScaleRequestHandlerTest {
     protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
@@ -111,7 +105,6 @@ public abstract class ScaleRequestHandlerTest {
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
-    private HostControllerStore hostStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
@@ -144,8 +137,6 @@ public abstract class ScaleRequestHandlerTest {
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
-
-        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(EventStreamClientFactory.class);
@@ -188,8 +179,7 @@ public abstract class ScaleRequestHandlerTest {
         StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, streamStore, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
-
-        when(clientFactory.<ControllerEvent>createEventWriter(eq(Config.SCALE_STREAM_NAME), any(), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(),
                 1, false, System.currentTimeMillis());
@@ -282,7 +272,7 @@ public abstract class ScaleRequestHandlerTest {
     @Test(timeout = 30000)
     public void testScaleWithTransactionRequest() throws InterruptedException {
         EventWriterMock writer = new EventWriterMock();
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new EventSerializer<>()), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
@@ -353,7 +343,7 @@ public abstract class ScaleRequestHandlerTest {
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
         EventWriterMock writer = new EventWriterMock();
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new EventSerializer<>()), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
@@ -411,7 +401,7 @@ public abstract class ScaleRequestHandlerTest {
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
         EventWriterMock writer = new EventWriterMock();
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new EventSerializer<>()), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
@@ -836,8 +826,7 @@ public abstract class ScaleRequestHandlerTest {
                 null, null, null, streamStore, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
-
-        when(clientFactory.<ControllerEvent>createEventWriter(eq(Config.SCALE_STREAM_NAME), any(), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, StreamSegmentNameUtils.computeSegmentId(2, 1),
                 AutoScaleEvent.UP, System.currentTimeMillis(), 1, false, System.currentTimeMillis());

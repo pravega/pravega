@@ -28,6 +28,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.shaded.com.google.common.collect.Lists;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -41,6 +42,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -566,13 +568,25 @@ class PravegaTablesStream extends PersistentStreamBase {
                                }).thenApply(v -> epochsWithTransactions);
                 });
     }
-    
+
+    @Override
+    CompletableFuture<List<UUID>> getTxnCommitList(int epoch) {
+        return getTransactionsInEpochTable(epoch)
+                .thenCompose(tableName -> storeHelper.expectingDataNotFound(storeHelper.getEntriesWithFilter(
+                        getScope(), tableName, UUID::fromString, ActiveTxnRecord::fromBytes,
+                        (x, y) -> y.getTxnStatus().equals(TxnStatus.COMMITTING), 1000), Collections.emptyMap()))
+                .thenApply(map -> Lists.newArrayList(map.keySet()));
+    }
+
     @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
+        Map<UUID, ActiveTxnRecord> result = new ConcurrentHashMap<>();
         return getTransactionsInEpochTable(epoch)
-            .thenCompose(tableName -> storeHelper.expectingDataNotFound(storeHelper.getEntriesWithFilter(
-                    getScope(), tableName, UUID::fromString, ActiveTxnRecord::fromBytes,
-                    (x, y) -> y.getTxnStatus().equals(TxnStatus.COMMITTING), 1000), Collections.emptyMap()));
+            .thenCompose(tableName -> storeHelper.expectingDataNotFound(storeHelper.getAllEntries(
+                    getScope(), tableName, ActiveTxnRecord::fromBytes).collectRemaining(x -> {
+                        result.put(UUID.fromString(x.getKey()), x.getValue().getObject());
+                        return true;
+            }).thenApply(v -> result), Collections.emptyMap()));
     }
 
     @Override

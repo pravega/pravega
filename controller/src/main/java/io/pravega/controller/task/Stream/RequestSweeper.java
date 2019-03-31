@@ -49,7 +49,7 @@ public class RequestSweeper implements FailoverSweeper {
 
     @Override
     public boolean isReady() {
-        return streamMetadataTasks.isStreamWriterInitialized();
+        return true;
     }
 
     @Override

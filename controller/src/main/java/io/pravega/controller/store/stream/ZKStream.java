@@ -34,6 +34,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Optional;
@@ -600,6 +601,14 @@ class ZKStream extends PersistentStreamBase {
                                           return map;
                                       });
                     });
+    }
+
+    @Override
+    CompletableFuture<List<UUID>> getTxnCommitList(int epoch) {
+        return getTxnInEpoch(epoch)
+                .thenApply(transactions -> transactions.entrySet().stream()
+                                                       .filter(entry -> entry.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
+                                                       .map(Map.Entry::getKey).collect(Collectors.toList()));
     }
 
     @Override

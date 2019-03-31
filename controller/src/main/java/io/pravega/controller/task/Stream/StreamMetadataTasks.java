@@ -104,10 +104,9 @@ public class StreamMetadataTasks extends TaskBase {
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
     private final SegmentHelper segmentHelper;
-    private EventStreamClientFactory clientFactory;
     private String requestStreamName;
-    private final CompletableFuture<EventStreamWriter<ControllerEvent>> requestWriterFuture;
 
+    private final CompletableFuture<Void> writerInitFuture = new CompletableFuture<>();
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
     private final AuthHelper authHelper;
     private final RequestTracker requestTracker;
@@ -130,7 +129,6 @@ public class StreamMetadataTasks extends TaskBase {
         this.segmentHelper = segmentHelper;
         this.authHelper = authHelper;
         this.requestTracker = requestTracker;
-        this.requestWriterFuture = new CompletableFuture<>();
         this.setReady();
     }
 
@@ -138,13 +136,10 @@ public class StreamMetadataTasks extends TaskBase {
     public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final String streamName) {
         this.requestStreamName = streamName;
-        this.clientFactory = clientFactory;
-        
-        if (!requestWriterFuture.isDone()) {
-            requestWriterFuture.complete(clientFactory.createEventWriter(requestStreamName,
-                    ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
-                    EventWriterConfig.builder().build()));
-        }
+        requestEventWriterRef.set(clientFactory.createEventWriter(requestStreamName,
+                ControllerEventProcessors.CONTROLLER_EVENT_SERIALIZER,
+                EventWriterConfig.builder().build()));
+        writerInitFuture.complete(null);
     }
 
     /**
@@ -645,7 +640,7 @@ public class StreamMetadataTasks extends TaskBase {
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
 
-        requestWriterFuture.thenApply(writer -> writer.writeEvent(event.getKey(), event).whenComplete((r, e) -> {
+        writerInitFuture.thenApply(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
             if (e != null) {
                 log.warn("exception while posting event {} {}", e.getClass().getName(), e.getMessage());
                 if (e instanceof TaskExceptions.ProcessingDisabledException) {
@@ -666,9 +661,10 @@ public class StreamMetadataTasks extends TaskBase {
 
     @VisibleForTesting
     public void setRequestEventWriter(EventStreamWriter<ControllerEvent> requestEventWriter) {
-        requestWriterFuture.complete(requestEventWriter);
+        requestEventWriterRef.set(requestEventWriter);
+        writerInitFuture.complete(null);
     }
-
+    
     @VisibleForTesting
     CompletableFuture<CreateStreamStatus.Status> createStreamBody(String scope, String stream, StreamConfiguration config, long timestamp) {
         final long requestId = requestTracker.getRequestIdFor("createStream", scope, stream);
@@ -921,10 +917,6 @@ public class StreamMetadataTasks extends TaskBase {
                 this.retrieveDelegationToken()), executor);
     }
 
-    boolean isStreamWriterInitialized() {
-        return requestWriterFuture.isDone();    
-    }
-
     @Override
     public TaskBase copyWithContext(Context context) {
         return new StreamMetadataTasks(streamMetadataStore,
@@ -938,12 +930,13 @@ public class StreamMetadataTasks extends TaskBase {
     }
 
     @Override
-    @Synchronized
-    public void close() {
-        if (requestWriterFuture.isDone()) {
-            requestWriterFuture.join().close();
-        } else {
-            requestWriterFuture.cancel(true);
+    public void close() throws Exception {
+        if (!writerInitFuture.isDone()) {
+            writerInitFuture.cancel(true);
+        }
+        EventStreamWriter<ControllerEvent> writer = requestEventWriterRef.get();
+        if (writer != null) {
+            writer.close();
         }
     }
 

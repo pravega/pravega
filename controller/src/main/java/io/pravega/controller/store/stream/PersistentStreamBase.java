@@ -1305,17 +1305,7 @@ public abstract class PersistentStreamBase implements Stream {
                     }
                 });
     }
-
-    /**
-     * Get transactions in epoch. If no transactions exist return null.
-     */
-    private CompletableFuture<List<UUID>> getTxnCommitList(int epoch) {
-        return getTxnInEpoch(epoch)
-                .thenApply(transactions -> transactions.entrySet().stream()
-                                                       .filter(entry -> entry.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
-                                                       .map(Map.Entry::getKey).collect(Collectors.toList()));
-    }
-
+    
     @Override
     public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommitTransactionsRecord() {
         return getCommitTxnRecord()
@@ -1679,7 +1669,9 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, CompletedTxnRecord data);
-    
+
+    abstract CompletableFuture<List<UUID>> getTxnCommitList(int epoch);
+
     abstract CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch);
     // endregion
 
