@@ -214,8 +214,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock,
                 executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
-        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
-                abortWriter);
+        txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
@@ -256,8 +255,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
                 connectionFactory, AuthHelper.getDisabledAuthHelper());
 
-        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
-                abortWriter);
+        txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
@@ -273,8 +271,7 @@ public class StreamTransactionMetadataTasksTest {
         @Cleanup
         StreamTransactionMetadataTasks failedTxnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 segmentHelperMock, executor, "failedHost", connectionFactory, AuthHelper.getDisabledAuthHelper());
-        failedTxnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
-                new EventStreamWriterMock<>());
+        failedTxnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         // Create 3 transactions from failedHost.
         VersionedTransactionData tx1 = failedTxnTasks.createTxn(SCOPE, STREAM, 10000, null).join().getKey();
@@ -317,7 +314,7 @@ public class StreamTransactionMetadataTasksTest {
                 ex -> ex instanceof IllegalStateException);
 
         // Initialize stream writers.
-        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream", abortWriter);
+        txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Validate that txnTasks is ready.
         assertTrue(txnTasks.isReady());
@@ -384,7 +381,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelperMock, executor, "host",
                 connectionFactory, AuthHelper.getDisabledAuthHelper());
-        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream", abortWriter);
+        txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
@@ -458,8 +455,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
                 SegmentHelperMock.getFailingSegmentHelperMock(), executor, "host", connectionFactory,
                 new AuthHelper(this.authEnabled, "secret"));
-        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
-                abortWriter);
+        txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
         consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, txnTasks,
@@ -504,8 +500,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, hostStore,
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", connectionFactory,
                 new AuthHelper(this.authEnabled, "secret"));
-        txnTasks.initializeStreamWriters("commitStream", commitWriter, "abortStream",
-                abortWriter);
+        txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
@@ -629,7 +624,7 @@ public class StreamTransactionMetadataTasksTest {
         CompletableFuture<TxnStatus> commitFuture = txnTasks.commitTxn(SCOPE, STREAM, txnId, null);
         assertFalse(commitFuture.isDone());
 
-        txnTasks.initializeStreamWriters("", commitWriter, "", abortWriter);
+        txnTasks.initializeStreamWriters(commitWriter, abortWriter);
         assertTrue(Futures.await(commitFuture));
         UUID txnId2 = txnTasks.createTxn(SCOPE, STREAM, 100L, null).join().getKey().getId();
         assertTrue(Futures.await(txnTasks.abortTxn(SCOPE, STREAM, txnId2, null, null)));
@@ -650,7 +645,7 @@ public class StreamTransactionMetadataTasksTest {
         TestEventStreamWriter<CommitEvent> commitWriter = new TestEventStreamWriter<>();
         TestEventStreamWriter<AbortEvent> abortWriter = new TestEventStreamWriter<>();
 
-        txnTasks.initializeStreamWriters("", commitWriter, "", abortWriter);
+        txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         UUID txnId = UUID.randomUUID();
         txnTasks.writeAbortEvent(SCOPE, STREAM, 0, txnId, TxnStatus.ABORTING).join();
