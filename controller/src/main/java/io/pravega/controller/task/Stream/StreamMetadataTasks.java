@@ -216,7 +216,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     State state = stateFuture.join();
                                     StreamConfigurationRecord configProperty = configPropertyFuture.join();
 
-                                    // if property is updating and doesnt match our request, its a subsequent update
+                                    // if property is updating and doesn't match our request, it's a subsequent update
                                     if (configProperty.isUpdating()) {
                                         return !configProperty.getStreamConfiguration().equals(newConfig);
                                     } else {
@@ -412,7 +412,7 @@ public class StreamMetadataTasks extends TaskBase {
                                     State state = stateFuture.join();
                                     StreamTruncationRecord truncationRecord = configPropertyFuture.join();
 
-                                    // if property is updating and doesnt match our request, its a subsequent update
+                                    // if property is updating and doesn't match our request, it's a subsequent update
                                     if (truncationRecord.isUpdating()) {
                                         return !truncationRecord.getStreamCut().equals(streamCut);
                                     } else {
@@ -513,7 +513,7 @@ public class StreamMetadataTasks extends TaskBase {
     /**
      * Helper method to perform scale operation against an scale request.
      * This method posts a request in the request stream and then starts the scale operation while
-     * tracking its progress. Eventually, after scale completion, it sends a response to the caller.
+     * tracking it's progress. Eventually, after scale completion, it sends a response to the caller.
      *
      * @param scope          scope.
      * @param stream         stream name.
