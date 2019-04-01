@@ -110,8 +110,7 @@ public abstract class ControllerEventProcessorTest {
                 segmentHelperMock, executor, "1", AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
                 executor, "host", AuthHelper.getDisabledAuthHelper());
-        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
-                new EventStreamWriterMock<>());
+        streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         // region createStream
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);

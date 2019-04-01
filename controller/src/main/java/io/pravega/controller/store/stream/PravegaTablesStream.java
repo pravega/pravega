@@ -45,6 +45,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -249,7 +250,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                 .thenCompose(metadataTable -> storeHelper.getCachedData(getScope(), metadataTable, CREATION_TIME_KEY, 
                         data -> BitConverter.readLong(data, 0))).thenApply(VersionedMetadata::getObject);
     }
-
+    
     @Override
     public CompletableFuture<Void> deleteStream() {
         // delete all tables for this stream even if they are not empty!
@@ -570,6 +571,26 @@ class PravegaTablesStream extends PersistentStreamBase {
                                    return true;
                                }).thenApply(v -> epochsWithTransactions);
                 });
+    }
+
+    @Override
+    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+        List<CompletableFuture<Integer>> futures = new ArrayList<>();
+        return getEpochsWithTransactionsTable()
+                .thenCompose(epochsWithTxn -> storeHelper.getAllKeys(getScope(), epochsWithTxn)
+                                                         .forEachRemaining(x -> {
+                                                             futures.add(getNumberOfOngoingTransactions(Integer.parseInt(x)));
+                                                         }, executor)
+                                                         .thenCompose(v -> Futures.allOfWithResults(futures)
+                                                                                  .thenApply(list -> list.stream().reduce(0, Integer::sum))));
+    }
+
+    private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
+        String scope = getScope();
+        AtomicInteger count = new AtomicInteger(0);
+        return getTransactionsInEpochTable(epoch)
+                .thenCompose(epochTableName -> storeHelper.getAllKeys(scope, epochTableName).forEachRemaining(x -> count.incrementAndGet(), executor)
+                                                          .thenApply(x -> count.get()));
     }
 
     @Override

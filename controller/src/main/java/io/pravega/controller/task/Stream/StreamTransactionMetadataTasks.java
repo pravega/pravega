@@ -156,7 +156,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param config Controller event processor configuration.
      */
     @Synchronized
-    public Void initializeStreamWriters(final EventStreamClientFactory clientFactory,
+    public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final ControllerEventProcessorConfig config) {
         if (!commitWriterFuture.isDone()) {
             commitWriterFuture.complete(clientFactory.createEventWriter(
@@ -171,21 +171,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     EventWriterConfig.builder().build()));
         }
         this.setReady();
-        return null;
     }
 
     @VisibleForTesting
     @Synchronized
-    public Void initializeStreamWriters(final String commitStreamName, final EventStreamWriter<CommitEvent> commitWriter,
-                                        final String abortStreamName, final EventStreamWriter<AbortEvent> abortWriter) {
-        if (!commitWriterFuture.isDone()) {
-            this.commitWriterFuture.complete(commitWriter);
-        }
-        if (!abortWriterFuture.isDone()) {
-            this.abortWriterFuture.complete(abortWriter);
-        }
+    public void initializeStreamWriters(final EventStreamWriter<CommitEvent> commitWriter,
+                                        final EventStreamWriter<AbortEvent> abortWriter) {
+        this.commitWriterFuture.complete(commitWriter);
+        this.abortWriterFuture.complete(abortWriter);
         this.setReady();
-        return null;
     }
 
     /**
@@ -606,13 +600,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         CommitEvent event = new CommitEvent(scope, stream, epoch);
         return TaskStepsRetryHelper.withRetries(() -> writeCommitEvent(event)
-                .thenAccept(v -> {
-                    log.debug("Transaction {} commit event posted", txnId);
-                })
-                .exceptionally(ex -> {
-                    log.debug("Transaction {}, failed posting commit event. Retrying...", txnId);
-                    throw new WriteFailedException(ex);
-                }), executor).thenApply(v -> status);
+                .handle((r, e) -> {
+                    if (e != null) {
+                        log.debug("Transaction {}, failed posting commit event. Retrying...", txnId);
+                        throw new WriteFailedException(e);
+                    } else {
+                        log.debug("Transaction {} commit event posted", txnId);
+                        return status;
+                    }
+                }), executor);
     }
 
     public CompletableFuture<Void> writeAbortEvent(AbortEvent event) {
@@ -623,13 +619,15 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
         AbortEvent event = new AbortEvent(scope, stream, epoch, txnId);
         return TaskStepsRetryHelper.withRetries(() -> writeAbortEvent(event)
-                .thenAccept(v -> {
-                    log.debug("Transaction {} abort event posted", txnId);
-                    })
-                .exceptionally(ex -> {
-                    log.debug("Transaction {}, failed posting abort event. Retrying...", txnId);
-                    throw new WriteFailedException(ex); 
-                }), executor).thenApply(v -> status);
+                .handle((r, e) -> {
+                    if (e != null) {
+                        log.debug("Transaction {}, failed posting abort event. Retrying...", txnId);
+                        throw new WriteFailedException(e);
+                    } else {
+                        log.debug("Transaction {} abort event posted", txnId);
+                        return status;
+                    }
+                }), executor);
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
