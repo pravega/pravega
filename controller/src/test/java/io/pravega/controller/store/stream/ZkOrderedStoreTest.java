@@ -23,6 +23,7 @@ import org.junit.rules.Timeout;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -62,6 +63,7 @@ public class ZkOrderedStoreTest {
         String test = "test";
         String scope = "test";
         String stream = "test";
+        // 2 entities per collection.. rollover after = 1
         ZkOrderedStore store = new ZkOrderedStore(test, zkStoreHelper, executor, 1);
         
         // add 5 entities
@@ -111,5 +113,21 @@ public class ZkOrderedStoreTest {
         
         // verify that set 1 is removed
         assertTrue(store.isDeleted(scope, stream, 1).join());
+        assertFalse(store.isDeleted(scope, stream, 0).join());
+        assertFalse(store.isDeleted(scope, stream, 2).join());
+
+        // remove entities such that queue 0 becomes a candidate for removal.
+        store.removeEntities(scope, stream, Collections.singletonList(position2)).join();
+
+        assertTrue(store.isDeleted(scope, stream, 0).join());
+        assertFalse(store.isDeleted(scope, stream, 2).join());
+
+        entities = store.getEntitiesWithPosition(scope, stream).join();
+        assertEquals(1, entities.size());
+        assertTrue(entities.containsKey(position5));
+
+        store.removeEntities(scope, stream, Collections.singletonList(position5)).join();
+        // verify that collection 2 is not deleted as it is not sealed
+        assertFalse(store.isDeleted(scope, stream, 2).join());
     }
 }

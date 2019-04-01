@@ -110,7 +110,7 @@ class ZkOrderedStore {
                                                              .thenCompose(v -> addEntity(scope, stream, entity))
                                                              // 4. delete empty sealed collection path
                                                              .thenCompose(orderedPosition -> 
-                                                                     tryDeleteSealedCollectionPath(scope, stream, latestcollectionNum)
+                                                                     tryDeleteSealedCollection(scope, stream, latestcollectionNum)
                                                                      .thenApply(v -> orderedPosition));
 
                                        } else {
@@ -139,8 +139,15 @@ class ZkOrderedStore {
         return Futures.allOf(entities.stream()
                                      .map(entity -> storeHelper.deletePath(getEntityPath(scope, stream, entity), false))
                                      .collect(Collectors.toList()))
-                      .thenCompose(v -> Futures.allOf(collections.stream().map(collectionNum -> tryDeleteSealedCollectionPath(scope, stream, collectionNum))
-                                                            .collect(Collectors.toList())))
+                      .thenCompose(v -> Futures.allOf(
+                              collections.stream().map(collectionNum -> isSealed(scope, stream, collectionNum)
+                                      .thenCompose(sealed -> {
+                                          if (sealed) {
+                                              return tryDeleteSealedCollection(scope, stream, collectionNum);
+                                          } else {
+                                              return CompletableFuture.completedFuture(null);
+                                          }
+                                      })).collect(Collectors.toList())))
                       .whenComplete((r, e) -> {
                           if (e != null) {
                               log.error("error encountered while trying to remove entity positions {} for stream {}/{}", entities, scope, stream, e);
@@ -243,8 +250,14 @@ class ZkOrderedStore {
                           });
     }
 
-    private CompletableFuture<Void> tryDeleteSealedCollectionPath(String scope, String stream, Integer collectionNum) {
-        // if higher collection number exists then we can attempt to delete this node
+    /**
+     * Collection should be sealed while calling this method
+     * @param scope scope 
+     * @param stream stream 
+     * @param collectionNum collection to delete
+     * @return future which when completed will have the collection deleted if it is empty or ignored otherwise. 
+     */
+    private CompletableFuture<Void> tryDeleteSealedCollection(String scope, String stream, Integer collectionNum) {
         // purge garbage znodes
         // attempt to delete entities node
         // delete collection
