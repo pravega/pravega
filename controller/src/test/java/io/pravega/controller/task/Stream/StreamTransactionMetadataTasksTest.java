@@ -19,6 +19,7 @@ import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
@@ -35,6 +36,7 @@ import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AbortRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequestHandler;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
@@ -70,6 +72,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -105,6 +108,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for StreamTransactionMetadataTasks.
@@ -562,9 +566,50 @@ public class StreamTransactionMetadataTasksTest {
     }
     
     @Test(timeout = 10000)
-    public void writerInitializationTest() {
-        StreamMetadataStore streamStoreMock = StreamStoreFactory.createZKStore(zkClient, executor);
+    public void writerInitializationTest() throws Exception {
+        EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
+        EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
+        StreamMetadataStore streamStoreMock = spy(StreamStoreFactory.createZKStore(zkClient, executor));
 
+        // region close before initialize
+        txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
+                SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
+                new AuthHelper(this.authEnabled, "secret"));
+        CompletableFuture<Void> future = txnTasks.writeCommitEvent(new CommitEvent("scope", "stream", 0));
+        assertFalse(future.isDone());
+
+        txnTasks.close();
+        AssertExtensions.assertFutureThrows("", future, e -> Exceptions.unwrap(e) instanceof CancellationException);
+        // endregion
+
+        // region test initialize writers with client factory
+        txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
+                SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
+                new AuthHelper(this.authEnabled, "secret"));
+
+        future = txnTasks.writeCommitEvent(new CommitEvent("scope", "stream", 0));
+
+        EventStreamClientFactory cfMock = mock(EventStreamClientFactory.class);
+        ControllerEventProcessorConfig eventProcConfigMock = mock(ControllerEventProcessorConfig.class);
+        String commitStream = "commitStream";
+        doAnswer(x -> commitStream).when(eventProcConfigMock).getCommitStreamName();
+        doAnswer(x -> commitWriter).when(cfMock).createEventWriter(eq(commitStream), any(), any());
+        String abortStream = "abortStream";
+        doAnswer(x -> abortStream).when(eventProcConfigMock).getAbortStreamName();
+        doAnswer(x -> abortWriter).when(cfMock).createEventWriter(eq(abortStream), any(), any());
+
+        // future should not have completed as we have not initialized the writers. 
+        assertFalse(future.isDone());
+        
+        // initialize the writers. write future should have completed now. 
+        txnTasks.initializeStreamWriters(cfMock, eventProcConfigMock);
+
+        assertTrue(Futures.await(future));
+
+        txnTasks.close();
+        // endregion
+        
+        // region test method calls and initialize writers with direct writer set up method call
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
                 new AuthHelper(this.authEnabled, "secret"));
@@ -585,14 +630,10 @@ public class StreamTransactionMetadataTasksTest {
         CompletableFuture<TxnStatus> commitFuture = txnTasks.commitTxn(SCOPE, STREAM, txnId, null);
         assertFalse(commitFuture.isDone());
 
-        EventStreamWriterMock<CommitEvent> commitWriter = new EventStreamWriterMock<>();
-        EventStreamWriterMock<AbortEvent> abortWriter = new EventStreamWriterMock<>();
-
         txnTasks.initializeStreamWriters("", commitWriter, "", abortWriter);
         assertTrue(Futures.await(commitFuture));
         UUID txnId2 = txnTasks.createTxn(SCOPE, STREAM, 100L, null).join().getKey().getId();
         assertTrue(Futures.await(txnTasks.abortTxn(SCOPE, STREAM, txnId2, null, null)));
-
     }
     
     @Test(timeout = 10000)
