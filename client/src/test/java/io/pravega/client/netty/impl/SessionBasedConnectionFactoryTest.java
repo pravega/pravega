@@ -42,6 +42,8 @@ import java.io.File;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.function.Function;
 import javax.net.ssl.SSLEngine;
@@ -55,6 +57,7 @@ import org.junit.Test;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SessionBasedConnectionFactoryTest {
 
@@ -81,7 +84,6 @@ public class SessionBasedConnectionFactoryTest {
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object message) {
             if (message instanceof WireCommands.Hello) {
-                System.out.println("hello received");
                 ctx.write(message);
                 ctx.flush();
             } else if (message instanceof WireCommands.ReadSegment) {
@@ -153,7 +155,7 @@ public class SessionBasedConnectionFactoryTest {
     }
 
     @Test
-    public void establishClientConnection() throws ConnectionFailedException, InterruptedException {
+    public void testConnectionPooling() throws ConnectionFailedException, InterruptedException {
         @Cleanup
         SessionBasedConnectionFactory factory = new SessionBasedConnectionFactory(ClientConfig.builder()
                                                                                               .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
@@ -226,4 +228,56 @@ public class SessionBasedConnectionFactoryTest {
         assertThrows(ObjectClosedException.class, () -> connection1.send(readRequestGenerator.apply(session2.asLong())));
 
     }
+
+    @Test
+    public void testConcurrentRequests() throws ConnectionFailedException, InterruptedException {
+        @Cleanup
+        SessionBasedConnectionFactory factory = new SessionBasedConnectionFactory(ClientConfig.builder()
+                                                                                              .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
+                                                                                              .trustStore("../config/cert.pem")
+                                                                                              .maxConnectionsPerSegmentStore(1)
+                                                                                              .build());
+
+        ArrayBlockingQueue<WireCommands.SegmentRead> msgRead = new ArrayBlockingQueue<>(10);
+        FailingReplyProcessor rp = new FailingReplyProcessor() {
+            @Override
+            public void connectionDropped() {
+
+            }
+
+            @Override
+            public void segmentRead(WireCommands.SegmentRead data) {
+                msgRead.add(data);
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+
+            }
+        };
+
+        Session session1 = new Session(1, 0);
+        @Cleanup
+        ClientConnection connection1 = factory.establishConnection(session1, new PravegaNodeUri("localhost", port), rp).join();
+
+        // create a second connection, since the max number of connections is 1 this should reuse the same connection.
+        Session session2 = new Session(2, 0);
+        @Cleanup
+        ClientConnection connection2 = factory.establishConnection(session2, new PravegaNodeUri("localhost", port), rp).join();
+
+        connection1.send(readRequestGenerator.apply(session1.asLong()));
+        connection2.send(readRequestGenerator.apply(session2.asLong()));
+
+        List<WireCommands.SegmentRead> msgs = new ArrayList<WireCommands.SegmentRead>();
+        msgs.add(msgRead.take());
+        msgs.add(msgRead.take());
+        assertTrue(msgs.contains(readResponseGenerator.apply(session1.asLong())));
+        assertTrue(msgs.contains(readResponseGenerator.apply(session1.asLong())));
+    }
+
 }

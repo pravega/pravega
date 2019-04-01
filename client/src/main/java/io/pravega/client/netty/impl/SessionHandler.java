@@ -55,6 +55,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
      */
     public ClientConnection createSession(final Session session, final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
+        log.info("Creating Session: {} for endpoint: {}. The current channel is {}.", session.getSessionId(), connectionName, channel.get());
         if (sessionIdReplyProcessorMap.put(session.getSessionId(), rp) != null) {
             throw new IllegalArgumentException("Multiple sessions cannot be created with the same Session id {}" + session.getSessionId());
         }
@@ -104,13 +105,13 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     @Override
     public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
         super.channelRegistered(ctx);
-        Channel c = ctx.channel();
-        channel.set(c);
+        Channel ch = ctx.channel();
+        channel.set(ch);
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
-        log.info("Connection established {} ", ctx);
-        c.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), c.voidPromise());
+        log.info("Connection established with endpoint {} on ChannelId: {}.", connectionName, ch);
+        ch.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
         // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
-        ScheduledFuture<?> old = keepAliveFuture.getAndSet(c.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
+        ScheduledFuture<?> old = keepAliveFuture.getAndSet(ch.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));
         if (old != null) {
             old.cancel(false);
         }
@@ -141,6 +142,12 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Reply cmd = (Reply) msg;
         log.debug(connectionName + " processing reply: {} with session {}.", cmd, Session.from(cmd.getRequestId()));
+
+        if (cmd instanceof WireCommands.Hello) {
+            sessionIdReplyProcessorMap.forEach((sessionId, rp) -> rp.hello((WireCommands.Hello) cmd));
+            return;
+        }
+
         if (cmd instanceof WireCommands.DataAppended) {
             batchSizeTracker.recordAck(((WireCommands.DataAppended) cmd).getEventNumber());
         }
