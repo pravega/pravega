@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
@@ -47,16 +49,14 @@ import lombok.val;
  * TODO: Javadoc
  * TODO: logging
  */
-@RequiredArgsConstructor
 @Slf4j
 class TableCompactor {
     //region Members
 
     /**
-     * The maximum size of all the entries to process at once. If needing to move, these will all be processed as a single
-     * StreamSegmentAppend, so we should not make this too large.
+     * Default value for {@link #maxReadLength}, if not supplied via constructor.
      */
-    private static final int MAX_READ_LENGTH = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
+    static final int DEFAULT_MAX_READ_LENGTH = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
 
     @NonNull
     private final TableWriterConnector connector;
@@ -64,6 +64,44 @@ class TableCompactor {
     private final IndexReader indexReader;
     @NonNull
     private final Executor executor;
+    /**
+     * The maximum size of all the entries to process at once. If needing to move, these will all be processed as a single
+     * StreamSegmentAppend, so we should not make this too large.
+     */
+    private final int maxReadLength;
+
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the {@link TableCompactor} class.
+     *
+     * @param connector   The {@link TableWriterConnector} to use to interface with the Table Segments to compact.
+     * @param indexReader A {@link IndexReader} that provides a read-only view of a Table Segment's index.
+     * @param executor    Executor for async operations.
+     */
+    TableCompactor(TableWriterConnector connector, IndexReader indexReader, Executor executor) {
+        this(connector, indexReader, executor, DEFAULT_MAX_READ_LENGTH);
+    }
+
+    /**
+     * Creates a new instance of the {@link TableCompactor} class.
+     *
+     * @param connector     The {@link TableWriterConnector} to use to interface with the Table Segments to compact.
+     * @param indexReader   A {@link IndexReader} that provides a read-only view of a Table Segment's index.
+     * @param executor      Executor for async operations.
+     * @param maxReadLength Maximum number of bytes to read for every compaction. This number must be sufficiently large
+     *                      to be able to read at least one Table Entry.
+     */
+    @VisibleForTesting
+    TableCompactor(@NonNull TableWriterConnector connector, @NonNull IndexReader indexReader, @NonNull Executor executor, int maxReadLength) {
+        Preconditions.checkArgument(maxReadLength > 0, "maxReadLength must be a positive number.");
+        this.connector = connector;
+        this.indexReader = indexReader;
+        this.executor = executor;
+        this.maxReadLength = maxReadLength;
+    }
 
     //endregion
 
@@ -132,7 +170,7 @@ class TableCompactor {
         // TODO: retry in case of BadAttributeUpdateException
         SegmentProperties info = segment.getInfo();
         long startOffset = getCompactionStartOffset(info);
-        int maxLength = (int) Math.min(MAX_READ_LENGTH, this.indexReader.getLastIndexedOffset(info) - startOffset);
+        int maxLength = (int) Math.min(this.maxReadLength, this.indexReader.getLastIndexedOffset(info) - startOffset);
         if (startOffset < 0 || maxLength < 0) {
             // The Segment's Compaction offset must be a value between 0 and the current LastIndexedOffset.
             return Futures.failedFuture(new DataCorruptionException(String.format(

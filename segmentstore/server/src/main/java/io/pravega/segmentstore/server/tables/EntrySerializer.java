@@ -74,8 +74,8 @@ class EntrySerializer {
 
     /**
      * Serializes the given {@link TableEntry} collection into the given byte array, explicitly recording the versions
-     * for each entry ({@link TableKey#getVersion()). This should be used for {@link TableEntry} instances that were
-     * previously read from the Table Segment as only in that case does the version acurately reflect the entry's version.
+     * for each entry ({@link TableKey#getVersion()}). This should be used for {@link TableEntry} instances that were
+     * previously read from the Table Segment as only in that case does the version accurately reflect the entry's version.
      *
      * @param entries A Collection of {@link TableEntry} to serialize.
      * @param target  The byte array to serialize into.

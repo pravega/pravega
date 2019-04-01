@@ -367,7 +367,6 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     private long updateKeys(Map<HashedArray, Long> keysWithOffset, IndexWriter w, HashMap<Long, HashedArray> existingKeys, SegmentMock segment) {
         val timer = new TimeoutTimer(TIMEOUT);
 
-        // TODO adjust versions?
         val keyUpdates = keysWithOffset.entrySet().stream()
                 .map(e -> new BucketUpdate.KeyUpdate(e.getKey(), decodeOffset(e.getValue()), decodeOffset(e.getValue()), isRemoveOffset(e.getValue())))
                                        .sorted(Comparator.comparingLong(BucketUpdate.KeyUpdate::getOffset))
