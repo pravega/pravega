@@ -66,6 +66,7 @@ services:
     command: controller
     environment:
       WAIT_FOR: zookeeper:2181
+      ZK_URL: zookeeper:2181
       JAVA_OPTS: |
         -Dcontroller.service.port=9090
         -Dcontroller.service.restPort=10080
