@@ -48,6 +48,16 @@ public class EpochRecord {
     private final Map<Long, StreamSegmentRecord> segmentMap = new HashMap<>();
     
     @Builder
+    /**
+     * This is a private constructor that is only directly used by the builder during the deserialization. 
+     * The deserialization passes @param copyCollections as false so that we do not make an immutable copy of the collection
+     * for the collection passed to the constructor via deserialization. 
+     *
+     * The all other constructors, the value of copyCollections flag is true and we make an immutable collection copy of 
+     * the supplied collection. 
+     * All getters of this class that return a collection always wrap them under Collections.unmodifiableCollection so that
+     * no one can change the data object from outside.  
+     */
     private EpochRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segments, long creationTime, boolean copyCollections) {
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
