@@ -16,6 +16,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CollectionHelpers;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.stream.StoreException.DataNotFoundException;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
@@ -1324,6 +1325,8 @@ public abstract class PersistentStreamBase implements Stream {
                             }));
         }
         return future
+                .thenCompose(x -> getNumberOfOngoingTransactions().thenAccept(count ->
+                                TransactionMetrics.reportOpenTransactions(getScope(), getName(), count)))
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new VersionedMetadata<>(CommittingTransactionsRecord.EMPTY,
                         record.getVersion()))));
     }

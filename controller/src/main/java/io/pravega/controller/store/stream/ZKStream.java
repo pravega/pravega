@@ -316,6 +316,19 @@ class ZKStream extends PersistentStreamBase {
     }
 
     // region overrides
+
+    @Override
+    public CompletableFuture<Integer> getNumberOfOngoingTransactions() {
+        return store.getChildren(getActiveTxRoot()).thenCompose(list ->
+                Futures.allOfWithResults(list.stream().map(epoch ->
+                        getNumberOfOngoingTransactions(Integer.parseInt(epoch))).collect(Collectors.toList())))
+                    .thenApply(list -> list.stream().reduce(0, Integer::sum));
+    }
+
+    private CompletableFuture<Integer> getNumberOfOngoingTransactions(int epoch) {
+        return store.getChildren(getEpochPath(epoch)).thenApply(List::size);
+    }
+
     @Override
     public CompletableFuture<Void> deleteStream() {
         return store.deleteTree(getStreamPath());

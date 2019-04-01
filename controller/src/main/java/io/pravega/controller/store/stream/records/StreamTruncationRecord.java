@@ -82,6 +82,16 @@ public class StreamTruncationRecord {
     private final boolean updating;
 
     @Builder
+    /**
+     * This is a private constructor that is only directly used by the builder during the deserialization. 
+     * The deserialization passes @param copyCollections as false so that we do not make an immutable copy of the collection
+     * for the collection passed to the constructor via deserialization. 
+     *
+     * The all other constructors, the value of copyCollections flag is true and we make an immutable collection copy of 
+     * the supplied collection. 
+     * All getters of this class that return a collection always wrap them under Collections.unmodifiableCollection so that
+     * no one can change the data object from outside.  
+     */
     private StreamTruncationRecord(Map<Long, Long> streamCut, Map<StreamSegmentRecord, Integer> span,
                                   Set<Long> deletedSegments, Set<Long> toDelete, long sizeTill, boolean updating, boolean copyCollections) {
         this.streamCut = copyCollections ? ImmutableMap.copyOf(streamCut) : streamCut;
