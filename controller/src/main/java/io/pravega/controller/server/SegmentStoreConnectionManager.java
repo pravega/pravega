@@ -325,7 +325,6 @@ class SegmentStoreConnectionManager {
             return state.get();
         }
 
-        @VisibleForTesting
         void failConnection() {
             state.set(ConnectionState.DISCONNECTED);    
         }
