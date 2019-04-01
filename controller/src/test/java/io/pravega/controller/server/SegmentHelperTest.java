@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Getter;
@@ -86,6 +87,11 @@ public class SegmentHelperTest {
                 ex -> ex instanceof WireCommandFailedException
                  && ex.getCause() instanceof AuthenticationException
                 );
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createSegment("", "",
+                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
+        validateProcessingFailureCFE(factory, futureSupplier);
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -100,8 +106,14 @@ public class SegmentHelperTest {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
-    }
 
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.truncateSegment("", "", 0L, 0L,
+                "", System.nanoTime());
+
+        validateProcessingFailureCFE(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
+    }
 
     @Test
     public void deleteSegment() {
@@ -114,6 +126,11 @@ public class SegmentHelperTest {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteSegment("", "", 0L, "", System.nanoTime());
+        validateProcessingFailureCFE(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -128,6 +145,12 @@ public class SegmentHelperTest {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.sealSegment("", "", 0L,
+                "", System.nanoTime());
+        validateProcessingFailureCFE(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -142,6 +165,11 @@ public class SegmentHelperTest {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTransaction("", "", 0L, new UUID(0, 0L),
+                "");
+        validateProcessingFailureCFE(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -156,6 +184,12 @@ public class SegmentHelperTest {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.commitTransaction("", "", 0L, 0L, new UUID(0, 0L),
+                "");
+        validateProcessingFailureCFE(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -170,6 +204,12 @@ public class SegmentHelperTest {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.abortTransaction("", "", 0L, new UUID(0, 0L),
+                "");
+        validateProcessingFailureCFE(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -184,6 +224,12 @@ public class SegmentHelperTest {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.updatePolicy("", "", ScalingPolicy.fixed(1), 0L,
+                "", System.nanoTime());
+        validateProcessingFailureCFE(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -198,6 +244,12 @@ public class SegmentHelperTest {
                 ex -> ex instanceof WireCommandFailedException
                         && ex.getCause() instanceof AuthenticationException
         );
+
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.getSegmentInfo("", "", 0L,
+                "");
+        validateProcessingFailureCFE(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -222,6 +274,7 @@ public class SegmentHelperTest {
         validateConnectionDropped(factory, futureSupplier);
         validateProcessingFailure(factory, futureSupplier);
         validateProcessingFailureCFE(factory, futureSupplier);
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -252,6 +305,7 @@ public class SegmentHelperTest {
         validateProcessingFailure(factory, futureSupplier);
         validateProcessingFailureCFE(factory, futureSupplier);
 
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -293,6 +347,8 @@ public class SegmentHelperTest {
         validateProcessingFailure(factory, futureSupplier);
         validateProcessingFailureCFE(factory, futureSupplier);
         validateNoSuchSegment(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -327,6 +383,8 @@ public class SegmentHelperTest {
         validateProcessingFailure(factory, futureSupplier);
         validateProcessingFailureCFE(factory, futureSupplier);
         validateNoSuchSegment(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -364,6 +422,7 @@ public class SegmentHelperTest {
         validateProcessingFailure(factory, futureSupplier);
         validateProcessingFailureCFE(factory, futureSupplier);
         validateNoSuchSegment(factory, futureSupplier);
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -415,6 +474,8 @@ public class SegmentHelperTest {
         validateProcessingFailure(factory, futureSupplier);
         validateProcessingFailureCFE(factory, futureSupplier);
         validateNoSuchSegment(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     @Test
@@ -467,6 +528,8 @@ public class SegmentHelperTest {
         validateProcessingFailure(factory, futureSupplier);
         validateProcessingFailureCFE(factory, futureSupplier);
         validateNoSuchSegment(factory, futureSupplier);
+
+        testConnectionFailure(factory, futureSupplier);
     }
 
     private WireCommands.TableEntries getTableEntries(List<TableEntry<byte[], byte[]>> entries) {
@@ -549,6 +612,15 @@ public class SegmentHelperTest {
                 });
     }
 
+    private void testConnectionFailure(MockConnectionFactory factory, Supplier<CompletableFuture<?>> future) {
+        factory.failConnection.set(true);
+        AssertExtensions.assertFutureThrows("",
+                future.get(),
+                ex -> ex instanceof WireCommandFailedException
+                        && ex.getCause() instanceof ConnectionFailedException
+        );
+    }
+
     private static class MockHostControllerStore implements HostControllerStore {
 
         @Override
@@ -573,14 +645,19 @@ public class SegmentHelperTest {
     }
 
     private class MockConnectionFactory implements ConnectionFactory {
+        private AtomicBoolean failConnection = new AtomicBoolean(false);
         @Getter
         private ReplyProcessor rp;
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-            this.rp = rp;
-            ClientConnection connection = new MockConnection(rp);
-            return CompletableFuture.completedFuture(connection);
+            if (failConnection.get()) {
+                return Futures.failedFuture(new RuntimeException());   
+            } else {
+                this.rp = rp;
+                ClientConnection connection = new MockConnection(rp, failConnection);
+                return CompletableFuture.completedFuture(connection);
+            }
         }
 
         @Override
@@ -595,11 +672,13 @@ public class SegmentHelperTest {
     }
 
     private class MockConnection implements ClientConnection {
+        private final AtomicBoolean toFail;
         @Getter
         private final ReplyProcessor rp;
 
-        public MockConnection(ReplyProcessor rp) {
+        public MockConnection(ReplyProcessor rp, AtomicBoolean toFail) {
             this.rp = rp;
+            this.toFail = toFail;
         }
 
         @Override
@@ -614,7 +693,9 @@ public class SegmentHelperTest {
 
         @Override
         public void sendAsync(WireCommand cmd, CompletedCallback callback) {
-
+            if (toFail.get()) {
+                callback.complete(new ConnectionFailedException());
+            }
         }
 
         @Override
