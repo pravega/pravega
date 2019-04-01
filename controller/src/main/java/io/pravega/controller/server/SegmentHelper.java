@@ -1089,12 +1089,6 @@ public class SegmentHelper {
             }
 
             @Override
-            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-                log.warn(requestId, "readTableKeys request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
-            }
-
-            @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTableKeys {} failed", qualifiedName, error);
                 result.completeExceptionally(error);
@@ -1177,12 +1171,6 @@ public class SegmentHelper {
                                             return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
                                         }).collect(Collectors.toList());
                 result.complete(new TableSegment.IteratorItem<>(state, entries));
-            }
-
-            @Override
-            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-                log.warn(requestId, "readTableEntries request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
             }
 
             @Override
