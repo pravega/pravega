@@ -24,7 +24,7 @@ public interface Serializer<T> {
     /**
      * The maximum event size, in bytes.
      */
-    int MAX_EVENT_SIZE = 1024 * 1024;
+    int MAX_EVENT_SIZE = 1024 * 1024 + 8;
 
     /**
      * Serializes the given event.
