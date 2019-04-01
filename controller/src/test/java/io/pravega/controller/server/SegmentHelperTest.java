@@ -650,7 +650,7 @@ public class SegmentHelperTest {
     }
 
     private class MockConnectionFactory implements ConnectionFactory {
-        private AtomicBoolean failConnection = new AtomicBoolean(false);
+        private final AtomicBoolean failConnection = new AtomicBoolean(false);
         @Getter
         private ReplyProcessor rp;
 
