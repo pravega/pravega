@@ -13,18 +13,18 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.concurrent.CompletableFuture;
 import lombok.Data;
 
+/**
+ * This class represents a Connection that is established with a Segment Store instance and its
+ * attributes. (e.g: SessionCount, WriterCount)
+ */
 @Data
 public class Connection {
     private final PravegaNodeUri uri;
     private final CompletableFuture<SessionHandler> sessionHandler;
     /**
-     * This provides a count of Event writers using this connection.
+     * This represents the number of sessions on a given network connection.
      */
-    private final int writerCount;
-    private final int readerCount;
     private final int sessionCount;
-
-
 }
 
 

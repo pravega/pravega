@@ -55,7 +55,8 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
      */
     public ClientConnection createSession(final Session session, final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
-        log.info("Creating Session: {} for endpoint: {}. The current channel is {}.", session.getSessionId(), connectionName, channel.get());
+        log.info("Creating Session: {} for Endpoint: {}. The current Channel is {}.", session.getSessionId(), connectionName,
+                 channel.get());
         if (sessionIdReplyProcessorMap.put(session.getSessionId(), rp) != null) {
             throw new IllegalArgumentException("Multiple sessions cannot be created with the same Session id {}" + session.getSessionId());
         }
@@ -68,7 +69,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
      */
     public void closeSession(ClientConnection clientConnection) {
         int session = ((ClientConnectionImpl) clientConnection).getSession();
-        log.info("Closing session with sessionId: {}", session);
+        log.info("Closing Session: {} for Endpoint: {}", session, ((ClientConnectionImpl) clientConnection).getConnectionName());
         sessionIdReplyProcessorMap.remove(session);
     }
 
@@ -108,7 +109,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         Channel ch = ctx.channel();
         channel.set(ch);
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
-        log.info("Connection established with endpoint {} on ChannelId: {}.", connectionName, ch);
+        log.info("Connection established with Endpoint: {} on ChannelId: {}.", connectionName, ch);
         ch.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
         // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
         ScheduledFuture<?> old = keepAliveFuture.getAndSet(ch.eventLoop().scheduleWithFixedDelay(new KeepAliveTask(), 20, 10, TimeUnit.SECONDS));

@@ -102,12 +102,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
             // reuse the connection.
             Connection oldConnection = suggestedConnection.get();
             connectionList.remove(oldConnection);
-            connection = new Connection(oldConnection.getUri(), oldConnection.getSessionHandler(), oldConnection.getWriterCount(), oldConnection.getReaderCount(),
-                                        oldConnection.getSessionCount() + 1);
+            connection = new Connection(oldConnection.getUri(), oldConnection.getSessionHandler(), oldConnection.getSessionCount() + 1);
         } else {
             // create a new connection.
             CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
-            connection = new Connection(location, sessionHandlerFuture, 0, 0, 1);
+            connection = new Connection(location, sessionHandlerFuture, 1);
         }
         connectionList.add(connection);
         return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createSession(session, rp));
@@ -239,6 +238,5 @@ public class ConnectionPoolImpl implements ConnectionPool {
             // Shut down the event loop to terminate all threads.
             group.shutdownGracefully();
         }
-
     }
 }

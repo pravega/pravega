@@ -12,7 +12,6 @@ package io.pravega.client.netty.impl;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
-import io.netty.util.concurrent.GenericFutureListener;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -22,14 +21,15 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Data
 public class ClientConnectionImpl implements ClientConnection {
 
+    @Getter
     private final String connectionName;
+    @Getter
     private final int session;
     private final SessionHandler nettyHandler;
     private final AppendBatchSizeTracker batchSizeTracker;
@@ -97,12 +97,9 @@ public class ClientConnectionImpl implements ClientConnection {
         }
         ch.flush();
         ChannelPromise promise = ch.newPromise();
-        promise.addListener(new GenericFutureListener<Future<? super Void>>() {
-            @Override
-            public void operationComplete(Future<? super Void> future) throws Exception {
-                Throwable cause = future.cause();
-                callback.complete(cause == null ? null : new ConnectionFailedException(cause));
-            }
+        promise.addListener(future -> {
+            Throwable cause = future.cause();
+            callback.complete(cause == null ? null : new ConnectionFailedException(cause));
         });
         combiner.finish(promise);
     }
@@ -110,7 +107,6 @@ public class ClientConnectionImpl implements ClientConnection {
     @Override
     public void close() {
         if (!closed.getAndSet(true)) {
-            log.debug("Closing session connection {}, session id : {}", connectionName, session);
             nettyHandler.closeSession(this);
         }
     }
