@@ -27,12 +27,10 @@ The protocol is built out of the following primitive types.
 | **Type** | **Description** |
 |----------|--------------|
 |BOOLEAN (1 bit)|Represents a boolean value in a byte. Values 0 and 1 are used to represent false and true respectively. When reading a boolean value, any non-zero value is considered true.|
-|STRING (2 bytes)||Represents a sequence of characters. First the length N is given as an INT16. Then N bytes follow which are the UTF-8 encoding of the character sequence. Length must not be negative.|
-|VARLONG (8 bytes)|Represents an integer between -2<sup>63</sup> and 2<sup>63</sup>-1 inclusive. Encoding follows the variable-length zig-zag encoding from Google Protocol Buffers.
-|
+|STRING (2 bytes)|Represents a sequence of characters. First the length N is given as an INT16. Then N bytes follow which are the UTF-8 encoding of the character sequence. Length must not be negative.|
+|VARLONG (8 bytes)|Represents an integer between -2<sup>63</sup> and 2<sup>63</sup>-1 inclusive. Encoding follows the variable-length zig-zag encoding from Google Protocol Buffers.|
 |INT (4 bytes)|Represents an integer between -2<sup>3</sup> and 2<sup>3</sup>-1 inclusive.|
-|UUID (16 bytes)|Universally Unique Identifiers (UUID) as defined by RFC 4122, ISO/IEC 9834-8:2005, and related standards. It can be used as a global unique 128-bit identifier.
-|
+|UUID (16 bytes)|Universally Unique Identifiers (UUID) as defined by RFC 4122, ISO/IEC 9834-8:2005, and related standards. It can be used as a global unique 128-bit identifier.|
 
 
 # Reading
