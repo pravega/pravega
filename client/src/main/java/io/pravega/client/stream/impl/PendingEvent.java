@@ -24,7 +24,12 @@ import lombok.Data;
  */
 @Data
 public class PendingEvent {
-    public static final int MAX_WRITE_SIZE = Serializer.MAX_EVENT_SIZE;
+
+    /**
+     * The max write size should differ to max event payload size, because the wire protocol adds extra bytes to the
+     * event payload. The addition is 8 bytes (2 integer fields: the command type code and the payload size).
+     */
+    public static final int MAX_WRITE_SIZE = Serializer.MAX_EVENT_SIZE + 8;
     /**
      * The routing key that was provided to route the data.
      */
