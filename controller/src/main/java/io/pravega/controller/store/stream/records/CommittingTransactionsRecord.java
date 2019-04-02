@@ -59,7 +59,7 @@ public class CommittingTransactionsRecord {
     public CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, int activeEpoch) {
         this(epoch, transactionsToCommit, Optional.of(activeEpoch));
     }
-    
+
     @Builder
     private CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
         this.epoch = epoch;
@@ -70,7 +70,7 @@ public class CommittingTransactionsRecord {
     private static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
         private Optional<Integer> activeEpoch = Optional.empty();
     }
-    
+
     @SneakyThrows(IOException.class)
     public static CommittingTransactionsRecord fromBytes(final byte[] data) {
         return SERIALIZER.deserialize(data);
