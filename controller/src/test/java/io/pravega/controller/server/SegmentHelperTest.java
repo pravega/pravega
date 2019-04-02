@@ -49,8 +49,6 @@ import lombok.Getter;
 import lombok.val;
 import org.junit.Test;
 
-import javax.ws.rs.HEAD;
-
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.common.Exceptions.unwrap;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
@@ -410,7 +408,6 @@ public class SegmentHelperTest {
         assertArrayEquals(key1, readResult.get(1).getKey().getKey());
         assertEquals(KeyVersion.NOT_EXISTS, readResult.get(1).getKey().getVersion());
         assertArrayEquals(value, readResult.get(1).getValue());
-
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTable("", "", keysToBeRead, 
                                                                                "", System.nanoTime());
