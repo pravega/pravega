@@ -39,6 +39,7 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
@@ -135,7 +136,8 @@ public class ControllerMetricsTest {
      */
     @Test(timeout = 300000)
     public void streamMetricsTest() {
-        final String scope = "controllerMetricsTestScope";
+        //make unique scope to improve the test isolation.
+        final String scope = "controllerMetricsTestScope" + new Random().nextInt(10000);
         final String streamName = "controllerMetricsTestStream";
         final String readerGroupName = "RGControllerMetricsTestStream";
         final int parallelism = 4;

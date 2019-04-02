@@ -23,39 +23,23 @@ The starting point of Pravega Metric framework is the StatsProvider interface, i
 It also provides startWithoutExporting() for unit testing purpose which only store metrics in memory without exporting them
 to outside destinations. 
 Currently we have support StatsD and InfluxDB registries.
-```java
-public interface StatsProvider {
-    void start();
-    void startWithoutExporting();
-    void close();
-    StatsLogger createStatsLogger(String scope);
-    DynamicLogger createDynamicLogger();
-}
-```
 
+[public interface StatsProvider](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsProvider.java)
 - start(): Initializes [MeterRegistry](https://micrometer.io/docs/concepts#_registry) for our Metrics service.
 - startWithoutExporting(): Initializes SimpleMeterRegistry that holds the latest value of each meter in memory and does not export the data anywhere, typically for unit tests.
 - close(): Shutdown of Metrics service.
 - createStatsLogger(): Creates and returns a StatsLogger instance, which is used to retrieve a metric and do metric insertion and collection in Pravega code. 
 - createDynamicLogger(): Create a dynamic logger.
 
-## 1.2. Metric Logger — interface StatsLogger
+## 1.2. Metric Logger — interface StatsLogger 
 Using this interface we can register required metrics for simple types like 
 [Counter](https://micrometer.io/docs/concepts#_counters) and 
 [Gauge](https://micrometer.io/docs/concepts#_gauges) 
 and some complex statistics type of Metric OpStatsLogger, through which we provide 
 [Timer](https://micrometer.io/docs/concepts#_timers) and 
 [Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries).
-```java
-public interface StatsLogger {
-    OpStatsLogger createStats(String name, String... tags);
-    Counter createCounter(String name, String... tags);
-    Meter createMeter(String name, String... tags);
-    <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags);
-    StatsLogger createScopeLogger(String scope);
-}
-```
 
+[public interface StatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsLogger.java)
 - createStats(): Register and get a OpStatsLogger, which is used for complex type of metrics. Notice the optional metric tags.
 - createCounter(): Register and get a Counter metric.
 - createMeter(): Create and register a Meter metric.
@@ -65,17 +49,8 @@ public interface StatsLogger {
 ### 1.3. Metric Sub Logger — OpStatsLogger
 OpStatsLogger provides complex statistics type of Metric, usually it is used in operations such as CreateSegment, 
 ReadSegment, we could use it to record the number of operation, time/duration of each operation.
-```java
-public interface OpStatsLogger {
-    void reportSuccessEvent(Duration duration);
-    void reportFailEvent(Duration duration);
-    void reportSuccessValue(long value);
-    void reportFailValue(long value);
-    OpStatsData toOpStatsData();
-    void clear();
-}
-```
 
+[public interface OpStatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/OpStatsLogger.java)
 - reportSuccessEvent() : Used to track Timer of a successful operation and will record the latency in Nanoseconds in required metric. 
 - reportFailEvent() : Used to track Timer of a failed operation and will record the latency in Nanoseconds in required metric.  
 - reportSuccessValue() : Used to track Histogram of a success value.
@@ -85,17 +60,8 @@ public interface OpStatsLogger {
 
 ### 1.4 Metric Logger — interface DynamicLogger
 A simple interface that only exposes simple type metrics: Counter/Gauge/Meter.
-```java
-public interface DynamicLogger {
-    void incCounterValue(String name, long delta, String... tags);
-    void updateCounterValue(String name, long value, String... tags);
-    void freezeCounter(String name, String... tags);
-    <T extends Number> void reportGaugeValue(String name, T value, String... tags);
-    void freezeGaugeValue(String name, String... tags);
-    void recordMeterEvents(String name, long number, String... tags);
-}
-```
 
+[public interface DynamicLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/DynamicLogger.java)
 - incCounterValue() : Increase Counter with given value. Notice the optional metric tags.
 - updateCounterValue() : Updates the counter with given value.
 - freezeCounter() : Notifies that the counter will not be updated.
@@ -156,25 +122,14 @@ public class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
             //The parent segment metrics will be updated once the transaction is merged
             dl.incCounterValue(SEGMENT_WRITE_BYTES, dataLength, segmentTags(streamSegmentName));
             dl.incCounterValue(SEGMENT_WRITE_EVENTS, numOfEvents, segmentTags(streamSegmentName));
-            try {
-                SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
-                if (aggregates != null && aggregates.update(dataLength, numOfEvents)) {
-                    report(streamSegmentName, aggregates);
-                }
-            } catch (Exception e) {
-                log.warn("Record statistic for {} for data: {} and events:{} threw exception", streamSegmentName, dataLength, numOfEvents, e);
-            }
+            ...
         }
     }
     
     @Override
     public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
         getCreateStreamSegment().reportSuccessEvent(elapsed);
-        SegmentAggregates sa = SegmentAggregates.forPolicy(ScaleType.fromValue(type), targetRate);
-        cache.put(streamSegmentName, sa);
-        if (sa.isScalingEnabled()) {
-            reporter.notifyCreated(streamSegmentName);
-        }
+        ...
     }
 
     …
