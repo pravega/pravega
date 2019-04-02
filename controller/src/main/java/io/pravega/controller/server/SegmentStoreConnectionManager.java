@@ -29,6 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.annotation.concurrent.GuardedBy;
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -45,7 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * pool can continue to do so. The pool in shutdown mode simply drains all available connections. And when it has no references left
  * it can be garbage collected. 
  */
-class SegmentStoreConnectionManager {
+class SegmentStoreConnectionManager implements Closeable {
     // cache of connection manager for segment store nodes.
     // Pravega Connection Manager maintains a pool of connection for a segment store and returns a connection from 
     // the pool on the need basis. 
@@ -71,7 +73,14 @@ class SegmentStoreConnectionManager {
     }
 
     public SegmentStoreConnectionPool getPool(PravegaNodeUri uri) {
+        cache.cleanUp();
         return cache.getUnchecked(uri);
+    }
+
+    @Override
+    public void close() throws IOException {
+        cache.invalidateAll();
+        cache.cleanUp();
     }
 
     /**
@@ -179,13 +188,11 @@ class SegmentStoreConnectionManager {
             if (connectionObject.state.get().equals(ConnectionObject.ConnectionState.DISCONNECTED)) {
                 handleDisconnected(connectionObject);
             } else {
+                WaitingRequest waiting;
                 boolean toClose = false;
                 synchronized (lock) {
-                    WaitingRequest waiting = waitQueue.poll();
-                    if (waiting != null) {
-                        connectionObject.reusableReplyProcessor.initialize(waiting.getReplyProcessor());
-                        waiting.getFuture().complete(connectionObject);
-                    } else {
+                    waiting = waitQueue.poll();
+                    if (waiting == null) {
                         if (!isRunning) {
                             // The connection will be closed if returned anytime after the shutdown has been initiated.
                             log.debug("ConnectionManager is shutdown");
@@ -206,6 +213,11 @@ class SegmentStoreConnectionManager {
                     }
                 }
 
+                if (waiting != null) {
+                    connectionObject.reusableReplyProcessor.initialize(waiting.getReplyProcessor());
+                    waiting.getFuture().complete(connectionObject);
+                }
+                
                 if (toClose) {
                     if (connectionListener != null) {
                         connectionListener.notify(ConnectionListener.ConnectionEvent.ConnectionClosed);
