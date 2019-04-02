@@ -49,6 +49,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -433,10 +434,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                        final Executor executor) {
         CompletableFuture<Void> future = withCompletion(getStream(scope, name, context).scaleOldSegmentsSealed(sealedSegmentSizes, record), executor);
 
-        future.thenCompose(result -> 
+        future.thenCompose(result -> CompletableFuture.allOf(
                 getActiveSegments(scope, name, null, executor).thenAccept(list ->
-                        StreamMetrics.reportActiveSegments(scope, name, list.size()))
-        );
+                        StreamMetrics.reportActiveSegments(scope, name, list.size())),
+                findNumSplitsMerges(scope, name, executor).thenAccept(simpleEntry ->
+                        StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue()))
+        ));
 
         return future;
     }
@@ -742,7 +745,20 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
         return result;
     }
-    
+
+    private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
+        return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, null, executor).thenApply(scaleMetadataList -> {
+            AtomicLong totalNumSplits = new AtomicLong(0L);
+            AtomicLong totalNumMerges = new AtomicLong(0L);
+            scaleMetadataList.forEach(x -> {
+                totalNumMerges.addAndGet(x.getMerges());
+                totalNumSplits.addAndGet(x.getSplits());
+            });
+
+            return new SimpleEntry<>(totalNumSplits.get(), totalNumMerges.get());
+        });
+    }
+
     /**
      * This method retrieves a safe base segment number from which a stream's segment ids may start. In the case of a
      * new stream, this method will return 0 as a starting segment number (default). In the case that a stream with the
