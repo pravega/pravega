@@ -1469,10 +1469,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     private ImmutableMap<StreamSegmentRecord, Integer> convertToSpan(EpochRecord epochRecord) {
         ImmutableMap.Builder<StreamSegmentRecord, Integer> builder = ImmutableMap.builder();
-        epochRecord.getSegments().stream()
-                          .forEach(x -> {
-                              builder.put(x, epochRecord.getEpoch());
-                          });
+        epochRecord.getSegments().forEach(x -> builder.put(x, epochRecord.getEpoch()));
         return builder.build();
     }
 
