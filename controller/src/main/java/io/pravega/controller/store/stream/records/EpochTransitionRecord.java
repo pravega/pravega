@@ -54,7 +54,7 @@ public class EpochTransitionRecord {
      */
     final ImmutableMap<Long, Map.Entry<Double, Double>> newSegmentsWithRange;
 
-    public static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
+    private static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
 
     }
 
@@ -66,7 +66,7 @@ public class EpochTransitionRecord {
         this.segmentsToSeal = segmentsToSeal;
         this.newSegmentsWithRange = newSegmentsWithRange;
     }
-    
+
     public int getNewEpoch() {
         return activeEpoch + 1;
     }

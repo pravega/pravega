@@ -87,7 +87,7 @@ public class RetentionSet {
 
         return retentionRecords.get(beforeIndex);
     }
-    
+
     /**
      * Get a list of all retention reference stream cut records on or before (inclusive) the given record.
      * @param record reference record

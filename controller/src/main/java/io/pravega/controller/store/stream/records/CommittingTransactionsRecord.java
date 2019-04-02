@@ -67,7 +67,7 @@ public class CommittingTransactionsRecord {
         this.activeEpoch = activeEpoch;
     }
 
-    public static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
+    private static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
         private Optional<Integer> activeEpoch = Optional.empty();
     }
     

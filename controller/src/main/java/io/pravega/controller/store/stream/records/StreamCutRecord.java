@@ -55,7 +55,7 @@ public class StreamCutRecord {
         this.recordingSize = recordingSize;
         this.streamCut = streamCut;
     }
-    
+
     public StreamCutReferenceRecord getReferenceRecord() {
         return new StreamCutReferenceRecord(recordingTime, recordingSize);
     }

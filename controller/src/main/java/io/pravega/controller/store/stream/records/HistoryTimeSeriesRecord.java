@@ -82,7 +82,7 @@ public class HistoryTimeSeriesRecord {
         return SERIALIZER.deserialize(inputStream);
     }
 
-    public static class HistoryTimeSeriesRecordBuilder implements ObjectBuilder<HistoryTimeSeriesRecord> {
+    private static class HistoryTimeSeriesRecordBuilder implements ObjectBuilder<HistoryTimeSeriesRecord> {
 
     }
     

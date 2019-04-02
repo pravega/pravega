@@ -82,7 +82,7 @@ public class EpochRecord {
         return segmentMap.containsKey(segmentId);
     }
 
-    public static class EpochRecordBuilder implements ObjectBuilder<EpochRecord> {
+    private static class EpochRecordBuilder implements ObjectBuilder<EpochRecord> {
 
     }
     

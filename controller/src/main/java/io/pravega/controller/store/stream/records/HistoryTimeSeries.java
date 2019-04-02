@@ -50,7 +50,7 @@ public class HistoryTimeSeries {
         return SERIALIZER.deserialize(inputStream);
     }
 
-    public static class HistoryTimeSeriesBuilder implements ObjectBuilder<HistoryTimeSeries> {
+    private static class HistoryTimeSeriesBuilder implements ObjectBuilder<HistoryTimeSeries> {
 
     }
     
