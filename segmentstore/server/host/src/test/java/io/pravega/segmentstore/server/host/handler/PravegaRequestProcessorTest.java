@@ -797,10 +797,12 @@ public class PravegaRequestProcessorTest {
         WireCommands.TableKey key = new WireCommands.TableKey(wrappedBuffer(entry.getKey().getKey().array()), TableKey.NO_VERSION);
         processor.readTable(new WireCommands.ReadTable(2, tableSegmentName, "", singletonList(key)));
 
-        // expected result is Key with an empty TableValue.
+        // expected result is Key (with key with version as NOT_EXISTS) and an empty TableValue.)
+        WireCommands.TableKey keyResponse = new WireCommands.TableKey(wrappedBuffer(entry.getKey().getKey().array()),
+                                                                      WireCommands.TableKey.NOT_EXISTS);
         order.verify(connection).send(new WireCommands.TableRead(2, tableSegmentName,
                                                                  new WireCommands.TableEntries(
-                                                                         singletonList(new AbstractMap.SimpleImmutableEntry<>(key, WireCommands.TableValue.EMPTY)))));
+                                                                         singletonList(new AbstractMap.SimpleImmutableEntry<>(keyResponse, WireCommands.TableValue.EMPTY)))));
         recorderMockOrder.verify(recorderMock).getKeys(eq(tableSegmentName), eq(1), any());
 
         // Update a value to a key.
