@@ -138,12 +138,12 @@ public class EventStreamReaderTest {
         //Validate that segmentInputStream1.close() is invoked on reaching endOffset.
         Mockito.verify(segmentInputStream1, Mockito.times(1)).close();
         
-        // Verify groupstate is updated not updated before the checkpoint, but is after.
+        // Verify groupstate is not updated before the checkpoint, but is after.
         inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint").thenReturn(null);
         assertEquals("checkpoint", reader.readNextEvent(0).getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
-        // Verify groupstate is updated not updated before the checkpoint, but is after.
+        // Verify groupstate is not updated before the checkpoint, but is after.
         inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
@@ -446,14 +446,14 @@ public class EventStreamReaderTest {
         inOrder.verify(groupState).getCheckpoint();
         // Ensure this segment is closed.
         inOrder.verify(segmentInputStream, Mockito.times(1)).close();      
-        // Ensure groupstate is updated not updated before the checkpoint.
+        // Ensure groupstate is not updated before the checkpoint.
         inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
         EventRead<byte[]> event = reader.readNextEvent(0);
         assertTrue(event.isCheckpoint());
         assertEquals("Foo", event.getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
-        // Verify groupstate is updated not updated before the checkpoint, but is after.
+        // Verify groupstate is not updated before the checkpoint, but is after.
         inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
@@ -519,7 +519,7 @@ public class EventStreamReaderTest {
                .thenReturn(Collections.emptyMap());
         assertEquals("checkpoint", reader.readNextEvent(0).getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
-        // Ensure groupstate is updated not updated before the checkpoint.
+        // Ensure groupstate is not updated before the checkpoint.
         inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment1);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());

@@ -181,7 +181,7 @@ public class InlineExecutor implements ScheduledExecutorService {
         }
         return delayedExecutor.scheduleWithFixedDelay(command, initialDelay, delay, unit);
     }
-    
+
     private static <T> CompletableFuture<T> failedFuture(Throwable exception) {
         CompletableFuture<T> result = new CompletableFuture<>();
         result.completeExceptionally(exception);
