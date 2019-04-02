@@ -28,7 +28,7 @@ The protocol is built out of the following primitive types.
 |----------|--------------|
 |BOOLEAN (1 bit)|Represents a boolean value in a byte. Values 0 and 1 are used to represent false and true respectively. When reading a boolean value, any non-zero value is considered true.|
 |STRING (2 bytes)|Represents a sequence of characters. First the length N is given as an INT16. Then N bytes follow which are the UTF-8 encoding of the character sequence. Length must not be negative.|
-|VARLONG (8 bytes)|Represents an integer between -2<sup>63</sup> and 2<sup>63</sup>-1 inclusive. Encoding follows the variable-length zig-zag encoding from Google Protocol Buffers.|
+|VARLONG (8 bytes)|Represents an integer between -2<sup>63</sup> and 2<sup>63</sup>-1 inclusive. Encoding follows the variable-length zig-zag encoding from [Google Protocol Buffers](https://developers.google.com/protocol-buffers/).|
 |INT (4 bytes)|Represents an integer between -2<sup>3</sup> and 2<sup>3</sup>-1 inclusive.|
 |UUID (16 bytes)|Universally Unique Identifiers (UUID) as defined by RFC 4122, ISO/IEC 9834-8:2005, and related standards. It can be used as a global unique 128-bit identifier.|
 
@@ -41,7 +41,7 @@ The protocol is built out of the following primitive types.
 |-------------|------------|----------|
 |  `Segment`| String| This Segment indicates the Stream Segment that was read. |
 | `Offset`   | Long| The `Offset` in the Stream Segment to read from. |
-| `suggestedLength` of Reply|Integer|. The clients can request for the required length to the server (but the server may allot a different number of bytes.|
+| `suggestedLength` of Reply|Integer|The clients can request for the required length to the server (but the server may allot a different number of bytes.|
 |`delegationToken`|String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
 |`RequestId`| Long| This field contains the client-generated _ID_ that has been propagated to identify a client request.|
 
@@ -64,7 +64,7 @@ The client requests to read from a particular Segment at a particular `Offset`. 
 | **API**      | **Description**     |
 |-------------|----------|
 |`SegmentIsSealed`|The requested Segment is Sealed.|
-|`SegmentIsTruncated`|-`Start offset`: Represents the offset at which the Segment is Truncated.|
+|`SegmentIsTruncated`|`Start offset`: Represents the offset at which the Segment is Truncated.|
 |`SegmentAlreadyExists`|The requested Segment already exists.|
 |`NoSuchSegment`| The requested Segment do not exist.|
 |`TableSegmentNotEmpty`||
@@ -75,7 +75,7 @@ The client requests to read from a particular Segment at a particular `Offset`. 
 ## Setup Append - Request
 
 | **Field**      | **Datatype**|**Description**     |
-|-------------|----------|
+|-------------|----------|---------|
 | `RequestId`| Long| This field contains the client-generated _ID_ that has been propagated to identify a client request.|
 | `writerId`|UUID| It identifies the requesting appender.|
 | `Segment`| String| This Segment indicates the Stream Segment that was read.|
@@ -151,7 +151,7 @@ A client can optimize its appending by specifying a large value in it's `AppendB
 | **API**      | **Description**     |
 |-------------|----------|
 |`GetSegmentAttribute`| The requested list of Segment attributes.|
-|`UpdateSegmentAttribute`|  - `newValue`: (Long). It represents the new value to be updated.|
+|`UpdateSegmentAttribute`|  - `newValue`: (Long). |
 | |                         - `expectedValue`: (Long). It represents |
 
 ## Table Segment API
@@ -175,9 +175,7 @@ A client can optimize its appending by specifying a large value in it's `AppendB
 |`TableEntries`| `updatedVersions`: (List<long>). List of Table entries updated.|
 |`RemoveTableKeys`| `keys`: (List<TableKey>). List of Table Keys removed.|
 |`ReadTable` |  `keys`: (List<TableKey>). The version of the key is always set to `io.pravega.segmentstore.contracts.tables.TableKey.NO_VERSION`|
-|`ReadTableKeys`|- `suggestedKeyCount`: (Integer). Suggested number of `{@link TableKey}`s to be returned by the Segment Store.
-|
+|`ReadTableKeys`|- `suggestedKeyCount`: (Integer). Suggested number of `{@link TableKey}`s to be returned by the Segment Store.|
 |               |- `continuationToken`: (Byte Buf). This is used to indicate the point from which the next keys should be fetched.|
-|`ReadTableEntries`|- `suggestedEntryCount`: (Integer). Suggested number of `{@link TableKey}`s to be returned by the Segment Store.
-.|
+|`ReadTableEntries`|- `suggestedEntryCount`: (Integer). Suggested number of `{@link TableKey}`s to be returned by the Segment Store.|
 |                  |- `continuationToken`: (ByteBuf). This is used to indicate the point from which the next entry should be fetched.|
