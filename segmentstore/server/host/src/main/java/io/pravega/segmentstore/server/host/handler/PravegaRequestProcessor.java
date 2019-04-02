@@ -872,7 +872,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                              if (resultTableEntry == null) { // no entry for key at index i.
                                  ArrayView k = inputKeys.get(i); // key for which the read result was null.
                                  val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.array(), k.arrayOffset(), k.getLength()),
-                                                                                TableKey.NO_VERSION);
+                                                                                TableKey.NOT_EXISTS);
                                  return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, WireCommands.TableValue.EMPTY);
                              } else {
                                  TableEntry te = resultEntries.get(i);
