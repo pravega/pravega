@@ -863,8 +863,7 @@ public class SegmentHelper {
      * @param scope               Stream scope.
      * @param stream              Stream name.
      * @param keys                List of {@link TableKey}s to be removed. Only if all the elements in the list has version as
-     *                            {@link KeyVersion#NO_VERSION} then an unconditional update/removal is performed. Else an atomic
-     *                            conditional
+     *                            {@link KeyVersion#NO_VERSION} then an unconditional update/removal is performed. Else an atomic conditional
      *                            update (removal) is performed.
      * @param hostControllerStore Host controller store.
      * @param clientCF            Client connection factory.
