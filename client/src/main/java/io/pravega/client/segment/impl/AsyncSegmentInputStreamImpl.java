@@ -242,7 +242,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         return controller.getEndpointForSegment(segmentId.getScopedName()).thenCompose((PravegaNodeUri uri) -> {
             synchronized (lock) {
                 if (connection == null) {
-                    connection = connectionFactory.establishConnection(uri, responseProcessor);
+                    connection = connectionFactory.establishConnection(Session.from(requestId), uri, responseProcessor);
                 }
                 return connection;
             }

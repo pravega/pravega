@@ -84,7 +84,7 @@ public class RawClient implements AutoCloseable {
     public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
         this.segmentId = segmentId;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
+                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(session, uri, responseProcessor));
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 

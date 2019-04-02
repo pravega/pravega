@@ -219,8 +219,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         int sessionId = disableSession.get() ? SESSION_DISABLED : Session.from(cmd.getRequestId()).getSessionId();
         final ReplyProcessor processor = sessionIdReplyProcessorMap.get(sessionId);
         if (processor == null) {
-            log.error("No ReplyProcessor found for the provided sessionId {}", sessionId);
-            throw new IllegalArgumentException("Invalid message received");
+            log.warn("No ReplyProcessor found for the provided sessionId {}. Ignoring response", sessionId);
         }
         return processor;
     }
