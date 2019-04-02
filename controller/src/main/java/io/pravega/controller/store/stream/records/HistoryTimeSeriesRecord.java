@@ -18,14 +18,12 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 @Data
 /**
@@ -40,24 +38,14 @@ public class HistoryTimeSeriesRecord {
     private final int epoch;
     @Getter
     private final int referenceEpoch;
-    private final List<StreamSegmentRecord> segmentsSealed;
-    private final List<StreamSegmentRecord> segmentsCreated;
+    private final ImmutableList<StreamSegmentRecord> segmentsSealed;
+    private final ImmutableList<StreamSegmentRecord> segmentsCreated;
     @Getter
     private final long scaleTime;
 
     @Builder
-    /**
-     * This is a private constructor that is only directly used by the builder during the deserialization. 
-     * The deserialization passes @param copyCollections as false so that we do not make an immutable copy of the collection
-     * for the collection passed to the constructor via deserialization. 
-     *
-     * The all other constructors, the value of copyCollections flag is true and we make an immutable collection copy of 
-     * the supplied collection. 
-     * All getters of this class that return a collection always wrap them under Collections.unmodifiableCollection so that
-     * no one can change the data object from outside.  
-     */
-    private HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated,
-                            long creationTime, boolean copyCollections) {
+    public HistoryTimeSeriesRecord(int epoch, int referenceEpoch, @NonNull ImmutableList<StreamSegmentRecord> segmentsSealed, 
+                                    @NonNull ImmutableList<StreamSegmentRecord> segmentsCreated, long creationTime) {
         if (epoch == referenceEpoch) {
             if (epoch != 0) {
                 Exceptions.checkNotNullOrEmpty(segmentsSealed, "segments sealed");
@@ -70,27 +58,13 @@ public class HistoryTimeSeriesRecord {
         }
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
-        List<StreamSegmentRecord> segmentsSealedList = copyCollections ? ImmutableList.copyOf(segmentsSealed) : segmentsSealed;
-        this.segmentsSealed = segmentsSealedList == null ? ImmutableList.of() : segmentsSealedList;
-        List<StreamSegmentRecord> segmentsCreatedList = copyCollections ? ImmutableList.copyOf(segmentsCreated) : segmentsCreated;
-        this.segmentsCreated = segmentsCreatedList == null ? ImmutableList.of() : segmentsCreatedList;
+        this.segmentsSealed = segmentsSealed;
+        this.segmentsCreated = segmentsCreated;
         this.scaleTime = creationTime;
     }
-
-    public HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated, long creationTime) {
-        this(epoch, referenceEpoch, segmentsSealed, segmentsCreated, creationTime, true);
-    }
-
+    
     HistoryTimeSeriesRecord(int epoch, int referenceEpoch, long creationTime) {
-        this(epoch, referenceEpoch, Collections.emptyList(), Collections.emptyList(), creationTime, false);
-    }
-
-    public List<StreamSegmentRecord> getSegmentsSealed() {
-        return Collections.unmodifiableList(segmentsSealed);
-    }
-
-    public List<StreamSegmentRecord> getSegmentsCreated() {
-        return Collections.unmodifiableList(segmentsCreated);
+        this(epoch, referenceEpoch, ImmutableList.of(), ImmutableList.of(), creationTime);
     }
 
     public boolean isDuplicate() {
@@ -108,7 +82,7 @@ public class HistoryTimeSeriesRecord {
         return SERIALIZER.deserialize(inputStream);
     }
 
-    private static class HistoryTimeSeriesRecordBuilder implements ObjectBuilder<HistoryTimeSeriesRecord> {
+    public static class HistoryTimeSeriesRecordBuilder implements ObjectBuilder<HistoryTimeSeriesRecord> {
 
     }
     
@@ -126,11 +100,17 @@ public class HistoryTimeSeriesRecord {
 
         private void read00(RevisionDataInput revisionDataInput, HistoryTimeSeriesRecord.HistoryTimeSeriesRecordBuilder builder) throws IOException {
             builder.epoch(revisionDataInput.readInt())
-                   .referenceEpoch(revisionDataInput.readInt())
-                   .segmentsSealed(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
-                   .segmentsCreated(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
-                   .creationTime(revisionDataInput.readLong())
-                   .copyCollections(false);
+                   .referenceEpoch(revisionDataInput.readInt());
+
+            ImmutableList.Builder<StreamSegmentRecord> sealedSegmentsBuilders = ImmutableList.builder();
+            revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, sealedSegmentsBuilders);
+            builder.segmentsSealed(sealedSegmentsBuilders.build());
+
+            ImmutableList.Builder<StreamSegmentRecord> segmentsCreatedBuilder = ImmutableList.builder();
+            revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, segmentsCreatedBuilder);
+            builder.segmentsCreated(segmentsCreatedBuilder.build());
+            
+            builder.creationTime(revisionDataInput.readLong());
         }
 
         private void write00(HistoryTimeSeriesRecord history, RevisionDataOutput revisionDataOutput) throws IOException {

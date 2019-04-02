@@ -16,6 +16,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -46,29 +47,15 @@ public class StreamCutRecord {
     /**
      * Actual Stream cut.
      */
-    final Map<Long, Long> streamCut;
+    final ImmutableMap<Long, Long> streamCut;
 
     @Builder
-    /**
-     * This is a private constructor that is only directly used by the builder during the deserialization. 
-     * The deserialization passes @param copyCollections as false so that we do not make an immutable copy of the collection
-     * for the collection passed to the constructor via deserialization. 
-     *
-     * The all other constructors, the value of copyCollections flag is true and we make an immutable collection copy of 
-     * the supplied collection. 
-     * All getters of this class that return a collection always wrap them under Collections.unmodifiableCollection so that
-     * no one can change the data object from outside.  
-     */
-    private StreamCutRecord(long recordingTime, long recordingSize, Map<Long, Long> streamCut, boolean copyCollections) {
+    public StreamCutRecord(long recordingTime, long recordingSize, @NonNull ImmutableMap<Long, Long> streamCut) {
         this.recordingTime = recordingTime;
         this.recordingSize = recordingSize;
-        this.streamCut = copyCollections ? ImmutableMap.copyOf(streamCut) : streamCut;
+        this.streamCut = streamCut;
     }
-
-    public StreamCutRecord(long recordingTime, long recordingSize, Map<Long, Long> streamCut) {
-        this(recordingTime, recordingSize, streamCut, true);
-    }
-
+    
     public StreamCutReferenceRecord getReferenceRecord() {
         return new StreamCutReferenceRecord(recordingTime, recordingSize);
     }
@@ -107,8 +94,7 @@ public class StreamCutRecord {
                 throws IOException {
             streamCutRecordBuilder.recordingTime(revisionDataInput.readLong())
                                   .recordingSize(revisionDataInput.readLong())
-                                  .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong))
-                                  .copyCollections(false);
+                                  .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, ImmutableMap.builder()));
         }
 
         private void write00(StreamCutRecord streamCutRecord, RevisionDataOutput revisionDataOutput) throws IOException {

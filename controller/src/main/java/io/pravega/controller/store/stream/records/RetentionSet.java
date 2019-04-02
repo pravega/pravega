@@ -11,7 +11,6 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -19,12 +18,11 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.CollectionHelpers;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -36,25 +34,11 @@ import java.util.function.Function;
 public class RetentionSet {
     public static final RetentionSetSerializer SERIALIZER = new RetentionSetSerializer();
 
-    private final List<StreamCutReferenceRecord> retentionRecords;
+    private final ImmutableList<StreamCutReferenceRecord> retentionRecords;
 
     @Builder
-    /**
-     * This is a private constructor that is only directly used by the builder during the deserialization. 
-     * The deserialization passes @param copyCollections as false so that we do not make an immutable copy of the collection
-     * for the collection passed to the constructor via deserialization. 
-     *
-     * The all other constructors, the value of copyCollections flag is true and we make an immutable collection copy of 
-     * the supplied collection. 
-     * All getters of this class that return a collection always wrap them under Collections.unmodifiableCollection so that
-     * no one can change the data object from outside.  
-     */
-    private RetentionSet(List<StreamCutReferenceRecord> retentionRecords, boolean copyCollections) {
-        this.retentionRecords = copyCollections ? ImmutableList.copyOf(retentionRecords) : retentionRecords;
-    }
-
-    public RetentionSet(List<StreamCutReferenceRecord> retentionRecords) {
-        this(retentionRecords, true);
+    public RetentionSet(@NonNull ImmutableList<StreamCutReferenceRecord> retentionRecords) {
+        this.retentionRecords = retentionRecords;
     }
 
     /**
@@ -67,10 +51,11 @@ public class RetentionSet {
         // add only if cut.recordingTime is newer than any previous cut
         List<StreamCutReferenceRecord> retentionRecords = retentionSet.retentionRecords;
         if (retentionRecords.isEmpty() || retentionRecords.get(retentionRecords.size() - 1).getRecordingTime() < cut.getRecordingTime()) {
-            List<StreamCutReferenceRecord> list = Lists.newArrayList(retentionRecords);
+            ImmutableList.Builder<StreamCutReferenceRecord> builder = ImmutableList.builder();
+            builder.addAll(retentionRecords);
 
-            list.add(new StreamCutReferenceRecord(cut.getRecordingTime(), cut.getRecordingSize()));
-            return new RetentionSet(list);
+            builder.add(new StreamCutReferenceRecord(cut.getRecordingTime(), cut.getRecordingSize()));
+            return new RetentionSet(builder.build());
         }
         return retentionSet;
     }
@@ -102,11 +87,7 @@ public class RetentionSet {
 
         return retentionRecords.get(beforeIndex);
     }
-
-    public List<StreamCutReferenceRecord> getRetentionRecords() {
-        return Collections.unmodifiableList(retentionRecords);
-    }
-
+    
     /**
      * Get a list of all retention reference stream cut records on or before (inclusive) the given record.
      * @param record reference record
@@ -134,7 +115,7 @@ public class RetentionSet {
         }
         
         if (beforeIndex + 1 == set.retentionRecords.size()) {
-            return new RetentionSet(Collections.emptyList());
+            return new RetentionSet(ImmutableList.of());
         }
         
         return new RetentionSet(set.retentionRecords.subList(beforeIndex + 1, set.retentionRecords.size()));
@@ -178,8 +159,9 @@ public class RetentionSet {
 
         private void read00(RevisionDataInput revisionDataInput, RetentionSet.RetentionSetBuilder retentionRecordBuilder)
                 throws IOException {
-            retentionRecordBuilder.retentionRecords(revisionDataInput.readCollection(StreamCutReferenceRecord.SERIALIZER::deserialize,
-                    ArrayList::new)).copyCollections(false);
+            ImmutableList.Builder<StreamCutReferenceRecord> builder = ImmutableList.builder();
+            revisionDataInput.readCollection(StreamCutReferenceRecord.SERIALIZER::deserialize, builder);
+            retentionRecordBuilder.retentionRecords(builder.build());
         }
 
         private void write00(RetentionSet retentionRecord, RevisionDataOutput revisionDataOutput) throws IOException {
