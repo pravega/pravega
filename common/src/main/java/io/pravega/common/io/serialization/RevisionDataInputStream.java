@@ -11,13 +11,10 @@ package io.pravega.common.io.serialization;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableCollection;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BitConverter;
-import org.checkerframework.checker.units.qual.C;
 
 import java.io.DataInputStream;
 import java.io.IOException;
