@@ -70,7 +70,6 @@ services:
       JAVA_OPTS: |
         -Dcontroller.service.port=9090
         -Dcontroller.service.restPort=10080
-        -Dcontroller.zk.url=zookeeper:2181
         -Dconfig.controller.metricenableCSVReporter=false
         -Xmx512m
         -XX:OnError="kill -9 p%"
