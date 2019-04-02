@@ -10,7 +10,6 @@
 package io.pravega.controller.metrics;
 
 import static io.pravega.shared.MetricsNames.CONTROLLER_ZK_SESSION_EXPIRATION;
-import static io.pravega.shared.MetricsNames.globalMetricName;
 
 /**
  * Class to encapsulate the logic to report Controller metrics related to Zookeeper.
@@ -21,6 +20,6 @@ public class ZookeeperMetrics extends AbstractControllerMetrics {
      * This method reports a new session expiration event in a Controller instance.
      */
     public void reportZKSessionExpiration() {
-        DYNAMIC_LOGGER.incCounterValue(globalMetricName(CONTROLLER_ZK_SESSION_EXPIRATION), 1);
+        DYNAMIC_LOGGER.incCounterValue(CONTROLLER_ZK_SESSION_EXPIRATION, 1);
     }
 }

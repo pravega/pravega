@@ -217,14 +217,14 @@ public class ControllerMetricsTest {
      */
     @Test(timeout = 25000)
     public void zookeeperMetricsTest() throws Exception {
-        Counter zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(CONTROLLER_ZK_SESSION_EXPIRATION)));
+        Counter zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
         Assert.assertNull(zkSessionExpirationCounter);
         controllerWrapper.forceClientSessionExpiry();
         while (zkSessionExpirationCounter == null) {
             Thread.sleep(100);
-            zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(CONTROLLER_ZK_SESSION_EXPIRATION)));
+            zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
         }
-        Assert.assertEquals(zkSessionExpirationCounter.getCount(), 1L);
+        Assert.assertEquals(zkSessionExpirationCounter.count(), 1, 0.1);
     }
 
     private void checkStatsRegisteredValues(int minExpectedValues, String...metricNames) {
