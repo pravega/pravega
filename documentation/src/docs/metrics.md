@@ -487,6 +487,11 @@ controller.container.failovers_global.Counter
 controller.container.failovers.$containerId.Counter - with tags {"container", $containerId}
 ```
 
+- Controller Zookeeper session expiration (counter) metrics:
+```
+controller.zookeeper.session_expiration.Counter
+```
+
 # 6. Useful links
 * [Micrometer Metrics](https://micrometer.io/docs)
 * [Statsd_spec](https://github.com/b/statsd_spec)

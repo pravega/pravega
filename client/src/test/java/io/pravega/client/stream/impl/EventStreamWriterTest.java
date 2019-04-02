@@ -292,7 +292,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         writer.writeEvent(routingKey, "Bar");
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
 
-        assertEquals(1, outputStream2.acked.size());
+        assertEquals(2, outputStream2.acked.size());
         assertEquals(1, outputStream2.unacked.size());
         assertEquals("Foo", serializer.deserialize(outputStream2.getAcked(0)));
         assertEquals("Bar", serializer.deserialize(outputStream2.getUnacked(0)));
@@ -347,7 +347,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         outputStream1.invokeSealedCallBack(); // simulate a segment sealed callback.
         writer.writeEvent(routingKey, "TestData");
         //This time the actual handleLogSealed is invoked and the resend method resends data to outputStream2.
-        assertEquals(2, outputStream2.acked.size());
+        assertEquals(3, outputStream2.acked.size());
         assertEquals("Foo", serializer.deserialize(outputStream2.getAcked(0)));
         assertEquals("Bar", serializer.deserialize(outputStream2.getAcked(1)));
         assertEquals(1, outputStream2.unacked.size());
@@ -490,7 +490,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         assertEquals(0, outputStream1.acked.size());
         outputStream1.invokeSealedCallBack();
         assertEquals(0, outputStream2.unacked.size());
-        assertEquals(1, outputStream2.acked.size());
+        assertEquals(2, outputStream2.acked.size());
     }
 
     @Test
@@ -761,9 +761,9 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.verify(controller, Mockito.times(1)).getCurrentSegments(any(), any());
 
         assertEquals(0, outputStream2.acked.size());
-        assertEquals(1, outputStream2.unacked.size());
+        assertEquals(2, outputStream2.unacked.size());
         assertEquals("Foo", serializer.deserialize(outputStream2.getUnacked(0)));
-        assertEquals(1, outputStream3.acked.size());
+        assertEquals(3, outputStream3.acked.size());
         assertEquals(1, outputStream3.unacked.size());
         assertEquals("Foo", serializer.deserialize(outputStream3.getAcked(0)));
         assertEquals("Bar", serializer.deserialize(outputStream3.getUnacked(0)));

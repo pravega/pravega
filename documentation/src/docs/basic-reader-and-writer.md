@@ -11,10 +11,10 @@ You may obtain a copy of the License at
 
 Lets examine how to build Pravega applications. The simplest kind of Pravega application uses a Reader to read from a Stream or a
 Writer that writes to a Stream. A simple sample application of both can be
-found in the [Pravega samples repository](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These samples give a sense on how a Java application could use the Pravega's Java Client Library to access Pravega functionality.
+found in the [Pravega samples repository](https://github.com/pravega/pravega-samples/blob/v0.5.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These samples give a sense on how a Java application could use the Pravega's Java Client Library to access Pravega functionality.
 
 Instructions for running the sample applications can be found in the [Pravega
-Samples](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md). Get familiar with the [Pravega Concepts](http://pravega.io/docs/latest/pravega-concepts/)
+Samples](https://github.com/pravega/pravega-samples/blob/v0.5.0/pravega-client-examples/README.md). Get familiar with the [Pravega Concepts](http://pravega.io/docs/latest/pravega-concepts/)
 before executing the sample applications.
 
 ## HelloWorldWriter

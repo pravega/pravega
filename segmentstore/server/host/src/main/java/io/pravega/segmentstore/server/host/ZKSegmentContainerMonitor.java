@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.host;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.segmentstore.server.ContainerHandle;
@@ -39,7 +40,6 @@ import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.utils.ZKPaths;
@@ -276,8 +276,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             byte[] containerToHostMapSer = hostContainerMapNode.getCurrentData().getData();
             if (containerToHostMapSer != null) {
                 @SuppressWarnings("unchecked")
-                val controlMapping = (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer);
-                return controlMapping.entrySet().stream()
+                val controlMapping = HostContainerMap.fromBytes(containerToHostMapSer);
+                return controlMapping.getHostContainerMap().entrySet().stream()
                                      .filter(ep -> ep.getKey().equals(this.host))
                                      .map(Map.Entry::getValue)
                                      .findFirst().orElse(Collections.emptySet());

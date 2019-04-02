@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -97,6 +98,18 @@ public class PasswordAuthHandler implements AuthHandler {
             throw new CompletionException(new AuthenticationException(userName));
         }
         return authorizeForUser(userMap.get(userName), resource);
+    }
+
+    /**
+     * This method exists expressly for unit testing purposes. It loads the contents of the specified
+     * {@code passwordFile} into this object.
+     *
+     * @param passwordFile the file with a list of users, their encrypted passwords and their ACLs that is to be used
+     *                     by this instance.
+     */
+    @VisibleForTesting
+    void initialize(String passwordFile) {
+        loadPasswordFile(passwordFile);
     }
 
     @Override
