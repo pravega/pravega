@@ -18,6 +18,7 @@ import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -46,8 +47,22 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * TODO: Javadoc
- * TODO: logging
+ * Performs {@link TableEntry} compaction in Table Segments.
+ *
+ * A Compaction is performed along these lines:
+ * - Compaction begins at the Table Segment's {@link TableAttributes#COMPACTION_OFFSET} offset.
+ * - A number of {@link TableEntry} instances are parsed out until a maximum length is reached.
+ * - A parsed {@link TableEntry} is discarded if any of the following are true:
+ * -- It indicates a {@link TableKey} removal.
+ * -- Its {@link TableKey} is no longer part of the Table Segment's index.
+ * -- Its {@link TableKey} is part of the Table Segment's index, but the index points to a newer version of it.
+ * - Any {@link TableEntry} instances that are not discarded are copied over (sorted by original offset) to the end
+ * of the Table Segment by using {@link DirectSegmentAccess#append}. The newly written {@link TableEntry} instances will
+ * be serialized using explicit versions; as such the original {@link TableKey#getVersion()} will be preserved, even if
+ * the entry will now live at a higher offset. Some of the Table Segment's attributes are also atomically updated as part
+ * of this operation (namely {@link TableAttributes#COMPACTION_OFFSET} and {@link TableAttributes#TOTAL_ENTRY_COUNT}).
+ * - These copied entries are not indexed as part of compaction. Similarly to normal updates, the {@link WriterTableProcessor}
+ * will pick them up and index them.
  */
 @Slf4j
 class TableCompactor {
@@ -130,12 +145,23 @@ class TableCompactor {
      * Calculates the offset in the Segment where it is safe to truncate based on the current state of the Segment and
      * the highest copied offset encountered during an index update.
      *
+     * This method is invoked from the {@link WriterTableProcessor} after indexing. Since compaction is loosely coupled
+     * with indexing, the {@link WriterTableProcessor} does not have too many insights into what has been compacted or not;
+     * it can only decide based on the current state of the Table Segment and what it has just indexed. As such:
+     * - If recently indexed Table Entries indicate they were copied as part of a compaction, then it is safe to truncate
+     * at the highest copied offset encountered (since they are copied in order, by offset). Everything prior to this
+     * offset is guaranteed not to exist in the index anymore.
+     * - If no recently indexed Table Entry indicates it was copied as a result of compaction, then it may not be safe to
+     * truncate at {@link TableAttributes#COMPACTION_OFFSET}, because there may exist unindexed Table Entries that the
+     * indexer hasn't gotten to yet. As such, it is only safe to truncate at {@link TableAttributes#COMPACTION_OFFSET}
+     * if the indexer has indexed all the entries in the Table Segment.
+     *
      * @param info                The {@link SegmentProperties} associated with the Table Segment to inquire about.
      * @param highestCopiedOffset The highest offset that was copied from a lower offset during a compaction. If the copied
      *                            entry has already been index then it is guaranteed that every entry prior to this
      *                            offset is no longer part of the index and can be safely truncated away.
      * @return The calculated truncation offset or a negative number if no truncation is required or possible given the
-     * arguments we got.
+     * arguments provided.
      */
     long calculateTruncationOffset(SegmentProperties info, long highestCopiedOffset) {
         // Due to the nature of compaction (all entries are copied in order of their original versions), if we encounter
@@ -143,6 +169,7 @@ class TableCompactor {
         if (highestCopiedOffset > 0) {
             return highestCopiedOffset;
         }
+
         // Did not encounter any copied entries. If we were able to index the whole segment, then we should be safe
         // to truncate at wherever the compaction last finished.
         long truncateOffset = -1;
@@ -165,9 +192,13 @@ class TableCompactor {
      * @param timer   Timer for the operation.
      * @return A CompletableFuture that, when completed, indicate the compaction completed. When this future completes,
      * some of the Segment's Table Attributes may change to reflect the modifications to the Segment and/or compaction progress.
+     * Notable exceptions:
+     * <ul>
+     * <li>{@link BadAttributeUpdateException} If the {@link TableAttributes#COMPACTION_OFFSET} changed while this method
+     * was executing. In this case, no change will be performed and it can be resolved with a retry.</li>
+     * </ul>
      */
     CompletableFuture<Void> compact(@NonNull DirectSegmentAccess segment, TimeoutTimer timer) {
-        // TODO: retry in case of BadAttributeUpdateException
         SegmentProperties info = segment.getInfo();
         long startOffset = getCompactionStartOffset(info);
         int maxLength = (int) Math.min(this.maxReadLength, this.indexReader.getLastIndexedOffset(info) - startOffset);
@@ -178,6 +209,7 @@ class TableCompactor {
                     segment.getSegmentId(), info.getName(), startOffset, maxLength)));
         } else if (maxLength == 0) {
             // Nothing to do.
+            log.debug("TableCompactor[{}]: Up to date.", segment.getSegmentId());
             return CompletableFuture.completedFuture(null);
         }
 
@@ -222,7 +254,7 @@ class TableCompactor {
         long nextOffset = startOffset;
         try {
             while (true) {
-                // TODO: Handle data corruption event when compaction offset is not on Entry boundary. Need github issue.
+                // TODO: Handle error when compaction offset is not on Entry boundary (https://github.com/pravega/pravega/issues/3560).
                 val e = AsyncTableEntryReader.readEntryComponents(input, nextOffset, this.connector.getSerializer());
 
                 // We only care about updates, and not removals.
@@ -320,6 +352,7 @@ class TableCompactor {
             byte[] appendData = new byte[totalLength];
             this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite, appendData);
             result = segment.append(appendData, attributes, timer.getRemaining());
+            log.debug("TableCompactor[{}]: Compacting {}, CopyCount={}, CopyLength={}.", segment.getSegmentId(), args, toWrite, totalLength);
         }
 
         return Futures.toVoid(result);
@@ -381,6 +414,12 @@ class TableCompactor {
          * Candidates for compaction, grouped by their Key Hash.
          */
         final Map<UUID, CandidateSet> candidates;
+
+        @Override
+        public String toString() {
+            return String.format("StartOffset=%s, EndOffset=%s, ProcessedCount=%s, CandidateCount=%s",
+                    this.startOffset, this.endOffset, this.count, this.candidates.size());
+        }
     }
 
     private static class CandidateSet {
