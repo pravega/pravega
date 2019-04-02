@@ -82,10 +82,12 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.Getter;
@@ -106,9 +108,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.*;
 
 public class StreamMetadataTasksTest {
 
@@ -1117,6 +1117,155 @@ public class StreamMetadataTasksTest {
                              && AssertExtensions.nearlyEquals(x.getValue().getValue(), 1.0, 0)));
     }
 
+    @Test(timeout = 10000)
+    public void checkScaleCompleteTest() throws ExecutionException, InterruptedException {
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        String test = "testCheckScale";
+        streamStorePartialMock.createStream(SCOPE, test, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).get();
+        List<Map.Entry<Double, Double>> newRanges = Collections.singletonList(new AbstractMap.SimpleEntry<>(0.0, 1.0));
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
+        
+        // region scale
+        ScaleResponse scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, Collections.singletonList(0L),
+                newRanges, 30, null).get();
+        assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
+
+        streamStorePartialMock.setState(SCOPE, test, State.SCALING, null, executor).join();
+        
+        Controller.ScaleStatusResponse scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
+
+        // perform scale steps and check scale after each step
+        VersionedMetadata<EpochTransitionRecord> etr = streamStorePartialMock.getEpochTransition(SCOPE, test, null, executor).join();
+        streamStorePartialMock.scaleCreateNewEpochs(SCOPE, test, etr, null, executor).join();
+
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
+
+        streamStorePartialMock.scaleSegmentsSealed(SCOPE, test, Collections.singletonMap(0L, 0L), etr, null, executor).join();
+
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
+
+        streamStorePartialMock.completeScale(SCOPE, test, etr, null, executor).join();
+
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
+
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).join();
+
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS, scaleStatusResult.getStatus());
+
+        // start another scale
+        scaleOpResult = streamMetadataTasks.manualScale(SCOPE, test, Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1)),
+                newRanges, 30, null).get();
+        assertEquals(ScaleStreamStatus.STARTED, scaleOpResult.getStatus());
+        streamStorePartialMock.setState(SCOPE, test, State.SCALING, null, executor).join();
+
+        // even now we should get success for epoch 0 
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.SUCCESS, scaleStatusResult.getStatus());
+
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, test, 1, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
+        // endregion
+    }
+    
+    @Test(timeout = 10000)
+    public void checkUpdateCompleteTest() throws ExecutionException, InterruptedException {
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        String test = "testUpdate";
+        streamStorePartialMock.createStream(SCOPE, test, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).get();
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
+        // region update
+        
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
+
+        streamMetadataTasks.updateStream(SCOPE, test, configuration2, null);
+        // wait till configuration is updated
+        Supplier<Boolean> configUpdated = () -> !streamStorePartialMock.getConfigurationRecord(SCOPE, test, null, executor).join().getObject().isUpdating();
+        Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
+
+        streamStorePartialMock.setState(SCOPE, test, State.UPDATING, null, executor).join();
+
+        assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
+
+        VersionedMetadata<StreamConfigurationRecord> configurationRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, test, null, executor).join();
+        assertTrue(configurationRecord.getObject().isUpdating());
+        streamStorePartialMock.completeUpdateConfiguration(SCOPE, test, configurationRecord, null, executor);
+
+        assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
+
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).join();
+        assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
+
+        // start next update with different configuration. 
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        streamMetadataTasks.updateStream(SCOPE, test, configuration3, null);
+        Futures.loop(configUpdated, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
+
+        streamStorePartialMock.setState(SCOPE, test, State.UPDATING, null, executor).join();
+        // we should still get complete for previous configuration we attempted to update
+        assertTrue(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
+        
+        assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration3, null).get());
+        // end region
+    }
+    
+    @Test(timeout = 10000)
+    public void checkTruncateCompleteTest() throws ExecutionException, InterruptedException {
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        String test = "testTruncate";
+        streamStorePartialMock.createStream(SCOPE, test, configuration, System.currentTimeMillis(), null, executor).get();
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).get();
+        streamMetadataTasks.setRequestEventWriter(new EventStreamWriterMock<>());
+        
+        // region truncate
+        Map<Long, Long> map = Collections.singletonMap(0L, 1L);
+        streamMetadataTasks.truncateStream(SCOPE, test, map, null);
+        // wait till configuration is updated
+        Supplier<Boolean> truncationStarted = () -> !streamStorePartialMock.getTruncationRecord(SCOPE, test, null, executor).join().getObject().isUpdating();
+        Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
+
+        streamStorePartialMock.setState(SCOPE, test, State.TRUNCATING, null, executor).join();
+
+        assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
+
+        VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, test, null, executor).join();
+        assertTrue(truncationRecord.getObject().isUpdating());
+        streamStorePartialMock.completeTruncation(SCOPE, test, truncationRecord, null, executor);
+
+        assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
+
+        streamStorePartialMock.setState(SCOPE, test, State.ACTIVE, null, executor).join();
+        assertTrue(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
+
+        // start next update with different configuration. 
+        Map<Long, Long> map2 = Collections.singletonMap(0L, 10L);
+
+        streamMetadataTasks.truncateStream(SCOPE, test, map2, null);
+        Futures.loop(truncationStarted, () -> Futures.delayedFuture(Duration.ofMillis(100), executor), executor).join();
+
+        streamStorePartialMock.setState(SCOPE, test, State.TRUNCATING, null, executor).join();
+        
+        // we should still get complete for previous configuration we attempted to update
+        assertTrue(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
+        assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map2, null).get());
+        // end region
+    }
+    
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         return Retry.withExpBackoff(100, 10, 5, 1000)
                 .retryingOn(TaskExceptions.StartException.class)
