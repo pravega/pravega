@@ -550,7 +550,7 @@ controller.container.failovers.$containerId.Counter
 
 - Controller Zookeeper session expiration (counter) metrics:
 ```
-controller.zookeeper.session_expiration_global.Counter
+controller.zookeeper.session_expiration.Counter
 ```
 
 # 6. Useful links
