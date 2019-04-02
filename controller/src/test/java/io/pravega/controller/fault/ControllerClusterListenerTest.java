@@ -133,8 +133,7 @@ public class ControllerClusterListenerTest {
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
                 segmentHelper, executor, host.getHostId(), AuthHelper.getDisabledAuthHelper());
-        txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
-                new EventStreamWriterMock<>());
+        txnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Create ControllerClusterListener.
@@ -278,8 +277,7 @@ public class ControllerClusterListenerTest {
         doCallRealMethod().when(txnSweeper).isReady();
 
         // Complete txn sweeper initialization by adding event writers.
-        txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
-                new EventStreamWriterMock<>());
+        txnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
         txnSweeper.awaitInitialization();
 
         assertTrue(Futures.await(txnSweep, 3000));
