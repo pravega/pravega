@@ -50,7 +50,7 @@ public class ControllerBootstrapTest {
     private TableStore tableStore;
 
     @Before
-    public void setup() throws DurableDataLogException {
+    public void setup() {
         final String serviceHost = "localhost";
         final int containerCount = 4;
 
@@ -60,15 +60,6 @@ public class ControllerBootstrapTest {
         } catch (Exception e) {
             Assert.fail("Failed starting ZK test server");
         }
-
-        // Now start Pravega service.
-        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        store = serviceBuilder.createStreamSegmentService();
-        tableStore = serviceBuilder.createTableStoreService();
-
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
-        server.startListening();
 
         // 2. Start controller
         try {
@@ -99,6 +90,15 @@ public class ControllerBootstrapTest {
     public void bootstrapTest() throws Exception {
         Controller controller = controllerWrapper.getController();
 
+        // Now start Pravega service.
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize();
+        store = serviceBuilder.createStreamSegmentService();
+        tableStore = serviceBuilder.createTableStoreService();
+
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        server.startListening();
+
         // Create test scope. This operation should succeed.
         Boolean scopeStatus = controller.createScope(SCOPE).join();
         Assert.assertEquals(true, scopeStatus);
@@ -106,11 +106,10 @@ public class ControllerBootstrapTest {
         // Try creating a stream. It should not complete until Pravega host has started.
         // After Pravega host starts, stream should be successfully created.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build();
+                                                                     .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                     .build();
         CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
-
         // Ensure that create stream succeeds.
         try {
             Boolean status = streamStatus.join();

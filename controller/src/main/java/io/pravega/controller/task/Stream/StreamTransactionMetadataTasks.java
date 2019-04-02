@@ -118,8 +118,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final AuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, hostId, timeoutServiceConfig, null, 
-                authHelper);
+        this(streamMetadataStore, segmentHelper, executor, hostId, timeoutServiceConfig, null, authHelper);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
@@ -646,7 +645,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 txnId,
                 this.retrieveDelegationToken()), executor);
     }
-    
+
     private OperationContext getNonNullOperationContext(final String scope,
                                                         final String stream,
                                                         final OperationContext contextOpt) {
