@@ -15,7 +15,7 @@ import static io.pravega.shared.MetricsNames.globalMetricName;
 /**
  * Class to encapsulate the logic to report Controller metrics related to Zookeeper.
  */
-public class ZookeeperConnectionMetrics extends AbstractControllerMetrics {
+public class ZookeeperMetrics extends AbstractControllerMetrics {
 
     /**
      * This method reports a new session expiration event in a Controller instance.
