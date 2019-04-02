@@ -46,7 +46,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -182,7 +181,7 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
                          // we will just validate that a non empty value is returned. 
                          return controller.getSuccessors(cut)
                                           .thenAccept(successors -> {
-                                              assertEquals(successors.getSegments().size(), numSegments);
+                                              assertTrue(successors.getSegments().size() > 0);
                                               log.info("Successors for streamcut {} are {}", cut, successors);
                                           });
                      });
