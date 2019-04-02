@@ -114,7 +114,7 @@ public interface RevisionDataInput extends DataInput {
      * @param elementDeserializer A Function that will decode a single element of the Collection from the given RevisionDataInput.
      * @param newCollectionBuilder A Builder that will create a new instance of the ImmutableCollection of desired type.
      * @param <T>                 Type of the elements in the Collection.
-     * @param <C>                 Type of the Collection desired to be instantiated.
+     * @param <C>                 Type of the Collection whose builder needs to be populated.
      * @throws IOException If an IO Exception occurred.
      */
     <T, C extends ImmutableCollection<T>> void readCollection(
@@ -189,11 +189,12 @@ public interface RevisionDataInput extends DataInput {
      * @param newMapBuilder     An ImmutableMapBuilder that will create a new instance of the ImmutableMap type desired.
      * @param <K>               Type of the Keys in the Map.
      * @param <V>               Type of the Values in the Map.
+     * @param <M>               Type of Map whose builder needs to be populated. 
      * @return A new Map. If the original Map passed to RevisionDataOutput.writeMap() was null, this will return an empty map.
      * @throws IOException If an IOException occurred.
      */
-    <K, V> ImmutableMap<K, V> readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, 
-                                          ImmutableMap.Builder<K, V> newMapBuilder) throws IOException;
+    <K, V, M extends ImmutableMap<K, V>> void readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, 
+                                          M.Builder<K, V> newMapBuilder) throws IOException;
 
     /**
      * Defines a Function signature that can deserialize an element from a RevisionDataInput.

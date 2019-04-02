@@ -190,13 +190,13 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
     }
 
     @Override
-    public <K, V> ImmutableMap<K, V> readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, ImmutableMap.Builder<K, V> builder) throws IOException {
+    public <K, V, M extends ImmutableMap<K, V>> void readMap(
+            ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, 
+            M.Builder<K, V> builder) throws IOException {
         int count = readCompactInt();
         for (int i = 0; i < count; i++) {
             builder.put(keyDeserializer.apply(this), valueDeserializer.apply(this));
         }
-
-        return builder.build();
     }
 
     //endregion

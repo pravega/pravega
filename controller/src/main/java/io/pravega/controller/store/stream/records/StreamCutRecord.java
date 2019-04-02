@@ -93,8 +93,10 @@ public class StreamCutRecord {
         private void read00(RevisionDataInput revisionDataInput, StreamCutRecordBuilder streamCutRecordBuilder)
                 throws IOException {
             streamCutRecordBuilder.recordingTime(revisionDataInput.readLong())
-                                  .recordingSize(revisionDataInput.readLong())
-                                  .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, ImmutableMap.builder()));
+                                  .recordingSize(revisionDataInput.readLong());
+            ImmutableMap.Builder<Long, Long> streamCutBuilder = ImmutableMap.builder();
+            revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, streamCutBuilder);
+            streamCutRecordBuilder.streamCut(streamCutBuilder.build());
         }
 
         private void write00(StreamCutRecord streamCutRecord, RevisionDataOutput revisionDataOutput) throws IOException {
