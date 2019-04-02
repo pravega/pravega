@@ -102,11 +102,10 @@ public class EpochTransitionRecord {
             revisionDataInput.readCollection(DataInput::readLong, segmentsToSealBuilder);
             epochTransitionRecordBuilder
                     .segmentsToSeal(segmentsToSealBuilder.build());
-            
-            ImmutableMap<Long, Map.Entry<Double, Double>> kvMap = revisionDataInput.readMap(DataInput::readLong, this::readValue, 
-                    ImmutableMap.builder());
 
-            epochTransitionRecordBuilder.newSegmentsWithRange(kvMap).build();
+            ImmutableMap.Builder<Long, Map.Entry<Double, Double>> builder = ImmutableMap.builder();
+            revisionDataInput.readMap(DataInput::readLong, this::readValue, builder);
+            epochTransitionRecordBuilder.newSegmentsWithRange(builder.build()).build();
         }
 
         private Map.Entry<Double, Double> readValue(RevisionDataInput revisionDataInput) throws IOException {

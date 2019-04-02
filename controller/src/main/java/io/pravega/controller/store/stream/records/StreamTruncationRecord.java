@@ -143,9 +143,13 @@ public class StreamTruncationRecord {
         private void read00(RevisionDataInput revisionDataInput,
                             StreamTruncationRecordBuilder truncationRecordBuilder)
                 throws IOException {
+            ImmutableMap.Builder<Long, Long> streamCutBuilder = ImmutableMap.builder();
+            revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, streamCutBuilder);
             truncationRecordBuilder
-                    .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, ImmutableMap.builder()))
-                    .span(revisionDataInput.readMap(StreamSegmentRecord.SERIALIZER::deserialize, DataInput::readInt, ImmutableMap.builder()));
+                    .streamCut(streamCutBuilder.build());
+            ImmutableMap.Builder<StreamSegmentRecord, Integer> spanBuilder = ImmutableMap.builder();
+            revisionDataInput.readMap(StreamSegmentRecord.SERIALIZER::deserialize, DataInput::readInt, spanBuilder);
+            truncationRecordBuilder.span(spanBuilder.build());
             ImmutableSet.Builder<Long> deletedSegmentsBuilder = ImmutableSet.builder();
             revisionDataInput.readCollection(DataInput::readLong, deletedSegmentsBuilder);
             truncationRecordBuilder.deletedSegments(deletedSegmentsBuilder.build());
