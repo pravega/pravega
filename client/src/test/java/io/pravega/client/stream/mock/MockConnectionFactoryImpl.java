@@ -10,6 +10,7 @@
 package io.pravega.client.stream.mock;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.Session;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -37,6 +38,12 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
         Preconditions.checkState(connection != null, "Unexpected Endpoint");
         processors.put(location, rp);
         return CompletableFuture.completedFuture(connection);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<ClientConnection> establishConnection(Session session, PravegaNodeUri location, ReplyProcessor rp) {
+      return establishConnection(location, rp);
     }
 
     @Override

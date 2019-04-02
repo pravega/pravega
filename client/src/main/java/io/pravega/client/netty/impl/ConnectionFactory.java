@@ -15,7 +15,6 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
-import org.apache.commons.lang3.NotImplementedException;
 
 /**
  * A factory that establishes connections to Pravega servers.
@@ -39,9 +38,7 @@ public interface ConnectionFactory extends AutoCloseable {
      * @param rp Reply Processor instance.
      * @return An instance of client connection.
      */
-    default CompletableFuture<ClientConnection> establishConnection(Session session, PravegaNodeUri endpoint, ReplyProcessor rp) {
-        throw new NotImplementedException("Connection pooling based client connection has not been implemented");
-    }
+    CompletableFuture<ClientConnection> establishConnection(Session session, PravegaNodeUri endpoint, ReplyProcessor rp);
 
     /**
      * Get the internal executor which is used by the client.
