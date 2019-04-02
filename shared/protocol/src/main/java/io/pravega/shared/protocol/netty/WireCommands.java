@@ -1513,17 +1513,6 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class Flush implements WireCommand {
-        final WireCommandType type = WireCommandType.KEEP_ALIVE;
-        private final int blockSize;
-
-        @Override
-        public void writeFields(DataOutput out) {
-            throw new IllegalStateException("This command is not sent over the wire.");
-        }
-    }
-
-    @Data
     public static final class AuthTokenCheckFailed implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.AUTH_TOKEN_CHECK_FAILED;
         final long requestId;

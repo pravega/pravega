@@ -330,32 +330,25 @@ public class SegmentHelperTest {
     @Test
     public void testReadTable() {
         MockConnectionFactory factory = new MockConnectionFactory();
-        List<TableKey<byte[]>> keys = Arrays.asList(new TableKeyImpl<>(key0, KeyVersion.NOT_EXISTS),
-                                                    new TableKeyImpl<>(key1, KeyVersion.NOT_EXISTS));
+        List<TableKey<byte[]>> keysToBeRead = Arrays.asList(new TableKeyImpl<>(key0, KeyVersion.NO_VERSION),
+                                                    new TableKeyImpl<>(key1, KeyVersion.NO_VERSION));
 
-        List<TableEntry<byte[], byte[]>> entries = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key0, new KeyVersionImpl(10L)), value),
-                                                                 new TableEntryImpl<>(new TableKeyImpl<>(key1, new KeyVersionImpl(10L)), value));
+        List<TableEntry<byte[], byte[]>> reponseFromSegmentStore = Arrays.asList(new TableEntryImpl<>(new TableKeyImpl<>(key0,
+                                                                                                              new KeyVersionImpl(10L)), value),
+                                                                 new TableEntryImpl<>(new TableKeyImpl<>(key1, KeyVersion.NOT_EXISTS), value));
 
-        // On receiving TableKeysRemoved.
-        CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", "", keys, new MockHostControllerStore(),
+        CompletableFuture<List<TableEntry<byte[], byte[]>>> result = helper.readTable("", "", keysToBeRead, new MockHostControllerStore(),
                                                                                       factory, "", System.nanoTime());
-        factory.rp.tableRead(new WireCommands.TableRead(0, getQualifiedStreamSegmentName("", "", 0L), getTableEntries(entries)));
+        factory.rp.tableRead(new WireCommands.TableRead(0, getQualifiedStreamSegmentName("", "", 0L), getTableEntries(reponseFromSegmentStore)));
         List<TableEntry<byte[], byte[]>> readResult = result.join();
         assertArrayEquals(key0, readResult.get(0).getKey().getKey());
         assertEquals(10L, readResult.get(0).getKey().getVersion().getSegmentVersion());
         assertArrayEquals(value, readResult.get(0).getValue());
         assertArrayEquals(key1, readResult.get(1).getKey().getKey());
-        assertEquals(10L, readResult.get(1).getKey().getVersion().getSegmentVersion());
+        assertEquals(KeyVersion.NOT_EXISTS, readResult.get(1).getKey().getVersion());
         assertArrayEquals(value, readResult.get(1).getValue());
 
-        // On receiving TableKeyDoesNotExist.
-        result = helper.readTable("", "", keys, new MockHostControllerStore(), factory, "", System.nanoTime());
-        factory.rp.tableKeyDoesNotExist(new WireCommands.TableKeyDoesNotExist(0, getQualifiedStreamSegmentName("", "", 0L), ""));
-        AssertExtensions.assertThrows("", result::join,
-                                      ex -> ex instanceof WireCommandFailedException &&
-                                              (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableKeyDoesNotExist));
-
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTable("", "", keys, new MockHostControllerStore(),
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTable("", "", keysToBeRead, new MockHostControllerStore(),
                                                                                factory, "", System.nanoTime());
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);

@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.rest.v1;
 
-import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.grpc.ServerBuilder;
 import io.pravega.client.ClientConfig;
@@ -66,6 +64,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -569,16 +568,6 @@ public class StreamMetaDataAuthFocusedTests {
     //endregion
 
     //region Private methods
-
-    private static String credentialsAndAclAsString(String username, String password, String acl) {
-        Preconditions.checkArgument(!Strings.isNullOrEmpty(username)
-                && !Strings.isNullOrEmpty(password)
-                && acl != null
-                && !acl.startsWith(":"));
-
-        // This will return a string that looks like this:"<username>:<pasword>:acl\n"
-        return String.format("%s:%s:%s%n", username, password, acl);
-    }
 
     private boolean createScopes(List<String> scopeNames, String username, String password) {
         boolean result = true;
