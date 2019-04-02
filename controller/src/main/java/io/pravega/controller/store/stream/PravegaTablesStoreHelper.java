@@ -32,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
+import org.checkerframework.checker.units.qual.K;
 
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -214,16 +215,21 @@ public class PravegaTablesStoreHelper {
         log.debug("get entry called for : {}/{} key : {}", scope, tableName, key);
         List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         CompletableFuture<VersionedMetadata<T>> result = new CompletableFuture<>();
+        String message = "get entry: key: %s table: %s/%s";
         withRetries(() -> segmentHelper.readTable(scope, tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID),
-                () -> String.format("get entry: key: %s table: %s/%s", key, scope, tableName))
+                () -> String.format(message, key, scope, tableName))
                 .thenApplyAsync(x -> {
                     TableEntry<byte[], byte[]> first = x.get(0);
-                    log.debug("returning entry for : {}/{} key : {} with version {}", scope, tableName, key, 
-                            first.getKey().getVersion().getSegmentVersion());
+                    if (first.getKey().getVersion().equals(KeyVersion.NOT_EXISTS)) {
+                        throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, String.format(message, key, scope, tableName));   
+                    } else {
+                        log.debug("returning entry for : {}/{} key : {} with version {}", scope, tableName, key,
+                                first.getKey().getVersion().getSegmentVersion());
 
-                    T deserialized = fromBytes.apply(first.getValue());
+                        T deserialized = fromBytes.apply(first.getValue());
 
-                    return new VersionedMetadata<>(deserialized, new Version.LongVersion(first.getKey().getVersion().getSegmentVersion()));
+                        return new VersionedMetadata<>(deserialized, new Version.LongVersion(first.getKey().getVersion().getSegmentVersion()));
+                    }
                 }, executor)
                 .whenCompleteAsync((r, e) -> {
                    if (e != null) {

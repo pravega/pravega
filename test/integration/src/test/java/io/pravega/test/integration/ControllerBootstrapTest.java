@@ -46,7 +46,9 @@ public class ControllerBootstrapTest {
     private ControllerWrapper controllerWrapper;
     private PravegaConnectionListener server;
     private ServiceBuilder serviceBuilder;
-    
+    private StreamSegmentStore store;
+    private TableStore tableStore;
+
     @Before
     public void setup() throws DurableDataLogException {
         final String serviceHost = "localhost";
@@ -58,10 +60,13 @@ public class ControllerBootstrapTest {
         } catch (Exception e) {
             Assert.fail("Failed starting ZK test server");
         }
+
+        // Now start Pravega service.
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
+        store = serviceBuilder.createStreamSegmentService();
+        tableStore = serviceBuilder.createTableStoreService();
+
         server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 
@@ -106,15 +111,6 @@ public class ControllerBootstrapTest {
         CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
 
-        // Now start Pravega service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        TableStore tableStore = serviceBuilder.createTableStoreService();
-
-        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
-        server.startListening();
-
         // Ensure that create stream succeeds.
         try {
             Boolean status = streamStatus.join();
@@ -122,7 +118,7 @@ public class ControllerBootstrapTest {
         } catch (CompletionException ce) {
             Assert.fail();
         }
-        
+
         // Now create transaction should succeed.
         CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
 
