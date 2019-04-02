@@ -29,7 +29,6 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.shaded.com.google.common.collect.Lists;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
