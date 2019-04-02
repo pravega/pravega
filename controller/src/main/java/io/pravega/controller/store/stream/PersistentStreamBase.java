@@ -11,6 +11,9 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -41,9 +44,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -116,29 +117,30 @@ public abstract class PersistentStreamBase implements Stream {
         final double keyRangeChunk = 1.0 / numSegments;
 
         long creationTime = createStreamResponse.getTimestamp();
-        final List<StreamSegmentRecord> segments = IntStream.range(0, numSegments)
-                                                            .boxed()
-                                                            .map(x -> newSegmentRecord(0, startingSegmentNumber + x, creationTime,
-                                                                    x * keyRangeChunk, (x + 1) * keyRangeChunk))
-                                                            .collect(Collectors.toList());
+        final ImmutableList.Builder<StreamSegmentRecord> builder = ImmutableList.builder();
+        
+        IntStream.range(0, numSegments).boxed()
+                 .forEach(x -> builder.add(newSegmentRecord(0, startingSegmentNumber + x, creationTime,
+                                                                    x * keyRangeChunk, (x + 1) * keyRangeChunk)));
 
-        EpochRecord epoch0 = new EpochRecord(0, 0, segments, creationTime);
+        EpochRecord epoch0 = new EpochRecord(0, 0, builder.build(), creationTime);
 
         return createEpochRecord(epoch0)
                 .thenCompose(r -> createHistoryChunk(epoch0))
                 .thenCompose(r -> createSealedSegmentSizeMapShardIfAbsent(0))
-                .thenCompose(r -> createRetentionSetDataIfAbsent(new RetentionSet(Collections.emptyList())))
+                .thenCompose(r -> createRetentionSetDataIfAbsent(new RetentionSet(ImmutableList.of())))
                 .thenCompose(r -> createCurrentEpochRecordDataIfAbsent(epoch0));
     }
 
     private CompletionStage<Void> createHistoryChunk(EpochRecord epoch0) {
         HistoryTimeSeriesRecord record = new HistoryTimeSeriesRecord(0, 0, 
-                Collections.emptyList(), epoch0.getSegments(), epoch0.getCreationTime());
+                ImmutableList.of(), epoch0.getSegments(), epoch0.getCreationTime());
         return createHistoryTimeSeriesChunk(0, record);
     }
 
     private CompletableFuture<Void> createHistoryTimeSeriesChunk(int chunkNumber, HistoryTimeSeriesRecord epoch) {
-        HistoryTimeSeries timeSeries = new HistoryTimeSeries(Lists.newArrayList(epoch));
+        ImmutableList.Builder<HistoryTimeSeriesRecord> builder = ImmutableList.builder();
+        HistoryTimeSeries timeSeries = new HistoryTimeSeries(builder.add(epoch).build());
         return createHistoryTimeSeriesChunkDataIfAbsent(chunkNumber, timeSeries);
     }
 
@@ -147,6 +149,7 @@ public abstract class PersistentStreamBase implements Stream {
         return deleteStream();
     }
 
+    @Override
     public CompletableFuture<Void> startTruncation(final Map<Long, Long> streamCut) {
         return getTruncationRecord()
                 .thenCompose(existing -> {
@@ -181,8 +184,9 @@ public abstract class PersistentStreamBase implements Stream {
                                 || (e2.getKey().overlaps(e1.getKey()) && e1.getValue() < e2.getValue())));
     }
     
-    private CompletableFuture<StreamTruncationRecord> computeTruncationRecord(StreamTruncationRecord previous, Map<Long, Long> streamCut,
-                                                                              Map<StreamSegmentRecord, Integer> span) {
+    private CompletableFuture<StreamTruncationRecord> computeTruncationRecord(StreamTruncationRecord previous, 
+                                                                              Map<Long, Long> streamCut,
+                                                                              ImmutableMap<StreamSegmentRecord, Integer> span) {
         log.debug("computing truncation for stream {}/{}", scope, name);
 
         // find segments between "previous" stream cut and current stream cut. these are segments to delete.
@@ -194,11 +198,13 @@ public abstract class PersistentStreamBase implements Stream {
         return previousSpanFuture.thenCompose(spanFrom -> segmentsBetweenStreamCutSpans(spanFrom, span))
                                  .thenCompose(segmentsBetween -> sizeBetweenStreamCuts(previous.getStreamCut(), streamCut, segmentsBetween)
                                          .thenApply(sizeBetween -> {
-                                             Set<Long> toDelete = segmentsBetween.stream().map(StreamSegmentRecord::segmentId)
-                                                                                 .filter(x -> !streamCut.containsKey(x))
-                                                                                 .collect(Collectors.toSet());
+                                             ImmutableSet.Builder<Long> builder = ImmutableSet.builder();
+                                             segmentsBetween.stream().map(StreamSegmentRecord::segmentId)
+                                                            .filter(x -> !streamCut.containsKey(x))
+                                                            .forEach(builder::add);
 
-                                             return new StreamTruncationRecord(streamCut, span, previous.getDeletedSegments(), toDelete,
+                                             return new StreamTruncationRecord(ImmutableMap.copyOf(streamCut), span, previous.getDeletedSegments(), 
+                                                     builder.build(),
                                                      previous.getSizeTill() + sizeBetween, true);
                                          }));
     }
@@ -495,17 +501,17 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<List<StreamSegmentRecord>> getSegmentsBetweenStreamCuts(Map<Long, Long> from, Map<Long, Long> to) {
-        return segmentsBetweenStreamCuts(from, to).thenApply(LinkedList::new);
+        return segmentsBetweenStreamCuts(from, to).thenApply(ArrayList::new);
     }
 
-    private CompletableFuture<Set<StreamSegmentRecord>> segmentsBetweenStreamCuts(Map<Long, Long> from, Map<Long, Long> to) {
+    private CompletableFuture<ImmutableSet<StreamSegmentRecord>> segmentsBetweenStreamCuts(Map<Long, Long> from, Map<Long, Long> to) {
         // compute stream cut span for `from` till `to`
         // if from is empty we need to start from epoch 0.
         // if to is empty we need to go on till current epoch.
-        CompletableFuture<Map<StreamSegmentRecord, Integer>> spanFromFuture = from.isEmpty() ?
+        CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> spanFromFuture = from.isEmpty() ?
                 getEpochRecord(0).thenApply(this::convertToSpan)
                 : computeStreamCutSpan(from);
-        CompletableFuture<Map<StreamSegmentRecord, Integer>> spanToFuture = to.isEmpty() ?
+        CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> spanToFuture = to.isEmpty() ?
                 getActiveEpochRecord(true).thenApply(this::convertToSpan)
                 : computeStreamCutSpan(to);
 
@@ -520,7 +526,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @VisibleForTesting
-    CompletableFuture<Set<StreamSegmentRecord>> segmentsBetweenStreamCutSpans(Map<StreamSegmentRecord, Integer> spanFrom,
+    CompletableFuture<ImmutableSet<StreamSegmentRecord>> segmentsBetweenStreamCutSpans(Map<StreamSegmentRecord, Integer> spanFrom,
                                                                                       Map<StreamSegmentRecord, Integer> spanTo) {
         int toLow = Collections.min(spanTo.values());
         int toHigh = Collections.max(spanTo.values());
@@ -549,7 +555,7 @@ public abstract class PersistentStreamBase implements Stream {
                             });
                         }
                     });
-                }).thenApply(x -> segments);
+                }).thenApply(x -> ImmutableSet.copyOf(segments));
     }
 
     @VisibleForTesting
@@ -598,7 +604,7 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @VisibleForTesting
-    CompletableFuture<Map<StreamSegmentRecord, Integer>> computeStreamCutSpan(Map<Long, Long> streamCut) {
+    CompletableFuture<ImmutableMap<StreamSegmentRecord, Integer>> computeStreamCutSpan(Map<Long, Long> streamCut) {
         long mostRecent = streamCut.keySet().stream().max(Comparator.naturalOrder()).get();
         long oldest = streamCut.keySet().stream().min(Comparator.naturalOrder()).get();
         int epochLow = StreamSegmentNameUtils.getEpoch(oldest);
@@ -606,7 +612,7 @@ public abstract class PersistentStreamBase implements Stream {
 
         return fetchEpochs(epochLow, epochHigh, true).thenApply(epochs ->  {
             List<Long> toFind = new ArrayList<>(streamCut.keySet());
-            Map<StreamSegmentRecord, Integer> resultSet = new HashMap<>();
+            ImmutableMap.Builder<StreamSegmentRecord, Integer> resultSet = ImmutableMap.builder();
             for (int i = epochHigh - epochLow; i >= 0; i--) {
                 if (toFind.isEmpty()) {
                     break;
@@ -620,7 +626,7 @@ public abstract class PersistentStreamBase implements Stream {
 
                 toFind.removeAll(epochSegments);
             }
-            return resultSet;
+            return resultSet.build();
         });
     }
 
@@ -769,23 +775,32 @@ public abstract class PersistentStreamBase implements Stream {
                         // time
                         long time = Math.max(epochTransition.getTime(), currentEpoch.getCreationTime() + 1);
                         // new segments
-                        List<StreamSegmentRecord> newSegments =
-                                epochTransition.getNewSegmentsWithRange().entrySet().stream()
-                                               .map(x -> newSegmentRecord(x.getKey(), time, x.getValue().getKey(), x.getValue().getValue()))
-                                               .collect(Collectors.toList());
+                        ImmutableList.Builder<StreamSegmentRecord> newSegmentsBuilder = ImmutableList.builder();
+
+                        epochTransition.getNewSegmentsWithRange().forEach((key, value) -> newSegmentsBuilder.add(
+                                newSegmentRecord(key, time, value.getKey(), value.getValue())));
+                        
                         // sealed segments
-                        List<StreamSegmentRecord> sealedSegments =
-                                epochTransition.getSegmentsToSeal().stream().map(currentEpoch::getSegment).collect(Collectors.toList());
+                        ImmutableList.Builder<StreamSegmentRecord> sealedSegmentsBuilder = ImmutableList.builder();
+                        epochTransition.getSegmentsToSeal().forEach(x -> sealedSegmentsBuilder.add(currentEpoch.getSegment(x)));
+                        
                         // overall segments in epoch
-                        List<StreamSegmentRecord> segments = new LinkedList<>(currentEpoch.getSegments());
-                        segments.removeIf(x -> epochTransition.getSegmentsToSeal().contains(x.segmentId()));
-                        segments.addAll(newSegments);
+                        ImmutableList.Builder<StreamSegmentRecord> builder = ImmutableList.builder();
+                        currentEpoch.getSegments()
+                                    .forEach(x -> {
+                                        if (!epochTransition.getSegmentsToSeal().contains(x.segmentId())) {
+                                            builder.add(x);
+                                        }
+                                    } );
+                        ImmutableList<StreamSegmentRecord> newSegments = newSegmentsBuilder.build();
+                        builder.addAll(newSegments);
                         // epoch record
-                        EpochRecord epochRecord = new EpochRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), segments, time);
+                        EpochRecord epochRecord = new EpochRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), 
+                                builder.build(), time);
 
                         HistoryTimeSeriesRecord timeSeriesRecord = 
                                 new HistoryTimeSeriesRecord(epochTransition.getNewEpoch(), epochTransition.getNewEpoch(), 
-                                        sealedSegments, newSegments, epochRecord.getCreationTime());
+                                        sealedSegmentsBuilder.build(), newSegments, epochRecord.getCreationTime());
                         return createEpochRecord(epochRecord)
                                 .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecord))
                                 .thenCompose(x -> createSegmentSealedEpochRecords(epochTransition.getSegmentsToSeal(), epochTransition.getNewEpoch()))
@@ -903,32 +918,35 @@ public abstract class PersistentStreamBase implements Stream {
                                 return CompletableFuture.completedFuture(null);
                             }
                             long timeStamp = Math.max(activeEpochRecord.getCreationTime() + 1, time);
-                            List<StreamSegmentRecord> duplicateTxnSegments =
-                                    transactionEpochRecord.getSegments().stream()
-                                                          .map(x -> newSegmentRecord(computeSegmentId(getSegmentNumber(x.segmentId()),
-                                                                  committingTxnRecord.getNewTxnEpoch()),
-                                                                  timeStamp, x.getKeyStart(), x.getKeyEnd()))
-                                                          .collect(Collectors.toList());
-                            List<StreamSegmentRecord> duplicateActiveSegments =
-                                    activeEpochRecord.getSegments().stream()
-                                                          .map(x -> newSegmentRecord(computeSegmentId(getSegmentNumber(x.segmentId()),
-                                                                  committingTxnRecord.getNewActiveEpoch()),
-                                                                  timeStamp + 1, x.getKeyStart(), x.getKeyEnd()))
-                                                          .collect(Collectors.toList());
+                            ImmutableList.Builder<StreamSegmentRecord> duplicateTxnSegmentsBuilder = ImmutableList.builder();
+                            transactionEpochRecord
+                                    .getSegments().stream()
+                                    .forEach(x ->
+                                            duplicateTxnSegmentsBuilder.add(newSegmentRecord(computeSegmentId(getSegmentNumber(x.segmentId()),
+                                                    committingTxnRecord.getNewTxnEpoch()),
+                                                    timeStamp, x.getKeyStart(), x.getKeyEnd())));
+                            ImmutableList.Builder<StreamSegmentRecord> duplicateActiveSegmentsBuilder = ImmutableList.builder();
+
+                            activeEpochRecord
+                                    .getSegments().stream()
+                                    .forEach(x -> duplicateActiveSegmentsBuilder.add(
+                                            newSegmentRecord(computeSegmentId(getSegmentNumber(x.segmentId()),
+                                            committingTxnRecord.getNewActiveEpoch()),
+                                            timeStamp + 1, x.getKeyStart(), x.getKeyEnd())));
 
                             EpochRecord duplicateTxnEpoch = new EpochRecord(committingTxnRecord.getNewTxnEpoch(), 
-                                    transactionEpochRecord.getReferenceEpoch(), duplicateTxnSegments, timeStamp);
+                                    transactionEpochRecord.getReferenceEpoch(), duplicateTxnSegmentsBuilder.build(), timeStamp);
 
                             EpochRecord duplicateActiveEpoch = new EpochRecord(committingTxnRecord.getNewActiveEpoch(),
-                                    activeEpochRecord.getReferenceEpoch(), duplicateActiveSegments, timeStamp + 1);
+                                    activeEpochRecord.getReferenceEpoch(), duplicateActiveSegmentsBuilder.build(), timeStamp + 1);
 
                             HistoryTimeSeriesRecord timeSeriesRecordTxnEpoch =
                                     new HistoryTimeSeriesRecord(duplicateTxnEpoch.getEpoch(), duplicateTxnEpoch.getReferenceEpoch(), 
-                                            Collections.emptyList(), Collections.emptyList(), timeStamp);
+                                            ImmutableList.of(), ImmutableList.of(), timeStamp);
 
                             HistoryTimeSeriesRecord timeSeriesRecordActiveEpoch =
-                                    new HistoryTimeSeriesRecord(duplicateActiveEpoch.getEpoch(), duplicateActiveEpoch.getReferenceEpoch(), 
-                                            Collections.emptyList(), Collections.emptyList(), timeStamp + 1);
+                                    new HistoryTimeSeriesRecord(duplicateActiveEpoch.getEpoch(), duplicateActiveEpoch.getReferenceEpoch(),
+                                            ImmutableList.of(), ImmutableList.of(), timeStamp + 1);
                             return createEpochRecord(duplicateTxnEpoch)
                                     .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordTxnEpoch))
                                     .thenCompose(x -> createEpochRecord(duplicateActiveEpoch))
@@ -1434,9 +1452,13 @@ public abstract class PersistentStreamBase implements Stream {
         return StreamSegmentNameUtils.getEpoch(segmentId) / shardSize.get();
     }
 
-    private Map<StreamSegmentRecord, Integer> convertToSpan(EpochRecord epochRecord) {
-        return epochRecord.getSegments().stream()
-                          .collect(Collectors.toMap(x -> x, x -> epochRecord.getEpoch()));
+    private ImmutableMap<StreamSegmentRecord, Integer> convertToSpan(EpochRecord epochRecord) {
+        ImmutableMap.Builder<StreamSegmentRecord, Integer> builder = ImmutableMap.builder();
+        epochRecord.getSegments().stream()
+                          .forEach(x -> {
+                              builder.put(x, epochRecord.getEpoch());
+                          });
+        return builder.build();
     }
 
     private Segment transform(StreamSegmentRecord segmentRecord) {
@@ -1499,10 +1521,14 @@ public abstract class PersistentStreamBase implements Stream {
         if (epoch == referenceEpoch) {
             return lastRecordFuture.thenApply(lastRecord -> {
                 assert lastRecord.getEpoch() == epoch - 1;
-                List<StreamSegmentRecord> segments = new LinkedList<>(lastRecord.getSegments());
-                segments.removeIf(x -> sealedSegments.contains(x.segmentId()));
-                segments.addAll(createdSegments);
-                return new EpochRecord(epoch, referenceEpoch, segments, time);
+                ImmutableList.Builder<StreamSegmentRecord> segmentsBuilder = ImmutableList.builder();
+                lastRecord.getSegments().forEach(segment -> {
+                   if (!sealedSegments.contains(segment.segmentId())) {
+                       segmentsBuilder.add(segment);
+                   }
+                });
+                segmentsBuilder.addAll(createdSegments);
+                return new EpochRecord(epoch, referenceEpoch, segmentsBuilder.build(), time);
             });
         } else {
             return getEpochRecord(epoch);
@@ -1669,7 +1695,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, CompletedTxnRecord data);
 
-    abstract CompletableFuture<List<UUID>> getTxnCommitList(int epoch);
+    abstract CompletableFuture<ImmutableList<UUID>> getTxnCommitList(int epoch);
 
     abstract CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch);
     // endregion

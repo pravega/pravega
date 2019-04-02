@@ -11,6 +11,7 @@ package io.pravega.controller.task.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -343,10 +344,11 @@ public class StreamMetadataTasks extends TaskBase {
                         .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x.segmentId(), delegationToken)))))
                 .thenCompose(map -> {
                     final long generationTime = System.currentTimeMillis();
-                    Map<Long, Long> streamCutMap = map.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(),
-                            Map.Entry::getValue));
+                    ImmutableMap.Builder<Long, Long> builder = ImmutableMap.builder();
+                    map.forEach((key, value) -> builder.put(key.segmentId(), value));
+                    ImmutableMap<Long, Long> streamCutMap = builder.build();
                     return streamMetadataStore.getSizeTillStreamCut(scope, stream, streamCutMap, Optional.ofNullable(previous), context, executor)
-                            .thenApply(sizeTill -> new StreamCutRecord(generationTime, sizeTill, streamCutMap));
+                                              .thenApply(sizeTill -> new StreamCutRecord(generationTime, sizeTill, streamCutMap));
                 });
     }
 

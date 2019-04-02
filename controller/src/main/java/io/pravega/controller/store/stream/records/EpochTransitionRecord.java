@@ -17,18 +17,16 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Transient record that is created while epoch transition takes place and captures the transition. This record is deleted
@@ -50,45 +48,23 @@ public class EpochTransitionRecord {
     /**
      * Segments to be sealed.
      */
-    final Set<Long> segmentsToSeal;
+    final ImmutableSet<Long> segmentsToSeal;
     /**
      * Key ranges for new segments to be created.
      */
-    final Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange;
+    final ImmutableMap<Long, Map.Entry<Double, Double>> newSegmentsWithRange;
 
     private static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
 
     }
 
     @Builder
-    /**
-     * This is a private constructor that is only directly used by the builder during the deserialization. 
-     * The deserialization passes @param copyCollections as false so that we do not make an immutable copy of the collection
-     * for the collection passed to the constructor via deserialization. 
-     *
-     * The all other constructors, the value of copyCollections flag is true and we make an immutable collection copy of 
-     * the supplied collection. 
-     * All getters of this class that return a collection always wrap them under Collections.unmodifiableCollection so that
-     * no one can change the data object from outside.  
-     */
-    private EpochTransitionRecord(int activeEpoch, long time, Set<Long> segmentsToSeal, Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange, 
-                                 boolean copyCollection) {
+    public EpochTransitionRecord(int activeEpoch, long time, @NonNull ImmutableSet<Long> segmentsToSeal,
+                                 @NonNull ImmutableMap<Long, Map.Entry<Double, Double>> newSegmentsWithRange) {
         this.activeEpoch = activeEpoch;
         this.time = time;
-        this.segmentsToSeal = copyCollection ? ImmutableSet.copyOf(segmentsToSeal) : segmentsToSeal;
-        this.newSegmentsWithRange = copyCollection ? ImmutableMap.copyOf(newSegmentsWithRange) : newSegmentsWithRange;
-    }
-    
-    public EpochTransitionRecord(int activeEpoch, long time, Set<Long> segmentsToSeal, Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange) {
-        this(activeEpoch, time, segmentsToSeal, newSegmentsWithRange, true);
-    }
-
-    public Set<Long> getSegmentsToSeal() {
-        return Collections.unmodifiableSet(segmentsToSeal);
-    }
-
-    public Map<Long, Map.Entry<Double, Double>> getNewSegmentsWithRange() {
-        return Collections.unmodifiableMap(newSegmentsWithRange);
+        this.segmentsToSeal = segmentsToSeal;
+        this.newSegmentsWithRange = newSegmentsWithRange;
     }
 
     public int getNewEpoch() {
@@ -122,14 +98,15 @@ public class EpochTransitionRecord {
             epochTransitionRecordBuilder.activeEpoch(revisionDataInput.readInt())
                                         .time(revisionDataInput.readLong());
 
-            ArrayList<Long> ts = revisionDataInput.readCollection(DataInput::readLong, ArrayList::new);
-            Map<Long, Map.Entry<Double, Double>> kvMap = revisionDataInput.readMap(DataInput::readLong, this::readValue);
-
+            ImmutableSet.Builder<Long> segmentsToSealBuilder = ImmutableSet.builder();
+            revisionDataInput.readCollection(DataInput::readLong, segmentsToSealBuilder);
             epochTransitionRecordBuilder
-                    .segmentsToSeal(ImmutableSet.copyOf(ts))
-                    .newSegmentsWithRange(ImmutableMap.copyOf(kvMap))
-                    .copyCollection(false)
-                    .build();
+                    .segmentsToSeal(segmentsToSealBuilder.build());
+            
+            ImmutableMap<Long, Map.Entry<Double, Double>> kvMap = revisionDataInput.readMap(DataInput::readLong, this::readValue, 
+                    ImmutableMap.builder());
+
+            epochTransitionRecordBuilder.newSegmentsWithRange(kvMap).build();
         }
 
         private Map.Entry<Double, Double> readValue(RevisionDataInput revisionDataInput) throws IOException {

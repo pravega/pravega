@@ -14,17 +14,16 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -43,41 +42,20 @@ public class EpochRecord {
      * the root is the original epoch and the children are duplicates.
      */
     private final int referenceEpoch;
-    private final List<StreamSegmentRecord> segments;
+    private final ImmutableList<StreamSegmentRecord> segments;
     private final long creationTime;
-    private final Map<Long, StreamSegmentRecord> segmentMap = new HashMap<>();
+    @Getter(AccessLevel.PRIVATE)
+    private final Map<Long, StreamSegmentRecord> segmentMap;
     
     @Builder
-    /**
-     * This is a private constructor that is only directly used by the builder during the deserialization. 
-     * The deserialization passes @param copyCollections as false so that we do not make an immutable copy of the collection
-     * for the collection passed to the constructor via deserialization. 
-     *
-     * The all other constructors, the value of copyCollections flag is true and we make an immutable collection copy of 
-     * the supplied collection. 
-     * All getters of this class that return a collection always wrap them under Collections.unmodifiableCollection so that
-     * no one can change the data object from outside.  
-     */
-    private EpochRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segments, long creationTime, boolean copyCollections) {
+    public EpochRecord(int epoch, int referenceEpoch, @NonNull ImmutableList<StreamSegmentRecord> segments, long creationTime) {
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
-        this.segments = copyCollections ? ImmutableList.copyOf(segments) : segments;
+        this.segments = segments;
         this.creationTime = creationTime;
-        this.segmentMap.putAll(segments.stream().collect(Collectors.toMap(StreamSegmentRecord::segmentId, x -> x)));
-    }
-
-    public EpochRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segments, long creationTime) {
-        this(epoch, referenceEpoch, segments, creationTime, true);
+        this.segmentMap = segments.stream().collect(Collectors.toMap(StreamSegmentRecord::segmentId, x -> x));
     }
     
-    public List<StreamSegmentRecord> getSegments() {
-        return Collections.unmodifiableList(segments);
-    }
-
-    private Map<Long, StreamSegmentRecord> getSegmentMap() {
-        return Collections.unmodifiableMap(segmentMap);
-    }
-
     @SneakyThrows(IOException.class)
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
@@ -122,10 +100,11 @@ public class EpochRecord {
 
         private void read00(RevisionDataInput revisionDataInput, EpochRecord.EpochRecordBuilder builder) throws IOException {
             builder.epoch(revisionDataInput.readInt())
-                   .referenceEpoch(revisionDataInput.readInt())
-                   .segments(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
-                   .creationTime(revisionDataInput.readLong())
-                   .copyCollections(false);
+                   .referenceEpoch(revisionDataInput.readInt());
+            ImmutableList.Builder<StreamSegmentRecord> segmentsBuilder = ImmutableList.builder();
+            revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, segmentsBuilder);
+            builder.segments(segmentsBuilder.build())
+                   .creationTime(revisionDataInput.readLong());
         }
 
         private void write00(EpochRecord history, RevisionDataOutput revisionDataOutput) throws IOException {

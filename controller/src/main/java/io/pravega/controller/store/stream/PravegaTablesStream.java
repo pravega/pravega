@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
@@ -594,12 +595,12 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<List<UUID>> getTxnCommitList(int epoch) {
+    CompletableFuture<ImmutableList<UUID>> getTxnCommitList(int epoch) {
         return getTransactionsInEpochTable(epoch)
                 .thenCompose(tableName -> storeHelper.expectingDataNotFound(storeHelper.getEntriesWithFilter(
                         getScope(), tableName, UUID::fromString, ActiveTxnRecord::fromBytes,
                         (x, y) -> y.getTxnStatus().equals(TxnStatus.COMMITTING), 1000), Collections.emptyMap()))
-                .thenApply(map -> Lists.newArrayList(map.keySet()));
+                .thenApply(map -> ImmutableList.copyOf(map.keySet()));
     }
 
     @Override

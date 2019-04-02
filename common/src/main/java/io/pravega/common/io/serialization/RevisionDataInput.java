@@ -9,6 +9,9 @@
  */
 package io.pravega.common.io.serialization;
 
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableMap;
+
 import java.io.DataInput;
 import java.io.IOException;
 import java.io.InputStream;
@@ -102,6 +105,22 @@ public interface RevisionDataInput extends DataInput {
     <T, C extends Collection<T>> C readCollection(ElementDeserializer<T> elementDeserializer, Supplier<C> newCollection) throws IOException;
 
     /**
+     * Decodes a specific Collection that has been serialized using RevisionDataOutput.writeCollection().
+     * It populates the supplied builder with the deserialized collection elements. 
+     *
+     * This method has undefined behavior if the data starting at the current position was not encoded using
+     * RevisionDataOutput.writeCollection().
+     *
+     * @param elementDeserializer A Function that will decode a single element of the Collection from the given RevisionDataInput.
+     * @param newCollectionBuilder A Builder that will create a new instance of the ImmutableCollection of desired type.
+     * @param <T>                 Type of the elements in the Collection.
+     * @param <C>                 Type of the Collection desired to be instantiated.
+     * @throws IOException If an IO Exception occurred.
+     */
+    <T, C extends ImmutableCollection<T>> void readCollection(
+            ElementDeserializer<T> elementDeserializer, C.Builder<T> newCollectionBuilder) throws IOException;
+    
+    /**
      * Decodes a specific array that has been serialized using RevisionDataOutput.writeArray(T[], ElementSerializer).
      *
      * This method has undefined behavior if the data starting at the current position was not encoded using
@@ -158,6 +177,23 @@ public interface RevisionDataInput extends DataInput {
      * @throws IOException If an IOException occurred.
      */
     <K, V, M extends Map<K, V>> M readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, Supplier<M> newMap) throws IOException;
+
+    /**
+     * Decodes a specific Map that has been serialized using RevisionDataOutput.writeMap() and populates the supplied 
+     * ImmutableMap builder and builds the immutable map. 
+     *
+     * This method has undefined behavior if the data starting at the current position was not encoded using RevisionDataOutput.writeMap().
+     *
+     * @param keyDeserializer   A Function that will decode a single Key of the Map from the given RevisionDataInput.
+     * @param valueDeserializer A Function that will decode a single Value of the Map from the given RevisionDataInput.
+     * @param newMapBuilder     An ImmutableMapBuilder that will create a new instance of the ImmutableMap type desired.
+     * @param <K>               Type of the Keys in the Map.
+     * @param <V>               Type of the Values in the Map.
+     * @return A new Map. If the original Map passed to RevisionDataOutput.writeMap() was null, this will return an empty map.
+     * @throws IOException If an IOException occurred.
+     */
+    <K, V> ImmutableMap<K, V> readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, 
+                                          ImmutableMap.Builder<K, V> newMapBuilder) throws IOException;
 
     /**
      * Defines a Function signature that can deserialize an element from a RevisionDataInput.

@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.ImmutableList;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -692,11 +693,18 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<List<UUID>> getTxnCommitList(int epoch) {
+    CompletableFuture<ImmutableList<UUID>> getTxnCommitList(int epoch) {
         return getTxnInEpoch(epoch)
-                .thenApply(transactions -> transactions.entrySet().stream()
-                                                       .filter(entry -> entry.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
-                                                       .map(Map.Entry::getKey).collect(Collectors.toList()));
+                .thenApply(transactions -> {
+                    ImmutableList.Builder<UUID> builder = ImmutableList.builder();
+                    transactions.entrySet()
+                                .forEach(entry -> {
+                                    if (entry.getValue().getTxnStatus().equals(TxnStatus.COMMITTING)) {
+                                        builder.add(entry.getKey());
+                                    }
+                                });
+                    return builder.build();
+                });
     }
 
     @Override
@@ -715,7 +723,7 @@ public class InMemoryStream extends PersistentStreamBase {
                     Collectors.toMap(Map.Entry::getKey, x -> x.getValue())));
         }
     }
-    
+
     @Override
     CompletableFuture<Void> createRetentionSetDataIfAbsent(RetentionSet retention) {
         Preconditions.checkNotNull(retention);

@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
@@ -1042,19 +1043,19 @@ public abstract class StreamMetadataStoreTest {
         map1.put(0L, 0L);
         map1.put(1L, 0L);
         long recordingTime = System.currentTimeMillis();
-        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime, Long.MIN_VALUE, map1);
+        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime, Long.MIN_VALUE, ImmutableMap.copyOf(map1));
         store.addStreamCutToRetentionSet(scope, stream, streamCut1, null, executor).get();
 
         Map<Long, Long> map2 = new HashMap<>();
         map2.put(0L, 10L);
         map2.put(1L, 10L);
-        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime + 10, Long.MIN_VALUE, map2);
+        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime + 10, Long.MIN_VALUE, ImmutableMap.copyOf(map2));
         store.addStreamCutToRetentionSet(scope, stream, streamCut2, null, executor).get();
 
         Map<Long, Long> map3 = new HashMap<>();
         map3.put(0L, 20L);
         map3.put(1L, 20L);
-        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime + 20, Long.MIN_VALUE, map3);
+        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime + 20, Long.MIN_VALUE, ImmutableMap.copyOf(map3));
         store.addStreamCutToRetentionSet(scope, stream, streamCut3, null, executor).get();
 
         List<StreamCutRecord> list = store.getRetentionSet(scope, stream, null, executor)
@@ -1109,7 +1110,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(20L, (long) size);
 
         long recordingTime = System.currentTimeMillis();
-        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime, size, map1);
+        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime, size, ImmutableMap.copyOf(map1));
         store.addStreamCutToRetentionSet(scope, stream, streamCut1, null, executor).get();
 
         Map<Long, Long> map2 = new HashMap<>();
@@ -1118,7 +1119,7 @@ public abstract class StreamMetadataStoreTest {
         size = store.getSizeTillStreamCut(scope, stream, map2, Optional.empty(), null, executor).join();
         assertEquals(40L, (long) size);
 
-        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime + 10, size, map2);
+        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime + 10, size, ImmutableMap.copyOf(map2));
         store.addStreamCutToRetentionSet(scope, stream, streamCut2, null, executor).get();
 
         Map<Long, Long> map3 = new HashMap<>();
@@ -1127,7 +1128,7 @@ public abstract class StreamMetadataStoreTest {
 
         size = store.getSizeTillStreamCut(scope, stream, map3, Optional.empty(), null, executor).join();
         assertEquals(60L, (long) size);
-        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime + 20, 60L, map3);
+        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime + 20, 60L, ImmutableMap.copyOf(map3));
         store.addStreamCutToRetentionSet(scope, stream, streamCut3, null, executor).get();
 
         // endregion
@@ -1156,7 +1157,7 @@ public abstract class StreamMetadataStoreTest {
         map4.put(computeSegmentId(3, 1), 10L);
         size = store.getSizeTillStreamCut(scope, stream, map4, Optional.empty(), null, executor).join();
         assertEquals(new Long(90L), size);
-        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime + 30, size, map4);
+        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime + 30, size, ImmutableMap.copyOf(map4));
         store.addStreamCutToRetentionSet(scope, stream, streamCut4, null, executor).get();
 
         // simple stream cut on epoch 2
@@ -1166,7 +1167,7 @@ public abstract class StreamMetadataStoreTest {
 
         size = store.getSizeTillStreamCut(scope, stream, map5, Optional.empty(), null, executor).join();
         assertTrue(size == 100L);
-        StreamCutRecord streamCut5 = new StreamCutRecord(recordingTime + 30, size, map5);
+        StreamCutRecord streamCut5 = new StreamCutRecord(recordingTime + 30, size, ImmutableMap.copyOf(map5));
         store.addStreamCutToRetentionSet(scope, stream, streamCut5, null, executor).get();
         // endregion
     }

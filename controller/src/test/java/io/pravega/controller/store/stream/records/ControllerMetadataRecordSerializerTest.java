@@ -9,6 +9,9 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
@@ -36,7 +39,7 @@ public class ControllerMetadataRecordSerializerTest {
     public void commitTransactionsRecordTest() {
         List<UUID> list = Lists.newArrayList(UUID.randomUUID(), UUID.randomUUID());
         CommittingTransactionsRecord commitTransactionsRecord = 
-                new CommittingTransactionsRecord(0, list);
+                new CommittingTransactionsRecord(0, ImmutableList.copyOf(list));
         assertEquals(CommittingTransactionsRecord.fromBytes(commitTransactionsRecord.toBytes()), commitTransactionsRecord);
         CommittingTransactionsRecord updated = commitTransactionsRecord.createRollingTxnRecord(10);
         assertNotEquals(CommittingTransactionsRecord.fromBytes(updated.toBytes()), commitTransactionsRecord);
@@ -46,7 +49,7 @@ public class ControllerMetadataRecordSerializerTest {
     @Test
     public void epochRecordTest() {
         List<StreamSegmentRecord> list = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(1, 0, 10L, 0.0, 1.0));
-        EpochRecord record = new EpochRecord(10, 0, list, 10L);
+        EpochRecord record = new EpochRecord(10, 0, ImmutableList.copyOf(list), 10L);
         assertEquals(EpochRecord.fromBytes(record.toBytes()), record);
     }
     
@@ -54,25 +57,28 @@ public class ControllerMetadataRecordSerializerTest {
     public void historyTimeSeriesTest() {
         List<StreamSegmentRecord> sealedSegments = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(0, 0, 0L, 0.0, 1.0));
         List<StreamSegmentRecord> newSegments = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(0, 0, 0L, 0.0, 1.0));
-        HistoryTimeSeriesRecord node = new HistoryTimeSeriesRecord(0, 0, sealedSegments, newSegments, 0L);
+        HistoryTimeSeriesRecord node = new HistoryTimeSeriesRecord(0, 0, ImmutableList.copyOf(sealedSegments),
+                ImmutableList.copyOf(newSegments), 0L);
 
         assertEquals(HistoryTimeSeriesRecord.fromBytes(node.toBytes()), node);
 
-        HistoryTimeSeries timeSeries = new HistoryTimeSeries(Lists.newArrayList(node));
+        HistoryTimeSeries timeSeries = new HistoryTimeSeries(ImmutableList.of(node));
         assertEquals(HistoryTimeSeries.fromBytes(timeSeries.toBytes()), timeSeries);
 
         HistoryTimeSeries newTimeSeries = HistoryTimeSeries.addHistoryRecord(timeSeries, node);
         assertEquals(newTimeSeries, timeSeries);
 
         AssertExtensions.assertThrows(IllegalArgumentException.class, 
-                () -> new HistoryTimeSeriesRecord(1, 0, sealedSegments, newSegments, 1L));
+                () -> new HistoryTimeSeriesRecord(1, 0, ImmutableList.copyOf(sealedSegments), 
+                        ImmutableList.copyOf(newSegments), 1L));
         
         HistoryTimeSeriesRecord node2 = new HistoryTimeSeriesRecord(1, 0, 1L);
 
         newTimeSeries = HistoryTimeSeries.addHistoryRecord(timeSeries, node2);
         assertEquals(newTimeSeries.getLatestRecord(), node2);
 
-        HistoryTimeSeriesRecord node3 = new HistoryTimeSeriesRecord(4, 4, sealedSegments, newSegments, 1L);
+        HistoryTimeSeriesRecord node3 = new HistoryTimeSeriesRecord(4, 4,
+                ImmutableList.copyOf(sealedSegments), ImmutableList.copyOf(newSegments), 1L);
 
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> HistoryTimeSeries.addHistoryRecord(timeSeries, node3));
     }
@@ -82,7 +88,7 @@ public class ControllerMetadataRecordSerializerTest {
         StreamCutReferenceRecord record = StreamCutReferenceRecord.builder().recordingSize(0L).recordingTime(10L).build();
         assertEquals(StreamCutReferenceRecord.fromBytes(record.toBytes()), record);
 
-        RetentionSet set = new RetentionSet(Lists.newArrayList(record));
+        RetentionSet set = new RetentionSet(ImmutableList.of(record));
         assertEquals(RetentionSet.fromBytes(set.toBytes()), set);
     }
 
@@ -90,7 +96,7 @@ public class ControllerMetadataRecordSerializerTest {
     public void retentionStreamCutRecordTest() {
         Map<Long, Long> cut = new HashMap<>();
         cut.put(0L, 0L);
-        StreamCutRecord record = new StreamCutRecord(10L, 100L, cut);
+        StreamCutRecord record = new StreamCutRecord(10L, 100L, ImmutableMap.copyOf(cut));
         assertEquals(StreamCutRecord.fromBytes(record.toBytes()), record);
 
         assertTrue(record.getReferenceRecord().getRecordingTime() == 10L && record.getReferenceRecord().getRecordingSize() == 100L);
@@ -118,7 +124,8 @@ public class ControllerMetadataRecordSerializerTest {
         streamCut.put(0L, 0L);
         Set<Long> set = new HashSet<>();
         set.add(0L);
-        StreamTruncationRecord record = new StreamTruncationRecord(streamCut, span, set, set, 0L, true);
+        StreamTruncationRecord record = new StreamTruncationRecord(ImmutableMap.copyOf(streamCut),
+                ImmutableMap.copyOf(span), ImmutableSet.copyOf(set), ImmutableSet.copyOf(set), 0L, true);
         assertEquals(StreamTruncationRecord.fromBytes(record.toBytes()), record);
         assertTrue(record.isUpdating());
         StreamTruncationRecord completed = StreamTruncationRecord.complete(record);

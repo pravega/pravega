@@ -10,9 +10,12 @@
 package io.pravega.common.io.serialization;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.common.io.BoundedInputStream;
 import io.pravega.common.io.SerializationException;
 import io.pravega.common.util.BitConverter;
+
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -143,6 +146,14 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
         }
         return result;
     }
+    
+    @Override
+    public <T, C extends ImmutableCollection<T>> void readCollection(ElementDeserializer<T> elementDeserializer, C.Builder<T> newCollection) throws IOException {
+        int count = readCompactInt();
+        for (int i = 0; i < count; i++) {
+            newCollection.add(elementDeserializer.apply(this));
+        }
+    }
 
     @Override
     public <T> T[] readArray(ElementDeserializer<T> elementDeserializer, IntFunction<T[]> arrayCreator) throws IOException {
@@ -176,6 +187,16 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
         }
 
         return result;
+    }
+
+    @Override
+    public <K, V> ImmutableMap<K, V> readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, ImmutableMap.Builder<K, V> newMap) throws IOException {
+        int count = readCompactInt();
+        for (int i = 0; i < count; i++) {
+            newMap.put(keyDeserializer.apply(this), valueDeserializer.apply(this));
+        }
+
+        return newMap.build();
     }
 
     //endregion

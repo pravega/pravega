@@ -19,12 +19,10 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -46,7 +44,7 @@ public class CommittingTransactionsRecord {
     /**
      * Transactions to be be committed.
      */
-    private final List<UUID> transactionsToCommit;
+    private final ImmutableList<UUID> transactionsToCommit;
 
     /**
      * Set only for rolling transactions and identify the active epoch that is being rolled over.
@@ -54,37 +52,23 @@ public class CommittingTransactionsRecord {
     @Getter(AccessLevel.PRIVATE)
     private Optional<Integer> activeEpoch;
 
-    public CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
-        this(epoch, transactionsToCommit, Optional.empty(), true);
+    public CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit) {
+        this(epoch, transactionsToCommit, Optional.empty());
     }
 
-    public CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch) {
-        this(epoch, transactionsToCommit, Optional.of(activeEpoch), true);
+    public CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, int activeEpoch) {
+        this(epoch, transactionsToCommit, Optional.of(activeEpoch));
     }
-    
+
     @Builder
-    /**
-     * This is a private constructor that is only directly used by the builder during the deserialization. 
-     * The deserialization passes @param copyCollections as false so that we do not make an immutable copy of the collection
-     * for the collection passed to the constructor via deserialization. 
-     * 
-     * The all other constructors, the value of copyCollections flag is true and we make an immutable collection copy of 
-     * the supplied collection. 
-     * All getters of this class that return a collection always wrap them under Collections.unmodifiableCollection so that
-     * no one can change the data object from outside.  
-     */
-    private CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch, boolean copyCollections) {
+    private CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
         this.epoch = epoch;
-        this.transactionsToCommit = copyCollections ? ImmutableList.copyOf(transactionsToCommit) : transactionsToCommit;
+        this.transactionsToCommit = transactionsToCommit;
         this.activeEpoch = activeEpoch;
     }
 
     private static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
         private Optional<Integer> activeEpoch = Optional.empty();
-    }
-
-    public List<UUID> getTransactionsToCommit() {
-        return Collections.unmodifiableList(transactionsToCommit);
     }
 
     @SneakyThrows(IOException.class)
@@ -135,8 +119,11 @@ public class CommittingTransactionsRecord {
 
         private void read00(RevisionDataInput revisionDataInput, CommittingTransactionsRecordBuilder builder)
                 throws IOException {
-            builder.epoch(revisionDataInput.readInt())
-                   .transactionsToCommit(revisionDataInput.readCollection(RevisionDataInput::readUUID, ArrayList::new));
+            ImmutableList.Builder<UUID> listBuilder = ImmutableList.builder(); 
+            builder.epoch(revisionDataInput.readInt());
+
+            revisionDataInput.readCollection(RevisionDataInput::readUUID, listBuilder);
+            builder.transactionsToCommit(listBuilder.build());
 
             int read = revisionDataInput.readInt();
             if (read == Integer.MIN_VALUE) {
@@ -144,7 +131,6 @@ public class CommittingTransactionsRecord {
             } else {
                 builder.activeEpoch(Optional.of(read));
             }
-            builder.copyCollections(false);
         }
 
         private void write00(CommittingTransactionsRecord record, RevisionDataOutput revisionDataOutput) throws IOException {
