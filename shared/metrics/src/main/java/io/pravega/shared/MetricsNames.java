@@ -186,6 +186,9 @@ public final class MetricsNames {
     public static final String RETENTION_FREQUENCY = "controller.retention.frequency";   // Per-stream Counter
     public static final String TRUNCATED_SIZE = "controller.retention.truncated_size";   // Per-stream Gauge
 
+    // Zookeeper connectivity metrics
+    public static final String CONTROLLER_ZK_SESSION_EXPIRATION = "controller.zookeeper.session_expiration";  // Counter
+
     // Metric Type Suffix
     public static final String COUNTER_SUFFIX = ".Counter";
     public static final String GAUGE_SUFFIX = ".Gauge";
