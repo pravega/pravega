@@ -19,12 +19,12 @@ StatsLogger is the place at which we register and get required Metrics
 [Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)); 
 while OpStatsLogger is a sub-metric for complex ones (Timer/Distribution Summary).
 ## 1.1. Metrics Service Provider — Interface StatsProvider
-The starting point of Pravega Metric framework is the StatsProvider interface, it provides start and stop method for Metric service.
-It also provides startWithoutExporting() for unit testing purpose which only store metrics in memory without exporting them
-to outside destinations. 
-Currently we have support StatsD and InfluxDB registries.
+The starting point of Pravega Metric framework is the StatsProvider interface, it provides start and stop methods for Metric service.
+It also provides startWithoutExporting() for testing purpose, which only stores metrics in memory without exporting them
+to external systems. 
+Currently we have support for StatsD and InfluxDB registries.
 
-[public interface StatsProvider](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsProvider.java)
+[StatsProvider](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsProvider.java)
 - start(): Initializes [MeterRegistry](https://micrometer.io/docs/concepts#_registry) for our Metrics service.
 - startWithoutExporting(): Initializes SimpleMeterRegistry that holds the latest value of each meter in memory and does not export the data anywhere, typically for unit tests.
 - close(): Shutdown of Metrics service.
@@ -39,7 +39,7 @@ and some complex statistics type of Metric OpStatsLogger, through which we provi
 [Timer](https://micrometer.io/docs/concepts#_timers) and 
 [Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries).
 
-[public interface StatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsLogger.java)
+[StatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsLogger.java)
 - createStats(): Register and get a OpStatsLogger, which is used for complex type of metrics. Notice the optional metric tags.
 - createCounter(): Register and get a Counter metric.
 - createMeter(): Create and register a Meter metric.
@@ -48,9 +48,9 @@ and some complex statistics type of Metric OpStatsLogger, through which we provi
 
 ### 1.3. Metric Sub Logger — OpStatsLogger
 OpStatsLogger provides complex statistics type of Metric, usually it is used in operations such as CreateSegment, 
-ReadSegment, we could use it to record the number of operation, time/duration of each operation.
+ReadSegment, we could use it to record number of operations, time/duration of each operation.
 
-[public interface OpStatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/OpStatsLogger.java)
+[OpStatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/OpStatsLogger.java)
 - reportSuccessEvent() : Used to track Timer of a successful operation and will record the latency in Nanoseconds in required metric. 
 - reportFailEvent() : Used to track Timer of a failed operation and will record the latency in Nanoseconds in required metric.  
 - reportSuccessValue() : Used to track Histogram of a success value.
@@ -61,7 +61,7 @@ ReadSegment, we could use it to record the number of operation, time/duration of
 ### 1.4 Metric Logger — interface DynamicLogger
 A simple interface that only exposes simple type metrics: Counter/Gauge/Meter.
 
-[public interface DynamicLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/DynamicLogger.java)
+[DynamicLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/DynamicLogger.java)
 - incCounterValue() : Increase Counter with given value. Notice the optional metric tags.
 - updateCounterValue() : Updates the counter with given value.
 - freezeCounter() : Notifies that the counter will not be updated.
@@ -301,9 +301,9 @@ segmentstore.segment.write_latency_ms
 - Segment Store global and per-segment read/write metrics (counters):
 ```
 // Global counters
-segmentstore.segment.read_bytes_global.Counter
-segmentstore.segment.write_bytes_global.Counter
-segmentstore.segment.write_events_global.Counter
+segmentstore.segment.read_bytes_global
+segmentstore.segment.write_bytes_global
+segmentstore.segment.write_events_global
 
 // Per segment counters - all with tags {"scope", $scope, "stream", $stream, "segment", $segment, "epoch", $epoch}
 segmentstore.segment.write_bytes
@@ -319,13 +319,13 @@ segmentstore.cache.get_latency
 
 - Segment Store cache read/write metrics (counters):
 ```
-segmentstore.cache.write_bytes.Counter
-segmentstore.cache.read_bytes.Counter
+segmentstore.cache.write_bytes
+segmentstore.cache.read_bytes
 ```
 
 - Segment Store cache size (gauge) and generation spread (histogram) metrics:
 ```
-segmentstore.cache.size_bytes.Gauge
+segmentstore.cache.size_bytes
 segmentstore.cache.gen
 ```
 
@@ -339,7 +339,7 @@ segmentstore.bookkeeper.write_queue_fill
 
 - Tier-1 DurableDataLog read/write (counter) and per-container ledger count metrics (gauge):	
 ```
-segmentstore.bookkeeper.write_bytes.Counter
+segmentstore.bookkeeper.write_bytes
 segmentstore.bookkeeper.bookkeeper_ledger_count - with tag {"container", $containerId}
 ```
 
@@ -351,9 +351,9 @@ segmentstore.storage.write_latency_ms
 
 - Tier-2 Storage read/write data and file creation metrics (counters):
 ```
-segmentstore.storage.read_bytes.Counter
-segmentstore.storage.write_bytes.Counter
-segmentstore.storage.create_count.Counter
+segmentstore.storage.read_bytes
+segmentstore.storage.write_bytes
+segmentstore.storage.create_count
 ```
 
 - Segment Store container-specific operation metrics:
@@ -414,22 +414,22 @@ controller.stream.truncated_latency_ms
 
 - Controller global and per-Stream operation metrics (counters):
 ```
-controller.stream.created.Counter
-controller.stream.create_failed_global.Counter
+controller.stream.created
+controller.stream.create_failed_global
 controller.stream.create_failed - with tags {"scope", $scope, "stream", $stream}
-controller.stream.sealed.Counter
-controller.stream.seal_failed_global.Counter
+controller.stream.sealed
+controller.stream.seal_failed_global
 controller.stream.seal_failed - with tags {"scope", $scope, "stream", $stream}
-controller.stream.deleted.Counter
-controller.stream.delete_failed_global.Counter
+controller.stream.deleted
+controller.stream.delete_failed_global
 controller.stream.delete_failed - with tags {"scope", $scope, "stream", $stream}
-controller.stream.updated_global.Counter
+controller.stream.updated_global
 controller.stream.updated - with tags {"scope", $scope, "stream", $stream}
-controller.stream.update_failed_global.Counter
+controller.stream.update_failed_global
 controller.stream.update_failed - with tags {"scope", $scope, "stream", $stream}
-controller.stream.truncated_global.Counter
+controller.stream.truncated_global
 controller.stream.truncated - with tags {"scope", $scope, "stream", $stream}
-controller.stream.truncate_failed_global.Counter
+controller.stream.truncate_failed_global
 controller.stream.truncate_failed - with tags {"scope", $scope, "stream", $stream}
 ```
 
@@ -457,39 +457,39 @@ controller.transactions.aborted_latency_ms
 
 - Controller Transaction operation counter metrics:
 ```
-controller.transactions.created_global.Counter
+controller.transactions.created_global
 controller.transactions.created - with tags {"scope", $scope, "stream", $stream}
-controller.transactions.create_failed_global.Counter
+controller.transactions.create_failed_global
 controller.transactions.create_failed - with tags {"scope", $scope, "stream", $stream}
-controller.transactions.committed_global.Counter
+controller.transactions.committed_global
 controller.transactions.committed - with tags {"scope", $scope, "stream", $stream}
-controller.transactions.commit_failed_global.Counter
+controller.transactions.commit_failed_global
 controller.transactions.commit_failed - with tags {"scope", $scope, "stream", $stream}
 controller.transactions.commit_failed - with tags {"scope", $scope, "stream", $stream, "transaction", $txnId}
-controller.transactions.aborted_global.Counter
+controller.transactions.aborted_global
 controller.transactions.aborted - with tags {"scope", $scope, "stream", $stream}
-controller.transactions.abort_failed_global.Counter
+controller.transactions.abort_failed_global
 controller.transactions.abort_failed - with tags {"scope", $scope, "stream", $stream}
 controller.transactions.abort_failed - with tags {"scope", $scope, "stream", $stream, "transaction", $txnId}
 ```
 
 - Controller hosts available (gauge) and host failure (counter) metrics:
 ```
-controller.hosts.count.Gauge
-controller.hosts.failures_global.Counter
-controller.hosts.failures.$host.Counter  - with tags {"host", $host}
+controller.hosts.count
+controller.hosts.failures_global
+controller.hosts.failures.$host  - with tags {"host", $host}
 ```
 
 - Controller Container count per host (gauge) and failover (counter) metrics:
 ```
-controller.hosts.container_count.Gauge
-controller.container.failovers_global.Counter
-controller.container.failovers.$containerId.Counter - with tags {"container", $containerId}
+controller.hosts.container_count
+controller.container.failovers_global
+controller.container.failovers.$containerId - with tags {"container", $containerId}
 ```
 
 - Controller Zookeeper session expiration (counter) metrics:
 ```
-controller.zookeeper.session_expiration.Counter
+controller.zookeeper.session_expiration
 ```
 
 # 6. Useful links

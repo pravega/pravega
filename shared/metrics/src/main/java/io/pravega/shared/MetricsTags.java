@@ -11,6 +11,9 @@ package io.pravega.shared;
 
 import com.google.common.base.Preconditions;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 public final class MetricsTags {
 
     // Metric Tag Names
@@ -116,5 +119,19 @@ public final class MetricsTags {
         }
         //transaction segment: only return the portion before transaction delimiter.
         return segmentQualifiedName.substring(0, endOfStreamNamePos);
+    }
+
+    /**
+     * Create host tag based on the local host.
+     * @return host tag.
+     */
+    public static String[] createHostTag() {
+        String[] hostTag = {MetricsTags.TAG_HOST, null};
+        try {
+            hostTag[1] = InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException e) {
+            hostTag[1] = "unknown";
+        }
+        return hostTag;
     }
 }
