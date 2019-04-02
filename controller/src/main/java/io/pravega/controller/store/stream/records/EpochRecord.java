@@ -18,6 +18,7 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
@@ -47,7 +48,7 @@ public class EpochRecord {
     private final Map<Long, StreamSegmentRecord> segmentMap;
     
     @Builder
-    public EpochRecord(int epoch, int referenceEpoch, ImmutableList<StreamSegmentRecord> segments, long creationTime) {
+    public EpochRecord(int epoch, int referenceEpoch, @NonNull ImmutableList<StreamSegmentRecord> segments, long creationTime) {
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
         this.segments = segments;
@@ -100,9 +101,9 @@ public class EpochRecord {
         private void read00(RevisionDataInput revisionDataInput, EpochRecord.EpochRecordBuilder builder) throws IOException {
             builder.epoch(revisionDataInput.readInt())
                    .referenceEpoch(revisionDataInput.readInt());
-            ImmutableList.Builder<StreamSegmentRecord> b = ImmutableList.builder();
-            revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ImmutableList.builder());
-            builder.segments(b.build())
+            ImmutableList.Builder<StreamSegmentRecord> segmentsBuilder = ImmutableList.builder();
+            revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, segmentsBuilder);
+            builder.segments(segmentsBuilder.build())
                    .creationTime(revisionDataInput.readLong());
         }
 
