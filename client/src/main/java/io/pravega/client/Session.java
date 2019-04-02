@@ -30,7 +30,7 @@ public class Session {
     private static final AtomicInteger ID_GENERATOR = new AtomicInteger(0);
     @Getter
     private final int sessionId;
-    @GuardedBy("$LOCK")
+    @GuardedBy("$lock")
     private int requestSequenceNumber = 0;
 
     @VisibleForTesting

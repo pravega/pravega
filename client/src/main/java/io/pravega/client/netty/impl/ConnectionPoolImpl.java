@@ -10,11 +10,11 @@
 
 package io.pravega.client.netty.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -55,6 +55,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collector;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
@@ -70,9 +71,10 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private final ClientConfig clientConfig;
     private final EventLoopGroup group;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
-    @GuardedBy("$LOCK")
+    @GuardedBy("$lock")
     private final List<Connection> connectionList = new ArrayList<>();
     private final Collector<Connection, ConnectionSummaryStats, ConnectionSummaryStats> collectorStats =
             Collector.of(ConnectionSummaryStats::new, ConnectionSummaryStats::accept, ConnectionSummaryStats::combine,
@@ -112,6 +114,32 @@ public class ConnectionPoolImpl implements ConnectionPool {
         return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createSession(session, rp));
     }
 
+    @Override
+    public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri location, ReplyProcessor rp) {
+        Preconditions.checkNotNull(location, "Location");
+        Preconditions.checkNotNull(rp, "ReplyProcessor");
+        Exceptions.checkNotClosed(closed.get(), this);
+
+        // create a new connection.
+        CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
+        Connection connection = new Connection(location, sessionHandlerFuture, 1);
+        return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createConnectionWithSessionDisabled(rp));
+    }
+
+    @Override
+    public int getActiveChannelCount() {
+        return (int) this.channelGroup.stream()
+                                      .filter(Channel::isActive)
+                                      .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.", ch.id(),
+                                                            ch.localAddress(), ch.remoteAddress()))
+                                      .count();
+    }
+
+    @VisibleForTesting
+    public List<Channel> getActiveChannels() {
+        return this.channelGroup.stream().filter(Channel::isActive).collect(Collectors.toList());
+    }
+
     /**
      * Establish a new connection to the Pravega Node.
      * @param location The Pravega Node Uri
@@ -126,19 +154,16 @@ public class ConnectionPoolImpl implements ConnectionPool {
         // Initiate Connection.
         final CompletableFuture<SessionHandler> connectionComplete = new CompletableFuture<>();
         try {
-            b.connect(location.getEndpoint(), location.getPort()).addListener(new ChannelFutureListener() {
-                @Override
-                public void operationComplete(ChannelFuture future) {
-                    if (future.isSuccess()) {
-                        //since ChannelFuture is complete future.channel() is not a blocking call.
-                        Channel ch = future.channel();
-                        log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
-                                  ch.id(), ch.localAddress(), ch.remoteAddress());
-                        channelGroup.add(ch); // Once a channel is closed the channel group implementation removes it.
-                        connectionComplete.complete(handler);
-                    } else {
-                        connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
-                    }
+            b.connect(location.getEndpoint(), location.getPort()).addListener((ChannelFutureListener) future -> {
+                if (future.isSuccess()) {
+                    //since ChannelFuture is complete future.channel() is not a blocking call.
+                    Channel ch = future.channel();
+                    log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
+                              ch.id(), ch.localAddress(), ch.remoteAddress());
+                    channelGroup.add(ch); // Once a channel is closed the channel group implementation removes it.
+                    connectionComplete.complete(handler);
+                } else {
+                    connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
                 }
             });
         } catch (Exception e) {

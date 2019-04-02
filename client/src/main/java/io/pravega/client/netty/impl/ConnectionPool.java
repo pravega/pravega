@@ -30,6 +30,23 @@ public interface ConnectionPool extends AutoCloseable {
      */
     CompletableFuture<ClientConnection> getClientConnection(Session session, PravegaNodeUri uri, ReplyProcessor rp);
 
+    /**
+     * This is used to create a {@link ClientConnection} where sessions are disabled. This implies that only one ClientConnection
+     * can exist on the underlying connection.
+     *
+     * @param uri The Pravega Node Uri.
+     * @param rp ReplyProcessor instance.
+     * @return An instance of client connection.
+     */
+    CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp);
+
+    /**
+     * Fetch the current active {@link io.netty.channel.Channel} count, which represents the number of active connections being
+     * managed by the connection pool.
+     * @return the number of active Channel.
+     */
+    int getActiveChannelCount();
+
     @Override
     void close();
 }

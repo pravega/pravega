@@ -33,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SessionHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
 
+    public static final int SESSION_DISABLED = -1;
     private final String connectionName;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
@@ -41,6 +42,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     private final AppendBatchSizeTracker batchSizeTracker;
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
     private final ConcurrentHashMap<Integer, ReplyProcessor> sessionIdReplyProcessorMap = new ConcurrentHashMap<>();
+    private final AtomicBoolean disableSession = new AtomicBoolean(false);
 
     public SessionHandler(String connectionName, AppendBatchSizeTracker batchSizeTracker) {
         this.connectionName = connectionName;
@@ -55,6 +57,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
      */
     public ClientConnection createSession(final Session session, final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkState(!disableSession.get(), "Ensure sessions are enabled");
         log.info("Creating Session: {} for Endpoint: {}. The current Channel is {}.", session.getSessionId(), connectionName,
                  channel.get());
         if (sessionIdReplyProcessorMap.put(session.getSessionId(), rp) != null) {
@@ -64,12 +67,28 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     }
 
     /**
+     * Create a {@link ClientConnection} where sessions are disabled. This implies that there is only one session on the underlying
+     * network connection.
+     * @param rp  The ReplyProcessor.
+     * @return Client Connection object.
+     */
+    public ClientConnection createConnectionWithSessionDisabled(final ReplyProcessor rp) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkState(!disableSession.getAndSet(true), "Sessions are disabled, incorrect usage patter");
+        log.info("Creating a new connection with session disabled for Endpoint: {}. The current Channel is {}.", connectionName,
+                 channel.get());
+        sessionIdReplyProcessorMap.put(SESSION_DISABLED, rp);
+        return new ClientConnectionImpl(connectionName, SESSION_DISABLED, batchSizeTracker, this);
+    }
+
+    /**
      * Close a session. This is invoked when the ClientConnection is closed.
      * @param clientConnection Client Connection.
      */
     public void closeSession(ClientConnection clientConnection) {
         int session = ((ClientConnectionImpl) clientConnection).getSession();
         log.info("Closing Session: {} for Endpoint: {}", session, ((ClientConnectionImpl) clientConnection).getConnectionName());
+
         sessionIdReplyProcessorMap.remove(session);
     }
 
@@ -197,10 +216,10 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     }
 
     private ReplyProcessor getReplyProcessor(Reply cmd) {
-        final Session session = Session.from(cmd.getRequestId());
-        final ReplyProcessor processor = sessionIdReplyProcessorMap.get(session.getSessionId());
+        int sessionId = disableSession.get() ? SESSION_DISABLED : Session.from(cmd.getRequestId()).getSessionId();
+        final ReplyProcessor processor = sessionIdReplyProcessorMap.get(sessionId);
         if (processor == null) {
-            log.error("No ReplyProcessor found for the provided sessionId {}", session.getSessionId());
+            log.error("No ReplyProcessor found for the provided sessionId {}", sessionId);
             throw new IllegalArgumentException("Invalid message received");
         }
         return processor;

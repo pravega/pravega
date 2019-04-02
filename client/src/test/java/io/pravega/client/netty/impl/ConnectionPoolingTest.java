@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.client.netty.impl;
 
@@ -59,7 +59,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class SessionBasedConnectionFactoryTest {
+public class ConnectionPoolingTest {
 
     boolean ssl = false;
     private Channel serverChannel;
@@ -157,11 +157,11 @@ public class SessionBasedConnectionFactoryTest {
     @Test
     public void testConnectionPooling() throws ConnectionFailedException, InterruptedException {
         @Cleanup
-        SessionBasedConnectionFactory factory = new SessionBasedConnectionFactory(ClientConfig.builder()
-                                                                                              .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
-                                                                                              .trustStore("../config/cert.pem")
-                                                                                              .maxConnectionsPerSegmentStore(1)
-                                                                                              .build());
+        ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                              .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
+                                                                              .trustStore("../config/cert.pem")
+                                                                              .maxConnectionsPerSegmentStore(1)
+                                                                              .build());
 
         ArrayBlockingQueue<WireCommands.SegmentRead> msgRead = new ArrayBlockingQueue<>(10);
         FailingReplyProcessor rp = new FailingReplyProcessor() {
@@ -232,11 +232,11 @@ public class SessionBasedConnectionFactoryTest {
     @Test
     public void testConcurrentRequests() throws ConnectionFailedException, InterruptedException {
         @Cleanup
-        SessionBasedConnectionFactory factory = new SessionBasedConnectionFactory(ClientConfig.builder()
-                                                                                              .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
-                                                                                              .trustStore("../config/cert.pem")
-                                                                                              .maxConnectionsPerSegmentStore(1)
-                                                                                              .build());
+        ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                              .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
+                                                                              .trustStore("../config/cert.pem")
+                                                                              .maxConnectionsPerSegmentStore(1)
+                                                                              .build());
 
         ArrayBlockingQueue<WireCommands.SegmentRead> msgRead = new ArrayBlockingQueue<>(10);
         FailingReplyProcessor rp = new FailingReplyProcessor() {

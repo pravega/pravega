@@ -9,6 +9,7 @@
  */
 package io.pravega.client.netty.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
@@ -31,6 +32,8 @@ public class ClientConnectionImpl implements ClientConnection {
     private final String connectionName;
     @Getter
     private final int session;
+    @VisibleForTesting
+    @Getter
     private final SessionHandler nettyHandler;
     private final AppendBatchSizeTracker batchSizeTracker;
     private final AtomicBoolean closed = new AtomicBoolean(false);
