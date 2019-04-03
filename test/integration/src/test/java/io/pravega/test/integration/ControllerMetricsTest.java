@@ -39,7 +39,6 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
-import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
@@ -57,6 +56,7 @@ import static io.pravega.shared.MetricsNames.DELETE_STREAM;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM;
 import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
@@ -140,7 +140,7 @@ public class ControllerMetricsTest {
     @Test(timeout = 300000)
     public void streamMetricsTest() {
         //make unique scope to improve the test isolation.
-        final String scope = "controllerMetricsTestScope" + new Random().nextInt(10000);
+        final String scope = "controllerMetricsTestScope" + RandomFactory.getSeed();
         final String streamName = "controllerMetricsTestStream";
         final String readerGroupName = "RGControllerMetricsTestStream";
         final int parallelism = 4;
@@ -149,14 +149,12 @@ public class ControllerMetricsTest {
 
         // At this point, we have at least 6 internal streams.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                                                                     .scalingPolicy(ScalingPolicy.fixed(parallelism))
-                                                                     .build();
+                .scalingPolicy(ScalingPolicy.fixed(parallelism)).build();
         StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(scope);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder()
-                                                                                                       .controllerURI(controllerURI)
-                                                                                                       .build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory
+                .withScope(scope, ClientConfig.builder().build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
 
@@ -167,10 +165,10 @@ public class ControllerMetricsTest {
             // Check that the number of streams in metrics has been incremented.
             streamManager.createStream(scope, iterationStreamName, streamConfiguration);
             Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
-            AssertExtensions.assertGreaterThanOrEqual("The counter of created streams", i, (long) createdStreamsCounter.count());
-            groupManager.createReaderGroup(iterationReaderGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                                                .stream(scope + "/" + iterationStreamName)
-                                                                                                .build());
+            AssertExtensions.assertGreaterThanOrEqual("The counter of created streams",
+                    i, (long) createdStreamsCounter.count());
+            groupManager.createReaderGroup(iterationReaderGroupName, ReaderGroupConfig.builder()
+                    .disableAutomaticCheckpoints().stream(scope + "/" + iterationStreamName).build());
 
             for (long j = 1; j < iterations + 1; j++) {
                 @Cleanup
@@ -181,7 +179,7 @@ public class ControllerMetricsTest {
                 Counter streamUpdatesCounter = MetricRegistryUtils.getCounter(
                         getCounterMetricName(UPDATE_STREAM), streamTags(scope, iterationStreamName));
                 Assert.assertTrue(iterations * i + j <= updatedStreamsCounter.count());
-                Assert.assertTrue(j <= streamUpdatesCounter.count());
+                Assert.assertTrue(j == streamUpdatesCounter.count());
 
                 // Read and write some events.
                 writeEvents(clientFactory, iterationStreamName, eventsWritten);
@@ -192,11 +190,11 @@ public class ControllerMetricsTest {
 
                 // Truncate the Stream and check that the number of truncated Streams and per-Stream truncations is incremented.
                 streamManager.truncateStream(scope, iterationStreamName, streamCut);
-                Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
+                Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(TRUNCATE_STREAM)));
                 Counter perStreamTruncationCounter = MetricRegistryUtils.getCounter(
-                        getCounterMetricName(UPDATE_STREAM), streamTags(scope, iterationStreamName));
+                        getCounterMetricName(TRUNCATE_STREAM), streamTags(scope, iterationStreamName));
                 Assert.assertTrue(iterations * i + j <= streamTruncationCounter.count());
-                Assert.assertTrue(j <= perStreamTruncationCounter.count());
+                Assert.assertTrue(j == perStreamTruncationCounter.count());
             }
 
             // Check metrics accounting for sealed and deleted streams.
@@ -233,7 +231,7 @@ public class ControllerMetricsTest {
         for (String metricName: metricNames) {
             Timer latencyValues = MetricRegistryUtils.getTimer(getTimerMetricName(metricName));
             Assert.assertNotNull(latencyValues);
-            Assert.assertTrue(minExpectedValues <= latencyValues.takeSnapshot().count());
+            Assert.assertTrue(minExpectedValues <= latencyValues.count());
         }
     }
 
