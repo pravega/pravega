@@ -17,6 +17,7 @@ import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayDeque;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -88,14 +89,14 @@ public class ResourcePool<T> {
      *
      * @return A completableFuture which when completed will have the resource object that the caller requested.
      */
-    public CompletableFuture<T> getResource() {
-        CompletableFuture<T> future;
+    public CompletableFuture<ClosableResource<T>> getResource() {
+        CompletableFuture<ClosableResource<T>> future;
         boolean tryCreateNewResource = false;
         synchronized (lock) {
             T t = idleResources.poll();
             if (t != null) {
                 // return the object from the queue
-                future = CompletableFuture.completedFuture(t);
+                future = CompletableFuture.completedFuture(new ClosableResource<>(t, this));
             } else {
                 future = new CompletableFuture<>();
                 WaitingRequest<T> request = new WaitingRequest<>(future);
@@ -117,7 +118,7 @@ public class ResourcePool<T> {
      * 
      * @param t resource to return to the pool.
      */
-    public void returnResource(T t) {
+    private void returnResource(T t) {
         returnResource(t, true);
     }
 
@@ -130,7 +131,7 @@ public class ResourcePool<T> {
      * @param t resource to be returned
      * @param isValid is resource valid
      */
-    public void returnResource(T t, boolean isValid) {
+    private void returnResource(T t, boolean isValid) {
         if (!isValid) {
             handleInvalid(t);
         } else {
@@ -157,7 +158,7 @@ public class ResourcePool<T> {
             }
 
             if (waiting != null) {
-                waiting.future.complete(t);
+                waiting.future.complete(new ClosableResource<>(t, this));
             }
 
             if (toDestroy) {
@@ -191,7 +192,7 @@ public class ResourcePool<T> {
                         if (listener != null) {
                             listener.notify(Event.Created);
                         }
-                        waiting.future.complete(t);
+                        waiting.future.complete(new ClosableResource<>(t, this));
                     }
                 });
             } catch (Exception e) {
@@ -281,6 +282,34 @@ public class ResourcePool<T> {
 
     @Data
     private static class WaitingRequest<T> {
-        private final CompletableFuture<T> future;
+        private final CompletableFuture<ClosableResource<T>> future;
+    }
+    
+    public static class ClosableResource<T> implements AutoCloseable {
+        private final ResourcePool<T> resourcePool;
+        private final T resource;
+        private final AtomicBoolean invalid;
+        private ClosableResource(T resource, ResourcePool<T> resourcePool) {
+            this.resourcePool = resourcePool;
+            this.resource = resource;
+            this.invalid = new AtomicBoolean(false);
+        }
+
+        public T getResource() {
+            return resource;
+        }
+        
+        public void invalidate() {
+            invalid.set(true);
+        }
+        
+        @Override
+        public void close() {
+            if (invalid.get()) {
+                resourcePool.returnResource(resource, false);
+            } else {
+                resourcePool.returnResource(resource);
+            }
+        }
     }
 }
