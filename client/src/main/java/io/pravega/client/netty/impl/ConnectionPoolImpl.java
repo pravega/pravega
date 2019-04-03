@@ -39,6 +39,7 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.Session;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
@@ -50,7 +51,9 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,7 +78,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     @Getter(AccessLevel.PACKAGE)
     private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
     @GuardedBy("$lock")
-    private final List<Connection> connectionList = new ArrayList<>();
+    private final Map<PravegaNodeUri, List<Connection>> connectionMap = new HashMap<>();
     private final Collector<Connection, ConnectionSummaryStats, ConnectionSummaryStats> collectorStats =
             Collector.of(ConnectionSummaryStats::new, ConnectionSummaryStats::accept, ConnectionSummaryStats::combine,
                          Collector.Characteristics.IDENTITY_FINISH);
@@ -94,23 +97,35 @@ public class ConnectionPoolImpl implements ConnectionPool {
         Preconditions.checkNotNull(rp, "ReplyProcessor");
         Exceptions.checkNotClosed(closed.get(), this);
 
+        final List<Connection> connectionList = connectionMap.getOrDefault(location, new ArrayList<>());
+
+        // remove connections for which the underlying network connection is disconnected.
+        List<Connection> prunedConnectionList = connectionList.stream().filter(connection -> {
+            // Filter out Connection objects which have been completed exceptionally or have been disconnected.
+            CompletableFuture<SessionHandler> r = connection.getSessionHandler();
+            return !r.isDone() || Futures.isSuccessful(r) && r.join().isConnectionEstablished();
+        }).collect(Collectors.toList());
+        log.debug("List of connections to {} that can be used: {}", location, prunedConnectionList);
+
         // Fetch the Connection related stats.
-        ConnectionSummaryStats stats = connectionList.parallelStream().collect(collectorStats);
+        ConnectionSummaryStats stats = prunedConnectionList.parallelStream().collect(collectorStats);
         // Choose the connection with the least number of sessions.
         Optional<Connection> suggestedConnection = stats.getConnectionWithMinimumSession(location);
 
         final Connection connection;
         if (suggestedConnection.isPresent() && stats.getConnectionCount(location) == clientConfig.getMaxConnectionsPerSegmentStore()) {
-            // reuse the connection.
+            log.debug("Reusing connection: {}", suggestedConnection.get());
             Connection oldConnection = suggestedConnection.get();
-            connectionList.remove(oldConnection);
+            prunedConnectionList.remove(oldConnection);
             connection = new Connection(oldConnection.getUri(), oldConnection.getSessionHandler(), oldConnection.getSessionCount() + 1);
         } else {
             // create a new connection.
+            log.debug("Creating a new connection to {}", location);
             CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
             connection = new Connection(location, sessionHandlerFuture, 1);
         }
-        connectionList.add(connection);
+        prunedConnectionList.add(connection);
+        connectionMap.put(location, prunedConnectionList);
         return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createSession(session, rp));
     }
 

@@ -53,13 +53,11 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.mockito.Mockito.mock;
 
 @Slf4j
-@Ignore
 public class MultiReadersEndToEndTest {
 
     // Setup utility.

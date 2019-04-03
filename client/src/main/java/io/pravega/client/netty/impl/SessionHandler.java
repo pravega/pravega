@@ -88,15 +88,15 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     public void closeSession(ClientConnection clientConnection) {
         int session = ((ClientConnectionImpl) clientConnection).getSession();
         log.info("Closing Session: {} for Endpoint: {}", session, ((ClientConnectionImpl) clientConnection).getConnectionName());
-
         sessionIdReplyProcessorMap.remove(session);
     }
 
     /**
-     * Set the Recent Message flag. This is used to avoid sending redundant KeepAlives over the connection.
+     * Check the current status of Connection.
+     * @return True if the connection is established.
      */
-    void setRecentMessage() {
-        recentMessage.set(true);
+    public boolean isConnectionEstablished() {
+        return channel.get() != null;
     }
 
     /**
@@ -110,6 +110,13 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
             throw new ConnectionFailedException("Connection to " + connectionName + " is not established.");
         }
         return ch;
+    }
+
+    /**
+     * Set the Recent Message flag. This is used to avoid sending redundant KeepAlives over the connection.
+     */
+    void setRecentMessage() {
+        recentMessage.set(true);
     }
 
     /**
@@ -220,6 +227,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         final ReplyProcessor processor = sessionIdReplyProcessorMap.get(sessionId);
         if (processor == null) {
             log.warn("No ReplyProcessor found for the provided sessionId {}. Ignoring response", sessionId);
+            throw new IllegalArgumentException("Invalid message received");
         }
         return processor;
     }
