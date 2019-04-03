@@ -195,7 +195,7 @@ public class ResourcePool<T> {
                         waiting.future.complete(new ClosableResource<>(t, this));
                     }
                 });
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 // synchronous failure from supplier. we will fail the waiting request with it
                 waiting.future.completeExceptionally(e);
             }
