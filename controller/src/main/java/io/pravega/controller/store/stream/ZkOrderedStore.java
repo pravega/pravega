@@ -121,8 +121,7 @@ class ZkOrderedStore {
                     if (e != null) {
                         log.error("error encountered while trying to add entity {} for stream {}/{}", entity, scope, stream, e);
                     } else {
-                        // TODO: shivesh debug level
-                        log.info("entity {} added for stream {}/{} at position {}", entity, scope, stream, r);
+                        log.debug("entity {} added for stream {}/{} at position {}", entity, scope, stream, r);
                     }
                 });
     }
@@ -152,8 +151,7 @@ class ZkOrderedStore {
                           if (e != null) {
                               log.error("error encountered while trying to remove entity positions {} for stream {}/{}", entities, scope, stream, e);
                           } else {
-                              // TODO: shivesh debug level
-                              log.info("entities at positions {} removed for stream {}/{}", entities, scope, stream);
+                              log.debug("entities at positions {} removed for stream {}/{}", entities, scope, stream);
                           }
                       });
     }
@@ -179,10 +177,11 @@ class ZkOrderedStore {
                                                     .thenCompose(entities -> Futures.allOf(
                                                                     entities.stream().map(x -> {
                                                                         int pos = getPositionFromPath(x);
-                                                                        return storeHelper.getData(getEntityPath(scope, stream, collectionNumber, pos))
+                                                                        return storeHelper.getData(getEntityPath(scope, stream, collectionNumber, pos),
+                                                                                m -> new String(m, Charsets.UTF_8))
                                                                                           .thenAccept(r -> {
                                                                                               result.put(Position.toLong(collectionNumber, pos),
-                                                                                                      new String(r.getData(), Charsets.UTF_8));
+                                                                                                      r.getObject());
                                                                                           });
                                                                     }).collect(Collectors.toList()))
                                                     ).thenApply(v -> true);
@@ -192,8 +191,7 @@ class ZkOrderedStore {
                           if (e != null) {
                               log.error("error encountered while trying to retrieve entities for stream {}/{}", scope, stream, e);
                           } else {
-                              // TODO: shivesh debug level
-                              log.info("entities at positions {} retrieved for stream {}/{}", r, scope, stream);
+                              log.debug("entities at positions {} retrieved for stream {}/{}", r, scope, stream);
                           }
                       });
 
@@ -284,19 +282,19 @@ class ZkOrderedStore {
     
     @VisibleForTesting
     CompletableFuture<Boolean> isSealed(String scope, String stream, int collectionNum) {
-        return Futures.exceptionallyExpecting(storeHelper.getData(getCollectionSealedPath(scope, stream, collectionNum)).thenApply(v -> true), 
+        return Futures.exceptionallyExpecting(storeHelper.getData(getCollectionSealedPath(scope, stream, collectionNum), x -> x).thenApply(v -> true), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);        
     }
     
     @VisibleForTesting
     CompletableFuture<Boolean> isDeleted(String scope, String stream, int collectionNum) {
-        return Futures.exceptionallyExpecting(storeHelper.getData(getCollectionPath(scope, stream, collectionNum)).thenApply(v -> false), 
+        return Futures.exceptionallyExpecting(storeHelper.getData(getCollectionPath(scope, stream, collectionNum), x -> x).thenApply(v -> false), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, true);
     }
 
     @VisibleForTesting
     CompletableFuture<Boolean> positionExists(String scope, String stream, long position) {
-        return Futures.exceptionallyExpecting(storeHelper.getData(getEntityPath(scope, stream, position)).thenApply(v -> true), 
+        return Futures.exceptionallyExpecting(storeHelper.getData(getEntityPath(scope, stream, position), x -> x).thenApply(v -> true), 
             e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, false);
     }
     

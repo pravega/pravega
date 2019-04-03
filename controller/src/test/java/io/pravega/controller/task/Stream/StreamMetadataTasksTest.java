@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.task.Stream;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -423,7 +424,7 @@ public class StreamMetadataTasksTest {
         Map<Long, Long> map1 = new HashMap<>();
         map1.put(0L, 1L);
         map1.put(1L, 1L);
-        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, Long.MIN_VALUE, map1);
+        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, Long.MIN_VALUE, ImmutableMap.copyOf(map1));
 
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any());
@@ -446,7 +447,7 @@ public class StreamMetadataTasksTest {
         map2.put(1L, 10L);
         long recordingTime2 = recordingTime1 + Duration.ofMinutes(5).toMillis();
 
-        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime2, Long.MIN_VALUE, map2);
+        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime2, Long.MIN_VALUE, ImmutableMap.copyOf(map2));
         doReturn(CompletableFuture.completedFuture(streamCut2)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any()); //mock only isTransactionOngoing call.
 
@@ -470,7 +471,7 @@ public class StreamMetadataTasksTest {
         map3.put(0L, 20L);
         map3.put(1L, 20L);
         long recordingTime3 = recordingTime1 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
-        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime3, Long.MIN_VALUE, map3);
+        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime3, Long.MIN_VALUE, ImmutableMap.copyOf(map3));
         doReturn(CompletableFuture.completedFuture(streamCut3)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any()); //mock only isTransactionOngoing call.
 
@@ -495,7 +496,7 @@ public class StreamMetadataTasksTest {
         map4.put(0L, 20L);
         map4.put(1L, 20L);
         long recordingTime4 = recordingTime1 + retentionPolicy.getRetentionParam() + 2;
-        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, Long.MIN_VALUE, map4);
+        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, Long.MIN_VALUE, ImmutableMap.copyOf(map4));
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any());
 
@@ -546,7 +547,7 @@ public class StreamMetadataTasksTest {
         map1.put(1L, 10L);
         long size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map1, Optional.empty(), null, executor).join();
         assertEquals(size, 19);
-        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, size, map1);
+        StreamCutRecord streamCut1 = new StreamCutRecord(recordingTime1, size, ImmutableMap.copyOf(map1));
 
         doReturn(CompletableFuture.completedFuture(streamCut1)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), any());
@@ -573,7 +574,7 @@ public class StreamMetadataTasksTest {
         long recordingTime2 = recordingTime1 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
         size = streamStorePartialMock.getSizeTillStreamCut(SCOPE, streamName, map2, Optional.empty(), null, executor).join();
         assertEquals(size, 100L);
-        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime2, size, map2);
+        StreamCutRecord streamCut2 = new StreamCutRecord(recordingTime2, size, ImmutableMap.copyOf(map2));
         doReturn(CompletableFuture.completedFuture(streamCut2)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
@@ -603,7 +604,7 @@ public class StreamMetadataTasksTest {
         assertEquals(size, 120L);
 
         long recordingTime3 = recordingTime2 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
-        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime3, size, map3);
+        StreamCutRecord streamCut3 = new StreamCutRecord(recordingTime3, size, ImmutableMap.copyOf(map3));
         doReturn(CompletableFuture.completedFuture(streamCut3)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
@@ -652,7 +653,7 @@ public class StreamMetadataTasksTest {
         assertEquals(size, 199L);
 
         long recordingTime4 = recordingTime3 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
-        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, size, map4);
+        StreamCutRecord streamCut4 = new StreamCutRecord(recordingTime4, size, ImmutableMap.copyOf(map4));
         doReturn(CompletableFuture.completedFuture(streamCut4)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
@@ -684,7 +685,7 @@ public class StreamMetadataTasksTest {
         assertEquals(size, 221L);
 
         long recordingTime5 = recordingTime4 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
-        StreamCutRecord streamCut5 = new StreamCutRecord(recordingTime5, size, map5);
+        StreamCutRecord streamCut5 = new StreamCutRecord(recordingTime5, size, ImmutableMap.copyOf(map5));
         doReturn(CompletableFuture.completedFuture(streamCut5)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
@@ -732,7 +733,7 @@ public class StreamMetadataTasksTest {
         assertEquals(size, 290L);
 
         long recordingTime6 = recordingTime5 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
-        StreamCutRecord streamCut6 = new StreamCutRecord(recordingTime6, size, map6);
+        StreamCutRecord streamCut6 = new StreamCutRecord(recordingTime6, size, ImmutableMap.copyOf(map6));
         doReturn(CompletableFuture.completedFuture(streamCut6)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
@@ -775,7 +776,7 @@ public class StreamMetadataTasksTest {
         assertEquals(size, 340L);
 
         long recordingTime7 = recordingTime6 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
-        StreamCutRecord streamCut7 = new StreamCutRecord(recordingTime7, size, map7);
+        StreamCutRecord streamCut7 = new StreamCutRecord(recordingTime7, size, ImmutableMap.copyOf(map7));
         doReturn(CompletableFuture.completedFuture(streamCut7)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
@@ -808,7 +809,7 @@ public class StreamMetadataTasksTest {
         assertEquals(size, 400L);
 
         long recordingTime8 = recordingTime7 + Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES).toMillis() + 1;
-        StreamCutRecord streamCut8 = new StreamCutRecord(recordingTime8, size, map8);
+        StreamCutRecord streamCut8 = new StreamCutRecord(recordingTime8, size, ImmutableMap.copyOf(map8));
         doReturn(CompletableFuture.completedFuture(streamCut8)).when(streamMetadataTasks).generateStreamCut(
                 anyString(), anyString(), any(), any(), anyString());
 
@@ -1067,7 +1068,10 @@ public class StreamMetadataTasksTest {
 
         scaleStatusResult = streamMetadataTasks.checkScale("UNKNOWN", "test", 0, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
-
+        
+        scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 0, null).get();
+        assertEquals(Controller.ScaleStatusResponse.ScaleStatus.IN_PROGRESS, scaleStatusResult.getStatus());
+        
         scaleStatusResult = streamMetadataTasks.checkScale(SCOPE, "test", 5, null).get();
         assertEquals(Controller.ScaleStatusResponse.ScaleStatus.INVALID_INPUT, scaleStatusResult.getStatus());
     }

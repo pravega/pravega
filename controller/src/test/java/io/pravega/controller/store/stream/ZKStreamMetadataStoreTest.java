@@ -114,8 +114,8 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals(0, newCounter.getMsb());
 
         // set range in store to have lsb = Long.Max - 100
-        Data data = new Data(new Int96(0, Long.MAX_VALUE - 100).toBytes(), null);
-        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(COUNTER_PATH);
+        VersionedMetadata<Int96> data = new VersionedMetadata<>(new Int96(0, Long.MAX_VALUE - 100), null);
+        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(eq(COUNTER_PATH), any());
         // set local limit to {msb, Long.Max - 100}
         zkStore.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
         // now the call to getNextCounter should result in another refresh

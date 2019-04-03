@@ -14,8 +14,11 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
 import lombok.AccessLevel;
+import lombok.Data;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,9 +36,21 @@ public class ZKStoreHelper {
     @Getter(AccessLevel.PACKAGE)
     private final CuratorFramework client;
     private final Executor executor;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private final Cache cache;
+
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
         client = cf;
         this.executor = executor;
+        this.cache = new Cache(x -> {
+            // The cache key has zk path (key.getPath) of the entity to cache 
+            // and a function (key.getFromBytesFunc()) for deserializing the byte array into meaningful data objects.
+            // The cache stores CompletableFutures which upon completion will hold the deserialized data object. 
+            ZkCacheKey<?> key = (ZkCacheKey<?>) x;
+            return this.getData(key.getPath(), key.getFromBytesFunc())
+                    .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
+        });
     }
 
     /**
@@ -130,12 +145,28 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Data> getData(final String path) {
-        final CompletableFuture<Data> result = new CompletableFuture<>();
+    /**
+     * Method to retrieve an entity from zookeeper and then deserialize it using the supplied `fromBytes` function. 
+     * @param path Zk path where entity is stored
+     * @param fromBytes Deserialization function for creating object of type T
+     * @param <T> Type of Object to retrieve. 
+     * @return CompletableFuture which when completed will have the object of type T retrieved from path and deserialized 
+     * using fromBytes function. 
+     */
+    public <T> CompletableFuture<VersionedMetadata<T>> getData(final String path, Function<byte[], T> fromBytes) {
+        final CompletableFuture<VersionedMetadata<T>> result = new CompletableFuture<>();
 
         try {
             client.getData().inBackground(
-                    callback(event -> result.complete(new Data(event.getData(), new Version.IntVersion(event.getStat().getVersion()))),
+                    callback(event -> {
+                                try {
+                                    T deserialized = fromBytes.apply(event.getData());
+                                    result.complete(new VersionedMetadata<>(deserialized, new Version.IntVersion(event.getStat().getVersion())));
+                                } catch (Exception e) {
+                                    log.error("Exception thrown while deserializing the data", e);
+                                    result.completeExceptionally(e);
+                                }
+                            },
                             result::completeExceptionally, path), executor)
                     .forPath(path);
         } catch (Exception e) {
@@ -165,17 +196,17 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Integer> setData(final String path, final Data data) {
+    CompletableFuture<Integer> setData(final String path, final byte[] data, final Version version) {
         final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
-            if (data.getVersion() == null) {
+            if (version == null) {
                 client.setData().inBackground(
                         callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
-                        .forPath(path, data.getData());
+                        .forPath(path, data);
             } else {
-                client.setData().withVersion(data.getVersion().asIntVersion().getIntValue()).inBackground(
+                client.setData().withVersion(version.asIntVersion().getIntValue()).inBackground(
                         callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
-                        .forPath(path, data.getData());
+                        .forPath(path, data);
             }
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
@@ -357,4 +388,54 @@ public class ZKStoreHelper {
     PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
         return new PathChildrenCache(client, path, cacheData);
     }
+
+    <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String path, String id, Function<byte[], T> fromBytes) {
+        return cache.getCachedData(new ZkCacheKey<>(path, id, fromBytes))
+                .thenApply(this::getVersionedMetadata);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> VersionedMetadata<T> getVersionedMetadata(VersionedMetadata v) {
+        // Since cache is untyped and holds all types of deserialized objects, we typecast it to the requested object type
+        // based on the type in caller's supplied Deserialization function. 
+        return new VersionedMetadata<>((T) v.getObject(), v.getVersion());
+    }
+
+    void invalidateCache(String path, String id) {
+        cache.invalidateCache(new ZkCacheKey<>(path, id, x -> null));
+    }
+
+    /**
+     * Cache key used to load and retrieve entities from the cache. 
+     * The cache key also provides a deserialization function which is used after loading the value from the zookeeper.
+     * The cache key is comprised of three parts - zk path, id and deserialization function.
+     * Only Id and ZkPath are used in equals and hashcode in the cache key. 
+     */
+    @Data
+    static class ZkCacheKey<T> implements Cache.CacheKey {
+        // ZkPath is the path at which the entity is stored in zookeeper.
+        private final String path;
+        // Id is the unique id that callers can use for entities that are deleted and recreated. Using a unique id upon recreation 
+        // of entity ensures that the previously cached value against older id becomes stale.
+        private final String id;
+        // FromBytesFunction is the deserialization function which takes byes and deserializes it into object of type T. 
+        // Refer to ZkStoreHelper constructor for cache loader.  
+        private final Function<byte[], T> fromBytesFunc;
+
+        @Override
+        public int hashCode() {
+            int result = 17;
+            result = 31 * result + path.hashCode();
+            result = 31 * result + id.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof ZkCacheKey 
+                    && path.equals(((ZkCacheKey) obj).path)
+                    && id.equals(((ZkCacheKey) obj).id);
+        }
+    }
+
 }
