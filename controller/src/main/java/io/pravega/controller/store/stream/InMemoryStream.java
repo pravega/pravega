@@ -718,11 +718,10 @@ public class InMemoryStream extends PersistentStreamBase {
             } else {
                 map = Collections.emptyMap();
             }
-            return CompletableFuture.completedFuture(map.entrySet().stream().collect(
-                    Collectors.toMap(Map.Entry::getKey, x -> x.getValue())));
+            return CompletableFuture.completedFuture(map);
         }
     }
-
+     
     @Override
     CompletableFuture<Void> createRetentionSetDataIfAbsent(RetentionSet retention) {
         Preconditions.checkNotNull(retention);

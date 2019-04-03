@@ -478,7 +478,7 @@ class ZKStream extends PersistentStreamBase {
         return Futures.exceptionallyExpecting(store.getChildren(getEpochPath(epoch)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyList())
                       .thenCompose(txIds -> Futures.allOfWithResults(txIds.stream().collect(
-                              Collectors.toMap(x -> x, 
+                              Collectors.toMap(txId -> txId, 
                                       txId -> Futures.exceptionallyExpecting(store.getData(getActiveTxPath(epoch, txId), ActiveTxnRecord::fromBytes),
                                       e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, empty)))
                               ).thenApply(txnMap -> txnMap.entrySet().stream().filter(x -> !x.getValue().equals(empty))
