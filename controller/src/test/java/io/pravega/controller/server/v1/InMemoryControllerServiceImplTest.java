@@ -34,7 +34,6 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import java.net.URI;
 import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 

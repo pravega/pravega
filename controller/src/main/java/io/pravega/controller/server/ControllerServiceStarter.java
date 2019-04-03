@@ -80,11 +80,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ScheduledExecutorService retentionExecutor;
 
     private ConnectionFactory connectionFactory;
-<<<<<<< HEAD
     private StreamMetadataStore streamStore;
-=======
-    private SegmentHelper segmentHelper; 
->>>>>>> segmenthelperconnectionmanager
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private BucketManager retentionService;
@@ -383,9 +379,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster.close();
             }
 
-            if (segmentHelper != null) {
+            if (segmentHelperRef.get() != null) {
                 log.info("closing segment helper");
-                segmentHelper.close();
+                segmentHelperRef.get().close();
             }
 
             log.info("Closing connection factory");
