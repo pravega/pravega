@@ -47,13 +47,15 @@ public abstract class PingTest {
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
     private Client client;
-
+    private ConnectionFactoryImpl connectionFactory;
+    
     @Before
     public void setup() throws Exception {
         ControllerService mockControllerService = mock(ControllerService.class);
         serverConfig = getServerConfig();
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         restServer = new RESTServer(null, mockControllerService, null, serverConfig,
-                new ConnectionFactoryImpl(ClientConfig.builder().build()));
+                connectionFactory);
         restServer.startAsync();
         restServer.awaitRunning();
         client = createJerseyClient();
@@ -69,6 +71,7 @@ public abstract class PingTest {
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();
+        connectionFactory.close();
     }
 
     @Test

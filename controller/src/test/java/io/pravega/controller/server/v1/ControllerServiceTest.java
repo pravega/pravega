@@ -67,20 +67,21 @@ public class ControllerServiceTest {
 
     private final StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
 
-    private final StreamMetadataTasks streamMetadataTasks;
-    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private final ConnectionFactoryImpl connectionFactory;
-    private final ControllerService consumer;
+    private StreamMetadataTasks streamMetadataTasks;
+    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private ConnectionFactoryImpl connectionFactory;
+    private ControllerService consumer;
 
-    private final CuratorFramework zkClient;
-    private final TestingServer zkServer;
+    private CuratorFramework zkClient;
+    private TestingServer zkServer;
 
     private long startTs;
     private long scaleTs;
 
     private RequestTracker requestTracker = new RequestTracker(true);
-
-    public ControllerServiceTest() throws Exception {
+    
+    @Before
+    public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
@@ -99,10 +100,6 @@ public class ControllerServiceTest {
 
         consumer = new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
                 new SegmentHelper(connectionFactory, hostStore), executor, null);
-    }
-
-    @Before
-    public void setup() throws ExecutionException, InterruptedException {
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);

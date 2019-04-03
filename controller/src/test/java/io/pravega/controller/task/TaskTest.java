@@ -78,21 +78,22 @@ public class TaskTest {
     private final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-    private final StreamMetadataStore streamStore;
+    private StreamMetadataStore streamStore;
 
     private final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-    private final TaskMetadataStore taskMetadataStore;
+    private TaskMetadataStore taskMetadataStore;
 
-    private final TestingServer zkServer;
+    private TestingServer zkServer;
 
-    private final StreamMetadataTasks streamMetadataTasks;
-    private final SegmentHelper segmentHelperMock;
-    private final CuratorFramework cli;
+    private StreamMetadataTasks streamMetadataTasks;
+    private SegmentHelper segmentHelperMock;
+    private CuratorFramework cli;
     private Map<Long, Map.Entry<Double, Double>> segmentsCreated;
     private final RequestTracker requestTracker = new RequestTracker(true);
-
-    public TaskTest() throws Exception {
+    
+    @Before
+    public void setUp() throws Exception {
         zkServer = new TestingServerStarter().start();
         zkServer.start();
 
@@ -102,14 +103,11 @@ public class TaskTest {
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-
+        
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
                 executor, HOSTNAME,
                 AuthHelper.getDisabledAuthHelper(), requestTracker);
-    }
 
-    @Before
-    public void setUp() throws ExecutionException, InterruptedException {
         final String stream2 = "stream2";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);

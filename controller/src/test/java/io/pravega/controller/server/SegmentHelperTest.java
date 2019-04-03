@@ -643,7 +643,8 @@ public class SegmentHelperTest {
         private final AtomicBoolean failConnection = new AtomicBoolean(false);
         @Getter
         private ReplyProcessor rp;
-
+        private ClientConnection connection;
+        
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
             if (failConnection.get()) {
@@ -662,7 +663,9 @@ public class SegmentHelperTest {
 
         @Override
         public void close() {
-
+            if (connection != null) {
+                connection.close();
+            }
         }
     }
 

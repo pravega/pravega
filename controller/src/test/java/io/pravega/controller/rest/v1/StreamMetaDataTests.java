@@ -97,7 +97,8 @@ public class StreamMetaDataTests {
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
-
+    private ConnectionFactoryImpl connectionFactory;
+    
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final String stream3 = "stream3";
@@ -146,10 +147,11 @@ public class StreamMetaDataTests {
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                        .controllerURI(URI.create("tcp://localhost"))
+                                                                                        .build());
         restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
-                new ConnectionFactoryImpl(ClientConfig.builder()
-                                                      .controllerURI(URI.create("tcp://localhost"))
-                                                      .build()));
+                connectionFactory);
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
@@ -215,6 +217,7 @@ public class StreamMetaDataTests {
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();
+        connectionFactory.close();
     }
 
     /**
