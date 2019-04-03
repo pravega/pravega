@@ -146,7 +146,7 @@ public class ZKStoreHelper {
     }
 
     /**
-     * Method to retrieve entity from zookeeper and then deserialize it using the supplied `fromBytes` function. 
+     * Method to retrieve an entity from zookeeper and then deserialize it using the supplied `fromBytes` function. 
      * @param path Zk path where entity is stored
      * @param fromBytes Deserialization function for creating object of type T
      * @param <T> Type of Object to retrieve. 
@@ -389,13 +389,13 @@ public class ZKStoreHelper {
         cache.invalidateCache(new ZkCacheKey<>(path, id, x -> null));
     }
 
-    @Data
     /**
      * Cache key used to load and retrieve entities from the cache. 
      * The cache key also provides a deserialization function which is used after loading the value from the zookeeper.
      * The cache key is comprised of three parts - zk path, id and deserialization function.
      * Only Id and ZkPath are used in equals and hashcode in the cache key. 
      */
+    @Data
     static class ZkCacheKey<T> implements Cache.CacheKey {
         // ZkPath is the path at which the entity is stored in zookeeper.
         private final String path;
