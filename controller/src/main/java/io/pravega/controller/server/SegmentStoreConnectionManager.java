@@ -27,7 +27,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -78,7 +77,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         cache.invalidateAll();
         cache.cleanUp();
     }

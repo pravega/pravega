@@ -41,7 +41,6 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 
-import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -1316,7 +1315,7 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         connectionManager.close();
     }
 }
