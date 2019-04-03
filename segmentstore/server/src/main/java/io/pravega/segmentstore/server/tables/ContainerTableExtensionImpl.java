@@ -59,6 +59,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
     private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
+    /**
+     * The default value to supply to a {@link WriterTableProcessor} to indicate how big compactions need to be.
+     * We need to return a value that is large enough to encompass the largest possible Table Entry (otherwise
+     * compaction will stall), but not too big, as that will introduce larger indexing pauses when compaction is running.
+     */
+    private static final int DEFAULT_MAX_COMPACTION_SIZE = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
     private final KeyHasher hasher;
@@ -234,7 +240,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 ArrayView key = builder.getKeys().get(i);
                 builder.includeResult(Futures.exceptionallyComposeExpecting(
                         bucketReader.find(key, offset, timer),
-                        ex -> ex instanceof StreamSegmentTruncatedException,
+                        ex -> {
+                            if (ex instanceof StreamSegmentTruncatedException) {
+                                System.out.println("truncated");
+                            }
+                            return ex instanceof StreamSegmentTruncatedException;
+                        },
                         () -> getSingleEntryWithRetries(segment, bucketReader, key, keyHash, timer)));
             }
         }
@@ -264,6 +275,17 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //endregion
 
     //region Helpers
+
+    /**
+     * When overridden in a derived class, this will indicate how much to compact at each step. By default this returns
+     * {@link #DEFAULT_MAX_COMPACTION_SIZE}.
+     *
+     * @return The maximum length to compact at each step.
+     */
+    @VisibleForTesting
+    protected int getMaxCompactionSize() {
+        return DEFAULT_MAX_COMPACTION_SIZE;
+    }
 
     private <T> TableKeyBatch batch(Collection<T> toBatch, Function<T, TableKey> getKey, Function<T, Integer> getLength, TableKeyBatch batch) {
         for (T item : toBatch) {
@@ -354,6 +376,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         @Override
         public void notifyIndexOffsetChanged(long lastIndexedOffset) {
             ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), lastIndexedOffset);
+        }
+
+        @Override
+        public int getMaxCompactionSize() {
+            return ContainerTableExtensionImpl.this.getMaxCompactionSize();
         }
 
         @Override

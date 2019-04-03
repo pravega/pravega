@@ -111,7 +111,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
             // Generate keys, and record them where needed.
             for (int j = 0; j < hashesPerBucket; j++) {
                 byte[] key = new byte[KeyHasher.HASH_SIZE_BYTES * 4];
-                keyUpdates.add(new BucketUpdate.KeyUpdate(new HashedArray(key), i * hashesPerBucket + j, i, true));
+                long offset = i * hashesPerBucket + j;
+                keyUpdates.add(new BucketUpdate.KeyUpdate(new HashedArray(key), offset, offset, true));
                 rnd.nextBytes(key);
                 hashToBuckets.put(KeyHashers.DEFAULT_HASHER.hash(key), bucket);
             }

@@ -214,8 +214,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 .thenComposeAsync(v -> {
                     // Calculate the safe truncation offset.
                     long truncateOffset = this.compactor.calculateTruncationOffset(segment.getInfo(), highestCopiedOffset);
-                    System.out.println(String.format("T: HCO=%s, TO=%s, CO=%s, LIDX=%s, L=%s", highestCopiedOffset, segment.getInfo().getStartOffset(),
-                            indexWriter.getCompactionOffset(segment.getInfo()), indexWriter.getLastIndexedOffset(segment.getInfo()), segment.getInfo().getLength()));
 
                     // Truncate if necessary.
                     if (truncateOffset > 0) {

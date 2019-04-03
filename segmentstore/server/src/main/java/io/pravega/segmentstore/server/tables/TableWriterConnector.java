@@ -59,6 +59,13 @@ interface TableWriterConnector extends AutoCloseable {
     void notifyIndexOffsetChanged(long lastIndexedOffset);
 
     /**
+     * Gets a value representing the maximum length that a Table Segment compaction can process at once.
+     *
+     * @return The maximum compaction length.
+     */
+    int getMaxCompactionSize();
+
+    /**
      * This method will be invoked by the {@link WriterTableProcessor} when it is closed.
      */
     @Override

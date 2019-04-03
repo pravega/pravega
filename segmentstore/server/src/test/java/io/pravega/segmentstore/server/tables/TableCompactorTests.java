@@ -113,7 +113,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         final long noOffset = -1;
         long compactionOffset = 100;
         @Cleanup
-        val c = new TestContext();
+        val c = new TestContext(UPDATE_ENTRY_LENGTH);
         c.segmentMetadata.setLength(250);
         setSegmentState(compactionOffset, 200, 1, 1, 100, c);
 
@@ -148,7 +148,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
     @Test
     public void testCompactionUpToDate() throws Exception {
         @Cleanup
-        val context = new TestContext();
+        val context = new TestContext(UPDATE_ENTRY_LENGTH);
 
         // Generate and index the data.
         populate(context);
@@ -507,17 +507,13 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         final TableCompactor compactor;
         final TimeoutTimer timer;
 
-        TestContext() {
-            this(TableCompactor.DEFAULT_MAX_COMPACT_LENGTH);
-        }
-
-        TestContext(int compactorMaxReadLength) {
+        TestContext(int maxCompactLength) {
             this.segmentMetadata = new StreamSegmentMetadata(SEGMENT_NAME, 1, 1);
             this.segment = new SegmentMock(this.segmentMetadata, executorService());
             this.indexWriter = new IndexWriter(KEY_HASHER, executorService());
             this.serializer = new EntrySerializer();
-            this.writerConnector = new TestConnector(this.segment, this.serializer, KEY_HASHER);
-            this.compactor = new TableCompactor(this.writerConnector, this.indexWriter, executorService(), compactorMaxReadLength);
+            this.writerConnector = new TestConnector(this.segment, this.serializer, KEY_HASHER, maxCompactLength);
+            this.compactor = new TableCompactor(this.writerConnector, this.indexWriter, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
         }
 
@@ -533,6 +529,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         private final SegmentMock segment;
         private final EntrySerializer serializer;
         private final KeyHasher keyHasher;
+        private final int maxCompactLength;
 
         @Override
         public SegmentMetadata getMetadata() {
@@ -547,6 +544,11 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         @Override
         public void notifyIndexOffsetChanged(long lastIndexedOffset) {
             throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public int getMaxCompactionSize() {
+            return this.maxCompactLength;
         }
 
         @Override

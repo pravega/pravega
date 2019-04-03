@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.util.HashedArray;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.UUID;
 import lombok.val;
 import org.junit.Assert;
@@ -21,7 +22,7 @@ import org.junit.Test;
  */
 public class BucketUpdateTests {
     /**
-     * Tests general functionality.
+     * Tests the Builder in the absence of copied entries.
      */
     @Test
     public void testBuilder() {
@@ -56,6 +57,41 @@ public class BucketUpdateTests {
             Assert.assertEquals("Unexpected key for update " + i, (byte) -i, u.getKey().get(0));
             Assert.assertEquals("Unexpected offset for update " + i, i, u.getOffset());
             Assert.assertEquals("Unexpected value for isDeleted " + i, i % 2 == 0, u.isDeleted());
+        }
+    }
+
+    /**
+     * Tests the Builder in the presence of copied entries.
+     */
+    @Test
+    public void testBuilderCopiedEntries() {
+        int count = 20;
+        val bucket = new TableBucket(UUID.randomUUID(), 0L);
+        val builder = BucketUpdate.forBucket(bucket);
+        val expectedUpdate = new HashSet<Integer>();
+
+        for (int i = 0; i < count; i++) {
+            boolean hasExistingKey = i % 3 == 0;
+            boolean isCopy = i % 5 == 0;
+            boolean copyWithSmallerVersion = i % 10 == 0;
+            if (hasExistingKey) {
+                builder.withExistingKey(new BucketUpdate.KeyInfo(new HashedArray(new byte[]{(byte) i}), i + 1, i + 1));
+            }
+
+            long updateVersion = isCopy
+                    ? (copyWithSmallerVersion ? i : i + 1)
+                    : (i + 1) * 10; // No copy
+            builder.withKeyUpdate(new BucketUpdate.KeyUpdate(new HashedArray(new byte[]{(byte) i}), (i + 1) * 10, updateVersion, false));
+            if (hasExistingKey && !copyWithSmallerVersion || (!hasExistingKey && !isCopy)) {
+                expectedUpdate.add(i);
+            }
+        }
+
+        val b = builder.build();
+        for (int i = 0; i < count; i++) {
+            boolean expectedIsUpdated = expectedUpdate.contains(i);
+            boolean isUpdated = b.isKeyUpdated(new HashedArray(new byte[]{(byte) i}));
+            Assert.assertEquals("Unexpected update status for key " + i, expectedIsUpdated, isUpdated);
         }
     }
 

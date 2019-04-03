@@ -62,11 +62,13 @@ class KeyUpdateCollection {
         }
 
         // Update remaining counters, regardless of whether we considered this update or not.
-        this.highestCopiedOffset = Math.max(this.highestCopiedOffset, originalOffset + entryLength);
         this.totalUpdateCount++;
         long lastOffset = update.getOffset() + entryLength;
         if (lastOffset > this.lastIndexedOffset) {
             this.lastIndexedOffset = lastOffset;
+        }
+        if (originalOffset >= 0) {
+            this.highestCopiedOffset = Math.max(this.highestCopiedOffset, originalOffset + entryLength);
         }
     }
 

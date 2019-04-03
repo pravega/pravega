@@ -129,10 +129,16 @@ class BucketUpdate {
             long bucketOffset = -1;
             for (KeyUpdate u : this.updatedKeys.values()) {
                 KeyInfo existingKey = this.existingKeys.get(u.getKey());
-                if (!u.isDeleted() && existingKey != null && existingKey.supersedes(u)) {
-                    toRemove.add(u.getKey());
-                } else if (!u.isDeleted()) {
-                    bucketOffset = Math.max(bucketOffset, u.getOffset());
+                if (!u.isDeleted()) {
+                    // We need to exclude the key if one of the following is true:
+                    // - The key exists and its entry supersedes the updated key.
+                    // - This key does not exist and the entry indicates it's a copy (a removal was previously indexed
+                    // before the entry was copied).
+                    if ((existingKey != null && existingKey.supersedes(u)) || (existingKey == null && u.isCopied())) {
+                        toRemove.add(u.getKey());
+                    } else {
+                        bucketOffset = Math.max(bucketOffset, u.getOffset());
+                    }
                 }
             }
 
@@ -197,6 +203,16 @@ class BucketUpdate {
                     || (this.version == other.version && this.offset > other.offset);
         }
 
+        /**
+         * Determines whether this {@link KeyInfo} instance was copied over from a previous location. This is determined
+         * by comparing {@link #getOffset()} with {@link #getVersion()}.
+         *
+         * @return True if a copy, false otherwise.
+         */
+        boolean isCopied() {
+            return this.offset > this.version;
+        }
+
         @Override
         public String toString() {
             return String.format("Offset=%s, Version=%s, Key={%s}", this.offset, this.version, this.key);
@@ -219,10 +235,12 @@ class BucketUpdate {
          *
          * @param key     A {@link HashedArray} representing the Key that is updated.
          * @param offset  The offset in the Segment where the update is serialized.
+         * @param version The computed version of the Key to update (based on explicit version and current offset).
          * @param deleted True if the Key has been deleted via this update, false otherwise.
          */
         KeyUpdate(HashedArray key, long offset, long version, boolean deleted) {
             super(key, offset, version);
+            Preconditions.checkArgument(!(isCopied() && deleted), "A KeyUpdate cannot be both copied and deleted at the same time.");
             this.deleted = deleted;
         }
 
