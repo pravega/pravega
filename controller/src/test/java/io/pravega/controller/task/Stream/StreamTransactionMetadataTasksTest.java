@@ -46,7 +46,6 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -54,6 +53,7 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -546,7 +546,7 @@ public class StreamTransactionMetadataTasksTest {
                 return future;
             }
         }).when(streamStoreMock).createTransaction(any(), any(), any(), anyLong(), anyLong(), any(), any());
-        Pair<VersionedTransactionData, List<Segment>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
+        Pair<VersionedTransactionData, List<StreamSegmentRecord>> txn = txnTasks.createTxn(SCOPE, STREAM, 10000L, null).join();
 
         // verify that generate transaction id is called 3 times
         verify(streamStoreMock, times(3)).generateTransactionId(any(), any(), any(), any());
@@ -612,7 +612,7 @@ public class StreamTransactionMetadataTasksTest {
         streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();
         streamStore.setState(SCOPE, STREAM, State.ACTIVE, null, executor).join();
 
-        CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createFuture = txnTasks.createTxn(SCOPE, STREAM, 100L, null);
+        CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createFuture = txnTasks.createTxn(SCOPE, STREAM, 100L, null);
 
         // create and ping transactions should not wait for writer initialization and complete immediately.
         createFuture.join();

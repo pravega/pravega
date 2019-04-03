@@ -22,13 +22,13 @@ import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.RecordHelper;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
@@ -50,6 +50,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
@@ -202,7 +204,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param contextOpt         operational context
      * @return transaction id.
      */
-    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
+    public CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createTxn(final String scope,
                                                                                       final String stream,
                                                                                       final long lease,
                                                                                       final OperationContext contextOpt) {
@@ -292,7 +294,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param ctx                 context.
      * @return                    identifier of the created txn.
      */
-    CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
+    CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createTxnBody(final String scope,
                                                                                    final String stream,
                                                                                    final long lease,
                                                                                    final OperationContext ctx) {
@@ -320,7 +322,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             ctx, maxExecutionPeriod, txnId, addIndex);
 
                     // Step 4. Notify segment stores about new txn.
-                    CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
+                    CompletableFuture<List<StreamSegmentRecord>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
                             streamMetadataStore.getSegmentsInEpoch(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
                     CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
@@ -333,9 +335,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return notify.whenCompleteAsync((result, ex) -> {
                         addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture);
                     }, executor).thenApplyAsync(v -> {
-                        List<Segment> segments = segmentsFuture.join().stream().map(x -> {
+                        List<StreamSegmentRecord> segments = segmentsFuture.join().stream().map(x -> {
                             long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
-                            return new Segment(generalizedSegmentId, x.getStart(), x.getKeyStart(), x.getKeyEnd());
+                            int epoch = StreamSegmentNameUtils.getEpoch(generalizedSegmentId);
+                            int segmentNumber = StreamSegmentNameUtils.getSegmentNumber(generalizedSegmentId);
+                            return StreamSegmentRecord.builder().creationEpoch(epoch).segmentNumber(segmentNumber)
+                                    .creationTime(x.getCreationTime()).keyStart(x.getKeyStart()).keyEnd(x.getKeyEnd()).build();
                         }).collect(Collectors.toList());
 
                         return new ImmutablePair<>(txnFuture.join(), segments);
@@ -635,7 +640,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
-                                                      final List<Segment> segments, final UUID txnId) {
+                                                      final List<StreamSegmentRecord> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
                 .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId))

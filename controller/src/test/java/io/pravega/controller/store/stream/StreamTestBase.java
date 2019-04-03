@@ -143,7 +143,7 @@ public abstract class StreamTestBase {
         Stream stream = createStream("scope", "stream" + startingSegmentNumber, System.currentTimeMillis(),
                 5, startingSegmentNumber);
 
-        Segment segment = stream.getSegment(startingSegmentNumber).join();
+        StreamSegmentRecord segment = stream.getSegment(startingSegmentNumber).join();
         assertEquals(segment.segmentId(), startingSegmentNumber + 0L);
         assertEquals(segment.getKeyStart(), 0, 0);
         assertEquals(segment.getKeyEnd(), 1.0 / 5, 0);
@@ -155,8 +155,8 @@ public abstract class StreamTestBase {
         long segment9 = computeSegmentId(startingSegmentNumber + 9, 1);
         List<Long> newSegments = Lists.newArrayList(segment5, segment6, segment7, segment8, segment9);
 
-        List<Segment> originalSegments = stream.getActiveSegments().join();
-        List<Long> segmentsToSeal = originalSegments.stream().map(Segment::segmentId).collect(Collectors.toList());
+        List<StreamSegmentRecord> originalSegments = stream.getActiveSegments().join();
+        List<Long> segmentsToSeal = originalSegments.stream().map(StreamSegmentRecord::segmentId).collect(Collectors.toList());
         List<Map.Entry<Double, Double>> newRanges = originalSegments.stream().map(x ->
                 new AbstractMap.SimpleEntry<>(x.getKeyStart(), x.getKeyEnd())).collect(Collectors.toList());
         VersionedMetadata<EpochTransitionRecord> etr = stream.getEpochTransition().join();
@@ -166,12 +166,12 @@ public abstract class StreamTestBase {
         VersionedMetadata<State> state = stream.getVersionedState()
                                                .thenCompose(s -> stream.updateVersionedState(s, State.SCALING)).join();
         etr = stream.startScale(true, etr, state).join();
-        List<Segment> newCurrentSegments = stream.getActiveSegments().join();
+        List<StreamSegmentRecord> newCurrentSegments = stream.getActiveSegments().join();
         assertEquals(originalSegments, newCurrentSegments);
         AssertExtensions.assertSuppliedFutureThrows("", () -> stream.getSegment(segment9),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
-        Map<Segment, List<Long>> successorsWithPredecessors = stream.getSuccessorsWithPredecessors(0L).join();
+        Map<StreamSegmentRecord, List<Long>> successorsWithPredecessors = stream.getSuccessorsWithPredecessors(0L).join();
         assertTrue(successorsWithPredecessors.isEmpty());
 
         // scale create new epochs
@@ -184,9 +184,9 @@ public abstract class StreamTestBase {
         assertEquals(segment.getKeyEnd(), 1.0, 0);
 
         successorsWithPredecessors = stream.getSuccessorsWithPredecessors(startingSegmentNumber + 0L).join();
-        Set<Segment> successors = successorsWithPredecessors.keySet();
+        Set<StreamSegmentRecord> successors = successorsWithPredecessors.keySet();
         assertEquals(1, successors.size());
-        Segment five = successors.stream().findAny().get();
+        StreamSegmentRecord five = successors.stream().findAny().get();
         assertEquals(computeSegmentId(startingSegmentNumber + 5, 1), five.segmentId());
         List<Long> predecessors = successorsWithPredecessors.get(five);
         assertEquals(1, predecessors.size());
@@ -195,7 +195,7 @@ public abstract class StreamTestBase {
         // scale old segments sealed
         stream.scaleOldSegmentsSealed(Collections.emptyMap(), etr).join();
         newCurrentSegments = stream.getActiveSegments().join();
-        assertEquals(new HashSet<>(newSegments), newCurrentSegments.stream().map(Segment::segmentId).collect(Collectors.toSet()));
+        assertEquals(new HashSet<>(newSegments), newCurrentSegments.stream().map(StreamSegmentRecord::segmentId).collect(Collectors.toSet()));
 
         segment = stream.getSegment(segment9).join();
         assertEquals(computeSegmentId(startingSegmentNumber + 9, 1), segment.segmentId());
@@ -222,14 +222,12 @@ public abstract class StreamTestBase {
         Stream stream = createStream("scope", "stream" + startingSegmentNumber, System.currentTimeMillis(), 5, startingSegmentNumber);
 
         long timestamp = System.currentTimeMillis();
-        List<Segment> segments = stream.getEpochRecord(0).join().getSegments().stream()
-                                       .map(x -> new Segment(x.segmentId(), x.getCreationTime(), x.getKeyStart(), x.getKeyEnd()))
-                                       .collect(Collectors.toList());
-        Segment zero = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 0L).findAny().get();
-        Segment one = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 1L).findAny().get();
-        Segment two = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 2L).findAny().get();
-        Segment three = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 3L).findAny().get();
-        Segment four = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 4L).findAny().get();
+        List<StreamSegmentRecord> segments = stream.getEpochRecord(0).join().getSegments();
+        StreamSegmentRecord zero = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 0L).findAny().get();
+        StreamSegmentRecord one = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 1L).findAny().get();
+        StreamSegmentRecord two = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 2L).findAny().get();
+        StreamSegmentRecord three = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 3L).findAny().get();
+        StreamSegmentRecord four = segments.stream().filter(x -> x.segmentId() == startingSegmentNumber + 4L).findAny().get();
 
         // 3, 4 -> 5
         timestamp = timestamp + 1;
@@ -238,11 +236,9 @@ public abstract class StreamTestBase {
         newRanges.add(new AbstractMap.SimpleEntry<>(three.getKeyStart(), four.getKeyEnd()));
 
         scaleStream(stream, timestamp, Lists.newArrayList(three.segmentId(), four.segmentId()), newRanges, Collections.emptyMap());
-        segments = stream.getEpochRecord(1).join().getSegments().stream()
-                         .map(x -> new Segment(x.segmentId(), x.getCreationTime(), x.getKeyStart(), x.getKeyEnd()))
-                         .collect(Collectors.toList());
+        segments = stream.getEpochRecord(1).join().getSegments();
 
-        Segment five = segments.stream().filter(x -> x.segmentId() == computeSegmentId(5 + startingSegmentNumber, 1)).findAny().get();
+        StreamSegmentRecord five = segments.stream().filter(x -> x.segmentId() == computeSegmentId(5 + startingSegmentNumber, 1)).findAny().get();
 
         // 1 -> 6,7.. 2,5 -> 8
         timestamp = timestamp + 10;
@@ -254,13 +250,11 @@ public abstract class StreamTestBase {
         scaleStream(stream, timestamp, Lists.newArrayList(one.segmentId(), two.segmentId(), five.segmentId()), newRanges,
                 Collections.emptyMap());
 
-        segments = stream.getEpochRecord(2).join().getSegments().stream()
-                         .map(x -> new Segment(x.segmentId(), x.getCreationTime(), x.getKeyStart(), x.getKeyEnd()))
-                         .collect(Collectors.toList());
+        segments = stream.getEpochRecord(2).join().getSegments();
 
-        Segment six = segments.stream().filter(x -> x.segmentId() == computeSegmentId(6 + startingSegmentNumber, 2)).findAny().get();
-        Segment seven = segments.stream().filter(x -> x.segmentId() == computeSegmentId(7 + startingSegmentNumber, 2)).findAny().get();
-        Segment eight = segments.stream().filter(x -> x.segmentId() == computeSegmentId(8 + startingSegmentNumber, 2)).findAny().get();
+        StreamSegmentRecord six = segments.stream().filter(x -> x.segmentId() == computeSegmentId(6 + startingSegmentNumber, 2)).findAny().get();
+        StreamSegmentRecord seven = segments.stream().filter(x -> x.segmentId() == computeSegmentId(7 + startingSegmentNumber, 2)).findAny().get();
+        StreamSegmentRecord eight = segments.stream().filter(x -> x.segmentId() == computeSegmentId(8 + startingSegmentNumber, 2)).findAny().get();
 
         // 7 -> 9,10.. 8 -> 10, 11
         timestamp = timestamp + 10;
@@ -271,13 +265,10 @@ public abstract class StreamTestBase {
 
         scaleStream(stream, timestamp, Lists.newArrayList(seven.segmentId(), eight.segmentId()), newRanges, Collections.emptyMap());
 
-        segments = stream.getEpochRecord(3).join().getSegments().stream()
-                         .map(x -> new Segment(x.segmentId(), x.getCreationTime(), x.getKeyStart(), x.getKeyEnd()))
-                         .collect(Collectors.toList());
-
-        Segment nine = segments.stream().filter(x -> x.segmentId() == computeSegmentId(9 + startingSegmentNumber, 3)).findAny().get();
-        Segment ten = segments.stream().filter(x -> x.segmentId() == computeSegmentId(10 + startingSegmentNumber, 3)).findAny().get();
-        Segment eleven = segments.stream().filter(x -> x.segmentId() == computeSegmentId(11 + startingSegmentNumber, 3)).findAny().get();
+        segments = stream.getEpochRecord(3).join().getSegments();
+        StreamSegmentRecord nine = segments.stream().filter(x -> x.segmentId() == computeSegmentId(9 + startingSegmentNumber, 3)).findAny().get();
+        StreamSegmentRecord ten = segments.stream().filter(x -> x.segmentId() == computeSegmentId(10 + startingSegmentNumber, 3)).findAny().get();
+        StreamSegmentRecord eleven = segments.stream().filter(x -> x.segmentId() == computeSegmentId(11 + startingSegmentNumber, 3)).findAny().get();
 
         // 9, 10, 11 -> 12
         timestamp = timestamp + 10;
@@ -287,18 +278,16 @@ public abstract class StreamTestBase {
         scaleStream(stream, timestamp, Lists.newArrayList(nine.segmentId(), ten.segmentId(), eleven.segmentId()), newRanges,
                 Collections.emptyMap());
 
-        segments = stream.getEpochRecord(4).join().getSegments().stream()
-                         .map(x -> new Segment(x.segmentId(), x.getCreationTime(), x.getKeyStart(), x.getKeyEnd()))
-                         .collect(Collectors.toList());
+        segments = stream.getEpochRecord(4).join().getSegments();
 
-        Segment twelve = segments.stream().filter(x -> x.segmentId() == computeSegmentId(12 + startingSegmentNumber, 4)).findAny().get();
+        StreamSegmentRecord twelve = segments.stream().filter(x -> x.segmentId() == computeSegmentId(12 + startingSegmentNumber, 4)).findAny().get();
 
         // verification
-        Map<Segment, List<Long>> successorsWithPredecessors;
-        Set<Segment> successors;
+        Map<StreamSegmentRecord, List<Long>> successorsWithPredecessors;
+        Set<StreamSegmentRecord> successors;
         Set<Long> predecessors;
 
-        // segment 0
+        // StreamSegmentRecord 0
         successorsWithPredecessors = stream.getSuccessorsWithPredecessors(zero.segmentId()).join();
         assertTrue(successorsWithPredecessors.isEmpty());
 
@@ -604,7 +593,7 @@ public abstract class StreamTestBase {
         Stream stream = createStream("scope", "stream" + startingSegmentNumber, time,
                 5, startingSegmentNumber);
 
-        Segment segment = stream.getSegment(startingSegmentNumber).join();
+        StreamSegmentRecord segment = stream.getSegment(startingSegmentNumber).join();
         assertEquals(segment.segmentId(), startingSegmentNumber + 0L);
         assertEquals(segment.getKeyStart(), 0, 0);
         assertEquals(segment.getKeyEnd(), 1.0 / 5, 0);
@@ -619,7 +608,7 @@ public abstract class StreamTestBase {
                 startingSegmentNumber + 2L, startingSegmentNumber + 3L, startingSegmentNumber + 4L), newRanges,
                 Collections.emptyMap());
 
-        List<Segment> activeSegmentsBefore = stream.getActiveSegments().join();
+        List<StreamSegmentRecord> activeSegmentsBefore = stream.getActiveSegments().join();
 
         // start commit transactions
         VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(0).join();
@@ -628,10 +617,10 @@ public abstract class StreamTestBase {
         // start rolling transaction
         ctr = stream.startRollingTxn(1, ctr).join();
 
-        List<Segment> activeSegments1 = stream.getActiveSegments().join();
+        List<StreamSegmentRecord> activeSegments1 = stream.getActiveSegments().join();
         assertEquals(activeSegments1, activeSegmentsBefore);
 
-        Map<Segment, List<Long>> successorsWithPredecessors = stream.getSuccessorsWithPredecessors(
+        Map<StreamSegmentRecord, List<Long>> successorsWithPredecessors = stream.getSuccessorsWithPredecessors(
                 computeSegmentId(startingSegmentNumber + 5, 1)).join();
         assertTrue(successorsWithPredecessors.isEmpty());
 
@@ -643,12 +632,12 @@ public abstract class StreamTestBase {
         assertEquals(activeSegments1, activeSegmentsBefore);
 
         successorsWithPredecessors = stream.getSuccessorsWithPredecessors(computeSegmentId(startingSegmentNumber + 5, 1)).join();
-        Set<Segment> successors = successorsWithPredecessors.keySet();
+        Set<StreamSegmentRecord> successors = successorsWithPredecessors.keySet();
         assertEquals(3, successors.size());
-        assertTrue(successors.stream().allMatch(x -> x.getEpoch() == 2));
-        assertTrue(successors.stream().anyMatch(x -> x.getNumber() == startingSegmentNumber + 0));
-        assertTrue(successors.stream().anyMatch(x -> x.getNumber() == startingSegmentNumber + 1));
-        assertTrue(successors.stream().anyMatch(x -> x.getNumber() == startingSegmentNumber + 2));
+        assertTrue(successors.stream().allMatch(x -> x.getCreationEpoch() == 2));
+        assertTrue(successors.stream().anyMatch(x -> x.getSegmentNumber() == startingSegmentNumber + 0));
+        assertTrue(successors.stream().anyMatch(x -> x.getSegmentNumber() == startingSegmentNumber + 1));
+        assertTrue(successors.stream().anyMatch(x -> x.getSegmentNumber() == startingSegmentNumber + 2));
 
         successorsWithPredecessors = stream.getSuccessorsWithPredecessors(computeSegmentId(startingSegmentNumber + 0, 2)).join();
         successors = successorsWithPredecessors.keySet();
@@ -665,7 +654,7 @@ public abstract class StreamTestBase {
         // epoch 0 --> 0, 1
         long timestamp = System.currentTimeMillis();
         PersistentStreamBase stream = createStream("scope", "stream" + startingSegmentNumber, timestamp, 2, startingSegmentNumber);
-        List<Segment> activeSegments = stream.getActiveSegments().join();
+        List<StreamSegmentRecord> activeSegments = stream.getActiveSegments().join();
 
         // epoch 1 --> 0, 2, 3
         List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
@@ -843,7 +832,7 @@ public abstract class StreamTestBase {
         UUID txnId = createAndCommitTransaction(stream, 0, 0L);
         // scale the stream 5 times so that over all we have 6 epochs and hence 3 chunks.  
         for (int i = 0; i < 5; i++) {
-            Segment first = stream.getActiveSegments().join().get(0);
+            StreamSegmentRecord first = stream.getActiveSegments().join().get(0);
             ArrayList<Long> sealedSegments = Lists.newArrayList(first.segmentId());
             List<Map.Entry<Double, Double>> newRanges = new LinkedList<>();
             newRanges.add(new AbstractMap.SimpleEntry<>(first.getKeyStart(), first.getKeyEnd()));
@@ -864,7 +853,7 @@ public abstract class StreamTestBase {
 
         // scale the stream 5 times so that over all we have 13 epochs and hence 7 chunks.  
         for (int i = 0; i < 5; i++) {
-            Segment first = stream.getActiveSegments().join().get(0);
+            StreamSegmentRecord first = stream.getActiveSegments().join().get(0);
             ArrayList<Long> sealedSegments = Lists.newArrayList(first.segmentId());
             List<Map.Entry<Double, Double>> newRanges = new LinkedList<>();
             newRanges.add(new AbstractMap.SimpleEntry<>(first.getKeyStart(), first.getKeyEnd()));
@@ -1219,23 +1208,23 @@ public abstract class StreamTestBase {
 
         PersistentStreamBase stream = createStream("scope", "stream" + startingSegmentNumber, timestamp, 3, startingSegmentNumber);
 
-        List<Segment> initialSegments = stream.getActiveSegments().join();
-        Segment zero = initialSegments.stream().filter(x -> x.segmentId() == computeSegmentId(startingSegmentNumber + 0, 0)).findAny().get();
-        Segment one = initialSegments.stream().filter(x -> x.segmentId() == computeSegmentId(startingSegmentNumber + 1, 0)).findAny().get();
-        Segment two = initialSegments.stream().filter(x -> x.segmentId() == computeSegmentId(startingSegmentNumber + 2, 0)).findAny().get();
-        Segment three = new Segment(computeSegmentId(startingSegmentNumber + 3, 1), timestamp, 0.0, 0.16);
-        Segment four = new Segment(computeSegmentId(startingSegmentNumber + 4, 1), timestamp, 0.16, zero.getKeyEnd());
-        Segment five = new Segment(computeSegmentId(startingSegmentNumber + 5, 1), timestamp, one.getKeyStart(), 0.5);
-        Segment six = new Segment(computeSegmentId(startingSegmentNumber + 6, 1), timestamp, 0.5, one.getKeyEnd());
-        Segment seven = new Segment(computeSegmentId(startingSegmentNumber + 7, 1), timestamp, two.getKeyStart(), 0.83);
-        Segment eight = new Segment(computeSegmentId(startingSegmentNumber + 8, 1), timestamp, 0.83, two.getKeyEnd());
-        Segment nine = new Segment(computeSegmentId(startingSegmentNumber + 9, 2), timestamp, 0.0, 0.5);
-        Segment ten = new Segment(computeSegmentId(startingSegmentNumber + 10, 2), timestamp, 0.5, 1);
+        List<StreamSegmentRecord> initialSegments = stream.getActiveSegments().join();
+        StreamSegmentRecord zero = initialSegments.stream().filter(x -> x.segmentId() == computeSegmentId(startingSegmentNumber + 0, 0)).findAny().get();
+        StreamSegmentRecord one = initialSegments.stream().filter(x -> x.segmentId() == computeSegmentId(startingSegmentNumber + 1, 0)).findAny().get();
+        StreamSegmentRecord two = initialSegments.stream().filter(x -> x.segmentId() == computeSegmentId(startingSegmentNumber + 2, 0)).findAny().get();
+        StreamSegmentRecord three = new StreamSegmentRecord(startingSegmentNumber + 3, 1, timestamp, 0.0, 0.16);
+        StreamSegmentRecord four = new StreamSegmentRecord(startingSegmentNumber + 4, 1, timestamp, 0.16, zero.getKeyEnd());
+        StreamSegmentRecord five = new StreamSegmentRecord(startingSegmentNumber + 5, 1, timestamp, one.getKeyStart(), 0.5);
+        StreamSegmentRecord six = new StreamSegmentRecord(startingSegmentNumber + 6, 1, timestamp, 0.5, one.getKeyEnd());
+        StreamSegmentRecord seven = new StreamSegmentRecord(startingSegmentNumber + 7, 1, timestamp, two.getKeyStart(), 0.83);
+        StreamSegmentRecord eight = new StreamSegmentRecord(startingSegmentNumber + 8, 1, timestamp, 0.83, two.getKeyEnd());
+        StreamSegmentRecord nine = new StreamSegmentRecord(startingSegmentNumber + 9, 2, timestamp, 0.0, 0.5);
+        StreamSegmentRecord ten = new StreamSegmentRecord(startingSegmentNumber + 10, 2, timestamp, 0.5, 1);
 
         // 2 -> 7, 8
         // 1 -> 5, 6
         // 0 -> 3, 4
-        LinkedList<Segment> newsegments = new LinkedList<>();
+        LinkedList<StreamSegmentRecord> newsegments = new LinkedList<>();
         newsegments.add(three);
         newsegments.add(four);
         newsegments.add(five);
@@ -1265,7 +1254,7 @@ public abstract class StreamTestBase {
         fromStreamCut.put(one.segmentId(), 0L);
         fromStreamCut.put(two.segmentId(), 0L);
 
-        List<Segment> segmentsBetween = stream.getSegmentsBetweenStreamCuts(fromStreamCut, Collections.emptyMap()).join();
+        List<StreamSegmentRecord> segmentsBetween = stream.getSegmentsBetweenStreamCuts(fromStreamCut, Collections.emptyMap()).join();
         assertEquals(11, segmentsBetween.size());
 
         fromStreamCut = new HashMap<>();
