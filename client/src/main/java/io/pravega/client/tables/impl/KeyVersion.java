@@ -45,6 +45,11 @@ public interface KeyVersion extends Serializable {
     };
 
     /**
+     * A special KeyVersion which indicates that no versioning is required.
+     */
+    KeyVersion NO_VERSION = new KeyVersionImpl(Long.MIN_VALUE);
+
+    /**
      * Gets a value representing the internal version inside the Table Segment for this Key.
      * @return Segment version.
      */
