@@ -10,13 +10,48 @@ You may obtain a copy of the License at
 # docker-compose
 
 Docker compose can be used to quickly spin up a Pravega cluster to use for testing or development. Unlike 
-`pravega-standalone`, a compose cluster will use a real standalone HDFS, Zookeeper, BookKeeper, and will run the 
-Segment Store and the Controller in separate processes.
+`pravega-standalone`, a Compose cluster will use a real standalone HDFS, Zookeeper and BookKeeper, and will also run
+Segment Store and Controller in separate processes.
 
 ## Running
 
-The IP or hostname must be provided as a `HOST_IP` environment variable. Otherwise, things should just work.
+1. Ensure you have Docker and Docker Compose installed.
 
-`HOST_IP=1.2.3.4 docker-compose up`
+2. Clone the repository to fetch Pravega code.
 
-Clients can then connect to the Controller at `${HOST_IP}:9090`.
+   ```bash
+   git clone https://github.com/pravega/pravega.git
+   ```
+
+3. Navigate to the directory containing Docker Compose configuration file. Observe that the changed directory has Docker Compose .yml files.
+
+   ```bash
+   cd /path/to/pravega/docker/compose
+   ```
+
+4. Add HOST_IP as an environment variable with the value as the current host.
+
+   ```bash
+   export HOST_IP=<host-ip>
+   ```
+
+5. Now, run the following command to start a deployment comprising of multiple Docker containers, as specified in the
+   `docker-compose.yml` file.
+
+   ```bash
+   docker-compose up -d
+   ```
+
+   If you want to use one of the other files in the directory, use the `-f` option to specify the file.
+
+   ```bash
+   docker-compose up -d -f docker-compose-nfs.yml
+   ```
+
+6. Verify that the deployment is up and running.
+
+   ```bash
+   docker-compose ps
+   ```
+
+Clients can then connect to the Controller at `<host-ip>:9090`.
