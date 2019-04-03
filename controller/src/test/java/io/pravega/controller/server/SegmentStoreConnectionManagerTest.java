@@ -19,6 +19,7 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+import lombok.Cleanup;
 import lombok.Getter;
 import org.junit.Before;
 import org.junit.Test;
@@ -56,6 +57,7 @@ public class SegmentStoreConnectionManagerTest {
         PravegaNodeUri uri = new PravegaNodeUri("pravega", 1234);
         ConnectionFactory cf = spy(new MockConnectionFactory());
 
+        @Cleanup
         SegmentStoreConnectionPool pool = new SegmentStoreConnectionPool(uri, cf, 2, 1);
         ReplyProcessor myReplyProc = getReplyProcessor();
 

@@ -27,7 +27,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -46,7 +45,7 @@ import java.util.function.Consumer;
  * pool can continue to do so. The pool in shutdown mode simply drains all available connections. And when it has no references left
  * it can be garbage collected. 
  */
-class SegmentStoreConnectionManager implements Closeable {
+class SegmentStoreConnectionManager implements AutoCloseable {
     private static final int MAX_CONCURRENT_CONNECTIONS = 500;
     private static final int MAX_IDLE_CONNECTIONS = 100;
     // cache of connection manager for segment store nodes.
