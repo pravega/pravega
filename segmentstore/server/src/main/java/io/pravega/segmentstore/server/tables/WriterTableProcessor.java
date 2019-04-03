@@ -176,6 +176,17 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 });
     }
 
+    @Override
+    public String toString() {
+        return String.format(
+                "[%d: %s] Count = %d, LastOffset = %s, LUSN = %d",
+                this.connector.getMetadata().getId(),
+                this.connector.getMetadata().getName(),
+                this.aggregator.size(),
+                this.lastAddedOffset,
+                getLowestUncommittedSequenceNumber());
+    }
+
     //endregion
 
     //region Helpers
@@ -469,6 +480,10 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
             }
 
             return true;
+        }
+
+        synchronized int size() {
+            return this.appendOffsets.size();
         }
 
         @Override

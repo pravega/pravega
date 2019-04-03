@@ -38,6 +38,11 @@ public class StatsLoggerProxyTest {
         Assert.assertEquals("Unexpected number of metrics registered with first logger.", METRIC_COUNT, metrics1.size());
         Assert.assertFalse("Metrics were not supposed to be closed yet.", metrics1.stream().anyMatch(TestMetric::isClosed));
 
+        //create metrics with tags
+        createMetrics(proxy, "", "containerId", "12");
+        Assert.assertEquals("Unexpected number of metrics registered with first logger.", 2 * METRIC_COUNT, metrics1.size());
+        Assert.assertFalse("Metrics were not supposed to be closed yet.", metrics1.stream().anyMatch(TestMetric::isClosed));
+
         // Update the logger and verify old instances are closed.
         val metrics2 = new ArrayList<TestMetric>();
         val l2 = new TestLogger(metrics2::add);
@@ -58,21 +63,30 @@ public class StatsLoggerProxyTest {
         createMetrics(proxy, "");
         Assert.assertEquals("Unexpected number of metrics registered initially.", METRIC_COUNT, metrics.size());
 
+        // Create metrics with same name but additional tag
+        createMetrics(proxy, "", "hostname", "localhost");
+        Assert.assertEquals("Unexpected number of metrics registered initially.", METRIC_COUNT * 2, metrics.size());
+
         // Re-create/request the same metrics. Verify the original ones have not been touched, but we did create (and close)
         // a new set.
         createMetrics(proxy, "");
-        Assert.assertEquals("Unexpected number of metrics registered after re-registering same names.", 2 * METRIC_COUNT, metrics.size());
-        Assert.assertFalse("Original metrics were not supposed to be closed.", metrics.subList(0, METRIC_COUNT).stream().anyMatch(TestMetric::isClosed));
+        Assert.assertEquals("Unexpected number of metrics registered after re-registering same names.", 3 * METRIC_COUNT, metrics.size());
+        Assert.assertFalse("Original metrics were not supposed to be closed.", metrics.subList(0, 2 * METRIC_COUNT).stream().anyMatch(TestMetric::isClosed));
         Assert.assertTrue("Attempted-added metrics were supposed to be closed.",
-                metrics.stream().skip(METRIC_COUNT).allMatch(TestMetric::isClosed));
+                metrics.stream().skip(2 * METRIC_COUNT).allMatch(TestMetric::isClosed));
 
         // Create a new set of metrics and verify the original ones were not touched.
         createMetrics(proxy, "foo");
-        Assert.assertEquals("Unexpected number of metrics registered after adding new ones.", 3 * METRIC_COUNT, metrics.size());
-        Assert.assertFalse("Original metrics were not supposed to be closed.", metrics.subList(0, METRIC_COUNT).stream().anyMatch(TestMetric::isClosed));
+        Assert.assertEquals("Unexpected number of metrics registered after adding new ones.", 4 * METRIC_COUNT, metrics.size());
+        Assert.assertFalse("Original metrics were not supposed to be closed.", metrics.subList(0, 2 * METRIC_COUNT).stream().anyMatch(TestMetric::isClosed));
         Assert.assertFalse("Newly-added metrics were not supposed to be closed.",
-                metrics.stream().skip(2 * METRIC_COUNT).anyMatch(TestMetric::isClosed));
+                metrics.stream().skip(3 * METRIC_COUNT).anyMatch(TestMetric::isClosed));
 
+        createMetrics(proxy, "foo", "containerId", "6");
+        Assert.assertEquals("Unexpected number of metrics registered after adding new ones.", 5 * METRIC_COUNT, metrics.size());
+        Assert.assertFalse("Original metrics were not supposed to be closed.", metrics.subList(0, 2 * METRIC_COUNT).stream().anyMatch(TestMetric::isClosed));
+        Assert.assertFalse("Newly-added metrics were not supposed to be closed.",
+                metrics.stream().skip(3 * METRIC_COUNT).anyMatch(TestMetric::isClosed));
     }
 
     @Test
@@ -92,12 +106,13 @@ public class StatsLoggerProxyTest {
                 metrics.stream().skip(METRIC_COUNT).anyMatch(TestMetric::isClosed));
     }
 
-    private Collection<Metric> createMetrics(StatsLoggerProxy proxy, String suffix) {
+    private Collection<Metric> createMetrics(StatsLoggerProxy proxy, String suffix, String... tags) {
         return Arrays.asList(
-                proxy.createStats("stats" + suffix),
-                proxy.createCounter("counter" + suffix),
-                proxy.createMeter("meter" + suffix),
-                proxy.registerGauge("gauge+suffix", () -> 1));
+                proxy.createStats("stats" + suffix, tags),
+                proxy.createCounter("counter" + suffix, tags),
+                proxy.createMeter("meter" + suffix, tags),
+                proxy.registerGauge("gauge" + suffix, () -> 1, tags)
+                );
     }
 
     private static class TestLogger implements StatsLogger {
@@ -108,23 +123,23 @@ public class StatsLoggerProxyTest {
         }
 
         @Override
-        public OpStatsLogger createStats(String name) {
-            return create(name);
+        public OpStatsLogger createStats(String name, String... tags) {
+            return create(name, tags);
         }
 
         @Override
-        public Counter createCounter(String name) {
-            return create(name);
+        public Counter createCounter(String name, String... tags) {
+            return create(name, tags);
         }
 
         @Override
-        public Meter createMeter(String name) {
-            return create(name);
+        public Meter createMeter(String name, String... tags) {
+            return create(name, tags);
         }
 
         @Override
-        public <T extends Number> Gauge registerGauge(String name, Supplier<T> value) {
-            return create(name);
+        public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
+            return create(name, tags);
         }
 
         @Override
@@ -132,8 +147,8 @@ public class StatsLoggerProxyTest {
             return this;
         }
 
-        private TestMetric create(String name) {
-            val r = new TestMetric(name);
+        private TestMetric create(String name, String... tags) {
+            val r = new TestMetric(name, tags);
             this.onCreate.accept(r);
             return r;
         }
@@ -141,12 +156,15 @@ public class StatsLoggerProxyTest {
 
     private static class TestMetric implements OpStatsLogger, Counter, Meter, Gauge {
         @Getter
-        private final String name;
+        private final io.micrometer.core.instrument.Meter.Id id;
         @Getter
         private boolean closed;
 
-        TestMetric(String name) {
-            this.name = "prefix-" + name;
+        TestMetric(String metricName, String... tagPairs) {
+            this.id = new io.micrometer.core.instrument.Meter.Id("prefix-" + metricName,
+                    io.micrometer.core.instrument.Tags.of(tagPairs),
+                    null, null,
+                    io.micrometer.core.instrument.Meter.Type.OTHER);
         }
 
         @Override
@@ -158,11 +176,6 @@ public class StatsLoggerProxyTest {
 
         @Override
         public void inc() {
-
-        }
-
-        @Override
-        public void dec() {
 
         }
 

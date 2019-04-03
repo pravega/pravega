@@ -356,6 +356,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
 ## Metrics in Controller Service
 
+
 - Controller Stream operation latency Metrics ([Histograms](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
   ```
     controller.stream.created_latency_ms

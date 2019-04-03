@@ -10,6 +10,7 @@
 package io.pravega.controller.util;
 
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -49,5 +50,11 @@ public class ConfigTest {
         Assert.assertEquals(9090, grpcServerConfig.getPort());
         Assert.assertEquals(9090, (int) grpcServerConfig.getPublishedRPCPort().orElse(12345));
         Assert.assertFalse(grpcServerConfig.getPublishedRPCHost().isPresent());
+    }
+
+    @Test
+    public void testMetricsConfig() {
+        val mc = Config.METRICS_CONFIG;
+        Assert.assertEquals("localhost", mc.getStatsdHost());
     }
 }
