@@ -12,6 +12,7 @@ package io.pravega.common.util;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.Data;
+import lombok.Synchronized;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayDeque;
@@ -23,19 +24,17 @@ import java.util.function.Supplier;
 
 /**
  * Resource pool class implements functionality for creating and maintaining a pool of reusable resources. 
- * It manages the lifecyle of underlying resources that it creates and destroys while ensuring that it enforces a ceiling on
+ * It manages the lifecycle of underlying resources that it creates and destroys while ensuring that it enforces a ceiling on
  * maximum concurrent resources and maximum idle resources. 
  * Users can request for new resource from this class and it will opportunistically use existing resource or create new 
  * resource and complete the request. 
- * It is callers responsibility to return a resource to the pool once its usage is done. 
+ * It is callers responsibility to call close on the resource wrapper that is returned by the pool. 
+ * Upon invoking close, a resource is automatically returned to the pool once its usage is done. 
  * If more resources are requested than the maximum concurrent allowed resource count, then this class will add them to 
  * a wait queue and as resources are returned to the pool, the waiting requests are fulfilled. 
  * If a returned resource is invalid, it is destroyed and a replacement resource is created to fulfill waiting requests. 
  * If there are no waiting requests, this class tries to maintain an idle pool of resources of maxidleSize. 
  * Once maximum allowed idle resources are present with it, any additional resource returned to it is discarded.    
- * 
- * The users of this class are expected to return the used resource back to the pool exactly once. The behaviour is 
- * nondeterministic if returned multiple times.  
  * 
  * The ResourcePool can be shutdown. However, the shutdown trigger does not prevent callers to attempt 
  * to create new resources as long as they have a valid handle to the resource pool. 
@@ -123,11 +122,9 @@ public class ResourcePool<T> {
     }
 
     /**
-     * Method to return resource back to the pool. Callers are expected to return the resource to the pool so that
-     * it can be reused. 
-     * If the same resource is returned to the pool multiple times for a single request,
-     * then resource may be given to multiple requests concurrently.
-     *
+     * Method to return resource back to the pool. Callers are expected to call close on the closableResource which in turn
+     * calls the return resource method to return the resource to the pool so that it can be reused. 
+     * 
      * @param t resource to be returned
      * @param isValid is resource valid
      */
@@ -284,15 +281,23 @@ public class ResourcePool<T> {
     private static class WaitingRequest<T> {
         private final CompletableFuture<ClosableResource<T>> future;
     }
-    
+
+    /**
+     * A closeable resource wrapper class which returns the resource back to the pool automatically once it is closed.
+     * Its close method is idempotent and can be invoked multiple times without returning the resource more than once. 
+     * @param <T> Type of underlying resource
+     */
     public static class ClosableResource<T> implements AutoCloseable {
         private final ResourcePool<T> resourcePool;
         private final T resource;
         private final AtomicBoolean invalid;
+        @GuardedBy("$lock")
+        private boolean isClosed;
         private ClosableResource(T resource, ResourcePool<T> resourcePool) {
             this.resourcePool = resourcePool;
             this.resource = resource;
             this.invalid = new AtomicBoolean(false);
+            this.isClosed = false;
         }
 
         public T getResource() {
@@ -304,12 +309,18 @@ public class ResourcePool<T> {
         }
         
         @Override
+        @Synchronized
         public void close() {
-            if (invalid.get()) {
-                resourcePool.returnResource(resource, false);
-            } else {
-                resourcePool.returnResource(resource);
-            }
+            // Close is idempotent. 
+            // If close had already been invoked on this resource wrapper, then we do not return the resource to the pool.  
+            if (!isClosed) {
+                if (invalid.get()) {
+                    resourcePool.returnResource(resource, false);
+                } else {
+                    resourcePool.returnResource(resource);
+                }
+            } 
+            isClosed = true;
         }
     }
 }

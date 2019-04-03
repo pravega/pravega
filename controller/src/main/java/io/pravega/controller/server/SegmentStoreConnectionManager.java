@@ -24,9 +24,11 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -128,9 +130,11 @@ class SegmentStoreConnectionManager implements AutoCloseable {
     
     static class ConnectionWrapper implements AutoCloseable {
         private final ResourcePool.ClosableResource<ConnectionObject> resource;
-
+        @GuardedBy("$lock")
+        private boolean isClosed;
         private ConnectionWrapper(ResourcePool.ClosableResource<ConnectionObject> resource) {
             this.resource = resource;
+            this.isClosed = false;
         }
 
         void failConnection() {
@@ -159,13 +163,17 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         // endregion
 
         @Override
+        @Synchronized
         public void close() {
-            ConnectionObject connectionObject = resource.getResource();
-            connectionObject.reusableReplyProcessor.uninitialize();
-            if (!connectionObject.state.get().equals(ConnectionObject.ConnectionState.CONNECTED)) {
-                resource.invalidate();
-            }
-            this.resource.close();
+            if (!isClosed) {
+                ConnectionObject connectionObject = resource.getResource();
+                connectionObject.reusableReplyProcessor.uninitialize();
+                if (!connectionObject.state.get().equals(ConnectionObject.ConnectionState.CONNECTED)) {
+                    resource.invalidate();
+                }
+                this.resource.close();
+            } 
+            isClosed = true;
         }
     }
     

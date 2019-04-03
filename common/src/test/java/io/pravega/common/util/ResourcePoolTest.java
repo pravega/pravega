@@ -53,6 +53,13 @@ public class ResourcePoolTest {
         assertEquals(pool.idleCount(), 1);
         assertEquals(pool.resourceCount(), 2);
 
+        // test idempotent close call
+        resource1.close();
+        
+        // verify that available resources is 1
+        assertEquals(pool.idleCount(), 1);
+        assertEquals(pool.resourceCount(), 2);
+
         resource2.close();
         // pool should only have one resource as available resource. 
         // it should have destroyed the second resource.
