@@ -17,22 +17,23 @@ import com.google.common.cache.RemovalListener;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ResourcePool;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import javax.annotation.concurrent.GuardedBy;
-import java.util.ArrayDeque;
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 @Slf4j
 /**
@@ -45,7 +46,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * pool can continue to do so. The pool in shutdown mode simply drains all available connections. And when it has no references left
  * it can be garbage collected. 
  */
-class SegmentStoreConnectionManager {
+class SegmentStoreConnectionManager implements Closeable {
+    private static final int MAX_CONCURRENT_CONNECTIONS = 500;
+    private static final int MAX_IDLE_CONNECTIONS = 100;
     // cache of connection manager for segment store nodes.
     // Pravega Connection Manager maintains a pool of connection for a segment store and returns a connection from 
     // the pool on the need basis. 
@@ -71,12 +74,19 @@ class SegmentStoreConnectionManager {
     }
 
     public SegmentStoreConnectionPool getPool(PravegaNodeUri uri) {
+        cache.cleanUp();
         return cache.getUnchecked(uri);
+    }
+
+    @Override
+    public void close() throws IOException {
+        cache.invalidateAll();
+        cache.cleanUp();
     }
 
     /**
      * This is a connection manager class to manage connection to a given segmentStore node identified by PravegaNodeUri. 
-     * It maintains a pool of available connections and creates a maximum number of concurrent connections. 
+     * It uses {@link ResourcePool} to create pool of available connections and specify a maximum number of concurrent connections. 
      * Users can request for connection from this class and it will opportunistically use existing connections or create new 
      * connections to a given segment store server and return the connection.
      * It ensures that there are only a limited number of concurrent connections created. If more users request for connection
@@ -85,228 +95,40 @@ class SegmentStoreConnectionManager {
      * waiting requests, this class tries to maintain an available connection pool of predetermined size. If more number of 
      * connections than max available size is returned to it, the classes closes those connections to free up resources.  
      *
-     * It is important to note that this is not a connection pooling class. 
-     * It simply reuses already created connections to send additional commands over it. It doesnt multiplex commands on the 
-     * same connection concurrently.  
+     * It is important to note that the intent is not to multiplex multiple requests over a single connection concurrently. 
+     * It simply reuses already created connections to send additional commands over it. 
      * As users finish their processing, they should return the connection back to this class. 
      *
-     * The connectionManager can be shutdown as well. However, the shutdown trigger does not prevent from callers to attempt 
-     * to create new connections and new connections will be served. Shutdown ensures that 
+     * The connectionManager can be shutdown as well. However, the shutdown trigger does not prevent callers to attempt 
+     * to create new connections and new connections will be served. Shutdown ensures that it drains all available connections 
+     * and as connections are returned, they are not reused. 
      */
-    static class SegmentStoreConnectionPool {
-        private static final int MAX_CONCURRENT_CONNECTIONS = 500;
-        private static final int MAX_AVAILABLE_CONNECTIONS = 100;
-        private final PravegaNodeUri uri;
-        private final Object lock = new Object();
-        @GuardedBy("lock")
-        private final ArrayDeque<ConnectionObject> availableConnections;
-        @GuardedBy("lock")
-        private boolean isRunning;
-        @GuardedBy("lock")
-        private final ArrayDeque<WaitingRequest> waitQueue;
-        @GuardedBy("lock")
-        private int connectionCount;
-        private final ConnectionFactory clientCF;
-        private final int maxConcurrentConnections;
-        private final int maxAvailableConnections;
-
-        private final ConnectionListener connectionListener;
-
-        SegmentStoreConnectionPool(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF) {
-            this(pravegaNodeUri, clientCF, MAX_CONCURRENT_CONNECTIONS, MAX_AVAILABLE_CONNECTIONS, null);
-        }
-
+    static class SegmentStoreConnectionPool extends ResourcePool<ConnectionObject> {
         @VisibleForTesting
-        SegmentStoreConnectionPool(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF,
-                                   int maxConcurrentConnections, int maxAvailableConnections, ConnectionListener listener) {
-            this.uri = pravegaNodeUri;
-            this.clientCF = clientCF;
-            this.availableConnections = new ArrayDeque<>();
-            this.isRunning = true;
-            this.waitQueue = new ArrayDeque<>();
-            this.connectionCount = 0;
-            this.maxConcurrentConnections = maxConcurrentConnections;
-            this.maxAvailableConnections = maxAvailableConnections;
-            this.connectionListener = listener;
+        SegmentStoreConnectionPool(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF) {
+            this(pravegaNodeUri, clientCF, MAX_CONCURRENT_CONNECTIONS, MAX_IDLE_CONNECTIONS);
+        }
+        
+        @VisibleForTesting
+        SegmentStoreConnectionPool(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF, int maxConcurrent, int maxIdle) {
+            super(() -> {
+                ReusableReplyProcessor rp = new ReusableReplyProcessor();
+                return clientCF.establishConnection(pravegaNodeUri, rp)
+                              .thenApply(connection -> new ConnectionObject(connection, rp));
+            }, connectionObj -> connectionObj.connection.close(), maxConcurrent, maxIdle);
         }
 
-        /**
-         * Method to get a connection object with the supplied replyprocessor to use.
-         * This method attempts to find an existing available connection.
-         * If not founf, it opportunistically submits a request to try to create a new connection.
-         * It submits a new waiting request for whenever a connection becomes available. A connection could become available
-         * because someone returned an existing connection or a new connection was created.
-         *
-         * @param processor reply processor to use
-         * @return A completableFuture which when completed will have the connection object that the caller can use to
-         * communicate with segment store and receive response on the supplied reply processor.
-         */
-        CompletableFuture<ConnectionObject> getConnection(ReplyProcessor processor) {
-            CompletableFuture<ConnectionObject> connectionFuture;
-            boolean tryCreateNewConnection = false;
-            synchronized (lock) {
-                ConnectionObject obj = availableConnections.poll();
-                if (obj != null) {
-                    log.debug("Returning existing connection for {}", uri);
-                    // return the object from the queue
-                    obj.reusableReplyProcessor.initialize(processor);
-                    connectionFuture = CompletableFuture.completedFuture(obj);
-                } else {
-                    CompletableFuture<ConnectionObject> future = new CompletableFuture<>();
-                    WaitingRequest request = new WaitingRequest(future, processor);
-                    waitQueue.add(request);
-                    connectionFuture = request.getFuture();
-                    tryCreateNewConnection = true;
-                }
-            }
-            if (tryCreateNewConnection) {
-                tryCreateNewConnection();
-            }
-            return connectionFuture;
+        CompletableFuture<ConnectionObject> getConnection(ReplyProcessor replyProcessor) {
+            return getResource()
+                    .thenApply(connectionObject -> {
+                        connectionObject.reusableReplyProcessor.initialize(replyProcessor);
+                        return connectionObject;
+                    });
         }
-
-        /**
-         * Users use this method to return the connection back to the Connection Manager for reuse.
-         * This method first checks the state of the connection and if the connection is disconnected, it is closed.
-         * For valid connections, it checks if there is a waiting request for a connection and fulfils that first.
-         * If there are no waiting requests, it checks if the available queue has the capacity to keep this connection.
-         * If not, it destroys this connection.
-         *
-         * @param connectionObject connection to return to the pool.
-         */
+        
         void returnConnection(ConnectionObject connectionObject) {
             connectionObject.reusableReplyProcessor.uninitialize();
-            if (connectionObject.state.get().equals(ConnectionObject.ConnectionState.DISCONNECTED)) {
-                handleDisconnected(connectionObject);
-            } else {
-                boolean toClose = false;
-                synchronized (lock) {
-                    WaitingRequest waiting = waitQueue.poll();
-                    if (waiting != null) {
-                        connectionObject.reusableReplyProcessor.initialize(waiting.getReplyProcessor());
-                        waiting.getFuture().complete(connectionObject);
-                    } else {
-                        if (!isRunning) {
-                            // The connection will be closed if returned anytime after the shutdown has been initiated.
-                            log.debug("ConnectionManager is shutdown");
-                            connectionCount--;
-                            toClose = true;
-                        } else {
-                            // as connections are returned to us, we put them in queue to be reused
-                            if (availableConnections.size() < maxAvailableConnections) {
-                                // if returned connection increases our available connection count, do not include it
-                                log.debug("Returned connection object is included in the available list");
-                                availableConnections.offer(connectionObject);
-                            } else {
-                                log.debug("Returned connection object is discarded as available list is full");
-                                connectionCount--;
-                                toClose = true;
-                            }
-                        }
-                    }
-                }
-
-                if (toClose) {
-                    if (connectionListener != null) {
-                        connectionListener.notify(ConnectionListener.ConnectionEvent.ConnectionClosed);
-                    }
-                    connectionObject.connection.close();
-                }
-            }
-        }
-
-        /**
-         * This method will try to create a new connection only if BOTH conditions are met
-         * 1. connectionCount is less than MAX_CONCURRENT_CONNECTIONS.
-         * 2. it has taken a waiting request from the waitQueue.
-         */
-        private void tryCreateNewConnection() {
-            WaitingRequest waiting = null;
-            synchronized (lock) {
-                if (connectionCount < maxConcurrentConnections) {
-                    waiting = waitQueue.poll();
-                    if (waiting != null) {
-                        log.debug("Creating new connection for {}. Total connection count = {}", uri, connectionCount);
-                        connectionCount++;
-                    }
-                }
-            }
-
-            if (waiting != null) {
-                log.debug("Creating new connection for {}", uri);
-                ReusableReplyProcessor rp = new ReusableReplyProcessor();
-                rp.initialize(waiting.getReplyProcessor());
-                Futures.completeAfter(
-                        () -> clientCF.establishConnection(uri, rp)
-                                      .thenApply(connection -> new ConnectionObject(connection, rp))
-                                      .whenComplete((r, e) -> {
-                                          if (connectionListener != null) {
-                                              connectionListener.notify(ConnectionListener.ConnectionEvent.NewConnection);
-                                          }
-                                      }), waiting.getFuture());
-            }
-        }
-
-        private void handleDisconnected(ConnectionObject connectionObject) {
-            connectionObject.connection.close();
-            if (connectionListener != null) {
-                connectionListener.notify(ConnectionListener.ConnectionEvent.ConnectionClosed);
-            }
-            boolean tryCreateNewConnection;
-            synchronized (lock) {
-                log.debug("Discarding disconnected connection for {}. count = {}", uri, connectionCount);
-                connectionCount--;
-                tryCreateNewConnection = !waitQueue.isEmpty();
-            }
-
-            if (tryCreateNewConnection) {
-                tryCreateNewConnection();
-            }
-        }
-
-        // region getters for testing
-        @VisibleForTesting
-        int connectionCount() {
-            synchronized (lock) {
-                return connectionCount;
-            }
-        }
-
-        @VisibleForTesting
-        int availableCount() {
-            synchronized (lock) {
-                return availableConnections.size();
-            }
-        }
-
-        @VisibleForTesting
-        int waitingCount() {
-            synchronized (lock) {
-                return waitQueue.size();
-            }
-        }
-        // endregion
-
-        /**
-         * Shutdown the connection manager where all returned connections are closed and not put back into the
-         * available queue of connections.
-         * It is important to note that even after shutdown is initiated, if `getConnection` is invoked, it will return a connection.
-         */
-        void shutdown() {
-            log.debug("ConnectionManager shutdown initiated");
-
-            // as connections are returned we need to shut them down
-            ConnectionObject connection;
-            synchronized (lock) {
-                isRunning = false;
-                connection = availableConnections.poll();
-            }
-            while (connection != null) {
-                returnConnection(connection);
-                synchronized (lock) {
-                    connection = availableConnections.poll();
-                }
-            }
+            returnResource(connectionObject, connectionObject.state.get().equals(ConnectionObject.ConnectionState.CONNECTED));
         }
     }
     
@@ -319,10 +141,6 @@ class SegmentStoreConnectionManager {
             this.connection = connection;
             this.reusableReplyProcessor = processor;
             state = new AtomicReference<>(ConnectionState.CONNECTED);
-        }
-
-        ConnectionState getState() {
-            return state.get();
         }
 
         void failConnection() {
@@ -345,26 +163,27 @@ class SegmentStoreConnectionManager {
             });
         }
 
+        // region for testing
+        @VisibleForTesting
+        ConnectionState getState() {
+            return state.get();
+        }
+        
+        @VisibleForTesting
+        ClientConnection getConnection() {
+            return connection;
+        }
+
+        @VisibleForTesting
+        ReplyProcessor getReplyProcessor() {
+            return reusableReplyProcessor.replyProcessor.get();
+        }
+        // endregion
+
         private enum ConnectionState {
             CONNECTED,
             DISCONNECTED
         }
-    }
-
-    @VisibleForTesting
-    static interface ConnectionListener {
-        enum ConnectionEvent {
-            NewConnection,
-            ConnectionClosed
-        }
-        
-        void notify(ConnectionEvent event);
-    }
-    
-    @Data
-    private static class WaitingRequest {
-        private final CompletableFuture<ConnectionObject> future;
-        private final ReplyProcessor replyProcessor;
     }
     
     /**
@@ -372,7 +191,8 @@ class SegmentStoreConnectionManager {
      *  This same replyProcessor can be reused with the same connection for handling different replies from servers for
      *  different calls.
      */
-    private static class ReusableReplyProcessor implements ReplyProcessor {
+    @VisibleForTesting
+    static class ReusableReplyProcessor implements ReplyProcessor {
         private final AtomicReference<ReplyProcessor> replyProcessor = new AtomicReference<>();
 
         // initialize the reusable reply processor class with a new reply processor
@@ -385,269 +205,183 @@ class SegmentStoreConnectionManager {
             replyProcessor.set(null);
         }
 
-        @Override
-        public void hello(WireCommands.Hello hello) {
+        private <T> void execute(BiConsumer<ReplyProcessor, T> toInvoke, T arg) {
             ReplyProcessor rp = replyProcessor.get();
             if (rp != null) {
-                rp.hello(hello);
+                toInvoke.accept(rp, arg);
             }
+        }
+
+        private void execute(Consumer<ReplyProcessor> toInvoke) {
+            ReplyProcessor rp = replyProcessor.get();
+            if (rp != null) {
+                toInvoke.accept(rp);
+            }
+        }
+
+        @Override
+        public void hello(WireCommands.Hello hello) {
+            execute(ReplyProcessor::hello, hello);
         }
 
         @Override
         public void wrongHost(WireCommands.WrongHost wrongHost) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.wrongHost(wrongHost);
-            }
+            execute(ReplyProcessor::wrongHost, wrongHost);
         }
 
         @Override
         public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentAlreadyExists(segmentAlreadyExists);
-            }
+            execute(ReplyProcessor::segmentAlreadyExists, segmentAlreadyExists);
         }
 
         @Override
         public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentIsSealed(segmentIsSealed);
-            }
+            execute(ReplyProcessor::segmentIsSealed, segmentIsSealed);
         }
 
         @Override
         public void segmentIsTruncated(WireCommands.SegmentIsTruncated segmentIsTruncated) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentIsTruncated(segmentIsTruncated);
-            }
+            execute(ReplyProcessor::segmentIsTruncated, segmentIsTruncated);
         }
 
         @Override
         public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.noSuchSegment(noSuchSegment);
-            }
+            execute(ReplyProcessor::noSuchSegment, noSuchSegment);
         }
 
         @Override
         public void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.tableSegmentNotEmpty(tableSegmentNotEmpty);
-            }
+            execute(ReplyProcessor::tableSegmentNotEmpty, tableSegmentNotEmpty);
         }
 
         @Override
         public void invalidEventNumber(WireCommands.InvalidEventNumber invalidEventNumber) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.invalidEventNumber(invalidEventNumber);
-            }
+            execute(ReplyProcessor::invalidEventNumber, invalidEventNumber);
         }
 
         @Override
         public void appendSetup(WireCommands.AppendSetup appendSetup) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.appendSetup(appendSetup);
-            }
+            execute(ReplyProcessor::appendSetup, appendSetup);
         }
 
         @Override
         public void dataAppended(WireCommands.DataAppended dataAppended) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.dataAppended(dataAppended);
-            }
+            execute(ReplyProcessor::dataAppended, dataAppended);
         }
 
         @Override
         public void conditionalCheckFailed(WireCommands.ConditionalCheckFailed dataNotAppended) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.conditionalCheckFailed(dataNotAppended);
-            }
+            execute(ReplyProcessor::conditionalCheckFailed, dataNotAppended);
         }
 
         @Override
         public void segmentRead(WireCommands.SegmentRead segmentRead) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentRead(segmentRead);
-            }
+            execute(ReplyProcessor::segmentRead, segmentRead);
         }
 
         @Override
         public void segmentAttributeUpdated(WireCommands.SegmentAttributeUpdated segmentAttributeUpdated) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentAttributeUpdated(segmentAttributeUpdated);
-            }
+            execute(ReplyProcessor::segmentAttributeUpdated, segmentAttributeUpdated);
         }
 
         @Override
         public void segmentAttribute(WireCommands.SegmentAttribute segmentAttribute) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentAttribute(segmentAttribute);
-            }
+            execute(ReplyProcessor::segmentAttribute, segmentAttribute);
         }
 
         @Override
         public void streamSegmentInfo(WireCommands.StreamSegmentInfo streamInfo) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.streamSegmentInfo(streamInfo);
-            }
+            execute(ReplyProcessor::streamSegmentInfo, streamInfo);
         }
 
         @Override
         public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentCreated(segmentCreated);
-            }
+            execute(ReplyProcessor::segmentCreated, segmentCreated);
         }
 
         @Override
         public void segmentsMerged(WireCommands.SegmentsMerged segmentsMerged) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentsMerged(segmentsMerged);
-            }
+            execute(ReplyProcessor::segmentsMerged, segmentsMerged);
         }
 
         @Override
         public void segmentSealed(WireCommands.SegmentSealed segmentSealed) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentSealed(segmentSealed);
-            }
+            execute(ReplyProcessor::segmentSealed, segmentSealed);
         }
 
         @Override
         public void segmentTruncated(WireCommands.SegmentTruncated segmentTruncated) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentTruncated(segmentTruncated);
-            }
+            execute(ReplyProcessor::segmentTruncated, segmentTruncated);
         }
 
         @Override
         public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentDeleted(segmentDeleted);
-            }
+            execute(ReplyProcessor::segmentDeleted, segmentDeleted);
         }
 
         @Override
         public void operationUnsupported(WireCommands.OperationUnsupported operationUnsupported) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.operationUnsupported(operationUnsupported);
-            }
+            execute(ReplyProcessor::operationUnsupported, operationUnsupported);
         }
 
         @Override
         public void keepAlive(WireCommands.KeepAlive keepAlive) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.keepAlive(keepAlive);
-            }
+            execute(ReplyProcessor::keepAlive, keepAlive);
         }
 
         @Override
         public void connectionDropped() {
-            
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.connectionDropped();
-            }
+            execute(ReplyProcessor::connectionDropped);
         }
 
         @Override
         public void segmentPolicyUpdated(WireCommands.SegmentPolicyUpdated segmentPolicyUpdated) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.segmentPolicyUpdated(segmentPolicyUpdated);
-            }
+            execute(ReplyProcessor::segmentPolicyUpdated, segmentPolicyUpdated);
         }
 
         @Override
         public void processingFailure(Exception error) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.processingFailure(error);
-            }
+            execute(ReplyProcessor::processingFailure, error);
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.authTokenCheckFailed(authTokenCheckFailed);
-            }
+            execute(ReplyProcessor::authTokenCheckFailed, authTokenCheckFailed);
         }
 
         @Override
         public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.tableEntriesUpdated(tableEntriesUpdated);
-            }
+            execute(ReplyProcessor::tableEntriesUpdated, tableEntriesUpdated);
         }
 
         @Override
         public void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.tableKeysRemoved(tableKeysRemoved);
-            }
+            execute(ReplyProcessor::tableKeysRemoved, tableKeysRemoved);
         }
 
         @Override
         public void tableRead(WireCommands.TableRead tableRead) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.tableRead(tableRead);
-            }
+            execute(ReplyProcessor::tableRead, tableRead);
         }
 
         @Override
         public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.tableKeyDoesNotExist(tableKeyDoesNotExist);
-            }
+            execute(ReplyProcessor::tableKeyDoesNotExist, tableKeyDoesNotExist);
         }
 
         @Override
         public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.tableKeyBadVersion(tableKeyBadVersion);
-            }
+            execute(ReplyProcessor::tableKeyBadVersion, tableKeyBadVersion);
         }
 
         @Override
         public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.tableKeysRead(tableKeysRead);
-            }
+            execute(ReplyProcessor::tableKeysRead, tableKeysRead);
         }
 
         @Override
         public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
-            ReplyProcessor rp = replyProcessor.get();
-            if (rp != null) {
-                rp.tableEntriesRead(tableEntriesRead);
-            }
+            execute(ReplyProcessor::tableEntriesRead, tableEntriesRead);
         }
     }
 }

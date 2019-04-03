@@ -39,6 +39,9 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -59,7 +62,7 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamNa
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
-public class SegmentHelper {
+public class SegmentHelper implements Closeable {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
 
@@ -1217,46 +1220,95 @@ public class SegmentHelper {
         return key;
     }
 
-    private <ResultT> void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
-                                            final CompletableFuture<ResultT> resultFuture,
+    /**
+     * This method takes a new connection from the pool and associates replyProcessor with that connection and sends 
+     * the supplied request over that connection. 
+     * It takes a resultFuture that is completed when the response from the store is processed successfully. 
+     * If there is a failure in establishing connection or sending the request over the wire, 
+     * the resultFuture is completedExceptionally explicitly by this method. Otherwise, it simply registers a callback
+     * on result future's completion to return the connection back to the pool. 
+     * @param request request to send.
+     * @param replyProcessor reply processor to associate with the connection.
+     * @param resultFuture A future that when completed signals completion of request processing, either via 
+     *                     recieving a response from segment store or a failure (to send the request/receive a response).  
+     * @param uri segment store uri where the request needs to be sent.
+     */
+    private void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
+                                            final CompletableFuture<?> resultFuture,
                                             final PravegaNodeUri uri) {
-        // get connection manager for the segment store node from the connectionmanager. 
-        SegmentStoreConnectionManager.SegmentStoreConnectionPool pool = connectionManager.getPool(uri);
-        // take a new connection from the connection manager
-        CompletableFuture<SegmentStoreConnectionManager.ConnectionObject> connectionFuture = pool.getConnection(replyProcessor);
-        connectionFuture.whenComplete((connection, e) -> {
-            if (connection == null || e != null) {
-                ConnectionFailedException cause = e != null ? new ConnectionFailedException(e) : new ConnectionFailedException();
-                resultFuture.completeExceptionally(new WireCommandFailedException(cause,
-                        request.getType(),
-                        WireCommandFailedException.Reason.ConnectionFailed));
-            } else {                
-                connection.sendAsync(request, resultFuture);
-            }
-        });
-        resultFuture.whenComplete((result, e) -> {
-            // when processing completes, return the connection back to connection manager asynchronously.
-            // Note: If result future is complete, connectionFuture is definitely complete. 
-            if (resultFuture.isCompletedExceptionally()) {
-                resultFuture.exceptionally(ex -> {
-                    Throwable unwrap = Exceptions.unwrap(ex);
-                    if (unwrap instanceof WireCommandFailedException && 
-                            (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed) ||
-                            (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionDropped))
-                            )) {
-                        connectionFuture.thenAccept(connectionObject -> {
-                            connectionObject.failConnection();
-                            pool.returnConnection(connectionObject);
-                        });
-                    } else {
-                        connectionFuture.thenAccept(pool::returnConnection);
-                    }
-                    return null;
+        try {
+            // get connection manager for the segment store node from the connectionManager. 
+            SegmentStoreConnectionManager.SegmentStoreConnectionPool pool = connectionManager.getPool(uri);
+            // take a new connection from the connection manager
+            CompletableFuture<SegmentStoreConnectionManager.ConnectionObject> connectionFuture = pool.getConnection(replyProcessor);
+            connectionFuture.whenComplete((connection, e) -> {
+                connectionCompleteCallback(request, resultFuture, connection, e);
+            });
+            resultFuture.whenComplete((result, e) -> {
+                requestCompleteCallback(pool, connectionFuture, e);
+            });
+        } catch (Exception e) {
+            resultFuture.completeExceptionally(e);
+        }
+    }
+
+    /**
+     * Connection completion callback method. This is invoked when the future returned by the connection pool completes.
+     * If it succeeded, we will have a connection object where send the request. 
+     * If it failed, the resultFuture is failed with ConnectionFailedException. 
+     * @param request request to send over to segment store.
+     * @param resultFuture Future to complete in case of a connection failure. This future is completed in the reply 
+     *                     processor in successful case.  
+     * @param connection Connection object received upon successful completion of future from the request for new 
+     *                   connection from the pool. 
+     * @param e Exception, if any, thrown from attempting to get a new connection.  
+     */
+    private  void connectionCompleteCallback(WireCommand request, CompletableFuture<?> resultFuture,
+                                             SegmentStoreConnectionManager.ConnectionObject connection, Throwable e) {
+        if (connection == null || e != null) {
+            ConnectionFailedException cause = e != null ? new ConnectionFailedException(e) : new ConnectionFailedException();
+            resultFuture.completeExceptionally(new WireCommandFailedException(cause,
+                    request.getType(),
+                    WireCommandFailedException.Reason.ConnectionFailed));
+        } else {                
+            connection.sendAsync(request, resultFuture);
+        }
+    }
+
+    /**
+     * Request Complete callback is invoked when the request is complete, either by sending and receiving a response from 
+     * segment store or by way of failure of connection. 
+     * This is responsible for returning the connection back to the connection pool. 
+     * @param pool connection pool.
+     * @param connectionFuture conection future that when completed successfully holds the connection object taken from the pool. 
+     * @param e Exception, if any, thrown from the request processing. 
+     */
+    private void requestCompleteCallback(SegmentStoreConnectionManager.SegmentStoreConnectionPool pool, 
+                                         CompletableFuture<SegmentStoreConnectionManager.ConnectionObject> connectionFuture, 
+                                         Throwable e) {
+        // when processing completes, return the connection back to connection manager asynchronously.
+        // Note: If result future is complete, connectionFuture is definitely complete. if connectionFuture had failed,
+        // we would not have received a connection object anyway. 
+        if (e != null) {
+            Throwable unwrap = Exceptions.unwrap(e);
+            if (hasConnectionFailed(unwrap)) {
+                connectionFuture.thenAccept(connectionObject -> {
+                    connectionObject.failConnection();
+                    pool.returnConnection(connectionObject);
                 });
             } else {
                 connectionFuture.thenAccept(pool::returnConnection);
             }
-        });
+        } else {
+            connectionFuture.thenAccept(pool::returnConnection);
+        }
+    }
+
+    private boolean hasConnectionFailed(Throwable unwrap) {
+        return unwrap instanceof WireCommandFailedException &&
+                (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed) ||
+                        (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionDropped))
+                );
     }
 
     private Pair<Byte, Integer> extractFromPolicy(ScalingPolicy policy) {
@@ -1275,5 +1327,10 @@ public class SegmentHelper {
         }
 
         return new ImmutablePair<>(rateType, desiredRate);
+    }
+
+    @Override
+    public void close() throws IOException {
+        connectionManager.close();
     }
 }
