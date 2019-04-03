@@ -26,7 +26,7 @@ docker stack up --compose-file zookeeper.yml pravega
 ```
 
 This runs a single node HDFS container and single node ZooKeeper inside the `pravega_default` overlay network, and adds
-them to the pravegastack.
+them to the `pravega` stack.
 
 HDFS is reachable inside the swarm as
 
