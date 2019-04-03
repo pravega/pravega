@@ -11,180 +11,170 @@ package io.pravega.controller.server;
 
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.AssertExtensions;
 import lombok.Getter;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static io.pravega.controller.server.SegmentStoreConnectionManager.*;
-import static org.junit.Assert.assertEquals;
+import static io.pravega.controller.server.SegmentStoreConnectionManager.ReusableReplyProcessor;
+import static io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionObject;
+import static io.pravega.controller.server.SegmentStoreConnectionManager.SegmentStoreConnectionPool;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 
 public class SegmentStoreConnectionManagerTest {
+    private AtomicInteger replyProcCounter;
+    private AtomicInteger connectionCounter;
+
+    @Before
+    public void setUp() {
+        replyProcCounter = new AtomicInteger();
+        connectionCounter = new AtomicInteger();
+    }
+
     @Test(timeout = 30000)
     public void connectionTest() throws InterruptedException {
         PravegaNodeUri uri = new PravegaNodeUri("pravega", 1234);
-        ConnectionFactory cf = new MockConnectionFactory();
-        LinkedBlockingQueue<ConnectionListener.ConnectionEvent> eventQueue = new LinkedBlockingQueue<>();
-        SegmentStoreConnectionPool pool =
-                new SegmentStoreConnectionPool(uri, cf, 2, 1, eventQueue::offer);
+        ConnectionFactory cf = spy(new MockConnectionFactory());
+
+        SegmentStoreConnectionPool pool = new SegmentStoreConnectionPool(uri, cf, 2, 1);
         ReplyProcessor myReplyProc = getReplyProcessor();
 
         // we should be able to establish two connections safely
         ConnectionObject connection1 = pool.getConnection(myReplyProc).join();
-        assertEquals(ConnectionListener.ConnectionEvent.NewConnection, eventQueue.take());
-        assertEquals(pool.connectionCount(), 1);
+        // verify that the connection returned is of type MockConnection
+        assertTrue(connection1.getConnection() instanceof MockConnection);
+        assertTrue(((MockConnection) connection1.getConnection()).getRp() instanceof ReusableReplyProcessor);
+        assertEquals(connection1.getReplyProcessor(), myReplyProc);
+        verify(cf, times(1)).establishConnection(any(), any());
 
-        ConnectionObject connection2 = pool.getConnection(myReplyProc).join();
-        assertEquals(ConnectionListener.ConnectionEvent.NewConnection, eventQueue.take());
-        assertEquals(pool.connectionCount(), 2);
+        ReplyProcessor myReplyProc2 = getReplyProcessor();
+
+        ConnectionObject connection2 = pool.getConnection(myReplyProc2).join();
+        assertEquals(connection2.getReplyProcessor(), myReplyProc2);
+        verify(cf, times(2)).establishConnection(any(), any());
 
         // return these connections
         pool.returnConnection(connection1);
-        // verify that available connections is 1
-        assertEquals(pool.availableCount(), 1);
-        assertEquals(pool.connectionCount(), 2);
-
         pool.returnConnection(connection2);
-        // connection manager should only have one connection as available connection. 
-        // it should have destroyed the second connection.
-        // verify that available connections is still 1
-        assertEquals(pool.availableCount(), 1);
-        assertEquals(pool.connectionCount(), 1);
+
+        // verify that connections are reset 
+        assertNull(connection1.getReplyProcessor());
+        assertNull(connection2.getReplyProcessor());
 
         // verify that one connection was closed
-        assertEquals(ConnectionListener.ConnectionEvent.ConnectionClosed, eventQueue.take());
-        assertTrue(eventQueue.isEmpty());
+        connection2.getConnection().close();
+
+        assertTrue(((MockConnection) connection2.getConnection()).isClosed.get());
 
         // now create two more connections
-        // 1st should be delivered from available connections. 
-        connection1 = pool.getConnection(myReplyProc).join();
-        // verify its delivered from available connections 
-        assertEquals(pool.connectionCount(), 1);
-        assertEquals(pool.availableCount(), 0);
-        // verify that no new connection was established
-        assertTrue(eventQueue.isEmpty());
+        // 1st should be delivered from available connections.
+        connection1 = pool.getConnection(getReplyProcessor()).join();
+        // we should get back first connection
+        assertEquals(((MockConnection) connection1.getConnection()).uniqueId, 1);
 
         // 2nd request should result in creation of new connection
-        connection2 = pool.getConnection(myReplyProc).join();
-        assertEquals(ConnectionListener.ConnectionEvent.NewConnection, eventQueue.take());
-        assertEquals(pool.availableCount(), 0);
-        // verify that there are two created connections
-        assertEquals(pool.connectionCount(), 2);
+        connection2 = pool.getConnection(getReplyProcessor()).join();
+        assertEquals(((MockConnection) connection2.getConnection()).uniqueId, 3);
 
         // attempt to create a third connection
-        CompletableFuture<ConnectionObject> connection3Future = pool.getConnection(myReplyProc);
+        CompletableFuture<ConnectionObject> connection3Future = pool.getConnection(getReplyProcessor());
         // this would not have completed. the waiting queue should have this entry
-        assertEquals(pool.connectionCount(), 2);
-        assertEquals(pool.waitingCount(), 1);
-        assertEquals(pool.availableCount(), 0);
         assertFalse(connection3Future.isDone());
-        assertTrue(eventQueue.isEmpty());
 
         CompletableFuture<ConnectionObject> connection4Future = pool.getConnection(myReplyProc);
-        assertEquals(pool.connectionCount(), 2);
-        assertEquals(pool.waitingCount(), 2);
-        assertEquals(pool.availableCount(), 0);
-        assertTrue(eventQueue.isEmpty());
+        assertFalse(connection4Future.isDone());
 
         // return connection1. it should be assigned to first waiting connection (connection3)
         pool.returnConnection(connection1);
         ConnectionObject connection3 = connection3Future.join();
-        assertEquals(pool.connectionCount(), 2);
-        assertEquals(pool.waitingCount(), 1);
-        assertEquals(pool.availableCount(), 0);
         // verify that connection 3 received a connection object
-        assertTrue(connection3Future.isDone());
-        assertTrue(eventQueue.isEmpty());
+        assertEquals(((MockConnection) connection3.getConnection()).uniqueId, 1);
 
-        // now fail connection 3 and return it.
+        // now fail connection 2 and return it.
         connection2.failConnection();
         pool.returnConnection(connection2);
-        // this should not be given to the waiting request. instead a new connection should be established. 
-        assertEquals(ConnectionListener.ConnectionEvent.ConnectionClosed, eventQueue.take());
+        assertTrue(((MockConnection) connection2.getConnection()).isClosed.get());
 
+        // this should not be given to the waiting request. instead a new connection should be established. 
         ConnectionObject connection4 = connection4Future.join();
-        assertEquals(ConnectionListener.ConnectionEvent.NewConnection, eventQueue.take());
-        assertEquals(pool.connectionCount(), 2);
-        assertEquals(pool.waitingCount(), 0);
-        assertEquals(pool.availableCount(), 0);
+        assertEquals(((MockConnection) connection4.getConnection()).uniqueId, 4);
 
         // create another waiting request
         CompletableFuture<ConnectionObject> connection5Future = pool.getConnection(myReplyProc);
-        assertEquals(pool.connectionCount(), 2);
-        assertEquals(pool.waitingCount(), 1);
-        assertEquals(pool.availableCount(), 0);
-        assertFalse(connection5Future.isDone());
-        assertTrue(eventQueue.isEmpty());
 
         // test shutdown
         pool.shutdown();
         pool.returnConnection(connection3);
-        assertEquals(pool.connectionCount(), 2);
-        assertEquals(pool.waitingCount(), 0);
-        assertEquals(pool.availableCount(), 0);
+        assertFalse(((MockConnection) connection3.getConnection()).isClosed.get());
 
         // connection 5 should have been returned by using connection3
         ConnectionObject connection5 = connection5Future.join();
-        // since returned connection served the waiting request no new event should have been generated
-        assertTrue(eventQueue.isEmpty());
+        // since returned connection served the waiting request no new connection should have been established
+        assertEquals(((MockConnection) connection5.getConnection()).uniqueId, 1);
 
-        // return connection 4
+        // return connection 4.. this should be closed as there is no one waiting
         pool.returnConnection(connection4);
-        assertEquals(pool.connectionCount(), 1);
-        assertEquals(pool.waitingCount(), 0);
-        assertEquals(pool.availableCount(), 0);
-        // returned connection should be closed
-        assertEquals(ConnectionListener.ConnectionEvent.ConnectionClosed, eventQueue.take());
+        assertTrue(((MockConnection) connection4.getConnection()).isClosed.get());
 
         // we should still be able to request new connections.. request connection 6.. this should be served immediately 
         // by way of new connection
         ConnectionObject connection6 = pool.getConnection(myReplyProc).join();
-        assertEquals(pool.connectionCount(), 2);
-        assertEquals(pool.waitingCount(), 0);
-        assertEquals(pool.availableCount(), 0);
-        assertEquals(ConnectionListener.ConnectionEvent.NewConnection, eventQueue.take());
+        assertEquals(((MockConnection) connection6.getConnection()).uniqueId, 5);
 
         // request connect 7. this should wait as connection could is 2. 
         CompletableFuture<ConnectionObject> connection7Future = pool.getConnection(myReplyProc);
-        assertEquals(pool.connectionCount(), 2);
-        assertEquals(pool.waitingCount(), 1);
-        assertEquals(pool.availableCount(), 0);
+        assertFalse(connection7Future.isDone());
 
         // return connection 5.. connection7 should get connection5's object and no new connection should be established
         pool.returnConnection(connection5);
         ConnectionObject connection7 = connection7Future.join();
-        assertEquals(pool.connectionCount(), 2);
-        assertEquals(pool.waitingCount(), 0);
-        assertEquals(pool.availableCount(), 0);
-        assertTrue(eventQueue.isEmpty());
+        assertEquals(((MockConnection) connection7.getConnection()).uniqueId, 1);
 
+        // return connection 6 and 7. they should be closed. 
         pool.returnConnection(connection6);
-        assertEquals(pool.connectionCount(), 1);
-        // verify that returned connection is not included in available connection.
-        assertEquals(pool.waitingCount(), 0);
-        assertEquals(pool.availableCount(), 0);
-        // also the returned connection is closed
-        assertEquals(ConnectionListener.ConnectionEvent.ConnectionClosed, eventQueue.take());
+        assertTrue(((MockConnection) connection6.getConnection()).isClosed.get());
 
         pool.returnConnection(connection7);
-        assertEquals(pool.connectionCount(), 0);
-        assertEquals(pool.waitingCount(), 0);
-        assertEquals(pool.availableCount(), 0);
-        assertEquals(ConnectionListener.ConnectionEvent.ConnectionClosed, eventQueue.take());
+        assertTrue(((MockConnection) connection7.getConnection()).isClosed.get());
+
+        // create connection 8
+        // close the connection explicitly
+        ConnectionObject connection8 = pool.getConnection(myReplyProc).join();
+        assertEquals(((MockConnection) connection8.getConnection()).uniqueId, 6);
+        connection8.getConnection().close();
+
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        connection8.sendAsync(new WireCommands.Hello(0, 0), future);
+        AssertExtensions.assertFutureThrows("Connection should fail",
+                future, e -> {
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    return unwrap instanceof WireCommandFailedException &&
+                            ((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed);
+                });
     }
 
     private ReplyProcessor getReplyProcessor() {
+        int uniqueId = replyProcCounter.incrementAndGet();
         return new ReplyProcessor() {
             @Override
             public void hello(WireCommands.Hello hello) {
@@ -376,8 +366,12 @@ public class SegmentStoreConnectionManagerTest {
     }
 
     private class MockConnection implements ClientConnection {
+        int uniqueId = connectionCounter.incrementAndGet();
+
         @Getter
         private final ReplyProcessor rp;
+        @Getter
+        private AtomicBoolean isClosed = new AtomicBoolean(false);
 
         public MockConnection(ReplyProcessor rp) {
             this.rp = rp;
@@ -395,7 +389,9 @@ public class SegmentStoreConnectionManagerTest {
 
         @Override
         public void sendAsync(WireCommand cmd, CompletedCallback callback) {
-
+            if (isClosed.get()) {
+                callback.complete(new ConnectionFailedException());
+            }
         }
 
         @Override
@@ -405,7 +401,7 @@ public class SegmentStoreConnectionManagerTest {
 
         @Override
         public void close() {
-
+            isClosed.set(true);
         }
     }
 }
