@@ -69,9 +69,9 @@ class TableCompactor {
     //region Members
 
     /**
-     * Default value for {@link #maxReadLength}, if not supplied via constructor.
+     * Default value for {@link #maxCompactLength}, if not supplied via constructor.
      */
-    static final int DEFAULT_MAX_READ_LENGTH = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
+    static final int DEFAULT_MAX_COMPACT_LENGTH = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
 
     @NonNull
     private final TableWriterConnector connector;
@@ -83,7 +83,7 @@ class TableCompactor {
      * The maximum size of all the entries to process at once. If needing to move, these will all be processed as a single
      * StreamSegmentAppend, so we should not make this too large.
      */
-    private final int maxReadLength;
+    private final int maxCompactLength;
 
     //endregion
 
@@ -97,7 +97,7 @@ class TableCompactor {
      * @param executor    Executor for async operations.
      */
     TableCompactor(TableWriterConnector connector, IndexReader indexReader, Executor executor) {
-        this(connector, indexReader, executor, DEFAULT_MAX_READ_LENGTH);
+        this(connector, indexReader, executor, DEFAULT_MAX_COMPACT_LENGTH);
     }
 
     /**
@@ -106,16 +106,16 @@ class TableCompactor {
      * @param connector     The {@link TableWriterConnector} to use to interface with the Table Segments to compact.
      * @param indexReader   A {@link IndexReader} that provides a read-only view of a Table Segment's index.
      * @param executor      Executor for async operations.
-     * @param maxReadLength Maximum number of bytes to read for every compaction. This number must be sufficiently large
+     * @param maxCompactLength Maximum number of bytes to read for every compaction. This number must be sufficiently large
      *                      to be able to read at least one Table Entry.
      */
     @VisibleForTesting
-    TableCompactor(@NonNull TableWriterConnector connector, @NonNull IndexReader indexReader, @NonNull Executor executor, int maxReadLength) {
-        Preconditions.checkArgument(maxReadLength > 0, "maxReadLength must be a positive number.");
+    TableCompactor(@NonNull TableWriterConnector connector, @NonNull IndexReader indexReader, @NonNull Executor executor, int maxCompactLength) {
+        Preconditions.checkArgument(maxCompactLength > 0, "maxCompactLength must be a positive number.");
         this.connector = connector;
         this.indexReader = indexReader;
         this.executor = executor;
-        this.maxReadLength = maxReadLength;
+        this.maxCompactLength = maxCompactLength;
     }
 
     //endregion
@@ -129,8 +129,11 @@ class TableCompactor {
     boolean isCompactionRequired(SegmentProperties info) {
         long startOffset = getCompactionStartOffset(info);
         long lastIndexOffset = this.indexReader.getLastIndexedOffset(info);
-        if (startOffset >= lastIndexOffset) {
-            // Either nothing was indexed or compaction has already reached the indexed limit.
+        if (startOffset + this.maxCompactLength >= lastIndexOffset) {
+            // Either:
+            // 1. Nothing was indexed
+            // 2. Compaction has already reached the indexed limit.
+            // 3. Not enough "uncompacted" data - at least this.maxCompactLength must be accumulated to trigger a compaction.
             return false;
         }
 
@@ -201,7 +204,7 @@ class TableCompactor {
     CompletableFuture<Void> compact(@NonNull DirectSegmentAccess segment, TimeoutTimer timer) {
         SegmentProperties info = segment.getInfo();
         long startOffset = getCompactionStartOffset(info);
-        int maxLength = (int) Math.min(this.maxReadLength, this.indexReader.getLastIndexedOffset(info) - startOffset);
+        int maxLength = (int) Math.min(this.maxCompactLength, this.indexReader.getLastIndexedOffset(info) - startOffset);
         if (startOffset < 0 || maxLength < 0) {
             // The Segment's Compaction offset must be a value between 0 and the current LastIndexedOffset.
             return Futures.failedFuture(new DataCorruptionException(String.format(
@@ -274,9 +277,9 @@ class TableCompactor {
                 nextOffset += e.getHeader().getTotalLength();
             }
         } catch (EOFException ex) {
-            // We chose an arbitrary read length, so it is quite possible we stopped reading in the middle of an entry.
+            // We chose an arbitrary compact length, so it is quite possible we stopped reading in the middle of an entry.
             // As such, EOFException is the only way to know when to stop. When this happens, we will have collected the
-            // total read length in segmentOffset.
+            // total compact length in segmentOffset.
             input.close();
         }
 

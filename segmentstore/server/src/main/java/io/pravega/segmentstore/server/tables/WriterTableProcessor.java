@@ -166,7 +166,8 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer)
                                 .thenComposeAsync(flushResult -> {
                                     flushComplete(flushResult.lastIndexedOffset);
-                                    return compactIfNeeded(segment, flushResult, timer);
+                                    return compactIfNeeded(segment, flushResult.highestCopiedOffset, timer)
+                                            .thenApply(v -> flushResult);
                                 }, this.executor),
                         this.executor);
     }
@@ -186,28 +187,54 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
     //region Helpers
 
-    private CompletableFuture<WriterFlushResult> compactIfNeeded(DirectSegmentAccess segment, TableWriterFlushResult flushResult,
-                                                                 TimeoutTimer timer) {
+    /**
+     * Performs a Table Segment Compaction if needed.
+     *
+     * @param segment             The Segment to compact.
+     * @param highestCopiedOffset The highest copied offset that was encountered during indexing. This is used to determine
+     *                            where to safely truncate the segment, if at all.
+     * @param timer               Timer for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the compaction (if anything) has completed. This
+     * future will always complete normally; any exceptions are logged but not otherwise bubbled up.
+     */
+    private CompletableFuture<Void> compactIfNeeded(DirectSegmentAccess segment, long highestCopiedOffset, TimeoutTimer timer) {
         // Decide if compaction is needed. If not, bail out early.
         SegmentProperties info = segment.getInfo();
-        if (!this.compactor.isCompactionRequired(info)) {
+
+        CompletableFuture<Void> result;
+        if (this.compactor.isCompactionRequired(info)) {
+            System.out.println("COMPACTION");
+            result = this.compactor.compact(segment, timer);
+        } else {
             log.debug("{}: No compaction required at this time.", this.traceObjectId);
-            return CompletableFuture.completedFuture(null);
+            result = CompletableFuture.completedFuture(null);
         }
 
-        return this.compactor.compact(segment, timer)
-                             .thenComposeAsync(ignored -> truncateIfNeeded(segment, flushResult, timer), this.executor);
+        return result
+                .thenComposeAsync(v -> {
+                    // Calculate the safe truncation offset.
+                    long truncateOffset = this.compactor.calculateTruncationOffset(segment.getInfo(), highestCopiedOffset);
+                    System.out.println(String.format("T: HCO=%s, TO=%s, CO=%s, LIDX=%s, L=%s", highestCopiedOffset, segment.getInfo().getStartOffset(),
+                            indexWriter.getCompactionOffset(segment.getInfo()), indexWriter.getLastIndexedOffset(segment.getInfo()), segment.getInfo().getLength()));
+
+                    // Truncate if necessary.
+                    if (truncateOffset > 0) {
+                        log.debug("{}: Truncating segment at offset {}.", this.traceObjectId, truncateOffset);
+                        return segment.truncate(truncateOffset, timer.getRemaining());
+                    } else {
+                        log.debug("{}: No segment truncation possible now.", this.traceObjectId);
+                        return CompletableFuture.completedFuture(null);
+                    }
+                }, this.executor)
+                .exceptionally(ex -> {
+                    ex.printStackTrace(System.out);
+                    // We want to record the compaction failure, but since this is not a critical step in making progress,
+                    // we do not want to prevent the StorageWriter from ack-ing operations.
+                    log.error("{}: Compaction failed.", this.traceObjectId, ex);
+                    return null;
+                });
     }
 
-    private CompletableFuture<WriterFlushResult> truncateIfNeeded(DirectSegmentAccess segment, TableWriterFlushResult flushResult, TimeoutTimer timer) {
-        // Calculate the safe truncation offset.
-        long truncateOffset = this.compactor.calculateTruncationOffset(segment.getInfo(), flushResult.highestCopiedOffset);
-
-        // Truncate if necessary.
-        return truncateOffset < 0
-                ? CompletableFuture.completedFuture(flushResult)
-                : segment.truncate(truncateOffset, timer.getRemaining()).thenApply(v -> flushResult);
-    }
 
     /**
      * Performs a flush attempt, and retries it in case it failed with {@link BadAttributeUpdateException} for the

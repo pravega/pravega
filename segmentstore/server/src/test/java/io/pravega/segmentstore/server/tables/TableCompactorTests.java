@@ -57,7 +57,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
     private static final int VALUE_LENGTH = 64;
     private static final int UPDATE_ENTRY_LENGTH = KEY_LENGTH + VALUE_LENGTH + EntrySerializer.HEADER_LENGTH;
     private static final String SEGMENT_NAME = "TableSegment";
-    private static final Duration TIMEOUT = Duration.ofSeconds(30000);
+    private static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final KeyHasher KEY_HASHER = KeyHashers.DEFAULT_HASHER;
 
     @Override
@@ -70,9 +70,10 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testIsCompactionRequired() {
+        final int compactionReadLength = 100; // This also determines whether to compact or not.
         @Cleanup
-        val c = new TestContext();
-        c.segmentMetadata.setLength(100);
+        val c = new TestContext(compactionReadLength);
+        c.segmentMetadata.setLength(compactionReadLength);
 
         // TruncationOffset < Compaction offset, and CompactionOffset >= LastIndexedOffset.
         setSegmentState(50, 50, 1, 100, 50, c);
@@ -95,8 +96,12 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         setSegmentState(0, 100, 10, 0, 50, c);
         Assert.assertFalse("Unexpected result when TotalEntryCount==0.", c.compactor.isCompactionRequired(c.segmentMetadata));
 
-        // Utilization < Threshold
+        // Utilization < Threshold, but not enough "uncompacted" length.
         setSegmentState(0, 100, 49, 100, 50, c);
+        Assert.assertFalse("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
+
+        // Utilization < Threshold, and enough "uncompacted" length (IndexLength-Max(StartOffset,CompactOffset))>ReadLength.
+        setSegmentState(0, 151, 49, 100, 50, c);
         Assert.assertTrue("Unexpected result when Utilization>MinUtilization.", c.compactor.isCompactionRequired(c.segmentMetadata));
     }
 
@@ -503,7 +508,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
         final TimeoutTimer timer;
 
         TestContext() {
-            this(TableCompactor.DEFAULT_MAX_READ_LENGTH);
+            this(TableCompactor.DEFAULT_MAX_COMPACT_LENGTH);
         }
 
         TestContext(int compactorMaxReadLength) {
