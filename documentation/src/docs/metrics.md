@@ -66,8 +66,8 @@ This interface can be used to register the required metrics for simple types lik
 
 [OpStatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/OpStatsLogger.java)
 
-- `reportSuccessEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers of a successful operation and will record the latency in nanoseconds in the required metric.
-- `reportFailEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers of a failed operation and will record the latency in nanoseconds in required metric.  
+- `reportSuccessEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers) of a successful operation and will record the latency in nanoseconds in the required metric.
+- `reportFailEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers) of a failed operation and will record the latency in nanoseconds in required metric.  
 - `reportSuccessValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a success value.
 - `reportFailValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a failed value.
 - `toOpStatsData()`:  Used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) Reporters and unit tests.
@@ -104,19 +104,19 @@ From the above example, we can see the required steps to register and use dynami
     ```
      DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
     ```
-2. Increase the counter by providing metric base name and optionally tags associated with the metric.
+2. Increase the counter by providing metric base name and optional tags associated with the metric.
     ```
      DynamicLogger dl = getDynamicLogger();
      dl.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), dataLength);
      ...
      dl.incCounterValue(SEGMENT_WRITE_BYTES, dataLength, segmentTags(streamSegmentName));
     ```
-Here `SEGMENT_WRITE_BYTES` is the base name of the metric. There are two metrics shown here:
+Here `SEGMENT_WRITE_BYTES` is the base name of the metric. Below are the two metrics associated with it:
 
-- The global Counter which has no tags associated
+- The global Counter which has no tags associated.
 - A Segment specific Counter which has a list of Segment tags associated.
 
-Note that, the `segmentTags` is the method to generate tags based on fully qualified Segment name.
+Note that, the `segmentTags` is a method to generate tags based on fully qualified Segment name.
 
 The following are the required steps to register and use `OpStatsLogger(Timer)`:
 
@@ -131,13 +131,12 @@ The following are the required steps to register and use `OpStatsLogger(Timer)`:
      @Getter(AccessLevel.PROTECTED)
      final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
    ```
-3. Use these metrics within code at the appropriate places where you would like to collect and record the values.
+3. Use these metrics within code at the appropriate places where the values should be collected and recorded.
 
    ```
      getCreateStreamSegment().reportSuccessEvent(elapsed);
-
    ```
- Here `SEGMENT_CREATE_LATENCY` is the name of this metric, and `createStreamSegment` is the metric object, which tracks operations of `createSegment`. and we will get the time (i.e. time taken by each operation and other numbers computed based on them) for each `createSegment` operation happened.
+ Here `SEGMENT_CREATE_LATENCY` is the name of this metric, and `createStreamSegment` is the metric object, which tracks operations of `createSegment` and we will get the time (i.e. time taken by each operation and other numbers computed based on them) for each `createSegment` operation happened.
 
 ## Example for Dynamic Gauge
 
@@ -152,9 +151,9 @@ This is an example from `io.pravega.segmentstore.server.SegmentStoreMetrics`. Th
 # Metric Registries and Configurations
 
 With Micrometer, each meter registry is responsible for both storage and exporting of metrics objects.
-In order to have a unified interface Micrometer provides `CompositeMeterRegistry` for application to interact with, `CompositeMeterRegistry` will forward metric operations to all the concrete registries bound to it.
+In order to have a unified interface, Micrometer provides the `CompositeMeterRegistry` for the application to interact with, `CompositeMeterRegistry` will forward metric operations to all the concrete registries bounded to it.
 
-Note that `CompositeMeterRegistry` has no storage associated, hence in case no registry bound to it, it will become an `NO-OP` interface only and Pravega will throw errors in such a case.
+Note that `CompositeMeterRegistry` has no storage associated, hence in case no registry is bound to it, it will become an `NO-OP` interface only and Pravega will throw errors in such a case.
 
 For performing unit testing in an easier way, Micrometer also provides `SimpleMeterRegistry`, which has memory only storage but no exporting is allowed; call `startWithoutExporting()` of `StatsProvider` to use this feature in test codes.
 
@@ -180,7 +179,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
    ```
 
-2. Create a new `StatsLogger` instance through `MetricsProvider.createStatsLogger(String loggerName)`, and register metric by name, e.g. `STATS_LOGGER.createCounter(String name)`; and then update the metric object as appropriate in your code.
+2. Create a new `StatsLogger` instance through the `MetricsProvider.createStatsLogger(String loggerName)`, and register metric using name, e.g. `STATS_LOGGER.createCounter(String name)`; and then update the metric object as appropriately in the code.
 
    ```java
 
@@ -262,7 +261,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 - Segment Store cache size ([Gauge](https://micrometer.io/docs/concepts#_gauges)) and generation spread ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)) Metrics:
 
   ```
-    segmentstore.cache.size_bytes.
+    segmentstore.cache.size_bytes
     segmentstore.cache.gen
   ```
 
@@ -279,7 +278,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
   ```
     segmentstore.bookkeeper.write_bytes
-    segmentstore.bookkeeper.bookkeeper_ledger_count - with tag `{"container", $containerId}`
+    segmentstore.bookkeeper.bookkeeper_ledger_count - with tag {"container", $containerId}
 
   ```
 
@@ -301,12 +300,13 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 - Segment Store container-specific operation Metrics:
 
   ```
-    // Histograms - all with tags `{"container", $containerId}`
+    // Histograms - all with tags {"container", $containerId}
 
     segmentstore.container.process_operations.latency_ms
     segmentstore.container.process_operations.batch_size
     segmentstore.container.operation_queue.size
-    segmentstore.container.operation_processor.in_flight   segmentstore.container.operation_queue.wait_time
+    segmentstore.container.operation_processor.in_flight
+    segmentstore.container.operation_queue.wait_time
     segmentstore.container.operation_processor.delay_ms
     segmentstore.container.operation_commit.latency_ms
     segmentstore.container.operation.latency_ms
@@ -317,7 +317,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     segmentstore.container.operation.log_size
   ```
 
-- Segment Store operation processor ([Counter](https://micrometer.io/docs/concepts#_counters)) Metrics  - all with tags ``{"container", $containerId}`.
+- Segment Store operation processor ([Counter](https://micrometer.io/docs/concepts#_counters)) Metrics  - all with tags {"container", $containerId}.
 
   ```
     // Counters/Meters
@@ -336,7 +336,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
 - Segment Store active Segments ([Gauge](https://micrometer.io/docs/concepts#_gauges)) and thread pool status ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)) Metrics:
   ```
-    // Gauge - with tags `{"container", $containerId}`
+    // Gauge - with tags {"container", $containerId}
 
     segmentstore.active_segments
 
@@ -361,41 +361,41 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
   ```
     controller.stream.created
     controller.stream.create_failed_global
-    controller.stream.create_failed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.stream.create_failed - with tags {"scope", $scope, "stream", $stream}
 
     controller.stream.sealed.Counter
     controller.stream.seal_failed_global.Counter
-    controller.stream.seal_failed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.stream.seal_failed - with tags {"scope", $scope, "stream", $stream}
 
 
     controller.stream.deleted.Counter
     controller.stream.delete_failed_global.Counter
-    controller.stream.delete_failed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.stream.delete_failed - with tags {"scope", $scope, "stream", $stream}
 
 
     controller.stream.updated_global.Counter
-    controller.stream.updated - with tags `{"scope", $scope, "stream", $stream}`
+    controller.stream.updated - with tags {"scope", $scope, "stream", $stream}
 
     controller.stream.update_failed_global.Counter
-    controller.stream.update_failed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.stream.update_failed - with tags {"scope", $scope, "stream", $stream}
 
 
     controller.stream.truncated_global.Counter
-    controller.stream.truncated - with tags `{"scope", $scope, "stream", $stream}`
+    controller.stream.truncated - with tags {"scope", $scope, "stream", $stream}
     controller.stream.truncate_failed_global.Counter
-    controller.stream.truncate_failed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.stream.truncate_failed - with tags {"scope", $scope, "stream", $stream}
 
   ```
 
-- Controller Stream retention frequency ([Counter](https://micrometer.io/docs/concepts#_counters)) and truncated size ([Gauge]((https://micrometer.io/docs/concepts#_gauges)) Metrics:
+- Controller Stream retention frequency ([Counter](https://micrometer.io/docs/concepts#_counters)) and truncated size ([Gauge](https://micrometer.io/docs/concepts#_gauges)) Metrics:
   ```
-    controller.retention.frequency - with tags `{"scope", $scope, "stream", $stream}`
+    controller.retention.frequency - with tags {"scope", $scope, "stream", $stream}
 
-    controller.retention.truncated_size - with tags `{"scope", $scope, "stream", $stream}`
+    controller.retention.truncated_size - with tags {"scope", $scope, "stream", $stream}
 
   ```
 
-- Controller Stream Segment operations ([Counters](https://micrometer.io/docs/concepts#_counters)) and open/timed out Transactions on a Stream ([Gauge](https://micrometer.io/docs/concepts#_gauges)) Metrics  - all with tags `{"scope", $scope, "stream", $stream}`:
+- Controller Stream Segment operations ([Counters](https://micrometer.io/docs/concepts#_counters)) and open/timed out Transactions on a Stream ([Gauge](https://micrometer.io/docs/concepts#_gauges)) Metrics  - all with tags {"scope", $scope, "stream", $stream}:
   ```
     controller.transactions.opened
     controller.transactions.timedout
@@ -414,26 +414,26 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 - Controller Transaction operation counter Metrics:
     ```
     controller.transactions.created_global
-    controller.transactions.created - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.created - with tags {"scope", $scope, "stream", $stream}
     controller.transactions.create_failed_global
-    controller.transactions.create_failed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.create_failed - with tags {"scope", $scope, "stream", $stream}
     controller.transactions.committed_global
-    controller.transactions.committed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.committed - with tags {"scope", $scope, "stream", $stream}
     controller.transactions.commit_failed_global
-    controller.transactions.commit_failed - with tags `{"scope", $scope, "stream", $stream}`
-    controller.transactions.commit_failed - with tags `{"scope", $scope, "stream", $stream,  "transaction", $txnId}`
+    controller.transactions.commit_failed - with tags {"scope", $scope, "stream", $stream}
+    controller.transactions.commit_failed - with tags {"scope", $scope, "stream", $stream,  "transaction", $txnId}
     controller.transactions.aborted_global
-    controller.transactions.aborted - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.aborted - with tags {"scope", $scope, "stream", $stream}
     controller.transactions.abort_failed_global
-    controller.transactions.abort_failed - with tags `{"scope", $scope, "stream", $stream}`
-    controller.transactions.abort_failed - with tags `{"scope", $scope, "stream", $stream,  "transaction", $txnId}`
+    controller.transactions.abort_failed - with tags {"scope", $scope, "stream", $stream}
+    controller.transactions.abort_failed - with tags {"scope", $scope, "stream", $stream,  "transaction", $txnId}
   ```
 
 - Controller hosts available ([Gauge](https://micrometer.io/docs/concepts#_gauges)) and host failure ([Counter](https://micrometer.io/docs/concepts#_counters)) Metrics:
   ```
     controller.hosts.count
     controller.hosts.failures_global
-    controller.hosts.failures.$host - with tags `{"host", $host}`
+    controller.hosts.failures.$host - with tags {"host", $host}
 
   ```
 
@@ -441,7 +441,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
   ```
     controller.hosts.container_count
     controller.container.failovers_global
-    controller.container.failovers.$containerId - with tags `{"container", $containerId}`
+    controller.container.failovers.$containerId - with tags {"container", $containerId}
 
   ```
 - Controller Zookeeper session expiration ([Counter](https://micrometer.io/docs/concepts#_counters)) metrics:
