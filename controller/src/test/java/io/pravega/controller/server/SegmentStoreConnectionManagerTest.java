@@ -19,7 +19,6 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
-import lombok.Cleanup;
 import lombok.Getter;
 import org.junit.Before;
 import org.junit.Test;
