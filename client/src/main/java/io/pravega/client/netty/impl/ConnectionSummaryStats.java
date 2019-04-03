@@ -14,10 +14,12 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import javax.annotation.concurrent.NotThreadSafe;
 
 /**
  * This is used to store the stats about the connection.
  */
+@NotThreadSafe
 public final class ConnectionSummaryStats {
 
     // This need not be threadsafe because the parallel implementation of Stream.collect() provides the necessary partitioning and
