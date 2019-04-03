@@ -95,7 +95,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
@@ -120,7 +119,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         latch.await();
 
         ControllerService controller = new ControllerService(streamStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(connectionFactory, hostStore), executorService, cluster);
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
         controllerService = new ControllerServiceImpl(controller, AuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 

@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.server.v1;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.cluster.Cluster;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -57,7 +55,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
     private RequestTracker requestTracker;
-
+    
     @Override
     public void setup() throws Exception {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
@@ -66,9 +64,6 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         requestTracker = new RequestTracker(true);
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
-                                                                                        .controllerURI(URI.create("tcp://localhost"))
-                                                                                        .build());
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
