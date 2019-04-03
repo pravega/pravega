@@ -57,7 +57,6 @@ public class SegmentStoreConnectionManagerTest {
         PravegaNodeUri uri = new PravegaNodeUri("pravega", 1234);
         ConnectionFactory cf = spy(new MockConnectionFactory());
 
-        @Cleanup
         SegmentStoreConnectionPool pool = new SegmentStoreConnectionPool(uri, cf, 2, 1);
         ReplyProcessor myReplyProc = getReplyProcessor();
 
