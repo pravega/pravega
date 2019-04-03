@@ -15,21 +15,21 @@ Segment Store and Controller in separate processes.
 
 ## Running
 
-1. Ensure you have Docker and Docker Compose installed.
+1. Ensure that you have Docker and Docker Compose installed.
 
-2. Clone the repository to fetch Pravega code.
+2. Clone Pravega repository to fetch the code.
 
    ```bash
    git clone https://github.com/pravega/pravega.git
    ```
 
-3. Navigate to the directory containing Docker Compose configuration file. Observe that the changed directory has Docker Compose .yml files.
+3. Navigate to the directory containing Docker Compose configuration `.yml` files.
 
    ```bash
    cd /path/to/pravega/docker/compose
    ```
 
-4. Add HOST_IP as an environment variable with the value as the current host.
+4. Add HOST_IP as an environment variable with the value as the IP address of the host.
 
    ```bash
    export HOST_IP=<host-ip>
