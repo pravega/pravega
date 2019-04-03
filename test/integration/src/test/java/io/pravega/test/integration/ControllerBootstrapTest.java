@@ -10,7 +10,6 @@
 package io.pravega.test.integration;
 
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
