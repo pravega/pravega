@@ -20,7 +20,7 @@ You may obtain a copy of the License at
    - [Example for Dynamic Gauge](#example-for-dynamic-gauge)
    - [Example for Dynamic Meter](#example-for-dynamic-meter)
 * [Metric Registries and Configurations](#metric-registries-and-configurations)
-* [Create Own Metrics](#create-own-metrics)
+* [Creating Own Metrics](#creating-own-metrics)
 * [Available Metrics and Their Names](#available-metrics-and-their-names)
 * [Resources](#resources)
 
@@ -28,11 +28,11 @@ In the Pravega Metrics Framework, we use [Micrometer Metrics](https://micrometer
 
 # Metrics Interfaces and Examples Usage
 
-- `**StatsProvider**`: The Statistics Provider which provides the whole Metric service.
+- `StatsProvider`: The Statistics Provider which provides the whole Metric service.
 
-- `**StatsLogger**`: The Statistics Logger is where the required Metrics ([Counter](https://micrometer.io/docs/concepts#_counters)/[Gauge](https://micrometer.io/docs/concepts#_gauges)/[Timer](https://micrometer.io/docs/concepts#_timers)/[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)) are registered.
+- `StatsLogger`: The Statistics Logger is where the required Metrics ([Counter](https://micrometer.io/docs/concepts#_counters)/[Gauge](https://micrometer.io/docs/concepts#_gauges)/[Timer](https://micrometer.io/docs/concepts#_timers)/[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)) are registered.
 
-- `**OpStatsLogger**`: The Operation Statistics Logger is a sub-metric for the complex ones ([Timer](https://micrometer.io/docs/concepts#_timers)/[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)). It is included in `StatsLogger` and `**DynamicLogger**`.
+- `OpStatsLogger`: The Operation Statistics Logger is a sub-metric for the complex ones ([Timer](https://micrometer.io/docs/concepts#_timers)/[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)). It is included in `StatsLogger` and `DynamicLogger`.
 
 
 ## Metrics Service Provider — Interface StatsProvider
@@ -42,7 +42,7 @@ Pravega Metric Framework is initiated using the `StatsProvider` interface: it pr
 [StatsProvider](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsProvider.java)
 
 - `start()`: Initializes the [MetricRegistry](https://micrometer.io/docs/concepts#_registry) and Reporters for our Metric service.
-- `startWithoutExporting()``: Initializes `SimpleMeterRegistry` that holds the latest value of each meter in memory and does not export the data anywhere, typically for unit tests.
+- `startWithoutExporting()`: Initializes `SimpleMeterRegistry` that holds the latest value of each Meter in memory and does not export the data anywhere, typically for unit tests.
 - `close()`: Shuts down the Metric Service.
 - `createStatsLogger()`: Create a `StatsLogger` instance which is used to register and return metric objects. Application code could then perform metric operations directly with the returned metric objects.
 - `createDynamicLogger()`: Creates a Dynamic Logger.
@@ -50,32 +50,32 @@ Pravega Metric Framework is initiated using the `StatsProvider` interface: it pr
 ## Metric Logger — Interface StatsLogger
 
 This interface can be used to register the required metrics for simple types like [Counter](https://micrometer.io/docs/concepts#_counters) and [Gauge](https://micrometer.io/docs/concepts#_gauges) and some complex statistics type of Metric like `OpStatsLogger`, through which we provide [Timer](https://micrometer.io/docs/concepts#_timers) and
-[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)).
+[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries).
 
 [StatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsLogger.java)
 
-    - `createStats()`: Register and get a `OpStatsLogger`, which is used for complex type of metrics. Notice the optional metric tags.
-    - `createCounter()`: Register and get a [Counter](https://micrometer.io/docs/concepts#_counters) Metric.
-    - `createMeter()`: Create and register a [Meter](https://micrometer.io/docs/concepts#_meters) Metric.
-    - `registerGauge()`: Register a [Gauge](https://micrometer.io/docs/concepts#_gauges) Metric.
-    - `createScopeLogger()`: Create the `StatsLogger` under the given scope name.
+- `createStats()`: Register and get a `OpStatsLogger`, which is used for complex type of metrics. Notice the optional metric tags.
+- `createCounter()`: Register and get a [Counter](https://micrometer.io/docs/concepts#_counters) Metric.
+- `createMeter()`: Create and register a [Meter](https://micrometer.io/docs/concepts#_meters) Metric.
+- `registerGauge()`: Register a [Gauge](https://micrometer.io/docs/concepts#_gauges) Metric.
+- `createScopeLogger()`: Create the `StatsLogger` under the given scope name.
 
 ## Metric Sub Logger — OpStatsLogger
 
-`OpStatsLogger` can be used if the user is interested on measuring the latency of operations like `CreateSegment` and `ReadSegment`. Further, we could use it to record the _number of operation_ and _time/duration_ of each operation.
+`OpStatsLogger` can be used if the user is interested in measuring the latency of operations like `CreateSegment` and `ReadSegment`. Further, we could use it to record the _number of operation_ and _time/duration_ of each operation.
 
 [OpStatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/OpStatsLogger.java)
 
-    - `reportSuccessEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers of a successful operation and will record the latency in nanoseconds in the required metric.
-    - `reportFailEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers of a failed operation and will record the latency in nanoseconds in required metric.  
-    - `reportSuccessValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a success value.
-    - `reportFailValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a failed value.
-    - `toOpStatsData()`:  Used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) Reporters and unit tests.
-    - `clear`: Used to clear the stats for this operation.
+- `reportSuccessEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers of a successful operation and will record the latency in nanoseconds in the required metric.
+- `reportFailEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers of a failed operation and will record the latency in nanoseconds in required metric.  
+- `reportSuccessValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a success value.
+- `reportFailValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a failed value.
+- `toOpStatsData()`:  Used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) Reporters and unit tests.
+- `clear`: Used to clear the stats for this operation.
 
 ## Metric Logger — Interface DynamicLogger
 
-The following is an example of a simple interface that exposes only simple type metrics: ([Counter](https://micrometer.io/docs/concepts#_counters)/[Gauge]((https://micrometer.io/docs/concepts#_gauges)/[Meter](https://micrometer.io/docs/concepts#_meters)).
+The following is an example of a simple interface that exposes only the simple type metrics: ([Counter](https://micrometer.io/docs/concepts#_counters)/[Gauge](https://micrometer.io/docs/concepts#_gauges)/[Meter](https://micrometer.io/docs/concepts#_meters)).
 
 [DynamicLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/DynamicLogger.java)
 
@@ -89,11 +89,11 @@ The following is an example of a simple interface that exposes only simple type 
 
 # Example for Starting a Metric Service
 
-This example is from `io.pravega.segmentstore.server.host.ServiceStarter`. The code for this example can be found [here](https://github.com/pravega/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/ServiceStarter.java). It starts Pravega Segment Store service and the Metrics Service is started as a sub service.
+This example is from `io.pravega.segmentstore.server.host.ServiceStarter`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/master/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/ServiceStarter.java). It starts Pravega Segment Store service and the Metrics Service is started as a sub service.
 
 ## Example for Dynamic Counter and OpStatsLogger(Timer)
 
-This is an example from `io.pravega.segmentstore.server.host.stat.SegmentStatsRecorderImpl.java`. The code for this example can be found [here](https://github.com/pravega/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/stat/SegmentStatsRecorderImpl.java). In the class `PravegaRequestProcessor`, we have registered two metrics:
+This is an example from `io.pravega.segmentstore.server.host.stat.SegmentStatsRecorderImpl.java`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/master/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/stat/SegmentStatsRecorderImpl.java). In the class `PravegaRequestProcessor`, we have registered two metrics:
 
 - one Timer (`createStreamSegment`)
 - one dynamic counter (`dynamicLogger`)
@@ -142,11 +142,11 @@ The following are the required steps to register and use `OpStatsLogger(Timer)`:
 ## Example for Dynamic Gauge
 
 This is an example from `io.pravega.controller.metrics.StreamMetrics`. In this class, we report
-a Dynamic Gauge which represents the open Transactions of a Stream. The code for this example can be found [here](https://github.com/pravega/controller/src/main/java/io/pravega/controller/metrics/StreamMetrics.java).
+a Dynamic Gauge which represents the open Transactions of a Stream. The code for this example can be found [here](https://github.com/pravega/pravega/blob/master/controller/src/main/java/io/pravega/controller/metrics/StreamMetrics.java).
 
 ## Example for Dynamic Meter
 
-This is an example from `io.pravega.segmentstore.server.SegmentStoreMetrics`. The code for this example can be found [here](https://github.com/pravega/segmentstore/server/src/main/java/io/pravega/segmentstore/server/SegmentStoreMetrics.java). In the class `SegmentStoreMetrics`, we report a Dynamic Meter which represents the Segments created with a particular container.
+This is an example from `io.pravega.segmentstore.server.SegmentStoreMetrics`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/master/segmentstore/server/src/main/java/io/pravega/segmentstore/server/SegmentStoreMetrics.java). In the class `SegmentStoreMetrics`, we report a Dynamic Meter which represents the Segments created with a particular container.
 
 
 # Metric Registries and Configurations
@@ -164,7 +164,7 @@ Currently Pravega supports the following:
 - UDP as Communication protocol.
 - Direct InfluxDB connection.
 
-The reporter could be configured using the `MetricsConfig`. Please refer to the [example](https://github.com/pravega/shared/metrics/src/main/java/io/pravega/shared/metrics/MetricsConfig.java).
+The reporter could be configured using the `MetricsConfig`. Please refer to the [example](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/MetricsConfig.java).
 
 
 # Creating Own Metrics
