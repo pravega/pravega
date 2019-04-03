@@ -52,7 +52,7 @@ Pravega Metric Framework is initiated using the `StatsProvider` interface: it pr
     - `start()`: Initializes the [MetricRegistry](https://micrometer.io/docs/concepts#_registry) and Reporters for our Metric service.
     - `startWithoutExporting()``: Initializes `SimpleMeterRegistry` that holds the latest value of each meter in memory and does not export the data anywhere, typically for unit tests.
     - `close()`: Shuts down the Metric Service.
-    - `createStatsLogger()`: Creates and returns a `StatsLogger` instance, which is used to retrieve a metric and performs metric insertion and collection in Pravega code.
+    - `createStatsLogger()`: Create a `StatsLogger` instance which is used to register and return metric objects. Application code could then perform metric operations directly with the returned metric objects.
     - `createDynamicLogger()`: Creates a Dynamic Logger.
 
 ## Metric Logger — Interface StatsLogger
@@ -78,7 +78,7 @@ This interface can be used to register the required metrics for simple types lik
     - `reportFailEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers of a failed operation and will record the latency in nanoseconds in required metric.  
     - `reportSuccessValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a success value.
     - `reportFailValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a failed value.
-    - `toOpStatsData()`:  Used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) exports and inner tests.
+    - `toOpStatsData()`:  Used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) Reporters and unit tests.
     - `clear`: Used to clear the stats for this operation.
 
 ## Metric Logger — Interface DynamicLogger
