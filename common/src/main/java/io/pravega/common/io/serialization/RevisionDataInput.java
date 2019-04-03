@@ -190,7 +190,6 @@ public interface RevisionDataInput extends DataInput {
      * @param <K>               Type of the Keys in the Map.
      * @param <V>               Type of the Values in the Map.
      * @param <M>               Type of Map whose builder needs to be populated. 
-     * @return A new Map. If the original Map passed to RevisionDataOutput.writeMap() was null, this will return an empty map.
      * @throws IOException If an IOException occurred.
      */
     <K, V, M extends ImmutableMap<K, V>> void readMap(ElementDeserializer<K> keyDeserializer, ElementDeserializer<V> valueDeserializer, 

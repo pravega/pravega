@@ -62,7 +62,7 @@ public class InMemoryStream extends PersistentStreamBase {
     @GuardedBy("lock")
     private Map<Integer, VersionedMetadata<HistoryTimeSeries>> historyTimeSeries = new HashMap<>();
     @GuardedBy("lock")
-    private VersionedMetadata<RetentionSet> retentionSet;;
+    private VersionedMetadata<RetentionSet> retentionSet;
     @GuardedBy("lock")
     private final Map<Long, VersionedMetadata<StreamCutRecord>> streamCutRecords = new HashMap<>();
     @GuardedBy("lock")
