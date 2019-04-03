@@ -49,6 +49,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsNames.CONTROLLER_ZK_SESSION_EXPIRATION;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
@@ -106,10 +107,12 @@ public class ControllerMetricsTest {
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
                 false,
+                false,
                 controllerPort,
                 serviceHost,
                 servicePort,
-                containerCount);
+                containerCount,
+                9091);
         controllerWrapper.awaitRunning();
     }
 
@@ -205,6 +208,23 @@ public class ControllerMetricsTest {
 
         checkStatsRegisteredValues(iterations, CREATE_STREAM_LATENCY, SEAL_STREAM_LATENCY, DELETE_STREAM_LATENCY);
         checkStatsRegisteredValues(iterations * iterations, UPDATE_STREAM_LATENCY, TRUNCATE_STREAM_LATENCY);
+    }
+
+    /**
+     * This test verifies that the Controller increments the metric for Zookeeper session expiration events correctly.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 25000)
+    public void zookeeperMetricsTest() throws Exception {
+        Counter zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
+        Assert.assertNull(zkSessionExpirationCounter);
+        controllerWrapper.forceClientSessionExpiry();
+        while (zkSessionExpirationCounter == null) {
+            Thread.sleep(100);
+            zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
+        }
+        Assert.assertEquals(zkSessionExpirationCounter.count(), 1, 0.1);
     }
 
     private void checkStatsRegisteredValues(int minExpectedValues, String...metricNames) {

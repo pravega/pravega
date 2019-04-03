@@ -72,6 +72,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Cluster cluster;
+    private ConnectionFactoryImpl connectionFactory;
 
     @Override
     public void setup() throws Exception {
@@ -95,7 +96,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
                 executorService, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore, segmentHelper,
@@ -141,6 +142,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         storeClient.close();
         zkClient.close();
         zkServer.close();
+        connectionFactory.close();
     }
 
     @Test
