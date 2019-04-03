@@ -25,7 +25,7 @@ You may obtain a copy of the License at
 * [Available Metrics and Their Names](#available-metrics-and-their-names)
 * [Resources](#resources)
 
-In the Pravega Metrics Framework, we use [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs) as the underlying library, and provide our own API to make it easier to use.
+In the Pravega Metrics Framework, we use [Micrometer Metrics](https://micrometer.io/docs) as the underlying library, and provide our own API to make it easier to use.
 
 # Metrics Interfaces and Examples Usage
 
@@ -38,162 +38,155 @@ Following are four basic interfaces:
 
 - `StatsProvider`: The Statistics Provider which provides the whole Metric service.
 
-- `StatsLogger`: The Statistics Logger is where the required Metrics ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)) are registered.
+- `StatsLogger`: The Statistics Logger is where the required Metrics ([Counter](https://micrometer.io/docs/concepts#_counters)/[Gauge]((https://micrometer.io/docs/concepts#_gauges)/[Timer](https://micrometer.io/docs/concepts#_timers)/[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)) are registered.
 
-- `OpStatsLogger`: The Operation Statistics Logger is a sub-metric for the complex ones ([Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers)/[Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)). It is included in `StatsLogger` and `DynamicLogger`.
+- `OpStatsLogger`: The Operation Statistics Logger is a sub-metric for the complex ones ([Timer](https://micrometer.io/docs/concepts#_timers)/[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)). It is included in `StatsLogger` and `DynamicLogger`.
 
 
 ## Metrics Service Provider — Interface StatsProvider
 
-Pravega Metric Framework is initiated using the `StatsProvider` interface: it provides the _start_ and _stop_ methods for the Metric service. The following are the supported **Reporters**, [**CSV reporter**](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) and [**StatsD reporter**](https://github.com/b/statsd_spec).
+Pravega Metric Framework is initiated using the `StatsProvider` interface: it provides the _start_ and _stop_ methods for the Metric service. It also provides `startWithoutExporting()` for testing purpose, which only stores metrics in memory without exporting them to external systems. Currently we have support for [StatsD](https://github.com/b/statsd_spec) and [InfluxDB](https://www.influxdata.com/) registries.
 
-```java
-public interface StatsProvider {
-    void start();
-    void close();
-    StatsLogger createStatsLogger(String scope);
-    DynamicLogger createDynamicLogger();
-}
-```
+[StatsProvider](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsProvider.java)
 
-- `start()`: Initializes the [MetricRegistry](http://metrics.dropwizard.io/3.1.0/manual/core/#metric-registries) and Reporters for our Metric service.
-- `close()`: Shuts down the Metric Service.
-- `createStatsLogger()`: Creates and returns a `StatsLogger` instance, which is used to retrieve a metric and performs metric insertion and collection in Pravega code.
-- `createDynamicLogger()`: Creates a Dynamic Logger.
+    - `start()`: Initializes the [MetricRegistry](https://micrometer.io/docs/concepts#_registry) and Reporters for our Metric service.
+    - `startWithoutExporting()``: Initializes `SimpleMeterRegistry` that holds the latest value of each meter in memory and does not export the data anywhere, typically for unit tests.
+    - `close()`: Shuts down the Metric Service.
+    - `createStatsLogger()`: Creates and returns a `StatsLogger` instance, which is used to retrieve a metric and performs metric insertion and collection in Pravega code.
+    - `createDynamicLogger()`: Creates a Dynamic Logger.
 
 ## Metric Logger — Interface StatsLogger
 
-This interface can be used to register the required metrics for simple types like [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) and [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) and some complex statistics type of Metric like `OpStatsLogger`, through which we provide [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) and [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms).
+This interface can be used to register the required metrics for simple types like [Counter](https://micrometer.io/docs/concepts#_counters) and [Gauge](https://micrometer.io/docs/concepts#_gauges) and some complex statistics type of Metric like `OpStatsLogger`, through which we provide [Timer](https://micrometer.io/docs/concepts#_timers) and
+[Distribution Summary](https://micrometer.io/docs/concepts#_distribution_summaries)).
 
-```java
-public interface StatsLogger {
-    OpStatsLogger createStats(String name);
-    Counter createCounter(String name);
-    Meter createMeter(String name);
-    <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
-    StatsLogger createScopeLogger(String scope);
-}
-```
+[StatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/StatsLogger.java)
 
-- `createStats()`: Register and get a `OpStatsLogger`, which is used for complex type of metrics.
-- `createCounter()`: Register and get a [Counter](http://metrics.dropwizard.io/3.1.0/manual/core/#counters) Metric.
-- `createMeter()`: Create and register a [Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter) Metric.
-- `registerGauge()`: Register a [Gauge](http://metrics.dropwizard.io/3.1.0/manual/core/#gauges) Metric.
-- `createScopeLogger()`: Create the `StatsLogger` under the given scope name.
+    - `createStats()`: Register and get a `OpStatsLogger`, which is used for complex type of metrics. Notice the optional metric tags.
+    - `createCounter()`: Register and get a [Counter](https://micrometer.io/docs/concepts#_counters) Metric.
+    - `createMeter()`: Create and register a [Meter](https://micrometer.io/docs/concepts#_meters) Metric.
+    - `registerGauge()`: Register a [Gauge](https://micrometer.io/docs/concepts#_gauges) Metric.
+    - `createScopeLogger()`: Create the `StatsLogger` under the given scope name.
 
 ## Metric Sub Logger — OpStatsLogger
 
-`OpStatsLogger` provides complex statistics type of Metric, usually it is used in operations such as `CreateSegment`, `ReadSegment`, we could use it to record the _number of operation_ and _time/duration_ of each operation.
+`OpStatsLogger` can be used if the user is interested on measuring the latency of operations like `CreateSegment` and `ReadSegment`. Further, we could use it to record the _number of operation_ and _time/duration_ of each operation.
 
-```java
-public interface OpStatsLogger {
-    void reportSuccessEvent(Duration duration);
-    void reportFailEvent(Duration duration);
-    void reportSuccessValue(long value);
-    void reportFailValue(long value);
-    OpStatsData toOpStatsData();
-    void clear();
-}
-```
+[OpStatsLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/OpStatsLogger.java)
 
-- `reportSuccessEvent()`: Used to track the [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) of a successful operation and will record the latency in nanoseconds in the required metric.
-- `reportFailEvent()`: Used to track the [Timer](http://metrics.dropwizard.io/3.1.0/manual/core/#timers) of a failed operation and will record the latency in nanoseconds in required metric.  
-- `reportSuccessValue()`: Used to track the [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms) of a success value.
-- `reportFailValue()`: Used to track the [Histogram](http://metrics.dropwizard.io/3.1.0/manual/core/#histograms) of a failed value.
-- `toOpStatsData()`:  Used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) exports and inner tests.
-- `clear`: Used to clear the stats for this operation.
+    - `reportSuccessEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers of a successful operation and will record the latency in nanoseconds in the required metric.
+    - `reportFailEvent()`: Used to track the [Timer](https://micrometer.io/docs/concepts#_timers of a failed operation and will record the latency in nanoseconds in required metric.  
+    - `reportSuccessValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a success value.
+    - `reportFailValue()`: Used to track the [Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles) of a failed value.
+    - `toOpStatsData()`:  Used to support the [JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx) exports and inner tests.
+    - `clear`: Used to clear the stats for this operation.
 
 ## Metric Logger — Interface DynamicLogger
 
-The following is an example of a simple interface that exposes only simple type metrics: ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)/[Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)/[Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meter)).
+The following is an example of a simple interface that exposes only simple type metrics: ([Counter](https://micrometer.io/docs/concepts#_counters)/[Gauge]((https://micrometer.io/docs/concepts#_gauges)/[Meter](https://micrometer.io/docs/concepts#_meters)).
 
-```java
-public interface DynamicLogger {
-    void incCounterValue(String name, long delta);
-    void updateCounterValue(String name, long value);
-    void freezeCounter(String name);
-    <T extends Number> void reportGaugeValue(String name, T value);
-    void freezeGaugeValue(String name);
-    void recordMeterEvents(String name, long number);
-}
-```
+[DynamicLogger](https://github.com/pravega/pravega/blob/master/shared/metrics/src/main/java/io/pravega/shared/metrics/DynamicLogger.java)
 
-- `incCounterValue()`: Increases the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters) with the given value.
-- `updateCounterValue()`: Updates the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters) with the given value.
-- `freezeCounter()`: Notifies that, the [Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters) will not be updated.
-- `reportGaugeValue()`: Reports the [Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges) value.
-- `freezeGaugeValue()`: Notifies that, the [Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges) value will not be updated.
-- `recordMeterEvents()`: Records the occurrences of a given number of events in [Meter](https://metrics.dropwizard.io/3.1.0/manual/core/#meters).
+ - `incCounterValue()`: Increases the [Counter](https://micrometer.io/docs/concepts#_counters) with the given value. Notice the optional metric tags.
+ - `updateCounterValue()`: Updates the [Counter](https://micrometer.io/docs/concepts#_counters) with the given value.
+ - `freezeCounter()`: Notifies that, the [Counter](https://micrometer.io/docs/concepts#_counters) will not be updated.
+ - `reportGaugeValue()`: Reports the [Gauge](https://micrometer.io/docs/concepts#_gauges) value.
+ - `freezeGaugeValue()`: Notifies that, the [Gauge](https://micrometer.io/docs/concepts#_gauges) value will not be updated.
+ - `recordMeterEvents()`: Records the occurrences of a given number of events in [Meter](https://micrometer.io/docs/concepts#_meters).
 
 
 # Example for Starting a Metric Service
 
-This example is from `io.pravega.segmentstore.server.host.ServiceStarter`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/43113a257681c92581d57c6ed34f7b9e36e0bfe3/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/ServiceStarter.java). It starts Pravega Segment Store service and the Metrics Service is started as a sub service.
+This example is from `io.pravega.segmentstore.server.host.ServiceStarter`. The code for this example can be found [here](https://github.com/pravega/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/ServiceStarter.java). It starts Pravega Segment Store service and the Metrics Service is started as a sub service.
 
-## Example for Dynamic Counter and OpStatsLogger(Timer)
+## Example for Dynamic Counter and OpStatsLogger (Timer)
 
-This is an example from `io.pravega.segmentstore.server.host.handler.PravegaRequestProcessor`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/43113a257681c92581d57c6ed34f7b9e36e0bfe3/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/handler/PravegaRequestProcessor.java). In the class `PravegaRequestProcessor`, we have registered two metrics:
+This is an example from `io.pravega.segmentstore.server.host.stat.SegmentStatsRecorderImpl.java`. The code for this example can be found [here](https://github.com/pravega/segmentstore/server/host/src/main/java/io/pravega/segmentstore/server/host/stat/SegmentStatsRecorderImpl.java). In this class, we
+. In the class `PravegaRequestProcessor`, we have registered two metrics:
 
 - one Timer (`createStreamSegment`)
-- one dynamic counter (`segmentReadBytes`)
+- one dynamic counter (`dynamicLogger`)
 
-Using the mentioned example, following are the required steps to register and use a metric in the desired class and method:
+From the above example, we can see the required steps to register and use dynamic counter:
+
+ 1. Get a dynamic logger from MetricsProvider:
+    ```
+     DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
+    ```
+2. Increase the counter by providing metric base name and optionally tags associated with the metric.
+    ```
+     DynamicLogger dl = getDynamicLogger();
+     dl.incCounterValue(globalMetricName(SEGMENT_WRITE_BYTES), dataLength);
+     ...
+     dl.incCounterValue(SEGMENT_WRITE_BYTES, dataLength, segmentTags(streamSegmentName));
+    ```
+Here `SEGMENT_WRITE_BYTES` is the base name of the metric. There are two metrics shown here:
+
+- The global Counter which has no tags associated
+- A Segment specific Counter which has a list of Segment tags associated.
+
+Note that, the `segmentTags` is the method to generate tags based on fully qualified Segment name.
+
+The following are the required steps to register and use `OpStatsLogger(Timer)`:
+
 
 1. Get a `StatsLogger` from `MetricsProvider`.
 
    ```
-     StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger();
+     StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger("segmentstore");
    ```
 2. Register all the desired metrics through `StatsLogger`.
    ```
-    static final OpStatsLogger CREATE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
+     @Getter(AccessLevel.PROTECTED)
+     final OpStatsLogger createStreamSegment = STATS_LOGGER.createStats(SEGMENT_CREATE_LATENCY);
    ```
 3. Use these metrics within code at the appropriate places where you would like to collect and record the values.
 
    ```
-    Metrics.CREATE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
+     getCreateStreamSegment().reportSuccessEvent(elapsed);
+
    ```
-The `CREATE_STREAM_SEGMENT` is the name of this metric, and `CREATE_STREAM_SEGMENT` is the name of our Metrics logger. It will track operations of `createSegment`, and we will get the time (i.e. time taken by each operation and other numbers computed based on them) for each `createSegment` operation happened.
+ Here `SEGMENT_CREATE_LATENCY` is the name of this metric, and `createStreamSegment` is the metric object, which tracks operations of `createSegment`. and we will get the time (i.e. time taken by each operation and other numbers computed based on them) for each `createSegment` operation happened.
 
-### Output Example of OpStatsLogger
+## Example for Dynamic Gauge
 
-An example output of `OpStatsLogger CREATE_SEGMENT` reported through [CSV](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) reporter.
-
-```
-$ cat CREATE_STREAM_SEGMENT.csv
-t,count,max,mean,min,stddev,p50,p75,p95,p98,p99,p999,mean_rate,m1_rate,m5_rate,m15_rate,rate_unit,duration_unit
-1480928806,1,8.973952,8.973952,8.973952,0.000000,8.973952,8.973952,8.973952,8.973952,8.973952,8.973952,0.036761,0.143306,0.187101,0.195605,calls/second,millisecond
-```
-
-
-## Example for Dynamic Gauge and OpStatsLogger(Histogram)
-
-This is an example from `io.pravega.controller.store.stream.AbstractStreamMetadataStore`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/b4155031aa8c0fba229c4cf92f162e8ac982c30d/controller/src/main/java/io/pravega/controller/store/stream/AbstractStreamMetadataStore.java). In the class, `AbstractStreamMetadataStore` we report a Dynamic Gauge which represents:
-
-- Open Transactions
-- One Histogram (`CREATE_STREAM`).
+This is an example from `io.pravega.controller.metrics.StreamMetrics`. In this class, we report
+a Dynamic Gauge which represents the open Transactions of a Stream. The code for this example can be found [here](https://github.com/pravega/controller/src/main/java/io/pravega/controller/metrics/StreamMetrics.java).
 
 ## Example for Dynamic Meter
 
-This is an example from `io.pravega.segmentstore.server.SegmentStoreMetrics`. The code for this example can be found [here](https://github.com/pravega/pravega/blob/d2c856ae1bf611f75db0cedd488f2735ba22a805/segmentstore/server/src/main/java/io/pravega/segmentstore/server/SegmentStoreMetrics.java). In the class `SegmentStoreMetrics`, we report a Dynamic Meter which represents the Segments created.
+This is an example from `io.pravega.segmentstore.server.SegmentStoreMetrics`. The code for this example can be found [here](https://github.com/pravega/segmentstore/server/src/main/java/io/pravega/segmentstore/server/SegmentStoreMetrics.java). In the class `SegmentStoreMetrics`, we report a Dynamic Meter which represents the Segments created with a particular container.
 
-# Metric Reporter and Configurations
 
-Reporters are used to export all the measurements being made by the metrics. We currently provide [StatsD](https://github.com/b/statsd_spec) and [CSV](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) output. It is not difficult to add new output formats, such as **[JMX](https://metrics.dropwizard.io/3.1.0/manual/core/#jmx)/[SLF4J](https://metrics.dropwizard.io/3.1.0/manual/core/#slf4j)**.
+# Metric Registries and Configurations
 
-- [**CSV**](https://metrics.dropwizard.io/3.1.0/manual/core/#csv) reporter will export each Metric into one file.
-- [**StatsD**](https://github.com/b/statsd_spec) reporter will export Metrics through UDP/TCP to a StatsD server.
-The reporter could be configured using the `MetricsConfig`. Please refer to the [example](https://github.com/pravega/pravega/blob/237a7da0b29284d3bf7bce2fe3cab595cc52c0ff/shared/metrics/src/main/java/io/pravega/shared/metrics/MetricsConfig.java).
+With Micrometer, each meter registry is responsible for both storage and exporting of metrics objects.
+In order to have a unified interface Micrometer provides `CompositeMeterRegistry` for application to interact with, `CompositeMeterRegistry` will forward metric operations to all the concrete registries bound to it.
+
+Note that `CompositeMeterRegistry` has no storage associated, hence in case no registry bound to it, it will become an `NO-OP` interface only and Pravega will throw errors in such a case.
+
+For performing unit testing in an easier way, Micrometer also provides `SimpleMeterRegistry`, which has memory only storage but no exporting is allowed; call `startWithoutExporting()` of `StatsProvider` to use this feature in test codes.
+
+Currently Pravega supports the following:
+- StatsD registry in `Telegraf` flavor.
+- Dimensional metrics data model (or metric tags).
+- UDP as Communication protocol.
+- Direct InfluxDB connection.
+
+The reporter could be configured using the `MetricsConfig`. Please refer to the [example](https://github.com/pravega/shared/metrics/src/main/java/io/pravega/shared/metrics/MetricsConfig.java).
 
 
 # Creating Own Metrics
 
-1. On the start of a Segment Store/Controller Service, start a Metric Service as a sub service. Please check [`ServiceStarter.start()`](#example-for-starting-a-metric-service)
+1. When starting a Segment Store/Controller Service, start a Metric Service as a sub service. Please check [`ServiceStarter.start()`](#example-for-starting-a-metric-service)
 
    ```java
     public class AddMetrics {
-         statsProvider = MetricsProvider.getProvider();
-         .start(metricsConfig);    
+           MetricsProvider.initialize(Config.METRICS_CONFIG);
+           statsProvider.start(metricsConfig);
+           statsProvider = MetricsProvider.getMetricsProvider();
+           statsProvider.start();
+
    ```
 
 2. Create a new `StatsLogger` instance through `MetricsProvider.createStatsLogger(String loggerName)`, and register metric by name, e.g. `STATS_LOGGER.createCounter(String name)`; and then update the metric object as appropriate in your code.
@@ -238,7 +231,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
 ## Metrics in Segment Store Service
 
-- Segment Store Read/Write latency of storage operations ([Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
+- Segment Store Read/Write latency of storage operations ([Histograms](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
    ```
     segmentstore.segment.create_latency_ms
@@ -246,42 +239,43 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     segmentstore.segment.write_latency_ms
   ```
 
-- Segment Store global and per-segment Read/Write Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
+- Segment Store global and per-segment Read/Write Metrics ([Counters](https://micrometer.io/docs/concepts#_counters)):
 
    ```
       // Global counters
-      segmentstore.segment.read_bytes_global.Counter
-      segmentstore.segment.write_bytes_global.Counter
-      segmentstore.segment.write_events_global.Counter
+      segmentstore.segment.read_bytes_global
+      segmentstore.segment.write_bytes_global
+      segmentstore.segment.write_events_global
 
-      // Per segment counters
-      segmentstore.segment.write_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
-      segmentstore.segment.read_bytes.$scope.$stream.$segment.#epoch.$epoch.Counter
-      segmentstore.segment.write_events.$scope.$stream.$segment.#epoch.$epoch.Counter
+      // Per segment counters - all with tags {"scope", $scope, "stream", $stream, "segment", $segment, "epoch", $epoch}
+
+      segmentstore.segment.write_bytes
+      segmentstore.segment.read_bytes
+      segmentstore.segment.write_events
   ```
 
-- Segment Store cache Read/Write latency Metrics ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
+- Segment Store cache Read/Write latency Metrics ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
   ```
     segmentstore.cache.insert_latency_ms
     segmentstore.cache.get_latency
   ```
 
-- Segment Store cache Read/Write Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
+- Segment Store cache Read/Write Metrics ([Counters](https://micrometer.io/docs/concepts#_counters)):
 
   ```
-    segmentstore.cache.write_bytes.Counter
-    segmentstore.cache.read_bytes.Counter
+    segmentstore.cache.write_bytes
+    segmentstore.cache.read_bytes
   ```
 
-- Segment Store cache size (Gauge) and generation spread ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)) Metrics:
+- Segment Store cache size ([Gauge](https://micrometer.io/docs/concepts#_gauges)) and generation spread ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)) Metrics:
 
   ```
-    segmentstore.cache.size_bytes.Gauge
+    segmentstore.cache.size_bytes.
     segmentstore.cache.gen
   ```
 
-- Tier 1 Storage `DurableDataLog` Read/Write latency and queueing Metrics ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
+- Tier 1 Storage `DurableDataLog` Read/Write latency and queuing Metrics ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
   ```
     segmentstore.bookkeeper.total_write_latency_ms
@@ -290,68 +284,70 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     segmentstore.bookkeeper.write_queue_fill
   ```
 
-- Tier 1 Storage `DurableDataLog` Read/Write ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) and per-container ledger count Metrics ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)):
+- Tier 1 Storage `DurableDataLog` Read/Write ([Counter](https://micrometer.io/docs/concepts#_counters)) and per-container ledger count Metrics ([Gauge](https://micrometer.io/docs/concepts#_gauges)):
 
   ```
-    segmentstore.bookkeeper.write_bytes.Counter
-    segmentstore.bookkeeper.bookkeeper_ledger_count.$containerId.Gauge
+    segmentstore.bookkeeper.write_bytes
+    segmentstore.bookkeeper.bookkeeper_ledger_count - with tag `{"container", $containerId}`
+
   ```
 
-- Tier 2 Storage Read/Write latency Metrics ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
+- Tier 2 Storage Read/Write latency Metrics ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
   ```
     segmentstore.storage.read_latency_ms
     segmentstore.storage.write_latency_ms
   ```
 
-- Tier 2 Storage Read/Write data and file creation Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters):
+- Tier 2 Storage Read/Write data and file creation Metrics ([Counters](https://micrometer.io/docs/concepts#_counters)):
 
   ```
-    segmentstore.storage.read_bytes.Counter
-    segmentstore.storage.write_bytes.Counter
-    segmentstore.storage.create_count.Counter
+    segmentstore.storage.read_bytes
+    segmentstore.storage.write_bytes
+    segmentstore.storage.create_count
   ```
 
 - Segment Store container-specific operation Metrics:
 
   ```
-    // Histograms
-    segmentstore.container.process_operations.latency_ms.$containerId
-    segmentstore.container.process_operations.batch_size.$containerId
-    segmentstore.container.operation_queue.size.$containerId
-    segmentstore.container.operation_processor.in_flight.$containerId
-    segmentstore.container.operation_queue.wait_time.$containerId
-    segmentstore.container.operation_processor.delay_ms.$containerId
-    segmentstore.container.operation_commit.latency_ms.$containerId
-    segmentstore.container.operation.latency_ms.$containerId
-    segmentstore.container.operation_commit.metadata_txn_count.$containerId
-    segmentstore.container.operation_commit.memory_latency_ms.$containerId
+    // Histograms - all with tags `{"container", $containerId}`
+
+    segmentstore.container.process_operations.latency_ms
+    segmentstore.container.process_operations.batch_size
+    segmentstore.container.operation_queue.size
+    segmentstore.container.operation_processor.in_flight   segmentstore.container.operation_queue.wait_time
+    segmentstore.container.operation_processor.delay_ms
+    segmentstore.container.operation_commit.latency_ms
+    segmentstore.container.operation.latency_ms
+    segmentstore.container.operation_commit.metadata_txn_count
+    segmentstore.container.operation_commit.memory_latency_ms
 
     // Gauge
-    segmentstore.container.operation.log_size.$containerId.Gauge
+    segmentstore.container.operation.log_size
   ```
 
-- Segment Store operation processor ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
+- Segment Store operation processor ([Counter](https://micrometer.io/docs/concepts#_counters)) Metrics  - all with tags ``{"container", $containerId}`.
 
   ```
     // Counters/Meters
-    segmentstore.container.append_count.$containerId.Meter
-    segmentstore.container.append_offset_count.$containerId.Meter
-    segmentstore.container.update_attributes_count.$containerId.Meter
-    segmentstore.container.get_attributes_count.$containerId.Meter
-    segmentstore.container.read_count.$containerId.Meter
-    segmentstore.container.get_info_count.$containerId.Meter
-    segmentstore.container.create_segment_count.$containerId.Meter
-    segmentstore.container.delete_segment_count.$containerId.Meter
-    segmentstore.container.merge_segment_count.$containerId.Meter
-    segmentstore.container.seal_count.$containerId.Meter
-    segmentstore.container.truncate_count.$containerId.Meter
+    segmentstore.container.append_count
+    segmentstore.container.append_offset_count
+    segmentstore.container.update_attributes_count
+    segmentstore.container.get_attributes_count
+    segmentstore.container.read_count
+    segmentstore.container.get_info_count
+    segmentstore.container.create_segment_count
+    segmentstore.container.delete_segment_count
+    segmentstore.container.merge_segment_count
+    segmentstore.container.seal_count
+    segmentstore.container.truncate_count
   ```
 
-- Segment Store active Segments ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) and thread pool status ([Histogram](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)) Metrics:
+- Segment Store active Segments ([Gauge](https://micrometer.io/docs/concepts#_gauges)) and thread pool status ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)) Metrics:
   ```
-    // Gauge
-    segmentstore.active_segments.$containerId.Gauge
+    // Gauge - with tags `{"container", $containerId}`
+
+    segmentstore.active_segments
 
     // Histograms
     segmentstore.thread_pool.queue_size
@@ -360,7 +356,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
 ## Metrics in Controller Service
 
-- Controller Stream operation latency Metrics ([Histograms](https://metrics.dropwizard.io/3.1.0/manual/core/#histograms)):
+- Controller Stream operation latency Metrics ([Histograms](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
   ```
     controller.stream.created_latency_ms
     controller.stream.sealed_latency_ms
@@ -369,40 +365,51 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     controller.stream.truncated_latency_ms
   ```
 
-- Controller global and per-Stream operation Metrics ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)):
+- Controller global and per-Stream operation Metrics ([Counters](https://micrometer.io/docs/concepts#_counters)):
   ```
-    controller.stream.created.Counter
-    controller.stream.create_failed_global.Counter
-    controller.stream.create_failed.$scope.$stream.Counter
+    controller.stream.created
+    controller.stream.create_failed_global
+    controller.stream.create_failed - with tags `{"scope", $scope, "stream", $stream}`
+
     controller.stream.sealed.Counter
     controller.stream.seal_failed_global.Counter
-    controller.stream.seal_failed.$scope.$stream.Counter
+    controller.stream.seal_failed - with tags `{"scope", $scope, "stream", $stream}`
+
+
     controller.stream.deleted.Counter
     controller.stream.delete_failed_global.Counter
-    controller.stream.delete_failed.$scope.$stream.Counter
+    controller.stream.delete_failed - with tags `{"scope", $scope, "stream", $stream}`
+
+
     controller.stream.updated_global.Counter
-    controller.stream.updated.$scope.$stream.Counter
+    controller.stream.updated - with tags `{"scope", $scope, "stream", $stream}`
+
     controller.stream.update_failed_global.Counter
-    controller.stream.update_failed.$scope.$stream.Counter
+    controller.stream.update_failed - with tags `{"scope", $scope, "stream", $stream}`
+
+
     controller.stream.truncated_global.Counter
-    controller.stream.truncated.$scope.$stream.Counter
+    controller.stream.truncated - with tags `{"scope", $scope, "stream", $stream}`
     controller.stream.truncate_failed_global.Counter
-    controller.stream.truncate_failed.$scope.$stream.Counter
+    controller.stream.truncate_failed - with tags `{"scope", $scope, "stream", $stream}`
+
   ```
 
-- Controller Stream retention frequency ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) and truncated size ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) Metrics:
+- Controller Stream retention frequency ([Counter](https://micrometer.io/docs/concepts#_counters)) and truncated size ([Gauge]((https://micrometer.io/docs/concepts#_gauges)) Metrics:
   ```
-    controller.retention.frequency.$scope.$stream.Counter
-    controller.retention.truncated_size.$scope.$stream.Gauge
+    controller.retention.frequency - with tags `{"scope", $scope, "stream", $stream}`
+
+    controller.retention.truncated_size - with tags `{"scope", $scope, "stream", $stream}`
+
   ```
 
-- Controller Stream Segment operations ([Counters](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) and open/timed out Transactions on a Stream ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#guages)/[Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
+- Controller Stream Segment operations ([Counters](https://micrometer.io/docs/concepts#_counters)) and open/timed out Transactions on a Stream ([Gauge](https://micrometer.io/docs/concepts#_gauges)) Metrics  - all with tags `{"scope", $scope, "stream", $stream}`:
   ```
-    controller.transactions.opened.$scope.$stream.Gauge
-    controller.transactions.timedout.$scope.$stream.Counter
-    controller.segments.count.$scope.$stream.Counter
-    controller.segment.splits.$scope.$stream.Counter
-    controller.segment.merges.$scope.$stream.Counter
+    controller.transactions.opened
+    controller.transactions.timedout
+    controller.segments.count.$scope
+    controller.segment.splits.$scope
+    controller.segment.merges.$scope
   ```
 
 - Controller Transaction operation latency Metrics:
@@ -414,37 +421,42 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
 - Controller Transaction operation counter Metrics:
     ```
-    controller.transactions.created_global.Counter
-    controller.transactions.created.$scope.$stream.Counter
-    controller.transactions.create_failed_global.Counter
-    controller.transactions.create_failed.$scope.$stream.Counter
-    controller.transactions.committed_global.Counter
-    controller.transactions.committed.$scope.$stream.Counter
-    controller.transactions.commit_failed_global.Counter
-    controller.transactions.commit_failed.$scope.$stream.Counter
-    controller.transactions.commit_failed.$scope.$stream.$txnId.Counter
-    controller.transactions.aborted_global.Counter
-    controller.transactions.aborted.$scope.$stream.Counter
-    controller.transactions.abort_failed_global.Counter
-    controller.transactions.abort_failed.$scope.$stream.Counter
-    controller.transactions.abort_failed.$scope.$stream.$txnId.Counter
+    controller.transactions.created_global
+    controller.transactions.created - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.create_failed_global
+    controller.transactions.create_failed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.committed_global
+    controller.transactions.committed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.commit_failed_global
+    controller.transactions.commit_failed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.commit_failed - with tags `{"scope", $scope, "stream", $stream,  "transaction", $txnId}`
+    controller.transactions.aborted_global
+    controller.transactions.aborted - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.abort_failed_global
+    controller.transactions.abort_failed - with tags `{"scope", $scope, "stream", $stream}`
+    controller.transactions.abort_failed - with tags `{"scope", $scope, "stream", $stream,  "transaction", $txnId}`
   ```
 
-- Controller hosts available ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) and host failure ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
+- Controller hosts available ([Gauge](https://micrometer.io/docs/concepts#_gauges)) and host failure ([Counter](https://micrometer.io/docs/concepts#_counters)) Metrics:
   ```
-    controller.hosts.count.Gauge
-    controller.hosts.failures_global.Counter
-    controller.hosts.failures.$host.Counter
+    controller.hosts.count
+    controller.hosts.failures_global
+    controller.hosts.failures.$host - with tags `{"host", $host}`
+
   ```
 
-- Controller Container count per host ([Gauge](https://metrics.dropwizard.io/3.1.0/manual/core/#gauges)) and failover ([Counter](https://metrics.dropwizard.io/3.1.0/manual/core/#counters)) Metrics:
+- Controller Container count per host ([Gauge](https://micrometer.io/docs/concepts#_gauges)) and failover ([Counter](https://micrometer.io/docs/concepts#_counters)) Metrics:
   ```
-    controller.hosts.container_count.Gauge
-    controller.container.failovers_global.Counter
-    controller.container.failovers.$containerId.Counter
+    controller.hosts.container_count
+    controller.container.failovers_global
+    controller.container.failovers.$containerId - with tags `{"container", $containerId}`
+
+  ```
+- Controller Zookeeper session expiration ([Counter](https://micrometer.io/docs/concepts#_counters)) metrics:
+  ```
+  controller.zookeeper.session_expiration.Counter	controller.zookeeper.session_expiration
   ```
 
 # Resources
-* [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs)
+* [Micrometer Metrics](https://micrometer.io/docs)
 * [Statsd_spec](https://github.com/b/statsd_spec)
-* [etsy_StatsD](https://github.com/etsy/statsd)
