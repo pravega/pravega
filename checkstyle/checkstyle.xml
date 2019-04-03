@@ -9,7 +9,7 @@
 
   <!-- header -->
   <module name="RegexpHeader">
-    <property name="header" value="/\*\*\n * Copyright (c) 2019"/>
+    <property name="header" value="/\*\*\n * Copyright (c)"/>
   </module>
   <module name="SuppressionFilter">
         <property name="file" value="${suppressionsFile}"/>
