@@ -189,11 +189,7 @@ public class ResourcePool<T> {
                         waiting.future.completeExceptionally(e);
                     } else {
                         if (listener != null) {
-                            try {
-                                listener.notify(Event.Created);
-                            } catch (Exception ex) {
-                                // ignore
-                            }
+                            listener.notify(Event.Created);
                         }
                         waiting.future.complete(t);
                     }

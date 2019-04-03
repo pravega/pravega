@@ -80,7 +80,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ScheduledExecutorService retentionExecutor;
 
     private ConnectionFactory connectionFactory;
+<<<<<<< HEAD
     private StreamMetadataStore streamStore;
+=======
+    private SegmentHelper segmentHelper; 
+>>>>>>> segmenthelperconnectionmanager
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private BucketManager retentionService;
@@ -179,11 +183,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                                                     .build();
 
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
+            segmentHelperRef.compareAndSet(null, new SegmentHelper(connectionFactory, hostStore));
 
             AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
             
-            segmentHelperRef.compareAndSet(null, new SegmentHelper(connectionFactory, hostStore));
             SegmentHelper segmentHelper = segmentHelperRef.get();
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor);
@@ -377,6 +381,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (cluster != null) {
                 log.info("Closing controller cluster instance");
                 cluster.close();
+            }
+
+            if (segmentHelper != null) {
+                log.info("closing segment helper");
+                segmentHelper.close();
             }
 
             log.info("Closing connection factory");
