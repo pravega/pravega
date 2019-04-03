@@ -61,7 +61,8 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     private StreamMetadataStore streamStore;
     private SegmentHelper segmentHelper;
     private RequestTracker requestTracker;
-
+    private ConnectionFactoryImpl connectionFactory;
+    
     @Override
     public void setup() throws Exception {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
@@ -72,7 +73,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         requestTracker = new RequestTracker(true);
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                                         .controllerURI(URI.create("tcp://localhost"))
                                                                                         .build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
@@ -89,8 +90,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 executorService);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
-        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
-                "abortStream", new EventStreamWriterMock<>());
+        streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         Cluster mockCluster = mock(Cluster.class);
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
@@ -108,5 +108,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
         }
+        
+        connectionFactory.close();
     }
 }

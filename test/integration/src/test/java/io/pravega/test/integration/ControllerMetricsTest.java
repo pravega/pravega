@@ -9,8 +9,8 @@
  */
 package io.pravega.test.integration;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Timer;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Timer;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -33,6 +33,7 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -48,6 +49,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsNames.CONTROLLER_ZK_SESSION_EXPIRATION;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
@@ -84,14 +86,13 @@ public class ControllerMetricsTest {
     @Before
     public void setUp() throws Exception {
         MetricsConfig metricsConfig = MetricsConfig.builder()
-                                                   .with(MetricsConfig.ENABLE_CSV_REPORTER, false)
                                                    .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                                                    .build();
         metricsConfig.setDynamicCacheEvictionDuration(Duration.ofMinutes(5));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start();
+        statsProvider.startWithoutExporting();
         log.info("Metrics Stats provider is started");
 
         executor = Executors.newSingleThreadScheduledExecutor();
@@ -106,10 +107,12 @@ public class ControllerMetricsTest {
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
                 false,
+                false,
                 controllerPort,
                 serviceHost,
                 servicePort,
-                containerCount);
+                containerCount,
+                9091);
         controllerWrapper.awaitRunning();
     }
 
@@ -162,7 +165,7 @@ public class ControllerMetricsTest {
             // Check that the number of streams in metrics has been incremented.
             streamManager.createStream(scope, iterationStreamName, streamConfiguration);
             Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
-            Assert.assertTrue(i <= createdStreamsCounter.getCount());
+            AssertExtensions.assertGreaterThanOrEqual("The counter of created streams", i, (long) createdStreamsCounter.count());
             groupManager.createReaderGroup(iterationReaderGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                                                 .stream(scope + "/" + iterationStreamName)
                                                                                                 .build());
@@ -175,8 +178,8 @@ public class ControllerMetricsTest {
                 Counter updatedStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter streamUpdatesCounter = MetricRegistryUtils.getCounter(
                         getCounterMetricName(nameFromStream(UPDATE_STREAM, scope, iterationStreamName)));
-                Assert.assertTrue(iterations * i + j <= updatedStreamsCounter.getCount());
-                Assert.assertTrue(j <= streamUpdatesCounter.getCount());
+                Assert.assertTrue(iterations * i + j <= updatedStreamsCounter.count());
+                Assert.assertTrue(j <= streamUpdatesCounter.count());
 
                 // Read and write some events.
                 writeEvents(clientFactory, iterationStreamName, eventsWritten);
@@ -190,28 +193,45 @@ public class ControllerMetricsTest {
                 Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter perStreamTruncationCounter = MetricRegistryUtils.getCounter(
                         getCounterMetricName(nameFromStream(UPDATE_STREAM, scope, iterationStreamName)));
-                Assert.assertTrue(iterations * i + j <= streamTruncationCounter.getCount());
-                Assert.assertTrue(j <= perStreamTruncationCounter.getCount());
+                Assert.assertTrue(iterations * i + j <= streamTruncationCounter.count());
+                Assert.assertTrue(j <= perStreamTruncationCounter.count());
             }
 
             // Check metrics accounting for sealed and deleted streams.
             streamManager.sealStream(scope, iterationStreamName);
             Counter streamSealCounter = MetricRegistryUtils.getCounter(getCounterMetricName(SEAL_STREAM));
-            Assert.assertTrue(i + 1 <= streamSealCounter.getCount());
+            Assert.assertTrue(i + 1 <= streamSealCounter.count());
             streamManager.deleteStream(scope, iterationStreamName);
             Counter streamDeleteCounter = MetricRegistryUtils.getCounter(getCounterMetricName(DELETE_STREAM));
-            Assert.assertTrue(i + 1 <= streamDeleteCounter.getCount());
+            Assert.assertTrue(i + 1 <= streamDeleteCounter.count());
         }
 
         checkStatsRegisteredValues(iterations, CREATE_STREAM_LATENCY, SEAL_STREAM_LATENCY, DELETE_STREAM_LATENCY);
         checkStatsRegisteredValues(iterations * iterations, UPDATE_STREAM_LATENCY, TRUNCATE_STREAM_LATENCY);
     }
 
+    /**
+     * This test verifies that the Controller increments the metric for Zookeeper session expiration events correctly.
+     *
+     * @throws Exception
+     */
+    @Test(timeout = 25000)
+    public void zookeeperMetricsTest() throws Exception {
+        Counter zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
+        Assert.assertNull(zkSessionExpirationCounter);
+        controllerWrapper.forceClientSessionExpiry();
+        while (zkSessionExpirationCounter == null) {
+            Thread.sleep(100);
+            zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
+        }
+        Assert.assertEquals(zkSessionExpirationCounter.count(), 1, 0.1);
+    }
+
     private void checkStatsRegisteredValues(int minExpectedValues, String...metricNames) {
         for (String metricName: metricNames) {
             Timer latencyValues = MetricRegistryUtils.getTimer(getTimerMetricName(metricName));
             Assert.assertNotNull(latencyValues);
-            Assert.assertTrue(minExpectedValues <= latencyValues.getSnapshot().size());
+            Assert.assertTrue(minExpectedValues <= latencyValues.takeSnapshot().count());
         }
     }
 

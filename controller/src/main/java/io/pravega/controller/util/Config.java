@@ -110,8 +110,7 @@ public final class Config {
     public static final MetricsConfig METRICS_CONFIG;
     public static final GRPCServerConfig GRPC_SERVER_CONFIG;
 
-    private static final String METRICS_PATH = "controller.metrics";
-    private static final String METRICS_PREFIX_REPLACEMENT = MetricsConfig.COMPONENT_CODE;
+    private static final String METRICS_PATH = "controller.metrics.";
 
 
     //endregion
@@ -140,7 +139,7 @@ public final class Config {
     private static final Property<String> PROPERTY_TLS_TRUST_STORE = Property.named("auth.tlsTrustStore", "");
     private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named("auth.tlsKeyFile", "");
     private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("auth.tokenSigningKey", "");
-    private static final Property<String> PROPERTY_ZK_URL = Property.named("zk.url", "localhost:2121");
+    private static final Property<String> PROPERTY_ZK_URL = Property.named("zk.url", "localhost:2181");
     private static final Property<Integer> PROPERTY_ZK_RETRY_MILLIS = Property.named("zk.retryIntervalMillis", 5000);
     private static final Property<Integer> PROPERTY_ZK_MAX_RETRY_COUNT = Property.named("maxRetries", 5);
     private static final Property<Integer> PROPERTY_ZK_SESSION_TIMEOUT_MILLIS = Property.named("sessionTimeoutMillis", 10000);
@@ -307,7 +306,7 @@ public final class Config {
         for (val e : p.entrySet()) {
             String key = (String) e.getKey();
             if (key.startsWith(METRICS_PATH)) {
-                builder.with(Property.named(key.replaceFirst(METRICS_PATH, METRICS_PREFIX_REPLACEMENT)), e.getValue());
+                builder.with(Property.named(key.substring(METRICS_PATH.length())), e.getValue());
             }
         }
 

@@ -39,7 +39,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private final ScheduledExecutorService executor;
     private final ArrayList<Actor> actors;
     private final Reporter reporter;
-    private final ProducerDataSource dataSource;
+    private final ProducerDataSource<?> dataSource;
     private final AtomicReference<CompletableFuture<Void>> testCompletion;
     private final StoreAdapter store;
     private ServiceManager actorManager;
@@ -64,9 +64,15 @@ class SelfTest extends AbstractService implements AutoCloseable {
         this.state = new TestState();
         this.executor = ExecutorServiceHelpers.newScheduledThreadPool(testConfig.getThreadPoolSize(), "self-test");
         this.store = StoreAdapter.create(testConfig, builderConfig, this.executor);
-        this.dataSource = new ProducerDataSource(this.testConfig, this.state, this.store);
+        this.dataSource = createProducerDataSource(this.testConfig, this.state, this.store);
         Services.onStop(this, this::shutdownCallback, this::shutdownCallback, this.executor);
         this.reporter = new Reporter(this.state, this.testConfig, this.store::getStorePoolSnapshot, this.executor);
+    }
+
+    private ProducerDataSource<?> createProducerDataSource(TestConfig config, TestState state, StoreAdapter store) {
+        return config.getTestType().isTablesTest()
+                ? new TableProducerDataSource(config, state, store)
+                : new StreamProducerDataSource(config, state, store);
     }
 
     //endregion
@@ -78,7 +84,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
         if (!this.closed.get()) {
             try {
                 Futures.await(Services.stopAsync(this, this.executor));
-                this.dataSource.deleteAllStreams()
+                this.dataSource.deleteAll()
                         .exceptionally(ex -> {
                             TestLogger.log(LOG_ID, "Unable to delete all Streams: %s.", ex);
                             return null;
@@ -110,7 +116,7 @@ class SelfTest extends AbstractService implements AutoCloseable {
 
         // Create all segments, then start the Actor Manager.
         Services.startAsync(this.store, this.executor)
-                .thenCompose(v -> this.dataSource.createStreams())
+                .thenCompose(v -> this.dataSource.createAll())
                 .thenRunAsync(() -> {
                             // Create and initialize the Test Actors (Producers & Consumers).
                             createTestActors();
@@ -176,23 +182,33 @@ class SelfTest extends AbstractService implements AutoCloseable {
     private void createTestActors() {
         // Create Producers (based on TestConfig).
         for (int i = 0; i < this.testConfig.getProducerCount(); i++) {
-            this.actors.add(new Producer(i, this.testConfig, this.dataSource, this.store, this.executor));
+            this.actors.add(new Producer<>(i, this.testConfig, this.dataSource, this.store, this.executor));
         }
 
+        TestLogger.log(LOG_ID, "Created %s Producer(s).", this.testConfig.getProducerCount());
+
         // Create Consumers (based on the number of non-transaction Segments).
-        boolean readsEnabled = this.testConfig.isReadsEnabled();
-        boolean storeSupportsReads = Consumer.canUseStoreAdapter(this.store);
-        if (readsEnabled && storeSupportsReads) {
+        if (!this.testConfig.isReadsEnabled() || !Consumer.canUseStoreAdapter(this.store)) {
+            TestLogger.log(LOG_ID, "Not creating any consumers because reads are not enabled or the StorageAdapter"
+                    + " does not support all required features.");
+            return;
+        }
+
+        if (this.testConfig.getTestType().isTablesTest()) {
+            // Create TableConsumer.
+            this.actors.add(new TableConsumer(this.testConfig, (TableProducerDataSource) this.dataSource, this.state, this.store, this.executor));
+            TestLogger.log(LOG_ID, "Created TableConsumer.");
+        } else {
+            // Create Stream Consumers.
+            int count = 0;
             for (val si : this.state.getAllStreams()) {
                 if (!si.isTransaction()) {
-                    this.actors.add(new Consumer(si.getName(), this.testConfig, this.dataSource, this.state, this.store, this.executor));
+                    this.actors.add(new Consumer(si.getName(), this.testConfig, this.state, this.store, this.executor));
+                    count++;
                 }
             }
-        } else {
-            String reason = readsEnabled
-                    ? (storeSupportsReads ? "no reason" : "the StoreAdapter does not support all required features")
-                    : "reads are not enabled";
-            TestLogger.log(LOG_ID, "Not creating any consumers because %s.", reason);
+
+            TestLogger.log(LOG_ID, "Created %s Consumer(s).", count);
         }
     }
 

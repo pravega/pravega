@@ -15,11 +15,15 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableEntry;
+import io.pravega.segmentstore.contracts.tables.TableKey;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.Storage;
@@ -37,13 +41,18 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
+import java.util.AbstractMap;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.curator.framework.CuratorFramework;
@@ -66,6 +75,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     private final Thread stopBookKeeperProcess;
     private Process bookKeeperService;
     private StreamSegmentStore streamSegmentStore;
+    private TableStore tableStore;
     private CuratorFramework zkClient;
     private StatsProvider statsProvider;
 
@@ -127,7 +137,7 @@ class SegmentStoreAdapter extends StoreAdapter {
 
     //endregion
 
-    //region StoreAdapter Implementation
+    //region AbstractIdleService Implementation
 
     @Override
     protected void startUp() throws Exception {
@@ -143,6 +153,7 @@ class SegmentStoreAdapter extends StoreAdapter {
 
         this.serviceBuilder.initialize();
         this.streamSegmentStore = this.serviceBuilder.createStreamSegmentService();
+        this.tableStore = this.serviceBuilder.createTableStoreService();
     }
 
     @Override
@@ -164,6 +175,10 @@ class SegmentStoreAdapter extends StoreAdapter {
 
         Runtime.getRuntime().removeShutdownHook(this.stopBookKeeperProcess);
     }
+
+    //endregion
+
+    //region Stream Operations
 
     @Override
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
@@ -210,20 +225,84 @@ class SegmentStoreAdapter extends StoreAdapter {
     public CompletableFuture<Void> abortTransaction(String transactionName, Duration timeout) {
         // At the SegmentStore level, aborting transactions means deleting their segments.
         ensureRunning();
-        return this.delete(transactionName, timeout);
+        return this.deleteStream(transactionName, timeout);
     }
 
     @Override
-    public CompletableFuture<Void> seal(String streamName, Duration timeout) {
+    public CompletableFuture<Void> sealStream(String streamName, Duration timeout) {
         ensureRunning();
         return Futures.toVoid(this.streamSegmentStore.sealStreamSegment(streamName, timeout));
     }
 
     @Override
-    public CompletableFuture<Void> delete(String streamName, Duration timeout) {
+    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
         ensureRunning();
         return this.streamSegmentStore.deleteStreamSegment(streamName, timeout);
     }
+
+    //endregion
+
+    //region Table Operations
+
+    @Override
+    public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
+        ensureRunning();
+        return this.tableStore.createSegment(tableName, timeout);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteTable(String tableName, Duration timeout) {
+        ensureRunning();
+        return this.tableStore.deleteSegment(tableName, false, timeout);
+    }
+
+    @Override
+    public CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout) {
+        ensureRunning();
+        TableEntry e = compareVersion == null || compareVersion == TableKey.NO_VERSION
+                ? TableEntry.unversioned(key, value)
+                : TableEntry.versioned(key, value, compareVersion);
+        return this.tableStore.put(tableName, Collections.singletonList(e), timeout)
+                              .thenApply(versions -> versions.get(0));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout) {
+        ensureRunning();
+        TableKey e = compareVersion == null || compareVersion == TableKey.NO_VERSION
+                ? TableKey.unversioned(key)
+                : TableKey.versioned(key, compareVersion);
+        return this.tableStore.remove(tableName, Collections.singletonList(e), timeout);
+    }
+
+    @Override
+    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> keys, Duration timeout) {
+        ensureRunning();
+        return this.tableStore
+                .get(tableName, keys, timeout)
+                .thenApplyAsync(storeResult -> storeResult.stream().map(e -> e == null ? null : e.getValue()).collect(Collectors.toList()), this.testExecutor);
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
+        ensureRunning();
+        return this.tableStore
+                .entryIterator(tableName, null, timeout)
+                .thenApply(iterator -> () ->
+                        iterator.getNext().thenApply(item -> {
+                            if (item == null) {
+                                return null;
+                            } else {
+                                return item.getEntries().stream()
+                                           .map(e -> new AbstractMap.SimpleImmutableEntry<>(e.getKey().getKey(), e.getValue()))
+                                           .collect(Collectors.<Map.Entry<ArrayView, ArrayView>>toList());
+                            }
+                        }));
+    }
+
+    //endregion
+
+    //region StoreAdapter implementation
 
     @Override
     public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {

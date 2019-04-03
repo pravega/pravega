@@ -65,7 +65,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAppendBlock() throws IOException {
-        testCommand(new WireCommands.AppendBlock(uuid));
+        testCommand(new WireCommands.AppendBlock(l, uuid));
     }
 
     @Test
@@ -75,7 +75,7 @@ public class WireCommandsTest {
 
     @Test
     public void testConditionalAppend() throws IOException {
-        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf)));
+        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l));
     }
 
     @Test
@@ -129,11 +129,11 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         DataAppendedV2 commandV2 = new DataAppendedV2(uuid, l);
         commandV2.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(uuid, l, -1));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(-1L, uuid, l, -1));
 
         // Test that we are able to encode and decode the current response
         // to append data correctly.
-        testCommand(new WireCommands.DataAppended(uuid, l, Long.MIN_VALUE));
+        testCommand(new WireCommands.DataAppended(l, uuid, l, Long.MIN_VALUE));
     }
 
     /*
@@ -198,7 +198,7 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         SegmentIsSealedV5 commandV5 = new SegmentIsSealedV5(l, "");
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsSealed(l, "", ""));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsSealed(l, "", "", -1L));
     }
 
     @Data
@@ -230,7 +230,7 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         SegmentIsTruncatedV5 commandV5 = new SegmentIsTruncatedV5(l, "", 0);
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsTruncated(l, "", 0, ""));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsTruncated(l, "", 0, "", -1L));
     }
 
     @Data
@@ -300,7 +300,7 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         NoSuchSegmentV5 commandV5 = new NoSuchSegmentV5(l, "");
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.NoSuchSegment(l, "", ""));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.NoSuchSegment(l, "", "", -1));
     }
 
     @Data
@@ -396,17 +396,17 @@ public class WireCommandsTest {
 
     @Test
     public void testConditionalCheckFailed() throws IOException {
-        testCommand(new WireCommands.ConditionalCheckFailed(uuid, l));
+        testCommand(new WireCommands.ConditionalCheckFailed(uuid, l, l));
     }
 
     @Test
     public void testReadSegment() throws IOException {
-        testCommand(new WireCommands.ReadSegment(testString1, l, i, ""));
+        testCommand(new WireCommands.ReadSegment(testString1, l, i, "", l));
     }
 
     @Test
     public void testSegmentRead() throws IOException {
-        testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buffer));
+        testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buffer, l));
     }
     
     @Test
@@ -497,7 +497,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSegmentIsTruncated() throws IOException {
-        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1, "SomeException"));
+        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1, "SomeException", l));
     }
 
     @Test
@@ -533,7 +533,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSegmentIsSealed() throws IOException {
-        testCommand(new WireCommands.SegmentIsSealed(l, testString1, "SomeException"));
+        testCommand(new WireCommands.SegmentIsSealed(l, testString1, "SomeException", l));
     }
 
     @Test
@@ -543,7 +543,7 @@ public class WireCommandsTest {
 
     @Test
     public void testNoSuchSegment() throws IOException {
-        testCommand(new WireCommands.NoSuchSegment(l, testString1, "SomeException"));
+        testCommand(new WireCommands.NoSuchSegment(l, testString1, "SomeException", l));
     }
 
     @Test

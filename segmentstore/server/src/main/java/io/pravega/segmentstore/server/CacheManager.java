@@ -418,8 +418,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         }
 
         private CacheStatus withUpdatedSize(long sizeDelta) {
-            long newSize = this.size + sizeDelta;
-            assert newSize >= 0 : "given sizeDelta would result in a negative size";
+            long newSize = Math.max(0, this.size + sizeDelta);
             return new CacheStatus(newSize, this.oldestGeneration, this.newestGeneration);
         }
 

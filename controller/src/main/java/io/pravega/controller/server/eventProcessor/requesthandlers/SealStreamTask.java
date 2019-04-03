@@ -169,4 +169,10 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
     public CompletableFuture<Void> writeBack(SealStreamEvent event) {
         return streamMetadataTasks.writeEvent(event);
     }
+
+    @Override
+    public CompletableFuture<Boolean> hasTaskStarted(SealStreamEvent event) {
+        return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
+                                  .thenApply(state -> state.equals(State.SEALING));
+    }
 }
