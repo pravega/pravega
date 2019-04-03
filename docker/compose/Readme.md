@@ -7,7 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-# docker-compose
+# Containerized Deployment Using Docker Compose
 
 Docker compose can be used to quickly spin up a Pravega cluster to use for testing or development. Unlike 
 `pravega-standalone`, a Compose cluster will use a real standalone HDFS, Zookeeper and BookKeeper, and will also run
@@ -55,3 +55,4 @@ Segment Store and Controller in separate processes.
    ```
 
 Clients can then connect to the Controller at `<host-ip>:9090`.
+
