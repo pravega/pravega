@@ -555,11 +555,12 @@ public class SegmentHelperTest {
     private class MockConnectionFactory implements ConnectionFactory {
         @Getter
         private ReplyProcessor rp;
-
+        private ClientConnection connection;
+        
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
             this.rp = rp;
-            ClientConnection connection = new MockConnection(rp);
+            connection = new MockConnection(rp);
             return CompletableFuture.completedFuture(connection);
         }
 
@@ -570,7 +571,9 @@ public class SegmentHelperTest {
 
         @Override
         public void close() {
-
+            if (connection != null) {
+                connection.close();
+            }
         }
     }
 

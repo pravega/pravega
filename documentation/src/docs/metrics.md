@@ -548,6 +548,11 @@ controller.container.failovers_global.Counter
 controller.container.failovers.$containerId.Counter
 ```
 
+- Controller Zookeeper session expiration (counter) metrics:
+```
+controller.zookeeper.session_expiration.Counter
+```
+
 # 6. Useful links
 * [Dropwizard Metrics](https://metrics.dropwizard.io/3.1.0/apidocs)
 * [Statsd_spec](https://github.com/b/statsd_spec)
