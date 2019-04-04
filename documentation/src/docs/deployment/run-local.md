@@ -63,11 +63,12 @@ docker run -it -e HOST_IP=<ip> -p 9090:9090 -p 12345:12345 pravega/pravega:lates
 Unlike other options for running locally, the Docker Compose option runs a full deployment of Pravega
 in distributed mode. It contains containers for running Zookeeper, Bookkeeper and HDFS. Hence Pravega operates as if it would in production. This is the easiest way to get started with the standalone option but requires additional resources.
 
-1. Before attempting to deploy Pravega using this option, be sure your host machine meets the following prerequisites:
+1. Ensure that your host machine meets the following prerequisites:
 
    * It has Docker `1.12` or later installed.
    * It has Docker Compose installed.
-   * Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) from github. For example:
+
+2. Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) from [Pravega](https://github.com/pravega/pravega) github repository. For example:
 
    ```
    $ wget https://raw.githubusercontent.com/pravega/pravega/master/docker/compose/docker-compose.yml
@@ -88,10 +89,10 @@ in distributed mode. It contains containers for running Zookeeper, Bookkeeper an
 3. Add HOST_IP as an environment variable with the value as the IP address of the host.
 
    ```
-   $ export HOST_IP=<host-ip>
+   $ export HOST_IP=<HOST_IP>
    ```
 
-4. Now, run the following command to start a deployment comprising of multiple Docker containers, as specified in the
+4. Run the following command to start a deployment comprising of multiple Docker containers, as specified in the
    `docker-compose.yml` file.
 
    ```
@@ -110,9 +111,9 @@ in distributed mode. It contains containers for running Zookeeper, Bookkeeper an
    $ docker-compose ps
    ```
 
-Clients can then connect to the Controller at `<host-ip>:9090`.
+Clients can then connect to the Controller at `<HOST_IP>:9090`.
 
-To access the Pravega Controller REST API, invoke it using a URL of the form `http://<host-ip>:10080/v1/scopes` (where
+To access the Pravega Controller `REST` API, invoke it using a URL of the form `http://<host-ip>:10080/v1/scopes` (where
 `/scopes` is one of the many endpoints that the API supports).
 
 
