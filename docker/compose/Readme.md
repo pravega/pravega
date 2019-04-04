@@ -19,39 +19,39 @@ Segment Store and Controller in separate processes.
 
 2. Clone Pravega repository to fetch the code.
 
-   ```bash
-   git clone https://github.com/pravega/pravega.git
+   ```
+   $ git clone https://github.com/pravega/pravega.git
    ```
 
 3. Navigate to the directory containing Docker Compose configuration `.yml` files.
 
-   ```bash
-   cd /path/to/pravega/docker/compose
+   ```
+   $ cd /path/to/pravega/docker/compose
    ```
 
 4. Add HOST_IP as an environment variable with the value as the IP address of the host.
 
-   ```bash
-   export HOST_IP=<host-ip>
+   ```
+   $ export HOST_IP=<host-ip>
    ```
 
 5. Now, run the following command to start a deployment comprising of multiple Docker containers, as specified in the
    `docker-compose.yml` file.
 
-   ```bash
-   docker-compose up -d
+   ```
+   $ docker-compose up -d
    ```
 
    If you want to use one of the other files in the directory, use the `-f` option to specify the file.
 
-   ```bash
-   docker-compose up -d -f docker-compose-nfs.yml
+   ```
+   $ docker-compose up -d -f docker-compose-nfs.yml
    ```
 
 6. Verify that the deployment is up and running.
 
-   ```bash
-   docker-compose ps
+   ```
+   $ docker-compose ps
    ```
 
 Clients can then connect to the Controller at `<host-ip>:9090`.
