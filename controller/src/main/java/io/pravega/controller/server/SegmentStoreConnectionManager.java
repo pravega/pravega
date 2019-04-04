@@ -24,10 +24,11 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.io.IOException;
+import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -53,7 +54,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
     // the pool on the need basis. 
     private final LoadingCache<PravegaNodeUri, SegmentStoreConnectionPool> cache;
 
-    public SegmentStoreConnectionManager(final ConnectionFactory clientCF) {
+    SegmentStoreConnectionManager(final ConnectionFactory clientCF) {
         this.cache = CacheBuilder.newBuilder()
                             .maximumSize(Config.HOST_STORE_CONTAINER_COUNT)
                             // if a host is not accessed for 5 minutes, remove it from the cache
@@ -72,13 +73,13 @@ class SegmentStoreConnectionManager implements AutoCloseable {
 
     }
 
-    public SegmentStoreConnectionPool getPool(PravegaNodeUri uri) {
-        cache.cleanUp();
-        return cache.getUnchecked(uri);
+    
+    CompletableFuture<ConnectionWrapper> getConnection(PravegaNodeUri uri, ReplyProcessor replyProcessor) {
+        return cache.getUnchecked(uri).getConnection(replyProcessor);
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         cache.invalidateAll();
         cache.cleanUp();
     }
@@ -117,21 +118,66 @@ class SegmentStoreConnectionManager implements AutoCloseable {
             }, connectionObj -> connectionObj.connection.close(), maxConcurrent, maxIdle);
         }
 
-        CompletableFuture<ConnectionObject> getConnection(ReplyProcessor replyProcessor) {
+        CompletableFuture<ConnectionWrapper> getConnection(ReplyProcessor replyProcessor) {
             return getResource()
-                    .thenApply(connectionObject -> {
+                    .thenApply(closableResource -> {
+                        ConnectionObject connectionObject = closableResource.getResource();
                         connectionObject.reusableReplyProcessor.initialize(replyProcessor);
-                        return connectionObject;
+                        return new ConnectionWrapper(closableResource);
                     });
-        }
-        
-        void returnConnection(ConnectionObject connectionObject) {
-            connectionObject.reusableReplyProcessor.uninitialize();
-            returnResource(connectionObject, connectionObject.state.get().equals(ConnectionObject.ConnectionState.CONNECTED));
         }
     }
     
-    static class ConnectionObject {
+    static class ConnectionWrapper implements AutoCloseable {
+        private final ResourcePool.ClosableResource<ConnectionObject> resource;
+        @GuardedBy("$lock")
+        private boolean isClosed;
+        private ConnectionWrapper(ResourcePool.ClosableResource<ConnectionObject> resource) {
+            this.resource = resource;
+            this.isClosed = false;
+        }
+
+        void failConnection() {
+            resource.getResource().failConnection();
+        }
+
+        <T> void sendAsync(WireCommand request, CompletableFuture<T> resultFuture) {
+            resource.getResource().sendAsync(request, resultFuture);
+        }
+
+        // region for testing
+        @VisibleForTesting
+        ConnectionObject.ConnectionState getState() {
+            return resource.getResource().state.get();
+        }
+
+        @VisibleForTesting
+        ClientConnection getConnection() {
+            return resource.getResource().connection;
+        }
+
+        @VisibleForTesting
+        ReplyProcessor getReplyProcessor() {
+            return resource.getResource().reusableReplyProcessor.replyProcessor.get();
+        }
+        // endregion
+
+        @Override
+        @Synchronized
+        public void close() {
+            if (!isClosed) {
+                ConnectionObject connectionObject = resource.getResource();
+                connectionObject.reusableReplyProcessor.uninitialize();
+                if (!connectionObject.state.get().equals(ConnectionObject.ConnectionState.CONNECTED)) {
+                    resource.invalidate();
+                }
+                this.resource.close();
+            } 
+            isClosed = true;
+        }
+    }
+    
+    private static class ConnectionObject {
         private final ClientConnection connection;
         private final ReusableReplyProcessor reusableReplyProcessor;
         private final AtomicReference<ConnectionState> state;
@@ -142,11 +188,11 @@ class SegmentStoreConnectionManager implements AutoCloseable {
             state = new AtomicReference<>(ConnectionState.CONNECTED);
         }
 
-        void failConnection() {
+        private void failConnection() {
             state.set(ConnectionState.DISCONNECTED);    
         }
         
-        <T> void sendAsync(WireCommand request, CompletableFuture<T> resultFuture) {
+        private <T> void sendAsync(WireCommand request, CompletableFuture<T> resultFuture) {
             connection.sendAsync(request, cfe -> {
                 if (cfe != null) {
                     Throwable cause = Exceptions.unwrap(cfe);
@@ -161,24 +207,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
                 }
             });
         }
-
-        // region for testing
-        @VisibleForTesting
-        ConnectionState getState() {
-            return state.get();
-        }
         
-        @VisibleForTesting
-        ClientConnection getConnection() {
-            return connection;
-        }
-
-        @VisibleForTesting
-        ReplyProcessor getReplyProcessor() {
-            return reusableReplyProcessor.replyProcessor.get();
-        }
-        // endregion
-
         private enum ConnectionState {
             CONNECTED,
             DISCONNECTED

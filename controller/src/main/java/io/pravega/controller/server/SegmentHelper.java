@@ -28,6 +28,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.TagLogger;
+
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -40,7 +41,6 @@ import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
 
-import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,6 +56,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.pravega.controller.server.SegmentStoreConnectionManager.*;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
@@ -1236,16 +1237,11 @@ public class SegmentHelper implements AutoCloseable {
                                             final CompletableFuture<?> resultFuture,
                                             final PravegaNodeUri uri) {
         try {
-            // get connection manager for the segment store node from the connectionManager. 
-            SegmentStoreConnectionManager.SegmentStoreConnectionPool pool = connectionManager.getPool(uri);
+            // get connection for the segment store node from the connectionManager. 
             // take a new connection from the connection manager
-            CompletableFuture<SegmentStoreConnectionManager.ConnectionObject> connectionFuture = pool.getConnection(replyProcessor);
-            connectionFuture.whenComplete((connection, e) -> {
-                connectionCompleteCallback(request, resultFuture, connection, e);
-            });
-            resultFuture.whenComplete((result, e) -> {
-                requestCompleteCallback(pool, connectionFuture, e);
-            });
+            CompletableFuture<ConnectionWrapper> connectionFuture = connectionManager.getConnection(uri, replyProcessor);
+            connectionFuture.whenComplete((connection, e) -> connectionCompleteCallback(request, resultFuture, connection, e));
+            resultFuture.whenComplete((result, e) -> requestCompleteCallback(connectionFuture, e));
         } catch (Exception e) {
             resultFuture.completeExceptionally(e);
         }
@@ -1263,7 +1259,7 @@ public class SegmentHelper implements AutoCloseable {
      * @param e Exception, if any, thrown from attempting to get a new connection.  
      */
     private  void connectionCompleteCallback(WireCommand request, CompletableFuture<?> resultFuture,
-                                             SegmentStoreConnectionManager.ConnectionObject connection, Throwable e) {
+                                             ConnectionWrapper connection, Throwable e) {
         if (connection == null || e != null) {
             ConnectionFailedException cause = e != null ? new ConnectionFailedException(e) : new ConnectionFailedException();
             resultFuture.completeExceptionally(new WireCommandFailedException(cause,
@@ -1278,12 +1274,10 @@ public class SegmentHelper implements AutoCloseable {
      * Request Complete callback is invoked when the request is complete, either by sending and receiving a response from 
      * segment store or by way of failure of connection. 
      * This is responsible for returning the connection back to the connection pool. 
-     * @param pool connection pool.
      * @param connectionFuture conection future that when completed successfully holds the connection object taken from the pool. 
      * @param e Exception, if any, thrown from the request processing. 
      */
-    private void requestCompleteCallback(SegmentStoreConnectionManager.SegmentStoreConnectionPool pool, 
-                                         CompletableFuture<SegmentStoreConnectionManager.ConnectionObject> connectionFuture, 
+    private void requestCompleteCallback(CompletableFuture<ConnectionWrapper> connectionFuture, 
                                          Throwable e) {
         // when processing completes, return the connection back to connection manager asynchronously.
         // Note: If result future is complete, connectionFuture is definitely complete. if connectionFuture had failed,
@@ -1293,13 +1287,13 @@ public class SegmentHelper implements AutoCloseable {
             if (hasConnectionFailed(unwrap)) {
                 connectionFuture.thenAccept(connectionObject -> {
                     connectionObject.failConnection();
-                    pool.returnConnection(connectionObject);
+                    connectionObject.close();
                 });
             } else {
-                connectionFuture.thenAccept(pool::returnConnection);
+                connectionFuture.thenAccept(ConnectionWrapper::close);
             }
         } else {
-            connectionFuture.thenAccept(pool::returnConnection);
+            connectionFuture.thenAccept(ConnectionWrapper::close);
         }
     }
 
@@ -1329,7 +1323,7 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         connectionManager.close();
     }
 }
