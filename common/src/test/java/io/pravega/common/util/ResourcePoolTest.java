@@ -37,12 +37,12 @@ public class ResourcePoolTest {
         }, myListener);
 
         // we should be able to create two resources easily
-        ResourcePool.ClosableResource<MyResource> resource1 = pool.getResource().join();
+        ResourcePool.CloseableResource<MyResource> resource1 = pool.getResource().join();
         assertEquals(resource1.getResource().resourceId, 1);
         assertEquals(ResourcePool.Event.Created, eventQueue.take());
         assertEquals(pool.resourceCount(), 1);
 
-        ResourcePool.ClosableResource<MyResource> resource2 = pool.getResource().join();
+        ResourcePool.CloseableResource<MyResource> resource2 = pool.getResource().join();
         assertEquals(resource2.getResource().resourceId, 2);
         assertEquals(ResourcePool.Event.Created, eventQueue.take());
         assertEquals(pool.resourceCount(), 2);
@@ -90,7 +90,7 @@ public class ResourcePoolTest {
         assertEquals(pool.resourceCount(), 2);
 
         // attempt to create a third resource
-        CompletableFuture<ResourcePool.ClosableResource<MyResource>> resource3Future = pool.getResource();
+        CompletableFuture<ResourcePool.CloseableResource<MyResource>> resource3Future = pool.getResource();
         // this would not have completed. the waiting queue should have this entry
         assertEquals(pool.resourceCount(), 2);
         assertEquals(pool.waitingCount(), 1);
@@ -98,7 +98,7 @@ public class ResourcePoolTest {
         assertFalse(resource3Future.isDone());
         assertTrue(eventQueue.isEmpty());
 
-        CompletableFuture<ResourcePool.ClosableResource<MyResource>> resource4Future = pool.getResource();
+        CompletableFuture<ResourcePool.CloseableResource<MyResource>> resource4Future = pool.getResource();
         assertEquals(pool.resourceCount(), 2);
         assertEquals(pool.waitingCount(), 2);
         assertEquals(pool.idleCount(), 0);
@@ -106,7 +106,7 @@ public class ResourcePoolTest {
 
         // return resource1. it should be assigned to first waiting resource (resource3)
         resource1.close();
-        ResourcePool.ClosableResource<MyResource> resource3 = resource3Future.join();
+        ResourcePool.CloseableResource<MyResource> resource3 = resource3Future.join();
         assertEquals(resource3.getResource().resourceId, 1);
         assertEquals(pool.resourceCount(), 2);
         assertEquals(pool.waitingCount(), 1);
@@ -121,7 +121,7 @@ public class ResourcePoolTest {
         // this should not be given to the waiting request. instead a new resource should be createed. 
         assertEquals(ResourcePool.Event.Destroyed, eventQueue.take());
 
-        ResourcePool.ClosableResource<MyResource> resource4 = resource4Future.join();
+        ResourcePool.CloseableResource<MyResource> resource4 = resource4Future.join();
         assertEquals(resource4.getResource().resourceId, 4);
         assertEquals(ResourcePool.Event.Created, eventQueue.take());
         assertEquals(pool.resourceCount(), 2);
@@ -129,7 +129,7 @@ public class ResourcePoolTest {
         assertEquals(pool.idleCount(), 0);
 
         // create another waiting request
-        CompletableFuture<ResourcePool.ClosableResource<MyResource>> resource5Future = pool.getResource();
+        CompletableFuture<ResourcePool.CloseableResource<MyResource>> resource5Future = pool.getResource();
         assertEquals(pool.resourceCount(), 2);
         assertEquals(pool.waitingCount(), 1);
         assertEquals(pool.idleCount(), 0);
@@ -144,7 +144,7 @@ public class ResourcePoolTest {
         assertEquals(pool.idleCount(), 0);
 
         // resource 5 should have been returned by using resource3
-        ResourcePool.ClosableResource<MyResource> resource5 = resource5Future.join();
+        ResourcePool.CloseableResource<MyResource> resource5 = resource5Future.join();
         assertEquals(resource5.getResource().resourceId, 1);
 
         // since returned resource served the waiting request no new event should have been generated
@@ -160,7 +160,7 @@ public class ResourcePoolTest {
 
         // we should still be able to request new resources.. request resource 6.. this should be served immediately 
         // by way of new resource
-        ResourcePool.ClosableResource<MyResource> resource6 = pool.getResource().join();
+        ResourcePool.CloseableResource<MyResource> resource6 = pool.getResource().join();
         assertEquals(resource6.getResource().resourceId, 5);
         assertEquals(pool.resourceCount(), 2);
         assertEquals(pool.waitingCount(), 0);
@@ -168,14 +168,14 @@ public class ResourcePoolTest {
         assertEquals(ResourcePool.Event.Created, eventQueue.take());
 
         // request connect 7. this should wait as resource could is 2. 
-        CompletableFuture<ResourcePool.ClosableResource<MyResource>> resource7Future = pool.getResource();
+        CompletableFuture<ResourcePool.CloseableResource<MyResource>> resource7Future = pool.getResource();
         assertEquals(pool.resourceCount(), 2);
         assertEquals(pool.waitingCount(), 1);
         assertEquals(pool.idleCount(), 0);
 
         // return resource 5.. resource7 should get resource5's object and no new resource should be createed
         resource5.close();
-        ResourcePool.ClosableResource<MyResource> resource7 = resource7Future.join();
+        ResourcePool.CloseableResource<MyResource> resource7 = resource7Future.join();
         assertEquals(resource7.getResource().resourceId, 1);
         assertEquals(pool.resourceCount(), 2);
         assertEquals(pool.waitingCount(), 0);
