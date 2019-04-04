@@ -76,7 +76,11 @@ public class SegmentStoreConnectionManagerTest {
         // return these connections
         connection1.close();
         connection2.close();
-
+ 
+        // idempotent connection close
+        connection1.close();
+        connection2.close();
+        
         // verify that connections are reset 
         assertNull(connection1.getReplyProcessor());
         assertNull(connection2.getReplyProcessor());

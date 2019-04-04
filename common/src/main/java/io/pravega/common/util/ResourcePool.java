@@ -12,7 +12,6 @@ package io.pravega.common.util;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import lombok.Data;
-import lombok.Synchronized;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayDeque;
@@ -88,14 +87,14 @@ public class ResourcePool<T> {
      *
      * @return A completableFuture which when completed will have the resource object that the caller requested.
      */
-    public CompletableFuture<ClosableResource<T>> getResource() {
-        CompletableFuture<ClosableResource<T>> future;
+    public CompletableFuture<CloseableResource<T>> getResource() {
+        CompletableFuture<CloseableResource<T>> future;
         boolean tryCreateNewResource = false;
         synchronized (lock) {
             T t = idleResources.poll();
             if (t != null) {
                 // return the object from the queue
-                future = CompletableFuture.completedFuture(new ClosableResource<>(t, this));
+                future = CompletableFuture.completedFuture(new CloseableResource<>(t, this));
             } else {
                 future = new CompletableFuture<>();
                 WaitingRequest<T> request = new WaitingRequest<>(future);
@@ -110,17 +109,7 @@ public class ResourcePool<T> {
 
         return future;
     }
-
-    /**
-     * Method to return resource back to the pool. Callers are expected to return the resource to the pool so that
-     * it can be reused. 
-     * 
-     * @param t resource to return to the pool.
-     */
-    private void returnResource(T t) {
-        returnResource(t, true);
-    }
-
+    
     /**
      * Method to return resource back to the pool. Callers are expected to call close on the closableResource which in turn
      * calls the return resource method to return the resource to the pool so that it can be reused. 
@@ -155,7 +144,7 @@ public class ResourcePool<T> {
             }
 
             if (waiting != null) {
-                waiting.future.complete(new ClosableResource<>(t, this));
+                waiting.future.complete(new CloseableResource<>(t, this));
             }
 
             if (toDestroy) {
@@ -189,7 +178,7 @@ public class ResourcePool<T> {
                         if (listener != null) {
                             listener.notify(Event.Created);
                         }
-                        waiting.future.complete(new ClosableResource<>(t, this));
+                        waiting.future.complete(new CloseableResource<>(t, this));
                     }
                 });
             } catch (Throwable e) {
@@ -265,7 +254,7 @@ public class ResourcePool<T> {
             t = idleResources.poll();
         }
         while (t != null) {
-            returnResource(t);
+            returnResource(t, true);
             synchronized (lock) {
                 t = idleResources.poll();
             }
@@ -279,7 +268,7 @@ public class ResourcePool<T> {
 
     @Data
     private static class WaitingRequest<T> {
-        private final CompletableFuture<ClosableResource<T>> future;
+        private final CompletableFuture<CloseableResource<T>> future;
     }
 
     /**
@@ -287,13 +276,14 @@ public class ResourcePool<T> {
      * Its close method is idempotent and can be invoked multiple times without returning the resource more than once. 
      * @param <T> Type of underlying resource
      */
-    public static class ClosableResource<T> implements AutoCloseable {
+    public static class CloseableResource<T> implements AutoCloseable {
         private final ResourcePool<T> resourcePool;
         private final T resource;
         private final AtomicBoolean invalid;
-        @GuardedBy("$lock")
+        private final Object lock = new Object();
+        @GuardedBy("lock")
         private boolean isClosed;
-        private ClosableResource(T resource, ResourcePool<T> resourcePool) {
+        private CloseableResource(T resource, ResourcePool<T> resourcePool) {
             this.resourcePool = resourcePool;
             this.resource = resource;
             this.invalid = new AtomicBoolean(false);
@@ -307,20 +297,22 @@ public class ResourcePool<T> {
         public void invalidate() {
             invalid.set(true);
         }
-        
+
         @Override
-        @Synchronized
         public void close() {
             // Close is idempotent. 
-            // If close had already been invoked on this resource wrapper, then we do not return the resource to the pool.  
-            if (!isClosed) {
-                if (invalid.get()) {
-                    resourcePool.returnResource(resource, false);
-                } else {
-                    resourcePool.returnResource(resource);
+            // If close had already been invoked on this resource wrapper, then we do not return the resource to the pool.
+            boolean toReturn = false;
+            synchronized (lock) {
+                if (!isClosed) {
+                    isClosed = true;
+                    toReturn = true;
                 }
-            } 
-            isClosed = true;
+            }
+
+            if (toReturn) {
+                resourcePool.returnResource(resource, !invalid.get());
+            }
         }
     }
 }

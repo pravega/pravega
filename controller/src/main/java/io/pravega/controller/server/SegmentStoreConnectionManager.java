@@ -24,7 +24,6 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -120,19 +119,20 @@ class SegmentStoreConnectionManager implements AutoCloseable {
 
         CompletableFuture<ConnectionWrapper> getConnection(ReplyProcessor replyProcessor) {
             return getResource()
-                    .thenApply(closableResource -> {
-                        ConnectionObject connectionObject = closableResource.getResource();
+                    .thenApply(closeableResource -> {
+                        ConnectionObject connectionObject = closeableResource.getResource();
                         connectionObject.reusableReplyProcessor.initialize(replyProcessor);
-                        return new ConnectionWrapper(closableResource);
+                        return new ConnectionWrapper(closeableResource);
                     });
         }
     }
     
     static class ConnectionWrapper implements AutoCloseable {
-        private final ResourcePool.ClosableResource<ConnectionObject> resource;
-        @GuardedBy("$lock")
+        private final ResourcePool.CloseableResource<ConnectionObject> resource;
+        private final Object lock = new Object(); 
+        @GuardedBy("lock")
         private boolean isClosed;
-        private ConnectionWrapper(ResourcePool.ClosableResource<ConnectionObject> resource) {
+        private ConnectionWrapper(ResourcePool.CloseableResource<ConnectionObject> resource) {
             this.resource = resource;
             this.isClosed = false;
         }
@@ -163,17 +163,23 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         // endregion
 
         @Override
-        @Synchronized
         public void close() {
-            if (!isClosed) {
+            boolean toClose = false;
+            synchronized (lock) {
+                if (!isClosed) {
+                    isClosed = true;
+                    toClose = true;
+                }
+            }
+
+            if (toClose) {
                 ConnectionObject connectionObject = resource.getResource();
                 connectionObject.reusableReplyProcessor.uninitialize();
                 if (!connectionObject.state.get().equals(ConnectionObject.ConnectionState.CONNECTED)) {
                     resource.invalidate();
                 }
                 this.resource.close();
-            } 
-            isClosed = true;
+            }
         }
     }
     
