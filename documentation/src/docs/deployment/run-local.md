@@ -80,19 +80,19 @@ in distributed mode. It contains containers for running Zookeeper, Bookkeeper an
    $ git clone https://github.com/pravega/pravega.git
    ```
 
-2. Navigate to the directory containing Docker Compose configuration `.yml` files.
+3. Navigate to the directory containing Docker Compose configuration `.yml` files.
 
    ```
    $ cd /path/to/pravega/docker/compose
    ```
 
-3. Add HOST_IP as an environment variable with the value as the IP address of the host.
+4. Add HOST_IP as an environment variable with the value as the IP address of the host.
 
    ```
    $ export HOST_IP=<HOST_IP>
    ```
 
-4. Run the following command to start a deployment comprising of multiple Docker containers, as specified in the
+5. Run the following command to start a deployment comprising of multiple Docker containers, as specified in the
    `docker-compose.yml` file.
 
    ```
@@ -105,7 +105,7 @@ in distributed mode. It contains containers for running Zookeeper, Bookkeeper an
    $ docker-compose up -d -f docker-compose-nfs.yml
    ```
 
-5. Verify that the deployment is up and running.
+6. Verify that the deployment is up and running.
 
    ```
    $ docker-compose ps
