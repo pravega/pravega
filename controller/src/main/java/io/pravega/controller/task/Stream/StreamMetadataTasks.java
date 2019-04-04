@@ -11,6 +11,7 @@ package io.pravega.controller.task.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
@@ -34,7 +35,6 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -45,6 +45,7 @@ import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -77,13 +78,13 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
 import org.apache.commons.lang3.NotImplementedException;
 import org.slf4j.LoggerFactory;
 
@@ -199,10 +200,14 @@ public class StreamMetadataTasks extends TaskBase {
                 });
     }
 
-    private CompletionStage<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
+    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition) {
+        return checkDone(condition, 100L);
+    }
+    
+    private CompletableFuture<Void> checkDone(Supplier<CompletableFuture<Boolean>> condition, long delay) {
         AtomicBoolean isDone = new AtomicBoolean(false);
         return Futures.loop(() -> !isDone.get(),
-                () -> Futures.delayedFuture(condition, 100, executor)
+                () -> Futures.delayedFuture(condition, delay, executor)
                              .thenAccept(isDone::set), executor);
     }
 
@@ -339,10 +344,11 @@ public class StreamMetadataTasks extends TaskBase {
                         .collect(Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x.segmentId(), delegationToken)))))
                 .thenCompose(map -> {
                     final long generationTime = System.currentTimeMillis();
-                    Map<Long, Long> streamCutMap = map.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(),
-                            Map.Entry::getValue));
+                    ImmutableMap.Builder<Long, Long> builder = ImmutableMap.builder();
+                    map.forEach((key, value) -> builder.put(key.segmentId(), value));
+                    ImmutableMap<Long, Long> streamCutMap = builder.build();
                     return streamMetadataStore.getSizeTillStreamCut(scope, stream, streamCutMap, Optional.ofNullable(previous), context, executor)
-                            .thenApply(sizeTill -> new StreamCutRecord(generationTime, sizeTill, streamCutMap));
+                                              .thenApply(sizeTill -> new StreamCutRecord(generationTime, sizeTill, streamCutMap));
                 });
     }
 
@@ -366,7 +372,7 @@ public class StreamMetadataTasks extends TaskBase {
                 // 4. check for truncation to complete
                 .thenCompose(truncationStarted -> {
                     if (truncationStarted) {
-                        return checkDone(() -> isTruncated(scope, stream, streamCut, context))
+                        return checkDone(() -> isTruncated(scope, stream, streamCut, context), 1000L)
                                 .thenApply(y -> UpdateStreamStatus.Status.SUCCESS);
                     } else {
                         log.warn(requestId, "Unable to start truncation for {}/{}", scope, stream);
@@ -813,7 +819,7 @@ public class StreamMetadataTasks extends TaskBase {
                 this.connectionFactory, delegationToken, requestId), executor));
     }
 
-    public CompletableFuture<Void> notifyPolicyUpdates(String scope, String stream, List<Segment> activeSegments,
+    public CompletableFuture<Void> notifyPolicyUpdates(String scope, String stream, List<StreamSegmentRecord> activeSegments,
                                                        ScalingPolicy policy, String delegationToken, long requestId) {
         return Futures.toVoid(Futures.allOfWithResults(activeSegments
                 .stream()
