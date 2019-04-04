@@ -68,7 +68,7 @@ in distributed mode. It contains containers for running Zookeeper, Bookkeeper an
    * It has Docker `1.12` or later installed.
    * It has Docker Compose installed.
 
-2. Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) from [Pravega](https://github.com/pravega/pravega) github repository. For example:
+2. Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) file from [Pravega](https://github.com/pravega/pravega) GitHub repository.
 
    ```
    $ wget https://raw.githubusercontent.com/pravega/pravega/master/docker/compose/docker-compose.yml
