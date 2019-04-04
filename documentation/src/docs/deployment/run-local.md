@@ -99,7 +99,7 @@ in distributed mode. It contains containers for running Zookeeper, Bookkeeper an
    $ docker-compose up -d
    ```
 
-   If you want to use one of the other files in the directory, use the `-f` option to specify the file.
+   To use one of the other files in the directory, use the `-f` option to specify the file.
 
    ```
    $ docker-compose up -d -f docker-compose-nfs.yml
