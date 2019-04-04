@@ -139,6 +139,8 @@ While this is happening, the server will be periodically sending it `DataAppende
 
 A client can optimize its appending by specifying a large value in it's `AppendBlock` message, as the events inside of the block do not need to be processed individually.
 
+# Segment Attribute
+
 ## GetSegmentAttribute - Request
 
 | **Field**    |**Datatype**  | **Description**     |
@@ -148,7 +150,7 @@ A client can optimize its appending by specifying a large value in it's `AppendB
 |  `attributeId`| UUID| |
 | `delegationToken`| String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
 
-### SegmentAtrribute - Reply
+## SegmentAtrribute - Reply
 
 | **Field**    |**Datatype**  | **Description**     |
 |-------------|----------|------|
@@ -157,6 +159,7 @@ A client can optimize its appending by specifying a large value in it's `AppendB
 
 More information on other Request message like `updateSegmentAttribute` and Reply message like `SegmentAttributeUpdate` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
+# TableSegment
 
 ## ReadTable - Request
 
