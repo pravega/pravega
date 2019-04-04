@@ -123,16 +123,14 @@ class TableCompactor {
      * arguments provided.
      */
     long calculateTruncationOffset(SegmentProperties info, long highestCopiedOffset) {
-        // Due to the nature of compaction (all entries are copied in order of their original versions), if we encounter
-        // any copied Table Entries then the highest explicit version defined on any of them is
-        if (highestCopiedOffset > 0) {
-            return highestCopiedOffset;
-        }
-
-        // Did not encounter any copied entries. If we were able to index the whole segment, then we should be safe
-        // to truncate at wherever the compaction last finished.
         long truncateOffset = -1;
-        if (this.indexReader.getLastIndexedOffset(info) >= info.getLength()) {
+        if (highestCopiedOffset > 0) {
+            // Due to the nature of compaction (all entries are copied in order of their original versions), if we encounter
+            // any copied Table Entries then the highest explicit version defined on any of them is where we can truncate.
+            truncateOffset = highestCopiedOffset;
+        } else if (this.indexReader.getLastIndexedOffset(info) >= info.getLength()) {
+            // Did not encounter any copied entries. If we were able to index the whole segment, then we should be safe
+            // to truncate at wherever the compaction last finished.
             truncateOffset = this.indexReader.getCompactionOffset(info);
         }
 

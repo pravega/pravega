@@ -88,7 +88,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
     private static final int SHORT_TIMEOUT_MILLIS = 20; // To verify a get() is blocked.
     private static final int DEFAULT_COMPACTION_SIZE = -1; // Inherits from parent.
-    private static final Duration TIMEOUT = Duration.ofSeconds(30);
+    private static final Duration TIMEOUT = Duration.ofSeconds(30000);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
 
@@ -243,7 +243,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      * to collisions.
      */
     @Test
-    public void testTableSegmentCompacted() {
+    public void testCompaction() {
         testTableSegmentCompacted(KeyHashers.DEFAULT_HASHER, this::check);
     }
 
@@ -252,8 +252,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      * to collisions.
      */
     @Test
-    public void testTableSegmentCompactedWithCollisions() {
-        // TODO: this fails.
+    public void testCompactionWithCollisions() {
         testTableSegmentCompacted(KeyHashers.COLLISION_HASHER, this::check);
     }
 
@@ -262,8 +261,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
      * to collisions.
      */
     @Test
-    public void testTableSegmentCompactedIterators() {
-        // TODO: this doesn't exercise the truncation retry.
+    public void testCompactionWithIterators() {
+        // Normally this shouldn't be affected; the iteration does not include the cache - it iterates over the index
+        // directly.
         testTableSegmentCompacted(KeyHashers.DEFAULT_HASHER,
                 (expectedEntries, removedKeys, ext) -> checkIterators(expectedEntries, ext));
     }
@@ -328,6 +328,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             checkTable.accept(current.expectedEntries, removedKeys, context.ext);
             last = current;
         }
+
+        // Verify we have had at least one compaction during this test.
+        val ir = new IndexReader(executorService());
+        AssertExtensions.assertGreaterThan("No compaction occurred.", 0, ir.getCompactionOffset(context.segment().getInfo()));
+        AssertExtensions.assertGreaterThan("No truncation occurred", 0, context.segment().getInfo().getStartOffset());
 
         // Finally, remove all data and delete the segment.
         val finalRemoval = last.expectedEntries.keySet().stream()
@@ -736,6 +741,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             this.cacheFactory.close();
             this.container.close();
         }
+
         ContainerTableExtensionImpl createExtension() {
             return createExtension(DEFAULT_COMPACTION_SIZE);
         }
@@ -756,7 +762,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
     }
 
-    private class TestTableExtensionImpl extends ContainerTableExtensionImpl {
+    private static class TestTableExtensionImpl extends ContainerTableExtensionImpl {
         private final int maxCompactionSize;
 
         TestTableExtensionImpl(SegmentContainer segmentContainer, CacheFactory cacheFactory, CacheManager cacheManager,

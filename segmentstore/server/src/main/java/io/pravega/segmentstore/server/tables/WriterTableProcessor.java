@@ -203,7 +203,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
 
         CompletableFuture<Void> result;
         if (this.compactor.isCompactionRequired(info)) {
-            System.out.println("COMPACTION");
             result = this.compactor.compact(segment, timer);
         } else {
             log.debug("{}: No compaction required at this time.", this.traceObjectId);
@@ -225,7 +224,6 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                     }
                 }, this.executor)
                 .exceptionally(ex -> {
-                    ex.printStackTrace(System.out);
                     // We want to record the compaction failure, but since this is not a critical step in making progress,
                     // we do not want to prevent the StorageWriter from ack-ing operations.
                     log.error("{}: Compaction failed.", this.traceObjectId, ex);

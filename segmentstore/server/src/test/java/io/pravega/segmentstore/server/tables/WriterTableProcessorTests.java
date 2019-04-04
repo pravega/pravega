@@ -312,7 +312,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                 val actualEntry = TableBucketReader.entry(context.segmentMock, context.indexReader::getBackpointerOffset, executorService())
                                                    .find(key, bucket.getSegmentOffset(), timer)
                                                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                Assert.assertEquals("", expectedEntry, actualEntry);
+                Assert.assertEquals("Unexpected entry.", expectedEntry, actualEntry);
             } else {
                 // This key should not exist.
                 if (bucket.exists()) {

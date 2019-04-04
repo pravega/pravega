@@ -177,7 +177,7 @@ public class AsyncReadResultProcessor implements AutoCloseable {
         @Getter
         private final Duration requestContentTimeout;
         private final List<InputStream> parts = Collections.synchronizedList(new ArrayList<>());
-        final CompletableFuture<InputStream> result = new CompletableFuture<>();
+        private final CompletableFuture<InputStream> result = new CompletableFuture<>();
 
         @Override
         public boolean shouldRequestContents(ReadResultEntryType entryType, long streamSegmentOffset) {

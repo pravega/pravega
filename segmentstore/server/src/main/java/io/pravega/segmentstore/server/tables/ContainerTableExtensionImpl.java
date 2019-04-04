@@ -18,7 +18,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.IllegalDataFormatException;
-import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
@@ -235,31 +234,32 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 builder.includeResult(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
-                // We first attempt an optimistic read, which involves fewer steps, and only initiate the more complex
-                // retry logic if we encounter a StreamSegmentTruncatedException.
+                // We first attempt an optimistic read, which involves fewer steps, and only invalidate the cache and read
+                // directly from the index if unable to find anything and there is a chance the sought key actually exists.
                 ArrayView key = builder.getKeys().get(i);
-                builder.includeResult(Futures.exceptionallyComposeExpecting(
-                        bucketReader.find(key, offset, timer),
-                        ex -> {
-                            if (ex instanceof StreamSegmentTruncatedException) {
-                                System.out.println("truncated");
+                builder.includeResult(bucketReader.find(key, offset, timer)
+                        .handle((entry, ex) -> {
+                            if (entry != null) {
+                                // We found an entry.
+                                return CompletableFuture.completedFuture(entry);
+                            } else if (ex != null && !(Exceptions.unwrap(ex) instanceof StreamSegmentTruncatedException)) {
+                                // StreamSegmentTruncatedException is the only exception that warrants a cache invalidation.
+                                // Bubble up anything else.
+                                return Futures.<TableEntry>failedFuture(ex);
+                            } else {
+                                // We have a valid TableBucket but were unable to locate the key using the cache, either
+                                // because the cache points to a truncated offset or because we are unable to determine
+                                // if the TableBucket has been rearranged due to a compaction. The rearrangement is a rare
+                                // occurrence and can only happen if more than one Key is mapped to a bucket (collision).
+                                return this.keyIndex.getBucketOffsetDirect(segment, keyHash, timer)
+                                        .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor);
                             }
-                            return ex instanceof StreamSegmentTruncatedException;
-                        },
-                        () -> getSingleEntryWithRetries(segment, bucketReader, key, keyHash, timer)));
+                        }).thenCompose(f -> f)
+                );
             }
         }
 
         return builder.getResultFutures();
-    }
-
-    private CompletableFuture<TableEntry> getSingleEntryWithRetries(DirectSegmentAccess segment, TableBucketReader<TableEntry> bucketReader,
-                                                                    ArrayView key, UUID keyHash, TimeoutTimer timer) {
-        return Retry.withExpBackoff(1, 10, 4)
-                    .retryWhen(ex -> ex instanceof StreamSegmentTruncatedException)
-                    .runAsync(() -> this.keyIndex.getBucketOffsetDirect(segment, keyHash, timer)
-                                                 .thenComposeAsync(offset -> bucketReader.find(key, offset, timer), this.executor),
-                            this.executor);
     }
 
     @Override
