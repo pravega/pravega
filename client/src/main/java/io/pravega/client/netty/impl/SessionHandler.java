@@ -23,6 +23,7 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -178,13 +179,14 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         if (cmd instanceof WireCommands.DataAppended) {
             batchSizeTracker.recordAck(((WireCommands.DataAppended) cmd).getEventNumber());
         }
-
-        final ReplyProcessor processor = getReplyProcessor(cmd);
-        try {
-            processor.process(cmd);
-        } catch (Exception e) {
-            processor.processingFailure(e);
-        }
+        // Obtain ReplyProcessor and process the reply.
+        getReplyProcessor(cmd).ifPresent(processor -> {
+            try {
+                processor.process(cmd);
+            } catch (Exception e) {
+                processor.processingFailure(e);
+            }
+        });
     }
 
     @Override
@@ -222,13 +224,12 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         }
     }
 
-    private ReplyProcessor getReplyProcessor(Reply cmd) {
+    private Optional<ReplyProcessor> getReplyProcessor(Reply cmd) {
         int sessionId = disableSession.get() ? SESSION_DISABLED : Session.from(cmd.getRequestId()).getSessionId();
         final ReplyProcessor processor = sessionIdReplyProcessorMap.get(sessionId);
         if (processor == null) {
             log.warn("No ReplyProcessor found for the provided sessionId {}. Ignoring response", sessionId);
-            throw new IllegalArgumentException("Invalid message received");
         }
-        return processor;
+        return Optional.ofNullable(processor);
     }
 }
