@@ -992,7 +992,6 @@ public class SegmentHelper implements AutoCloseable {
             @Override
             public void tableRead(WireCommands.TableRead tableRead) {
                 log.debug(requestId, "readTable {} successful.", qualifiedName);
-                AtomicBoolean allKeysFound = new AtomicBoolean(true);
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
                                                                          .map(e -> new TableEntryImpl<>(convertFromWireCommand(e.getKey()), getArray(e.getValue().getData())))
                                                                          .collect(Collectors.toList());
