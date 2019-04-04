@@ -55,7 +55,6 @@ public class SegmentContainerMonitorTest {
     private CuratorFramework zkClient;
     private Cluster cluster;
 
-
     @Before
     public void startZookeeper() throws Exception {
         zkTestServer = new TestingServerStarter().start();
@@ -133,6 +132,11 @@ public class SegmentContainerMonitorTest {
             
             @Override
             public Host getHostForSegment(String scope, String stream, long segmentNumber) {
+                return null;
+            }
+
+            @Override
+            public Host getHostForTableSegment(String scope, String table) {
                 return null;
             }
         }

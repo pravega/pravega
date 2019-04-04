@@ -82,6 +82,12 @@ public class SegmentHelper implements AutoCloseable {
         return Controller.NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build();
     }
 
+    public Controller.NodeUri getTableUri(final String scope,
+                                            final String stream) {
+        final Host host = hostStore.getHostForTableSegment(scope, stream);
+        return Controller.NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build();
+    }
+
     public CompletableFuture<Boolean> createSegment(final String scope,
                                                     final String stream,
                                                     final long segmentId,
@@ -630,7 +636,7 @@ public class SegmentHelper implements AutoCloseable {
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final String qualifiedStreamSegmentName = getScopedStreamName(scope, stream);
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -697,7 +703,7 @@ public class SegmentHelper implements AutoCloseable {
                                                          String delegationToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -772,7 +778,7 @@ public class SegmentHelper implements AutoCloseable {
                                                                   String delegationToken,
                                                                   final long clientRequestId) {
         final CompletableFuture<List<KeyVersion>> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -866,7 +872,7 @@ public class SegmentHelper implements AutoCloseable {
                                                    String delegationToken,
                                                    final long clientRequestId) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -956,7 +962,7 @@ public class SegmentHelper implements AutoCloseable {
                                                                          String delegationToken,
                                                                          final long clientRequestId) {
         final CompletableFuture<List<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.READ_TABLE;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -984,7 +990,7 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void tableRead(WireCommands.TableRead tableRead) {
-                log.info(requestId, "readTable {} successful.", qualifiedName);
+                log.debug(requestId, "readTable {} successful.", qualifiedName);
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
                                                                          .map(e -> new TableEntryImpl<>(convertFromWireCommand(e.getKey()), getArray(e.getValue().getData())))
                                                                          .collect(Collectors.toList());
@@ -1036,7 +1042,7 @@ public class SegmentHelper implements AutoCloseable {
                                                                                     final String delegationToken,
                                                                                     final long clientRequestId) {
 
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -1112,7 +1118,7 @@ public class SegmentHelper implements AutoCloseable {
                                                                                final String delegationToken,
                                                                                final long clientRequestId) {
 
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -1142,7 +1148,7 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
-                log.info(requestId, "readTableEntries {} successful.", qualifiedName);
+                log.debug(requestId, "readTableEntries {} successful.", qualifiedName);
                 final IteratorState state = IteratorState.fromBytes(tableEntriesRead.getContinuationToken());
                 final List<TableEntry<byte[], byte[]>> entries =
                         tableEntriesRead.getEntries().getEntries().stream()

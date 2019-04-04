@@ -637,6 +637,11 @@ public class SegmentHelperTest {
         public Host getHostForSegment(String scope, String stream, long segmentId) {
             return new Host("localhost", 1000, "");
         }
+
+        @Override
+        public Host getHostForTableSegment(String scope, String table) {
+            return new Host("localhost", 1000, "");
+        }
     }
 
     private class MockConnectionFactory implements ConnectionFactory {
