@@ -121,7 +121,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         val h = serializer.readHeader(input);
         long version = getKeyVersion(h, segmentOffset);
         byte[] key = StreamHelpers.readAll(input, h.getKeyLength());
-        byte[] value = h.isDeletion() ? null : h.getValueLength() == 0 ? new byte[0] : StreamHelpers.readAll(input, h.getValueLength());
+        byte[] value = h.isDeletion() ? null : (h.getValueLength() == 0 ? new byte[0] : StreamHelpers.readAll(input, h.getValueLength()));
         return new DeserializedEntry(h, version, key, value);
     }
 
