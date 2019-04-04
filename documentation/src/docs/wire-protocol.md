@@ -26,10 +26,10 @@ The protocol is built out of the following primitive types.
 
 | **Type** | **Description** |
 |----------|--------------|
-|BOOLEAN (1 bit)|Represents a boolean value in a byte. Values 0 and 1 are used to represent false and true respectively. When reading a boolean value, any non-zero value is considered true.|
-|STRING (2 bytes)|Represents a sequence of characters. First the length N is given as an INT16. Then N bytes follow which are the UTF-8 encoding of the character sequence. Length must not be negative.|
-|VARLONG (8 bytes)|Represents an integer between -2<sup>63</sup> and 2<sup>63</sup>-1 inclusive. Encoding follows the variable-length zig-zag encoding from [Google Protocol Buffers](https://developers.google.com/protocol-buffers/).|
-|INT (4 bytes)|Represents an integer between -2<sup>3</sup> and 2<sup>3</sup>-1 inclusive.|
+|BOOLEAN (1 byte)| Values 0 and 1 are used to represent _False_ and _True_ respectively. When reading a boolean value, any non-zero value is considered true.|
+|STRING (2 bytes)|A sequence of characters. The first 2 bytes are used to indicate the byte length of the UTF-8 encoded character sequence, which is non-negative. This is followed by the UTF-8 encoding of the string.|
+|VARLONG (8 bytes)|An Integer between -2<sup>63</sup> and 2<sup>63</sup>-1 inclusive. Encoding follows the variable-length zig-zag encoding from [Google Protocol Buffers](https://developers.google.com/protocol-buffers/).|
+|INT (4 bytes)|An Integer between -2<sup>31</sup> and 2<sup>31</sup>-1 inclusive.|
 |UUID (16 bytes)|Universally Unique Identifiers (UUID) as defined by RFC 4122, ISO/IEC 9834-8:2005, and related standards. It can be used as a global unique 128-bit identifier.|
 
 
@@ -39,11 +39,13 @@ The protocol is built out of the following primitive types.
 
 | **Field**   |**Datatype**   | **Description**     |
 |-------------|------------|----------|
-|  `Segment`| String| This Segment indicates the Stream Segment that was read. |
+|  `Segment`| String| The Stream Segment that was read. |
 | `Offset`   | Long| The `Offset` in the Stream Segment to read from. |
 | `suggestedLength` of Reply|Integer|The clients can request for the required length to the server (but the server may allot a different number of bytes.|
 |`delegationToken`|String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
-|`RequestId`| Long| This field contains the client-generated _ID_ that has been propagated to identify a client request.|
+|`RequestId`| Long| The client-generated _ID_ that identifies a client request.|
+
+For more information on `ReadSegment` Request messages like `MergeSegment`,`SealSegment`,`TruncateSegment` and `DeleteSegment`, please check [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
 
 ## Segment Read - Reply
@@ -53,22 +55,13 @@ The protocol is built out of the following primitive types.
 | `Segment`|String| This Segment indicates the Stream Segment that was read.|
 |`Offset`|Long| The `Offset` in the Stream Segment to read from.|
 |`Tail`|Boolean| If the read was performed at the tail of the Stream Segment.|
-| `EndOfSegment`| Boolean| If the read was performed at the end of the Stream Segment.|
+| `EndOfSegment`| Boolean| If the read reached the end of the Stream Segment.|
 | `Data`| Binary| Remaining length in the message.|
-|`RequestId`| Long| This field contains the client-generated _ID_ that has been propagated to identify a client request.|
+|`RequestId`| Long| The client-generated _ID_ that identifies a client request.|
 
 The client requests to read from a particular Segment at a particular `Offset`. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server may decide transferring to the client more or less data than it was asked for, splitting that data in a suitable number of reply messages.
 
-### Segment API
-
-| **API**      | **Description**     |
-|-------------|----------|
-|`SegmentIsSealed`|The requested Segment is Sealed.|
-|`SegmentIsTruncated`|`Start offset`: Represents the offset at which the Segment is Truncated.|
-|`SegmentAlreadyExists`|The requested Segment already exists.|
-|`NoSuchSegment`| The requested Segment do not exist.|
-|`TableSegmentNotEmpty`||
-
+For more information on `SegmentRead` Reply messages like `SegmentIsSealed`,`SegmentIsTruncated`, `SegmentAlreadyExists`,`NoSuchSegment` and `TableSegmentNotEmpty`, please check [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
 # Appending
 
@@ -76,8 +69,8 @@ The client requests to read from a particular Segment at a particular `Offset`. 
 
 | **Field**      | **Datatype**|**Description**     |
 |-------------|----------|---------|
-| `RequestId`| Long| This field contains the client-generated _ID_ that has been propagated to identify a client request.|
-| `writerId`|UUID| It identifies the requesting appender.|
+| `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
+| `writerId`|UUID| Identifies the requesting appender.|
 | `Segment`| String| This Segment indicates the Stream Segment that was read.|
 | `delegationToken`| String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
 
@@ -85,29 +78,29 @@ The client requests to read from a particular Segment at a particular `Offset`. 
 
 | **Field**      |**Datatype** | **Description**     |
 |-------------|----------|---------|
-| `RequestId`| Long| This field contains the client-generated ID that has been propagated to identify a client request.|
-|  `Segment`| String| This Segment indicates the Stream Segment to append.|
-|  `writerId`| UUID| It identifies the requesting appender.|
-|  `lastEventNumber`| Long| It specifies the last event number in the Stream.|
+| `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
+|  `Segment`| String| This Segment indicates the Stream Segment to append to.|
+|  `writerId`| UUID| Identifies the requesting appender. This ID is used to identify the Segment for which an AppendBlock is destined.|
+|  `lastEventNumber`| Long| Specifies the last event number in the Stream.|
 
 ## AppendBlock - Request
 
 | **Field**      | **Datatype**| **Description**     |
 |-------------|----------|---------|
-| `writerId`| UUID | It identifies the requesting appender.|
+| `writerId`| UUID | Identifies the requesting appender.|
 | `Data`| Binary| This holds the contents of the block.|
-|`RequestId`| Long| This field contains the client-generated _ID_ that has been propagated to identify a client request.|
+|`RequestId`| Long| The client-generated _ID_ that identifies a client request.|
 
 ## AppendBlockEnd - Request
 
 | **Field**      | **Datatype** | **Description**     |
 |-------------|----------|--------|
-| `writerId`| UUID | It identifies the requesting appender.|
-| `sizeOfWholeEvents`| Integer | It is the total number of bytes in this block (starting from the beginning) that is composed of whole (meaning non-partial) events.|
+| `writerId`| UUID | Identifies the requesting appender.|
+| `sizeOfWholeEvents`| Integer | The total number of bytes in this block (starting from the beginning) that is composed of whole (meaning non-partial) events.|
 | `Data`| Binary| This holds the contents of the block.|
-| `numEvents`| Integer | It specifies the current number of events.|
-| `lastEventNumber`| Long | It specifies the value of last event number in the Stream.|
-|`RequestId`| Long | This field contains the client-generated _ID_ that has been propagated to identify a client request.|
+| `numEvents`| Integer | Specifies the current number of events.|
+| `lastEventNumber`| Long | Specifies the value of last event number in the Stream.|
+|`RequestId`| Long | The client-generated _ID_ that identifies a client request.|
 
 The `ApppendBlockEnd` has a `sizeOfWholeEvents` to allow the append block to be less than full. This allows the client to begin writing a block before it has a large number of events. This avoids the need to buffer up events in the client and allows for lower latency.
 
@@ -119,16 +112,16 @@ The `ApppendBlockEnd` has a `sizeOfWholeEvents` to allow the append block to be 
 
 | **Field**      | **Description**     |
 |-------------|----------|
-| `Data`| It contains the Event's data (only valid inside the block).|
+| `Data`| Specifies the Event's data (only valid inside the block).|
 
 ## Data Appended - Reply
 
 | **Field**      | **Datatype**| **Description**     |
 |-------------|----------|--------|
-| `writerId`| UUID| It identifies the requesting appender.|
+| `writerId`| UUID| Identifies the requesting appender.|
 | `eventNumber`|Long | This matches the `lastEventNumber` in the append block.|
 | `previousEventNumber`| Long | This is the previous value of `eventNumber` that was returned in the last `DataAppeneded`.|
-|`RequestId`| Long | This field contains the client-generated _ID_ that has been propagated to identify a client request.|
+|`RequestId`| Long | The client-generated _ID_ that identifies a client request.|
 
 When appending a client:
 
@@ -146,36 +139,44 @@ While this is happening, the server will be periodically sending it `DataAppende
 
 A client can optimize its appending by specifying a large value in it's `AppendBlock` message, as the events inside of the block do not need to be processed individually.
 
-## Segment Attribute API
+## GetSegmentAttribute - Request
 
-| **API**      | **Description**     |
-|-------------|----------|
-|`GetSegmentAttribute`| The requested list of Segment attributes.|
-|`UpdateSegmentAttribute`|  - `newValue`: (Long). |
-| |                         - `expectedValue`: (Long). It represents |
+| **Field**    |**Datatype**  | **Description**     |
+|-------------|----------|------|
+| `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
+|  `SegmentName`| String| |
+|  `attributeId`| UUID| |
+| `delegationToken`| String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
 
-## Table Segment API
+### SegmentAtrribute - Reply
 
-| **API**      | **Description**     |
-|-------------|----------|
-|`CreateTableSegment`| To create Table Segment.|
-|`MergeTableSegment`| - `Target`: (String). This indicates the target of the Stream Segment to be Merged.|
-|                    |- `Source`: (String). This indicates the source Stream Segment that needs to be Merged.|
-|`MergeSegment`|Performs merging of Segments.|
-|`SealSegment`| Performs sealing of Segments.|
-|`SealTableSegment`| Performs sealing of Table Segments.|
-|`TruncateSegment`| `TruncationOffset`: (Long). This contains the Offset for the Segment to be Truncated.|
-|`DeleteSegment`| Performs deletion of created Segments.|
-|`DeleteTableSegment`|`mustBeEmpty` (Boolean): If true, the Table Segment will only be deleted if it is empty (contains no keys).|
+| **Field**    |**Datatype**  | **Description**     |
+|-------------|----------|------|
+| `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
+| `Value`|Long||
 
-## Table API
+More information on other Request message like `updateSegmentAttribute` and Reply message like `SegmentAttributeUpdate` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
-| **API**      | **Description**     |
-|-------------|----------|
-|`TableEntries`| `updatedVersions`: (List<long>). List of Table entries updated.|
-|`RemoveTableKeys`| `keys`: (List<TableKey>). List of Table Keys removed.|
-|`ReadTable` |  `keys`: (List<TableKey>). The version of the key is always set to `io.pravega.segmentstore.contracts.tables.TableKey.NO_VERSION`|
-|`ReadTableKeys`|- `suggestedKeyCount`: (Integer). Suggested number of `{@link TableKey}`s to be returned by the Segment Store.|
-|               |- `continuationToken`: (Byte Buf). This is used to indicate the point from which the next keys should be fetched.|
-|`ReadTableEntries`|- `suggestedEntryCount`: (Integer). Suggested number of `{@link TableKey}`s to be returned by the Segment Store.|
-|                  |- `continuationToken`: (ByteBuf). This is used to indicate the point from which the next entry should be fetched.|
+
+## ReadTable - Request
+
+| **Field**    |**Datatype**  | **Description**     |
+|-------------|----------|------|
+| `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
+|  `Segment`| String| The Stream Segment that was read. |
+|`delegationToken`|String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
+|`keys`|List<TableKey>|The version of the key is always set to `io.pravega.segmentstore.contracts.tables.TableKey.NO_VERSION`.|
+
+## TableRead - Reply
+
+| **Field**    |**Datatype**  | **Description**     |
+|-------------|----------|------|
+| `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
+|  `Segment`| String| The Stream Segment that was read. |
+|`Entries`|TableEntries||
+
+
+More information on `TableSegments` and its various Request messages like `MergeTableSegments`,`SealTableSegment`,`DeleteTableSegment`,`UpdateTableEntries`,`RemoveTableKeys`,`ReadTableKeys` and `ReadTableEntries` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
+
+
+More information on `TableSegments` and its various Reply messages like `TableEntriesUpdated`,`TableKeysRemoved`,`TableKeysRead` and `TableEntriesRead` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
