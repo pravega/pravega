@@ -55,8 +55,8 @@ public final class StreamHelpers {
      * @param source The InputStream to read.
      * @param length The number of bytes to read.
      * @return A byte array containing the contents of the Stream.
-     * @throws EOFException If the number of bytes remaining in the InputStream is less than length.
-     * @throws IOException  If unable to read from the given InputStream.
+     * @throws IOException If unable to read from the given InputStream. Throws {@link EOFException} if the number of bytes
+     * remaining in the InputStream is less than length.
      */
     public static byte[] readAll(InputStream source, int length) throws IOException {
         byte[] ret = new byte[length];
