@@ -113,7 +113,7 @@ in distributed mode. It contains containers for running Zookeeper, Bookkeeper an
 
 Clients can then connect to the Controller at `<HOST_IP>:9090`.
 
-To access the Pravega Controller `REST` API, invoke it using a URL of the form `http://<host-ip>:10080/v1/scopes` (where
+To access the Pravega Controller `REST` API, invoke it using a URL of the form `http://<HOST_IP>:10080/v1/scopes` (where
 `/scopes` is one of the many endpoints that the API supports).
 
 
