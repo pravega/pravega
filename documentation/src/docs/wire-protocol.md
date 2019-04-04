@@ -173,7 +173,7 @@ More information on `TableSegments` and its various Request messages like `Merge
 
 | **Field**    |**Datatype**  | **Description**     |
 |-------------|----------|------|
-| `RequestId`| Long| The client-generated ID that identifies a client request.|
+| `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
 | `Segment`| String| The Stream Segment that was read. |
 |`Entries`|TableEntries||
 
