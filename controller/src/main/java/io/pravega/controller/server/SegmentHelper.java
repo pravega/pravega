@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -1070,7 +1069,7 @@ public class SegmentHelper implements AutoCloseable {
                 log.warn(requestId, "readTableKeys {} NoSuchSegment", qualifiedName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
             }
-            
+
             @Override
             public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
                 log.info(requestId, "readTableKeys {} successful.", qualifiedName);
