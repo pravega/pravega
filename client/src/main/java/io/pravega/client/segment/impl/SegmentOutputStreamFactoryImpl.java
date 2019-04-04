@@ -41,10 +41,8 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken) {
-        final UUID writerId = UUID.randomUUID();
-        log.info("==> Creating Seg Out Stream for Segment: {} with WriterId :{}", segment, writerId);
         SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf,
-                                                                     writerId, segmentSealedCallback, getRetryFromConfig(config), delegationToken);
+                UUID.randomUUID(), segmentSealedCallback, getRetryFromConfig(config), delegationToken);
         try {
             result.getConnection();
         } catch (RetriesExhaustedException | SegmentSealedException | NoSuchSegmentException e) {
@@ -55,9 +53,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
-        final UUID writerId = UUID.randomUUID();
-        log.info("==> Creating Seg Out Stream for Segment: {} with WriterId :{}", segment, writerId);
-        return new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, writerId,
+        return new SegmentOutputStreamImpl(segment.getScopedName(), controller, cf, UUID.randomUUID(),
                                            Callbacks::doNothing, getRetryFromConfig(config), delegationToken);
     }
     

@@ -27,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  */
 @Slf4j
-public class ConnectionFactoryImpl implements ConnectionFactory {
+public final class ConnectionFactoryImpl implements ConnectionFactory {
 
     private final ClientConfig clientConfig;
     private final ScheduledExecutorService executor;
