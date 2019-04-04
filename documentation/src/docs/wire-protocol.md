@@ -54,7 +54,7 @@ More information on `ReadSegment` Request messages like `MergeSegment`, `SealSeg
 |-------------|----------|--------|
 | `Segment`|String| This Segment indicates the Stream Segment that was read.|
 |`Offset`|Long| The `Offset` in the Stream Segment to read from.|
-|`Tail`|Boolean| If the read was performed at the tail of the Stream Segment.|
+|`Tail`|Boolean| If the read reached the tail of the Stream Segment.|
 | `EndOfSegment`| Boolean| If the read reached the end of the Stream Segment.|
 | `Data`| Binary| Remaining length in the message.|
 |`RequestId`| Long| The client-generated _ID_ that identifies a client request.|
