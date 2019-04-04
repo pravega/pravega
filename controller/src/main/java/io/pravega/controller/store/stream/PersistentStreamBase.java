@@ -1218,7 +1218,7 @@ public abstract class PersistentStreamBase implements Stream {
             }
         });
     }
-
+    
     @Override
     public CompletableFuture<EpochRecord> getActiveEpoch(boolean ignoreCached) {
         return getCurrentEpochRecordData(ignoreCached).thenApply(VersionedMetadata::getObject);
@@ -1348,7 +1348,7 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new VersionedMetadata<>(CommittingTransactionsRecord.EMPTY,
                         record.getVersion()))));
     }
-
+    
     @Override
     public CompletableFuture<Void> createWaitingRequestIfAbsent(String processorName) {
         return createWaitingRequestNodeIfAbsent(processorName);

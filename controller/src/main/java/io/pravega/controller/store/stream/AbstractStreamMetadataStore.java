@@ -67,8 +67,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
-    private static final int MAXIMUM_SIZE = 1000;
-
+    
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
     private final HostIndex hostTxnIndex;
@@ -77,7 +76,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     protected AbstractStreamMetadataStore(HostIndex hostTxnIndex, HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
-                .maximumSize(MAXIMUM_SIZE)
+                .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(
@@ -94,7 +93,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                         });
 
         scopeCache = CacheBuilder.newBuilder()
-                .maximumSize(MAXIMUM_SIZE)
+                .maximumSize(1000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
                 .expireAfterWrite(10, TimeUnit.MINUTES)
                 .build(
