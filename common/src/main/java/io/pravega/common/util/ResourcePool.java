@@ -280,14 +280,12 @@ public class ResourcePool<T> {
         private final ResourcePool<T> resourcePool;
         private final T resource;
         private final AtomicBoolean invalid;
-        private final Object lock = new Object();
-        @GuardedBy("lock")
-        private boolean isClosed;
+        private AtomicBoolean isClosed;
         private CloseableResource(T resource, ResourcePool<T> resourcePool) {
             this.resourcePool = resourcePool;
             this.resource = resource;
             this.invalid = new AtomicBoolean(false);
-            this.isClosed = false;
+            this.isClosed = new AtomicBoolean(false);
         }
 
         public T getResource() {
@@ -302,15 +300,7 @@ public class ResourcePool<T> {
         public void close() {
             // Close is idempotent. 
             // If close had already been invoked on this resource wrapper, then we do not return the resource to the pool.
-            boolean toReturn = false;
-            synchronized (lock) {
-                if (!isClosed) {
-                    isClosed = true;
-                    toReturn = true;
-                }
-            }
-
-            if (toReturn) {
+            if (isClosed.compareAndSet(false, true)) {
                 resourcePool.returnResource(resource, !invalid.get());
             }
         }

@@ -11,7 +11,7 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
-import io.netty.util.ReferenceCounted;
+import io.netty.util.ReferenceCountUtil;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
@@ -43,6 +43,8 @@ import io.pravega.shared.protocol.netty.WireCommands;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -55,7 +57,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
-import static io.pravega.controller.server.SegmentStoreConnectionManager.*;
+import static io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionWrapper;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
@@ -849,7 +851,7 @@ public class SegmentHelper implements AutoCloseable {
                                                                                       new WireCommands.TableEntries(wireCommandEntries));
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result
-                .whenComplete((r, e) -> buffersToRelease.forEach(ReferenceCounted::release));
+                .whenComplete((r, e) -> release(buffersToRelease));
     }
 
     /**
@@ -940,7 +942,7 @@ public class SegmentHelper implements AutoCloseable {
         WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result
-                .whenComplete((r, e) -> buffersToRelease.forEach(ReferenceCounted::release));
+                .whenComplete((r, e) -> release(buffersToRelease));
     }
 
     /**
@@ -1022,7 +1024,7 @@ public class SegmentHelper implements AutoCloseable {
         WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result
-                .whenComplete((r, e) -> buffersToRelease.forEach(ReferenceCounted::release));
+                .whenComplete((r, e) -> release(buffersToRelease));
     }
 
     /**
@@ -1185,8 +1187,12 @@ public class SegmentHelper implements AutoCloseable {
         final byte[] bytes = new byte[buf.readableBytes()];
         final int readerIndex = buf.readerIndex();
         buf.getBytes(readerIndex, bytes);
-        buf.release();
+        release(Collections.singleton(buf));
         return bytes;
+    }
+    
+    private void release(Collection<ByteBuf> buffers) {
+        buffers.forEach(ReferenceCountUtil::safeRelease);
     }
 
     private <T> void handleError(Exception error, CompletableFuture<T> result, WireCommandType type) {
