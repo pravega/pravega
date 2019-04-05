@@ -193,7 +193,7 @@ class TableCompactor {
     private CompletableFuture<CompactionArgs> readCandidates(DirectSegmentAccess segment, long startOffset, int maxLength, TimeoutTimer timer) {
         ReadResult rr = segment.read(startOffset, maxLength, timer.getRemaining());
         return AsyncReadResultProcessor.processAll(rr, this.executor, timer.getRemaining())
-                .thenApply(inputStream -> parseEntries(inputStream, startOffset));
+                                       .thenApply(inputStream -> parseEntries(inputStream, startOffset, maxLength));
     }
 
     /**
@@ -202,15 +202,18 @@ class TableCompactor {
      *
      * @param input       An InputStream representing a continuous range of bytes in the Segment.
      * @param startOffset The offset at which the InputStream begins. This should be the Compaction Offset.
+     * @param maxLength   The maximum number of bytes read. The given InputStream should have at most this number of
+     *                    bytes in it.
      * @return A {@link CompactionArgs} object containing the result.
      */
     @SneakyThrows(IOException.class)
-    private CompactionArgs parseEntries(InputStream input, long startOffset) {
+    private CompactionArgs parseEntries(InputStream input, long startOffset, int maxLength) {
         val entries = new HashMap<UUID, CandidateSet>();
         int count = 0;
         long nextOffset = startOffset;
+        final long maxOffset = startOffset + maxLength;
         try {
-            while (true) {
+            while (nextOffset < maxOffset) {
                 // TODO: Handle error when compaction offset is not on Entry boundary (https://github.com/pravega/pravega/issues/3560).
                 val e = AsyncTableEntryReader.readEntryComponents(input, nextOffset, this.connector.getSerializer());
 
