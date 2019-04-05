@@ -300,7 +300,6 @@ public class ResourcePool<T> {
         public void close() {
             // Close is idempotent. 
             // If close had already been invoked on this resource wrapper, then we do not return the resource to the pool.
-            boolean toReturn = false;
             if (isClosed.compareAndSet(false, true)) {
                 resourcePool.returnResource(resource, !invalid.get());
             }
