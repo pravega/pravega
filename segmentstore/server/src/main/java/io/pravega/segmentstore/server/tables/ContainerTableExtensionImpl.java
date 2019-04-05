@@ -236,26 +236,25 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                 // Find the sought entry in the segment, based on its key.
                 // We first attempt an optimistic read, which involves fewer steps, and only invalidate the cache and read
                 // directly from the index if unable to find anything and there is a chance the sought key actually exists.
+                // Encountering a truncated Segment offset indicates that the Segment may have recently been compacted and
+                // we are using a stale cache value.
                 ArrayView key = builder.getKeys().get(i);
-                builder.includeResult(bucketReader.find(key, offset, timer)
-                        .handle((entry, ex) -> {
+                builder.includeResult(Futures
+                        .exceptionallyExpecting(bucketReader.find(key, offset, timer), ex -> ex instanceof StreamSegmentTruncatedException, null)
+                        .thenComposeAsync(entry -> {
                             if (entry != null) {
-                                // We found an entry.
-                                return CompletableFuture.completedFuture(entry);
-                            } else if (ex != null && !(Exceptions.unwrap(ex) instanceof StreamSegmentTruncatedException)) {
-                                // StreamSegmentTruncatedException is the only exception that warrants a cache invalidation.
-                                // Bubble up anything else.
-                                return Futures.<TableEntry>failedFuture(ex);
+                                // We found an entry; need to figure out if it was a deletion or not.
+                                return CompletableFuture.completedFuture(maybeDeleted(entry));
                             } else {
                                 // We have a valid TableBucket but were unable to locate the key using the cache, either
                                 // because the cache points to a truncated offset or because we are unable to determine
                                 // if the TableBucket has been rearranged due to a compaction. The rearrangement is a rare
                                 // occurrence and can only happen if more than one Key is mapped to a bucket (collision).
                                 return this.keyIndex.getBucketOffsetDirect(segment, keyHash, timer)
-                                        .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor);
+                                                    .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor)
+                                                    .thenApply(this::maybeDeleted);
                             }
-                        }).thenCompose(f -> f)
-                );
+                        }, this.executor));
             }
         }
 
@@ -347,6 +346,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                     .resultConverter(converter)
                                     .fetchTimeout(fetchTimeout)
                                     .build(), this.executor);
+    }
+
+    private TableEntry maybeDeleted(TableEntry e) {
+        return e == null || e.getValue() == null ? null : e;
     }
 
     //endregion

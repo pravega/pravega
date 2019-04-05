@@ -162,10 +162,12 @@ abstract class TableBucketReader<ResultT> {
                             .getResult()
                             .thenComposeAsync(r -> {
                                 SearchContinuation sc = processResult(r, soughtKey);
-                                if (sc == SearchContinuation.ResultFound) {
+                                if (sc == SearchContinuation.ResultFound || sc == SearchContinuation.NoResult) {
+                                    // We either definitely found the result or definitely did not find the result.
+                                    // In the case we did not find what we were looking for, we may still have some
+                                    // partial result to return to the caller (i.e., a TableEntry with no value, but with
+                                    // a version, which indicates a deleted entry (as opposed from an inexistent one).
                                     result.complete(r);
-                                } else if (sc == SearchContinuation.NoResult) {
-                                    result.complete(null);
                                 } else {
                                     return this.getBackpointer.apply(this.segment, offset.get(), timer.getRemaining())
                                             .thenAccept(newOffset -> {
