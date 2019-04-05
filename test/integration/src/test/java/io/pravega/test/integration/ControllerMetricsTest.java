@@ -154,7 +154,7 @@ public class ControllerMetricsTest {
         streamManager.createScope(scope);
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory
-                .withScope(scope, ClientConfig.builder().build());
+                .withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
 
