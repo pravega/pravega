@@ -84,6 +84,7 @@ public class ZkOrderedStoreTest {
 
         long position4 = store.addEntity(scope, stream, test + 4).join();
         assertEquals(ZkOrderedStore.Position.toLong(1, 1), position4);
+        
         long position5 = store.addEntity(scope, stream, test + 5).join();
         assertEquals(ZkOrderedStore.Position.toLong(2, 0), position5);
         // verify that set 1 is sealed

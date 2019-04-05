@@ -44,6 +44,7 @@ import static io.pravega.controller.store.stream.ZKStreamMetadataStore.DATA_NOT_
  */
 @Slf4j
 class ZkOrderedStore {
+    private static final String COLLECTIONS_NODE = "collections";
     private static final String SEALED_NODE = "sealed";
     private static final String ENTITIES_NODE = "entities";
     private static final String POSITION_NODE = "pos";
@@ -55,12 +56,12 @@ class ZkOrderedStore {
     /**
      * This class creates a collection of collections starting with collection numbered 0.
      * A new collection is created under the znode: 
-     * \<root\>/scope/stream/\<collectionNum\>/entities
+     * \<root\>/scope/stream/collections\<collectionNum\>/entities
      * It adds entries to lowest numbered collection using a persistent sequential znode 
      * until its capacity is exhausted. 
      * Once a collection is exhausted, a successor collection with number `current + 1` is created and current successor 
      * is marked as sealed by created following znode: 
-     *     `\<root\>/scope/stream/\<collectionNum\>/sealed
+     *     `\<root\>/scope/stream/collections\<collectionNum\>/sealed
      * @param ordererName name of ordered which is used to generate the `root` of the orderer
      * @param storeHelper store helper
      * @param executor executor
@@ -166,7 +167,7 @@ class ZkOrderedStore {
      */
     CompletableFuture<Map<Long, String>> getEntitiesWithPosition(String scope, String stream) {
         Map<Long, String> result = new ConcurrentHashMap<>();
-        return Futures.exceptionallyExpecting(storeHelper.getChildren(getStreamPath(scope, stream)), DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
+        return Futures.exceptionallyExpecting(storeHelper.getChildren(getCollectionsPath(scope, stream)), DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
                           .thenCompose(children -> {
                               // start with smallest collection and collect records
                               List<Integer> iterable = children.stream().map(Integer::parseInt).collect(Collectors.toList());
@@ -202,8 +203,12 @@ class ZkOrderedStore {
         return ZKPaths.makePath(scopePath, stream);
     }
 
-    private String getCollectionPath(String scope, String stream, Integer collectionNum) {
-        return ZKPaths.makePath(getStreamPath(scope, stream), collectionNum.toString());
+    private String getCollectionsPath(String scope, String stream) {
+        return ZKPaths.makePath(getStreamPath(scope, stream), COLLECTIONS_NODE);
+    }
+
+    private String getCollectionPath(String scope, String stream, int collectionNum) {
+        return ZKPaths.makePath(getCollectionsPath(scope, stream), Integer.toString(collectionNum));
     }
 
     private String getCollectionSealedPath(String scope, String stream, Integer collectionNum) {
@@ -232,7 +237,7 @@ class ZkOrderedStore {
     }
 
     private CompletableFuture<Integer> getLatestCollection(String scope, String stream) {
-        return storeHelper.getChildren(getStreamPath(scope, stream))
+        return storeHelper.getChildren(getCollectionsPath(scope, stream))
                           .thenCompose(children -> {
                               int latestcollectionNum = children.stream().mapToInt(Integer::parseInt).max().orElse(0);
                               return storeHelper.checkExists(getCollectionSealedPath(scope, stream, latestcollectionNum))
