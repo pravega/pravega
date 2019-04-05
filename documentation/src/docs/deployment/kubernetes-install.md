@@ -17,6 +17,8 @@ You may obtain a copy of the License at
  * [Usage](#usage)    
     * [Installation of the Pravega Operator](#install-the-pravega-operator)
     * [Deploy a sample Pravega Cluster](#deploy-a-sample-pravega-cluster)
+    * [Scale a Pravega Cluster](#scale-a-pravega-cluster)
+    * [Upgrade a Pravega Cluster](#upgrade-a-pravega-cluster)
     * [Uninstall the Pravega Cluster](#uninstall-the-pravega-cluster)
     * [Uninstall the Pravega Operator](#uninstall-the-pravega-operator)
  * [Configuration](#configuration)
@@ -218,6 +220,28 @@ http://<cluster-name>-pravega-controller.<namespace>:10080/
 ```
 
 [Check this](#direct-access-to-the-cluster) to enable direct access to the cluster for development purposes.
+
+### Scale a Pravega Cluster
+
+You can scale Pravega components independently by modifying their corresponding field in the Pravega resource spec. You can either `kubectl edit` the cluster or `kubectl patch` it. If you edit it, update the number of replicas for BookKeeper, Controller, and/or Segment Store and save the updated spec.
+
+Example of patching the Pravega resource to scale the Segment Store instances to 4.
+
+```
+kubectl patch PravegaCluster example --type='json' -p='[{"op": "replace", "path": "/spec/pravega/segmentStoreReplicas", "value": 4}]'
+```
+
+### Upgrade a Pravega Cluster
+
+Check out the [Upgrade Guide](https://github.com/pravega/pravega-operator/blob/master/doc/upgrade-cluster.md).
+
+### Uninstall the Pravega cluster
+
+```
+$ kubectl delete -f pravega.yaml
+$ kubectl delete -f pvc.yaml
+```
+
 
 ### Uninstall the Pravega cluster
 
