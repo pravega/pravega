@@ -706,7 +706,7 @@ public class InMemoryStream extends PersistentStreamBase {
         List<Long> toPurge = new ArrayList<>();
         Map<UUID, ActiveTxnRecord> committing = new HashMap<>();
         AtomicInteger smallestEpoch = new AtomicInteger(Integer.MAX_VALUE);
-            // take smallest epoch and collect transactions from smallest epoch.
+        // take smallest epoch and collect transactions from smallest epoch.
         transactionCommitOrder
                 .forEach((order, txId) -> {
                     int epoch = RecordHelper.getTransactionEpoch(txId);
