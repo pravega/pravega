@@ -29,8 +29,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.handler.logging.LogLevel;
-import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
@@ -226,7 +224,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
                     p.addLast(sslHandler);
                 }
                 p.addLast(
-                        new LoggingHandler(LogLevel.TRACE),
                         new ExceptionLoggingHandler(location.getEndpoint()),
                         new CommandEncoder(batchSizeTracker),
                         new LengthFieldBasedFrameDecoder(WireCommands.MAX_WIRECOMMAND_SIZE, 4, 4),
