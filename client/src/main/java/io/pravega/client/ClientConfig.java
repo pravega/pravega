@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Builder(toBuilder = true)
 public class ClientConfig implements Serializable {
 
-    static final int DEFAULT_MAX_CONNECTION_PER_SEGMENT_STORE = 2;
+    static final int DEFAULT_MAX_CONNECTION_PER_SEGMENT_STORE = 5;
     private static final long serialVersionUID = 1L;
 
 
