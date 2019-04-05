@@ -206,8 +206,26 @@ public class ControllerMetricsTest {
             Assert.assertTrue(i + 1 <= streamDeleteCounter.count());
         }
 
-        checkStatsRegisteredValues(iterations, CREATE_STREAM_LATENCY, SEAL_STREAM_LATENCY, DELETE_STREAM_LATENCY);
-        checkStatsRegisteredValues(iterations * iterations, UPDATE_STREAM_LATENCY, TRUNCATE_STREAM_LATENCY);
+        //Put assertion on different lines so it can tell more information in case of failure.
+        Timer latencyValues1 = MetricRegistryUtils.getTimer(getTimerMetricName(CREATE_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues1);
+        Assert.assertTrue(iterations <= latencyValues1.count());  //also system streams created so count() is bigger
+
+        Timer latencyValues2 = MetricRegistryUtils.getTimer(getTimerMetricName(SEAL_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues2);
+        Assert.assertTrue(iterations == latencyValues2.count());
+
+        Timer latencyValues3 = MetricRegistryUtils.getTimer(getTimerMetricName(DELETE_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues3);
+        Assert.assertTrue(iterations == latencyValues3.count());
+
+        Timer latencyValues4 = MetricRegistryUtils.getTimer(getTimerMetricName(UPDATE_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues4);
+        Assert.assertTrue(iterations * iterations == latencyValues4.count());
+
+        Timer latencyValues5 = MetricRegistryUtils.getTimer(getTimerMetricName(TRUNCATE_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues5);
+        Assert.assertTrue(iterations * iterations == latencyValues5.count());
     }
 
     /**
@@ -225,14 +243,6 @@ public class ControllerMetricsTest {
             zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
         }
         Assert.assertEquals(zkSessionExpirationCounter.count(), 1, 0.1);
-    }
-
-    private void checkStatsRegisteredValues(int minExpectedValues, String... metricNames) {
-        for (String metricName: metricNames) {
-            Timer latencyValues = MetricRegistryUtils.getTimer(getTimerMetricName(metricName));
-            Assert.assertNotNull(latencyValues);
-            Assert.assertTrue(minExpectedValues <= latencyValues.count());
-        }
     }
 
     private static String getCounterMetricName(String metricName) {
