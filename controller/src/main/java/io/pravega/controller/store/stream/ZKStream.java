@@ -10,17 +10,19 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.netty.util.internal.ConcurrentSet;
 import com.google.common.base.Strings;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StateRecord;
@@ -30,11 +32,13 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.curator.utils.ZKPaths;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,9 +47,13 @@ import java.util.Optional;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static io.pravega.controller.store.stream.ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 
 /**
  * ZK Stream. It understands the following.
@@ -103,26 +111,31 @@ class ZKStream extends PersistentStreamBase {
     private final String segmentsSealedSizeMapShardPathFormat;
 
     private final Supplier<Integer> currentBatchSupplier;
+    private final Executor executor;
+    private final ZkOrderedStore txnCommitOrderer;
+    
     private final AtomicReference<String> idRef;
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
-        this(scopeName, streamName, storeHelper, () -> 0);
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Executor executor, ZkOrderedStore txnCommitOrderer) {
+        this(scopeName, streamName, storeHelper, () -> 0, executor, txnCommitOrderer);
     }
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, int chunkSize, int shardSize) {
-        this(scopeName, streamName, storeHelper, () -> 0, chunkSize, shardSize);
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, int chunkSize, int shardSize, Executor executor, ZkOrderedStore txnCommitOrderer) {
+        this(scopeName, streamName, storeHelper, () -> 0, chunkSize, shardSize, executor, txnCommitOrderer);
     }
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier) {
-        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SealedSegmentsMapShard.SHARD_SIZE);
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier,
+             Executor executor, ZkOrderedStore txnCommitOrderer) {
+        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SealedSegmentsMapShard.SHARD_SIZE,
+                executor, txnCommitOrderer);
     }
     
     @VisibleForTesting
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier,
-             int chunkSize, int shardSize) {
+             int chunkSize, int shardSize, Executor executor, ZkOrderedStore txnCommitOrderer) {
         super(scopeName, streamName, chunkSize, shardSize);
         store = storeHelper;
         scopePath = String.format(SCOPE_PATH, scopeName);
@@ -147,6 +160,8 @@ class ZKStream extends PersistentStreamBase {
 
         idRef = new AtomicReference<>();
         this.currentBatchSupplier = currentBatchSupplier;
+        this.executor = executor;
+        this.txnCommitOrderer = txnCommitOrderer;
     }
 
     // region overrides
@@ -477,6 +492,91 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
+    public CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
+        // get all transactions that have been added to commit orderer.
+        return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
+                DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
+                      .thenCompose(allTxns -> {
+                          // group transactions by epoch and then iterate over it from smallest epoch to largest
+                          val groupByEpoch = allTxns.entrySet().stream().collect(
+                                  Collectors.groupingBy(x -> RecordHelper.getTransactionEpoch(UUID.fromString(x.getValue()))));
+
+                          // sort transaction groups by epoch
+                          val iterator = groupByEpoch
+                                  .entrySet().stream()
+                                  .sorted(Comparator.comparingInt(Map.Entry::getKey))
+                                  .iterator();
+
+                          // We will opportunistically identify ordered positions that are stale (either transaction is no longer active)
+                          // or its a duplicate entry or transaction is aborting. 
+                          ConcurrentSet<Long> toPurge = new ConcurrentSet<>();
+                          ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap = new ConcurrentHashMap<>();
+
+                          // Collect transactions that are in committing state from smallest available epoch 
+                          // smallest epoch has transactions in committing state, we should break, else continue.
+                          // also remove any transaction order references which are invalid.
+                          return Futures.loop(() -> iterator.hasNext() && transactionsMap.isEmpty(), () -> {
+                              return processTransactionsInEpoch(iterator.next(), toPurge, transactionsMap);
+                          }, executor).thenCompose(v -> txnCommitOrderer.removeEntities(getScope(), getName(), toPurge))
+                                        .thenApply(v ->
+                                                transactionsMap.entrySet().stream().sorted(
+                                                        Comparator.comparing(x -> x.getValue().getCommitOrder()))
+                                                               .collect(Collectors.toList()));
+                      });
+    }
+
+    @Override
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns() {
+        return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
+                DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
+                .thenApply(map -> map.entrySet().stream()
+                                     .collect(Collectors.toMap(Map.Entry::getKey, x -> UUID.fromString(x.getValue()))));
+    }
+
+    private CompletableFuture<Void> processTransactionsInEpoch(Map.Entry<Integer, List<Map.Entry<Long, String>>> nextEpoch,
+                                                               ConcurrentSet<Long> toPurge,
+                                                               ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap) {
+        int epoch = nextEpoch.getKey();
+        List<Map.Entry<Long, String>> txnIds = nextEpoch.getValue();
+
+        return Futures.allOf(txnIds.stream().map(txnIdOrder -> {
+            UUID txnId = UUID.fromString(txnIdOrder.getValue());
+            long order = txnIdOrder.getKey();
+            return Futures.exceptionallyExpecting(getTxnRecord(epoch, txnId), DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY)
+                          .thenAccept(txnRecord -> {
+                              switch (txnRecord.getTxnStatus()) {
+                                  case COMMITTING:
+                                      if (txnRecord.getCommitOrder() == order) {
+                                          // if entry matches record's position then include it
+                                          transactionsMap.put(txnId, txnRecord);
+                                      } else {
+                                          toPurge.add(order);
+                                      }
+                                      break;
+                                  case OPEN:  // do nothing
+                                      // since we first add reference to transaction order followed by updating transaction
+                                      // metadata record, which may or may not have happened. So we will ignore all open 
+                                      // transactions for which references are found. 
+                                      break;
+                                  case COMMITTED:
+                                  case ABORTING:
+                                  case ABORTED:
+                                  case UNKNOWN:
+                                      // Aborting, aborted, unknown and committed 
+                                      toPurge.add(order);
+                                      break;
+                              }
+                          });
+
+        }).collect(Collectors.toList()));
+    }
+    
+    private CompletableFuture<ActiveTxnRecord> getTxnRecord(int epoch, UUID txId) {
+        return Futures.exceptionallyExpecting(
+                getActiveTx(epoch, txId).thenApply(VersionedMetadata::getObject),
+                DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY);
+    }
+
     CompletableFuture<Version> createNewTransaction(final int epoch, final UUID txId, final ActiveTxnRecord txnRecord) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
         // we will always create parent if needed so that transactions are created successfully even if the epoch znode
@@ -504,6 +604,16 @@ class ZKStream extends PersistentStreamBase {
         final String activePath = getActiveTxPath(epoch, txId.toString());
         // attempt to delete empty epoch nodes by sending deleteEmptyContainer flag as true.
         return store.deletePath(activePath, true);
+    }
+
+    @Override
+    CompletableFuture<Long> addTxnToCommitOrder(UUID txId) {
+        return txnCommitOrderer.addEntity(getScope(), getName(), txId.toString());
+    }
+
+    @Override
+    CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> orderedPositions) {
+        return txnCommitOrderer.removeEntities(getScope(), getName(), orderedPositions);
     }
 
     @Override
