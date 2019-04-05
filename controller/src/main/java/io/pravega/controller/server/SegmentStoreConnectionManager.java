@@ -27,9 +27,9 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -130,11 +130,10 @@ class SegmentStoreConnectionManager implements AutoCloseable {
     static class ConnectionWrapper implements AutoCloseable {
         private final ResourcePool.CloseableResource<ConnectionObject> resource;
         private final Object lock = new Object(); 
-        @GuardedBy("lock")
-        private boolean isClosed;
+        private AtomicBoolean isClosed;
         private ConnectionWrapper(ResourcePool.CloseableResource<ConnectionObject> resource) {
             this.resource = resource;
-            this.isClosed = false;
+            this.isClosed = new AtomicBoolean(false);
         }
 
         void failConnection() {
@@ -164,15 +163,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
 
         @Override
         public void close() {
-            boolean toClose = false;
-            synchronized (lock) {
-                if (!isClosed) {
-                    isClosed = true;
-                    toClose = true;
-                }
-            }
-
-            if (toClose) {
+            if (isClosed.compareAndSet(false, true)) {
                 ConnectionObject connectionObject = resource.getResource();
                 connectionObject.reusableReplyProcessor.uninitialize();
                 if (!connectionObject.state.get().equals(ConnectionObject.ConnectionState.CONNECTED)) {

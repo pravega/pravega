@@ -52,7 +52,7 @@ public class SegmentStoreConnectionManagerTest {
     }
 
     @Test(timeout = 30000)
-    public void connectionTest() throws InterruptedException {
+    public void connectionTest() {
         PravegaNodeUri uri = new PravegaNodeUri("pravega", 1234);
         ConnectionFactory cf = spy(new MockConnectionFactory());
 
