@@ -46,7 +46,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -54,6 +53,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -110,7 +111,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
     @Test(timeout = 10000)
     public void testTxnWithScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
@@ -160,7 +161,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
     @Test(timeout = 30000)
     public void testTxnWithErrors() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
@@ -176,13 +177,11 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         transaction.writeEvent("0", "txntest1");
         //abort the transaction to simulate a txn abort due to a missing ping request.
         controller.abortTransaction(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join();
-        TimeUnit.SECONDS.sleep(10);
         //check the status of the transaction.
-        Transaction.Status status = controller.checkTransactionStatus(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join();
-        assertEquals("Transaction status should be Aborted", Transaction.Status.ABORTED, status);
+        assertEventuallyEquals(Transaction.Status.ABORTED, () -> controller.checkTransactionStatus(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join(), 10000);
         transaction.writeEvent("0", "txntest2");
         //verify that commit fails with TxnFailedException.
-        AssertExtensions.assertThrows("TxnFailedException should be thrown", () -> transaction.commit(), t -> t instanceof TxnFailedException);
+        assertThrows("TxnFailedException should be thrown", () -> transaction.commit(), t -> t instanceof TxnFailedException);
     }
 
 
