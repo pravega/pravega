@@ -280,7 +280,6 @@ public class ResourcePool<T> {
         private final ResourcePool<T> resourcePool;
         private final T resource;
         private final AtomicBoolean invalid;
-        private final Object lock = new Object();
         private AtomicBoolean isClosed;
         private CloseableResource(T resource, ResourcePool<T> resourcePool) {
             this.resourcePool = resourcePool;

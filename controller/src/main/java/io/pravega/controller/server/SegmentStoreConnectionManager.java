@@ -129,7 +129,6 @@ class SegmentStoreConnectionManager implements AutoCloseable {
     
     static class ConnectionWrapper implements AutoCloseable {
         private final ResourcePool.CloseableResource<ConnectionObject> resource;
-        private final Object lock = new Object(); 
         private AtomicBoolean isClosed;
         private ConnectionWrapper(ResourcePool.CloseableResource<ConnectionObject> resource) {
             this.resource = resource;
