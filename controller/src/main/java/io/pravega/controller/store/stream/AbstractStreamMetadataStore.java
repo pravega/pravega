@@ -19,6 +19,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.index.HostIndex;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
@@ -234,11 +235,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
             if (ex == null) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
             }
-            if (ex.getCause() instanceof StoreException.DataNotFoundException
-                    || ex instanceof StoreException.DataNotFoundException) {
+            if (ex instanceof StoreException.DataNotFoundException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
-            } else if (ex.getCause() instanceof StoreException.DataNotEmptyException
-                    || ex instanceof StoreException.DataNotEmptyException) {
+            } else if (ex instanceof StoreException.DataNotEmptyException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
             } else {
                 log.debug("DeleteScope failed due to {} ", ex);
@@ -580,12 +579,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return withCompletion(getStream(scopeName, streamName, context).checkTransactionStatus(txId), executor);
     }
 
-    @Override
+    @VisibleForTesting
     public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String streamName,
                                                           final UUID txId, final OperationContext context,
                                                           final Executor executor) {
         Stream stream = getStream(scope, streamName, context);
-        return withCompletion(stream.commitTransaction(txId), executor);
+        return withCompletion(((PersistentStreamBase) stream).commitTransaction(txId), executor);
     }
 
     @Override
@@ -726,8 +725,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(String scope,
-                                                                                                      String stream, int epoch, OperationContext context, ScheduledExecutorService executor) {
-        return withCompletion(getStream(scope, stream, context).startCommittingTransactions(epoch), executor);
+                                                                                                      String stream, OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).startCommittingTransactions(), executor);
     }
 
     @Override
@@ -739,7 +738,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     @Override
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext context, ScheduledExecutorService executor) {
-        return withCompletion(getStream(scope, stream, context).completeCommittingTransactions(record), executor);
+        Stream streamObj = getStream(scope, stream, context);
+        return withCompletion(streamObj.completeCommittingTransactions(record), executor)
+                .thenAccept(result -> {
+                    streamObj.getNumberOfOngoingTransactions().thenAccept(count ->
+                            TransactionMetrics.reportOpenTransactions(scope, stream, count));
+                });
     }
 
     @Override

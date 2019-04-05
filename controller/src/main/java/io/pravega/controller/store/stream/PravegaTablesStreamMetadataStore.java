@@ -54,6 +54,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final PravegaTablesStoreHelper storeHelper;
+    private final ZkOrderedStore orderer;
+
     private final ScheduledExecutorService executor;
     @VisibleForTesting
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor, AuthHelper authHelper) {
@@ -64,6 +66,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod, AuthHelper authHelper) {
         super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
+        this.orderer = new ZkOrderedStore("txnCommitOrderer", zkStoreHelper, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
@@ -102,7 +105,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     @Override
     PravegaTablesStream newStream(final String scope, final String name) {
-        return new PravegaTablesStream(scope, name, storeHelper, completedTxnGC::getLatestBatch,
+        return new PravegaTablesStream(scope, name, storeHelper, orderer, completedTxnGC::getLatestBatch,
                 () -> ((PravegaTableScope) getScope(scope)).getStreamsInScopeTableName(), executor);
     }
 

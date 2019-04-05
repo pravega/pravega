@@ -11,17 +11,16 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableList;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StateRecord;
@@ -45,6 +44,7 @@ import java.util.Optional;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -93,7 +93,6 @@ class ZKStream extends PersistentStreamBase {
     private final String activeTxRoot;
     private final String markerPath;
     private final String idPath;
-    private final String scopePath;
     @Getter(AccessLevel.PACKAGE)
     private final String streamPath;
     private final String retentionSetPath;
@@ -105,29 +104,33 @@ class ZKStream extends PersistentStreamBase {
     private final String segmentsSealedSizeMapShardPathFormat;
 
     private final Supplier<Integer> currentBatchSupplier;
+    private final Executor executor;
+    private final ZkOrderedStore txnCommitOrderer;
+    
     private final AtomicReference<String> idRef;
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper) {
-        this(scopeName, streamName, storeHelper, () -> 0);
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Executor executor, ZkOrderedStore txnCommitOrderer) {
+        this(scopeName, streamName, storeHelper, () -> 0, executor, txnCommitOrderer);
     }
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, int chunkSize, int shardSize) {
-        this(scopeName, streamName, storeHelper, () -> 0, chunkSize, shardSize);
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, int chunkSize, int shardSize, Executor executor, ZkOrderedStore txnCommitOrderer) {
+        this(scopeName, streamName, storeHelper, () -> 0, chunkSize, shardSize, executor, txnCommitOrderer);
     }
 
     @VisibleForTesting
-    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier) {
-        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SealedSegmentsMapShard.SHARD_SIZE);
+    ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier,
+             Executor executor, ZkOrderedStore txnCommitOrderer) {
+        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE, SealedSegmentsMapShard.SHARD_SIZE,
+                executor, txnCommitOrderer);
     }
     
     @VisibleForTesting
     ZKStream(final String scopeName, final String streamName, ZKStoreHelper storeHelper, Supplier<Integer> currentBatchSupplier,
-             int chunkSize, int shardSize) {
+             int chunkSize, int shardSize, Executor executor, ZkOrderedStore txnCommitOrderer) {
         super(scopeName, streamName, chunkSize, shardSize);
         store = storeHelper;
-        scopePath = String.format(SCOPE_PATH, scopeName);
         streamPath = String.format(STREAM_PATH, scopeName, streamName);
         creationPath = String.format(CREATION_TIME_PATH, scopeName, streamName);
         configurationPath = String.format(CONFIGURATION_PATH, scopeName, streamName);
@@ -149,6 +152,8 @@ class ZKStream extends PersistentStreamBase {
 
         idRef = new AtomicReference<>();
         this.currentBatchSupplier = currentBatchSupplier;
+        this.executor = executor;
+        this.txnCommitOrderer = txnCommitOrderer;
     }
 
     // region overrides
@@ -458,21 +463,6 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<ImmutableList<UUID>> getTxnCommitList(int epoch) {
-        return getTxnInEpoch(epoch)
-                .thenApply(transactions -> {
-                    ImmutableList.Builder<UUID> builder = ImmutableList.builder();
-                    transactions.entrySet().stream()
-                                .forEach(entry -> {
-                                    if (entry.getValue().getTxnStatus().equals(TxnStatus.COMMITTING)) {
-                                        builder.add(entry.getKey());
-                                    }
-                                });
-                    return builder.build();
-                });
-    }
-
-    @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
         VersionedMetadata<ActiveTxnRecord> empty = getEmptyData();
         return Futures.exceptionallyExpecting(store.getChildren(getEpochPath(epoch)),
@@ -488,6 +478,16 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
+    public CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
+        return super.getOrderedCommittingTxnInLowestEpochHelper(txnCommitOrderer, executor);
+    }
+
+    @Override
+    @VisibleForTesting
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns() {
+        return super.getAllOrderedCommittingTxnsHelper(txnCommitOrderer);
+    }
+
     CompletableFuture<Version> createNewTransaction(final int epoch, final UUID txId, final ActiveTxnRecord txnRecord) {
         final String activePath = getActiveTxPath(epoch, txId.toString());
         // we will always create parent if needed so that transactions are created successfully even if the epoch znode
@@ -515,6 +515,16 @@ class ZKStream extends PersistentStreamBase {
         final String activePath = getActiveTxPath(epoch, txId.toString());
         // attempt to delete empty epoch nodes by sending deleteEmptyContainer flag as true.
         return store.deletePath(activePath, true);
+    }
+
+    @Override
+    CompletableFuture<Long> addTxnToCommitOrder(UUID txId) {
+        return txnCommitOrderer.addEntity(getScope(), getName(), txId.toString());
+    }
+
+    @Override
+    CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> orderedPositions) {
+        return txnCommitOrderer.removeEntities(getScope(), getName(), orderedPositions);
     }
 
     @Override

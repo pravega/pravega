@@ -699,20 +699,6 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
     /**
-     * Update stream store to mark transaction as committed.
-     *
-     * @param scope    scope
-     * @param stream   stream
-     * @param txId     transaction id
-     * @param context  operation context
-     * @param executor callers executor
-     * @return transaction status.
-     */
-    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream,
-                                                   final UUID txId, final OperationContext context,
-                                                   final Executor executor);
-
-    /**
      * Update stream store to mark transaction as sealed.
      *
      * @param scope    scope
@@ -1013,13 +999,11 @@ public interface StreamMetadataStore extends AutoCloseable {
      *
      * @param scope scope name
      * @param stream stream name
-     * @param epoch epoch
      * @param context operation context
      * @param executor executor
      * @return A completableFuture which, when completed, mean that the record has been created successfully.
      */
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(final String scope, final String stream,
-                                                                                               final int epoch,
                                                                                                final OperationContext context,
                                                                                                final ScheduledExecutorService executor);
 

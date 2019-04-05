@@ -36,7 +36,18 @@ import java.util.stream.Collectors;
  * ZK stream metadata store.
  */
 @Slf4j
-class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
+class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
+    @VisibleForTesting
+    /**
+     * This constant defines the size of the block of counter values that will be used by this controller instance.
+     * The controller will try to get current counter value from zookeeper. It then tries to update the value in store
+     * by incrementing it by COUNTER_RANGE. If it is able to update the new value successfully, then this controller
+     * can safely use the block `previous-value-in-store + 1` to `previous-value-in-store + COUNTER_RANGE` No other controller
+     * will use this range for transaction id generation as it will be unique assigned to current controller.
+     * If controller crashes, all unused values go to waste. In worst case we may lose COUNTER_RANGE worth of values everytime
+     * a controller crashes.
+     * Since we use a 96 bit number for our counter, so
+     */
     static final String SCOPE_ROOT_PATH = "/store";
     static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
@@ -45,12 +56,15 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
     static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
     static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
+    
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private ZKStoreHelper storeHelper;
+    private final ZkOrderedStore orderer;
 
     private final ZKGarbageCollector completedTxnGC;
     private final ZkInt96Counter counter;
+    private final Executor executor;
 
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
@@ -60,11 +74,13 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor), new ZKHostIndex(client, "/hostRequestIndex", executor));
-        storeHelper = new ZKStoreHelper(client, executor);
+        this.storeHelper = new ZKStoreHelper(client, executor);
+        this.orderer = new ZkOrderedStore("txnCommitOrderer", storeHelper, executor);
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
         this.counter = new ZkInt96Counter(storeHelper);
+        this.executor = executor;
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
@@ -91,7 +107,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore {
 
     @Override
     ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch);
+        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor, orderer);
     }
 
     @Override

@@ -26,7 +26,7 @@ public class PravegaTablesStreamTest extends StreamTestBase {
     private CuratorFramework cli;
     private PravegaTablesStreamMetadataStore store;
     private PravegaTablesStoreHelper storeHelper;
-    
+    private ZkOrderedStore orderer;
     @Override
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -38,6 +38,7 @@ public class PravegaTablesStreamTest extends StreamTestBase {
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         AuthHelper authHelper = AuthHelper.getDisabledAuthHelper();
         storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
+        orderer = new ZkOrderedStore("txnOrderer", new ZKStoreHelper(cli, executor), executor);
         store = new PravegaTablesStreamMetadataStore(segmentHelper, cli, executor, Duration.ofSeconds(1), authHelper);
     }
 
@@ -58,7 +59,8 @@ public class PravegaTablesStreamTest extends StreamTestBase {
     PersistentStreamBase getStream(String scope, String stream, int chunkSize, int shardSize) {
         PravegaTableScope pravegaTableScope = new PravegaTableScope(scope, storeHelper);
         pravegaTableScope.addStreamToScope(stream).join();
-
-        return new PravegaTablesStream(scope, stream, storeHelper, () -> 0, chunkSize, shardSize, pravegaTableScope::getStreamsInScopeTableName, executor);
+        
+        return new PravegaTablesStream(scope, stream, storeHelper, orderer,  
+                () -> 0, chunkSize, shardSize, pravegaTableScope::getStreamsInScopeTableName, executor);
     }
 }

@@ -11,7 +11,6 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableList;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
@@ -99,23 +98,24 @@ class PravegaTablesStream extends PersistentStreamBase {
     private final Supplier<Integer> currentBatchSupplier;
     private final Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier;
     private final AtomicReference<String> idRef;
+    private final ZkOrderedStore txnCommitOrderer;
     private final ScheduledExecutorService executor;
     
     @VisibleForTesting
-    PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper,
+    PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, ZkOrderedStore txnCommitOrderer, 
                         Supplier<Integer> currentBatchSupplier, Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier,
                         ScheduledExecutorService executor) {
-        this(scopeName, streamName, storeHelper, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE,
+        this(scopeName, streamName, storeHelper, txnCommitOrderer, currentBatchSupplier, HistoryTimeSeries.HISTORY_CHUNK_SIZE,
                 SealedSegmentsMapShard.SHARD_SIZE, streamsInScopeTableNameSupplier, executor);
     }
 
     @VisibleForTesting
-    PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper,
+    PravegaTablesStream(final String scopeName, final String streamName, PravegaTablesStoreHelper storeHelper, ZkOrderedStore txnCommitOrderer, 
                         Supplier<Integer> currentBatchSupplier, int chunkSize, int shardSize,
                         Supplier<CompletableFuture<String>> streamsInScopeTableNameSupplier, ScheduledExecutorService executor) {
         super(scopeName, streamName, chunkSize, shardSize);
         this.storeHelper = storeHelper;
-
+        this.txnCommitOrderer = txnCommitOrderer;
         this.currentBatchSupplier = currentBatchSupplier;
         this.streamsInScopeTableNameSupplier = streamsInScopeTableNameSupplier;
         this.idRef = new AtomicReference<>(null);
@@ -250,7 +250,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                 .thenCompose(metadataTable -> storeHelper.getCachedData(getScope(), metadataTable, CREATION_TIME_KEY, 
                         data -> BitConverter.readLong(data, 0))).thenApply(VersionedMetadata::getObject);
     }
-    
+
     @Override
     public CompletableFuture<Void> deleteStream() {
         // delete all tables for this stream even if they are not empty!
@@ -594,12 +594,14 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<ImmutableList<UUID>> getTxnCommitList(int epoch) {
-        return getTransactionsInEpochTable(epoch)
-                .thenCompose(tableName -> storeHelper.expectingDataNotFound(storeHelper.getEntriesWithFilter(
-                        getScope(), tableName, UUID::fromString, ActiveTxnRecord::fromBytes,
-                        (x, y) -> y.getTxnStatus().equals(TxnStatus.COMMITTING), 1000), Collections.emptyMap()))
-                .thenApply(map -> ImmutableList.copyOf(map.keySet()));
+    public CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
+        return super.getOrderedCommittingTxnInLowestEpochHelper(txnCommitOrderer, executor);
+    }
+
+    @Override
+    @VisibleForTesting
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns() {
+        return super.getAllOrderedCommittingTxnsHelper(txnCommitOrderer);
     }
 
     @Override
@@ -646,6 +648,16 @@ class PravegaTablesStream extends PersistentStreamBase {
     CompletableFuture<Version> updateActiveTx(final int epoch, final UUID txId, final VersionedMetadata<ActiveTxnRecord> data) {
         return getTransactionsInEpochTable(epoch)
                 .thenCompose(epochTxnTable -> storeHelper.updateEntry(getScope(), epochTxnTable, txId.toString(), data.getObject().toBytes(), data.getVersion()));
+    }
+
+    @Override
+    CompletableFuture<Long> addTxnToCommitOrder(UUID txId) {
+        return txnCommitOrderer.addEntity(getScope(), getName(), txId.toString());
+    }
+
+    @Override
+    CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> orderedPositions) {
+        return txnCommitOrderer.removeEntities(getScope(), getName(), orderedPositions);
     }
 
     @Override

@@ -49,6 +49,7 @@ import static org.mockito.Mockito.spy;
 public class StreamTest {
     private TestingServer zkTestServer;
     private CuratorFramework cli;
+    private ZkOrderedStore orderer;
 
     private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
@@ -57,6 +58,7 @@ public class StreamTest {
         zkTestServer = new TestingServerStarter().start();
         cli = CuratorFrameworkFactory.newClient(zkTestServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
+        orderer = new ZkOrderedStore("txnOrderer", new ZKStoreHelper(cli, executor), executor);
     }
 
     @After
@@ -75,7 +77,7 @@ public class StreamTest {
         scope.addStreamToScope("test").join();
         
         PravegaTablesStream stream = new PravegaTablesStream("test", "test",
-                storeHelper, () -> 0, 
+                storeHelper, orderer, () -> 0, 
                 scope::getStreamsInScopeTableName, executor);
         testStream(stream);
     }
@@ -83,7 +85,8 @@ public class StreamTest {
     @Test(timeout = 10000)
     public void testZkCreateStream() throws ExecutionException, InterruptedException {
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
-        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper);
+        ZkOrderedStore orderer = new ZkOrderedStore("txn", zkStoreHelper, executor);
+        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper, executor, orderer);
         testStream(zkStream);
     }
 
@@ -164,7 +167,7 @@ public class StreamTest {
     public void testConcurrentGetSuccessorScaleZk() throws Exception {
         try (final StreamMetadataStore store = new ZKStreamMetadataStore(cli, executor)) {
             ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
-            testConcurrentGetSuccessorScale(store, (x, y) -> new ZKStream(x, y, zkStoreHelper));
+            testConcurrentGetSuccessorScale(store, (x, y) -> new ZKStream(x, y, zkStoreHelper, executor, orderer));
         }
     }
 
@@ -180,7 +183,7 @@ public class StreamTest {
                 PravegaTableScope scope = new PravegaTableScope(x, storeHelper);
                 Futures.exceptionallyExpecting(scope.createScope(), e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null).join();
                 scope.addStreamToScope(y).join();
-                return new PravegaTablesStream(x, y, storeHelper, () -> 0, scope::getStreamsInScopeTableName, executor);
+                return new PravegaTablesStream(x, y, storeHelper, orderer, () -> 0, scope::getStreamsInScopeTableName, executor);
             });
         }
     }
@@ -191,15 +194,15 @@ public class StreamTest {
         final String streamName = "test";
         String scopeName = "test";
         store.createScope(scopeName).get();
-        
+
+        Stream stream = spy(createStream.apply(scopeName, streamName));
+
         StreamConfiguration streamConfig = StreamConfiguration.builder()
                                                               .scalingPolicy(policy)
                                                               .build();
 
         store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
-
-        Stream zkStream = spy(createStream.apply("test", "test"));
 
         List<Map.Entry<Double, Double>> newRanges;
 
@@ -209,26 +212,26 @@ public class StreamTest {
         ArrayList<Long> sealedSegments = Lists.newArrayList(0L);
         long one = StreamSegmentNameUtils.computeSegmentId(1, 1);
         long two = StreamSegmentNameUtils.computeSegmentId(2, 1);
-        VersionedMetadata<EpochTransitionRecord> response = zkStream.submitScale(sealedSegments, newRanges, scale, null).join();
+        VersionedMetadata<EpochTransitionRecord> response = stream.submitScale(sealedSegments, newRanges, scale, null).join();
         Map<Long, Map.Entry<Double, Double>> newSegments = response.getObject().getNewSegmentsWithRange();
-        VersionedMetadata<State> state = zkStream.getVersionedState().join();
-        state = zkStream.updateVersionedState(state, State.SCALING).join();
-        zkStream.startScale(false, response, state).join();
-        zkStream.scaleCreateNewEpoch(response).get();
+        VersionedMetadata<State> state = stream.getVersionedState().join();
+        state = stream.updateVersionedState(state, State.SCALING).join();
+        stream.startScale(false, response, state).join();
+        stream.scaleCreateNewEpoch(response).get();
         // history table has a partial record at this point.
         // now we could have sealed the segments so get successors could be called.
 
-        Map<Long, List<Long>> successors = zkStream.getSuccessorsWithPredecessors(0).get()
+        Map<Long, List<Long>> successors = stream.getSuccessorsWithPredecessors(0).get()
                                                    .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
 
         assertTrue(successors.containsKey(one) && successors.containsKey(two));
 
         // reset mock so that we can resume scale operation
 
-        zkStream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
-        zkStream.completeScale(response).join();
+        stream.scaleOldSegmentsSealed(sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response).get();
+        stream.completeScale(response).join();
 
-        successors = zkStream.getSuccessorsWithPredecessors(0).get()
+        successors = stream.getSuccessorsWithPredecessors(0).get()
                              .entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), x -> x.getValue()));
 
         assertTrue(successors.containsKey(one) && successors.containsKey(two));
