@@ -29,7 +29,7 @@ The following prerequisites are required for running in production. These are on
 
 - External HDFS 2.7
 - Zookeeper 3.5.4-beta
-- Bookkeeper 4.7
+- Bookkeeper 4.7.3
 
 For more details on the prerequisites and recommended configuration options for bookkeeper see the [Manual Install Guide](manual-install.md).
 
