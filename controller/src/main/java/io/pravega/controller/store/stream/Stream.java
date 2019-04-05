@@ -424,16 +424,6 @@ interface Stream {
     CompletableFuture<TxnStatus> checkTransactionStatus(final UUID txId);
 
     /**
-     * Commits a transaction.
-     * If already committed, return TxnStatus.Committed.
-     * If aborting/aborted, return a failed future with IllegalStateException.
-     *
-     * @param txId  transaction identifier.
-     * @return      transaction status.
-     */
-    CompletableFuture<TxnStatus> commitTransaction(final UUID txId);
-
-    /**
      * Aborts a transaction.
      * If already aborted, return TxnStatus.Aborted.
      * If committing/committed, return a failed future with IllegalStateException.
@@ -519,10 +509,9 @@ interface Stream {
      * Note: this will not throw data not found exception if the committing transaction node is not found. Instead
      * it returns null.
      *
-     * @param epoch epoch
      * @return A completableFuture which, when completed, will contain committing transaction record if it exists, or null otherwise.
      */
-    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions(final int epoch);
+    CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions();
 
     /**
      * Method to fetch committing transaction record from the store for a given stream.

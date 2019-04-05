@@ -565,7 +565,8 @@ public class ScaleRequestHandlerTest {
         setMockLatch(streamStore1, streamStore1Spied, func, signal, wait);
         
         // the processing will stall at start scale
-        CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null)
+                                                           .thenComposeAsync(v -> scaleRequestHandler1.execute(event), executor);
         signal.join();
         
         // let this run to completion. this should succeed 
@@ -721,7 +722,8 @@ public class ScaleRequestHandlerTest {
 
         setMockLatch(streamStore1, streamStore1Spied, funcToWaitOn, signal, wait);
 
-        CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null)
+                                                           .thenComposeAsync(v -> scaleRequestHandler1.execute(event), executor);
         signal.join();
 
         // let this run to completion. this should succeed 

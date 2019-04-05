@@ -16,11 +16,12 @@ import com.google.common.cache.CacheBuilder;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
-import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StateRecord;
@@ -31,15 +32,20 @@ import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -77,6 +83,8 @@ public class InMemoryStream extends PersistentStreamBase {
     private final Object txnsLock = new Object();
     @GuardedBy("txnsLock")
     private final Map<UUID, VersionedMetadata<ActiveTxnRecord>> activeTxns = new HashMap<>();
+    private final AtomicLong counter = new AtomicLong();
+    private final ConcurrentHashMap<Long, UUID> transactionCommitOrder = new ConcurrentHashMap<>();
     @GuardedBy("txnsLock")
     private final Cache<UUID, VersionedMetadata<CompletedTxnRecord>> completedTxns;
     private final Object markersLock = new Object();
@@ -578,6 +586,19 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
+    CompletableFuture<Long> addTxnToCommitOrder(UUID txId) {
+        long orderedPosition = counter.getAndIncrement();
+        transactionCommitOrder.put(orderedPosition, txId);
+        return CompletableFuture.completedFuture(orderedPosition);
+    }
+
+    @Override
+    CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> positions) {
+        positions.forEach(transactionCommitOrder::remove);
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
     CompletableFuture<VersionedMetadata<CompletedTxnRecord>> getCompletedTx(UUID txId) {
         Preconditions.checkNotNull(txId);
         synchronized (txnsLock) {
@@ -681,13 +702,69 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
+    CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
+        List<Long> toPurge = new ArrayList<>();
+        Map<UUID, ActiveTxnRecord> committing = new HashMap<>();
+        AtomicInteger smallestEpoch = new AtomicInteger(Integer.MAX_VALUE);
+        // take smallest epoch and collect transactions from smallest epoch.
+        transactionCommitOrder
+                .forEach((order, txId) -> {
+                    int epoch = RecordHelper.getTransactionEpoch(txId);
+                    ActiveTxnRecord record;
+                    synchronized (txnsLock) {
+                        record = activeTxns.containsKey(txId) ? activeTxns.get(txId).getObject() :
+                                ActiveTxnRecord.EMPTY;
+                    }
+                    switch (record.getTxnStatus()) {
+                        case COMMITTING:
+                            if (record.getCommitOrder() == order) {
+                                // if entry matches record's position then include it
+                                committing.put(txId, record);
+                                if (smallestEpoch.get() > epoch) {
+                                    smallestEpoch.set(epoch);
+                                }
+                            } else {
+                                toPurge.add(order);
+                            }
+                            break;
+                        case OPEN:  // do nothing
+                            break;
+                        case COMMITTED:
+                        case ABORTING:
+                        case ABORTED:
+                        case UNKNOWN:
+                            // Aborting, aborted, unknown and committed 
+                            toPurge.add(order);
+                            break;
+                    }
+                });
+        // remove all stale transactions from transactionCommitOrder 
+        toPurge.forEach(transactionCommitOrder::remove);
+
+        // take smallest epoch from committing transactions. order transactions in this epoch by 
+        // ordered position
+        List<Map.Entry<UUID, ActiveTxnRecord>> list = committing.entrySet().stream().filter(x -> RecordHelper.getTransactionEpoch(x.getKey()) == smallestEpoch.get())
+                                                                .sorted(Comparator.comparing(x -> x.getValue().getCommitOrder()))
+                                                                .collect(Collectors.toList());
+
+        return CompletableFuture.completedFuture(list);
+    }
+
+    @Override
+    CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns() {
+        synchronized (txnsLock) {
+            return CompletableFuture.completedFuture(Collections.unmodifiableMap(transactionCommitOrder));
+        }
+    }
+
+    @Override
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
         synchronized (txnsLock) {
             Set<UUID> transactions = epochTxnMap.get(epoch);
             Map<UUID, VersionedMetadata<ActiveTxnRecord>> map;
             if (transactions != null) {
                 map = activeTxns.entrySet().stream().filter(x -> transactions.contains(x.getKey()))
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 map = Collections.unmodifiableMap(map);
             } else {
                 map = Collections.emptyMap();
