@@ -13,7 +13,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -44,6 +43,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -84,8 +84,7 @@ public class InMemoryStream extends PersistentStreamBase {
     @GuardedBy("txnsLock")
     private final Map<UUID, VersionedMetadata<ActiveTxnRecord>> activeTxns = new HashMap<>();
     private final AtomicLong counter = new AtomicLong();
-    @GuardedBy("txnsLock")
-    private final Map<Long, UUID> transactionCommitOrder = new HashMap<>();
+    private final ConcurrentHashMap<Long, UUID> transactionCommitOrder = new ConcurrentHashMap<>();
     @GuardedBy("txnsLock")
     private final Cache<UUID, VersionedMetadata<CompletedTxnRecord>> completedTxns;
     private final Object markersLock = new Object();
@@ -589,17 +588,13 @@ public class InMemoryStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Long> addTxnToCommitOrder(UUID txId) {
         long orderedPosition = counter.getAndIncrement();
-        synchronized (txnsLock) {
-            transactionCommitOrder.put(orderedPosition, txId);
-        }
+        transactionCommitOrder.put(orderedPosition, txId);
         return CompletableFuture.completedFuture(orderedPosition);
     }
 
     @Override
     CompletableFuture<Void> removeTxnsFromCommitOrder(List<Long> positions) {
-        synchronized (txnsLock) {
-            positions.forEach(transactionCommitOrder::remove);
-        }
+        positions.forEach(transactionCommitOrder::remove);
         return CompletableFuture.completedFuture(null);
     }
 
@@ -711,38 +706,38 @@ public class InMemoryStream extends PersistentStreamBase {
         List<Long> toPurge = new ArrayList<>();
         Map<UUID, ActiveTxnRecord> committing = new HashMap<>();
         AtomicInteger smallestEpoch = new AtomicInteger(Integer.MAX_VALUE);
-        synchronized (txnsLock) {
-            // take smallest epoch and collection transactions from smallest epoch.
-            transactionCommitOrder
-                    .forEach((order, txId) -> {
-                        int epoch = RecordHelper.getTransactionEpoch(txId);
-                        ActiveTxnRecord record = activeTxns.containsKey(txId) ? activeTxns.get(txId).getObject() :
+            // take smallest epoch and collect transactions from smallest epoch.
+        transactionCommitOrder
+                .forEach((order, txId) -> {
+                    int epoch = RecordHelper.getTransactionEpoch(txId);
+                    ActiveTxnRecord record;
+                    synchronized (txnsLock) {
+                        record = activeTxns.containsKey(txId) ? activeTxns.get(txId).getObject() :
                                 ActiveTxnRecord.EMPTY;
-
-                        switch (record.getTxnStatus()) {
-                            case COMMITTING:
-                                if (record.getCommitOrder() == order) {
-                                    // if entry matches record's position then include it
-                                    committing.put(txId, record);
-                                    if (smallestEpoch.get() > epoch) {
-                                        smallestEpoch.set(epoch);
-                                    }
-                                } else {
-                                    toPurge.add(order);
+                    }
+                    switch (record.getTxnStatus()) {
+                        case COMMITTING:
+                            if (record.getCommitOrder() == order) {
+                                // if entry matches record's position then include it
+                                committing.put(txId, record);
+                                if (smallestEpoch.get() > epoch) {
+                                    smallestEpoch.set(epoch);
                                 }
-                                break;
-                            case OPEN:  // do nothing
-                                break;
-                            case COMMITTED:
-                            case ABORTING:
-                            case ABORTED:
-                            case UNKNOWN:
-                                // Aborting, aborted, unknown and committed 
+                            } else {
                                 toPurge.add(order);
-                                break;
-                        }
-                    });
-        }
+                            }
+                            break;
+                        case OPEN:  // do nothing
+                            break;
+                        case COMMITTED:
+                        case ABORTING:
+                        case ABORTED:
+                        case UNKNOWN:
+                            // Aborting, aborted, unknown and committed 
+                            toPurge.add(order);
+                            break;
+                    }
+                });
         // remove all stale transactions from transactionCommitOrder 
         toPurge.forEach(transactionCommitOrder::remove);
 
@@ -758,7 +753,7 @@ public class InMemoryStream extends PersistentStreamBase {
     @Override
     CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns() {
         synchronized (txnsLock) {
-            return CompletableFuture.completedFuture(ImmutableMap.copyOf(transactionCommitOrder));
+            return CompletableFuture.completedFuture(Collections.unmodifiableMap(transactionCommitOrder));
         }
     }
 

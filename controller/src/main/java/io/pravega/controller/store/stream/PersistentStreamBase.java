@@ -1742,6 +1742,7 @@ public abstract class PersistentStreamBase implements Stream {
      * Similarly, there could be duplicate entries for the same transaction if retried. 
      * So the ordered list merely captures the order in which a request may have been received and is only opportunistic 
      * and makes no strong claim of its consistency with active txn record. 
+     * To summarize some key points:
      *      1. we could have duplicate entries for same transaction in commit order.
      *      2. we could have transactions that are marked for aborting added to commit order
      *      3. we could have transactions that are no longer in activeTxn list yet present in commit order. 
