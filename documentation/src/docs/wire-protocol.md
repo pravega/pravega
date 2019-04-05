@@ -45,7 +45,7 @@ The protocol is built out of the following primitive types.
 |`delegationToken`|String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
 |`RequestId`| Long| The client-generated _ID_ that identifies a client request.|
 
-More information on `ReadSegment` Request messages like `MergeSegment`, `SealSegment`, `TruncateSegment` and `DeleteSegment`, can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
+More information on `Segment` Request messages like `MergeSegment`, `SealSegment`, `TruncateSegment` and `DeleteSegment`, can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
 
 ## Segment Read - Reply
@@ -61,7 +61,7 @@ More information on `ReadSegment` Request messages like `MergeSegment`, `SealSeg
 
 The client requests to read from a particular Segment at a particular `Offset`. It then receives one or more replies in the form of `SegmentRead` messages. These contain the data they requested (assuming it exists). The server may decide transferring to the client more or less data than it was asked for, splitting that data in a suitable number of reply messages.
 
-More information on `SegmentRead` Reply messages like `SegmentIsSealed`,`SegmentIsTruncated`, `SegmentAlreadyExists`,`NoSuchSegment` and `TableSegmentNotEmpty`, can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
+More information on `Segment` Reply messages like `SegmentIsSealed`,`SegmentIsTruncated`, `SegmentAlreadyExists`,`NoSuchSegment` and `TableSegmentNotEmpty`, can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
 # Appending
 
@@ -146,8 +146,8 @@ A client can optimize its appending by specifying a large value in it's `AppendB
 | **Field**    |**Datatype**  | **Description**     |
 |-------------|----------|------|
 | `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
-|  `SegmentName`| String| |
-|  `attributeId`| UUID| |
+|  `SegmentName`| String| The Segment to retrieve the attribute from.|
+|  `attributeId`| UUID| The attribute to retrieve.|
 | `delegationToken`| String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
 
 ## SegmentAtrribute - Reply
@@ -155,9 +155,9 @@ A client can optimize its appending by specifying a large value in it's `AppendB
 | **Field**    |**Datatype**  | **Description**     |
 |-------------|----------|------|
 | `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
-| `Value`|Long||
+| `Value`|Long|The value of the attribute.|
 
-More information on other Request message like `updateSegmentAttribute` and Reply message like `SegmentAttributeUpdate` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
+More information on `SegmentAttribute` Request message like `updateSegmentAttribute` and Reply message like `SegmentAttributeUpdate` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
 # TableSegment
 
@@ -170,7 +170,7 @@ More information on other Request message like `updateSegmentAttribute` and Repl
 |`delegationToken`|String| This was added to perform _auth_. It is an opaque-to-the-client token provided by the Controller that says it's allowed to make this call.|
 |`keys`|List<TableKey>|The version of the key is always set to `io.pravega.segmentstore.contracts.tables.TableKey.NO_VERSION`.|
 
-More information on `TableSegments` and its various Request messages like `MergeTableSegments`, `SealTableSegment`, `DeleteTableSegment`, `UpdateTableEntries`, `RemoveTableKeys`, `ReadTableKeys` and `ReadTableEntries` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
+More information on `TableSegments` Request messages like `MergeTableSegments`, `SealTableSegment`, `DeleteTableSegment`, `UpdateTableEntries`, `RemoveTableKeys`, `ReadTableKeys` and `ReadTableEntries` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
 
 ## TableRead - Reply
 
@@ -178,6 +178,6 @@ More information on `TableSegments` and its various Request messages like `Merge
 |-------------|----------|------|
 | `RequestId`| Long| The client-generated _ID_ that identifies a client request.|
 | `Segment`| String| The Stream Segment that was read. |
-|`Entries`|TableEntries||
+|`Entries`|TableEntries| The entries of the Table that was read.|
 
-More information on `TableSegments` and its various Reply messages like `TableEntriesUpdated`, `TableKeysRemoved`, `TableKeysRead` and `TableEntriesRead` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
+More information on `TableSegments` Reply messages like `TableEntriesUpdated`, `TableKeysRemoved`, `TableKeysRead` and `TableEntriesRead` can be found [here](https://github.com/pravega/pravega/blob/master/shared/protocol/src/main/java/io/pravega/shared/protocol/netty/WireCommands.java).
