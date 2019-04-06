@@ -181,7 +181,7 @@ public class ReaderGroupNotificationTest {
         assertTrue(cpEvent.isCheckpoint());
         
         // Read second event and validate notification.
-        EventRead<String> event2 = reader1.readNextEvent(1000);
+        EventRead<String> event2 = reader1.readNextEvent(10000);
         assertEquals("data2", event2.getEvent());
         segmentNotifier.pollNow();
         SegmentNotification segmentNotificationPostScale = notificationResults.take();
@@ -238,15 +238,15 @@ public class ReaderGroupNotificationTest {
         EndOfDataNotifier endOfDataNotifier = (EndOfDataNotifier) readerGroup.getEndOfDataNotifier(executor);
         endOfDataNotifier.registerListener(l1);
 
-        EventRead<String> event1 = reader1.readNextEvent(1000);
+        EventRead<String> event1 = reader1.readNextEvent(10000);
         assertEquals("data1", event1.getEvent());
         EventRead<String> emptyEvent = reader1.readNextEvent(0);
         assertNull(emptyEvent.getEvent());
         assertFalse(emptyEvent.isCheckpoint());
         readerGroup.initiateCheckpoint("cp", executor);
-        EventRead<String> cpEvent = reader1.readNextEvent(1000);
+        EventRead<String> cpEvent = reader1.readNextEvent(10000);
         assertTrue(cpEvent.isCheckpoint());
-        EventRead<String> event2 = reader1.readNextEvent(1000);
+        EventRead<String> event2 = reader1.readNextEvent(10000);
         assertEquals("data2", event2.getEvent());
         emptyEvent = reader1.readNextEvent(0);
         assertNull(emptyEvent.getEvent());
@@ -255,7 +255,7 @@ public class ReaderGroupNotificationTest {
         assertNull(emptyEvent.getEvent());
         assertFalse(emptyEvent.isCheckpoint());
         readerGroup.initiateCheckpoint("cp2", executor);
-        cpEvent = reader1.readNextEvent(1000);
+        cpEvent = reader1.readNextEvent(10000);
         assertTrue(cpEvent.isCheckpoint());
         emptyEvent = reader1.readNextEvent(0);
         assertNull(emptyEvent.getEvent());

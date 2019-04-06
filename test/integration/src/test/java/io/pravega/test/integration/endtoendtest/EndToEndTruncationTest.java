@@ -375,7 +375,7 @@ public class EndToEndTruncationTest {
         groupManager.getReaderGroup("reader").initiateCheckpoint("cp2", executor);
         event = reader.readNextEvent(2000);
         assertEquals("cp2", event.getCheckpointName());
-        event = reader.readNextEvent(2000);
+        event = reader.readNextEvent(10000);
         assertEquals("truncationTest3", event.getEvent());
     }
 
