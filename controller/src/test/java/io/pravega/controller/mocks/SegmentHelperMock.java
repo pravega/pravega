@@ -9,83 +9,86 @@
  */
 package io.pravega.controller.mocks;
 
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
+import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
+
 import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 public class SegmentHelperMock {
     private static final int SERVICE_PORT = 12345;
-
     public static SegmentHelper getSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper());
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
-                anyString(), anyString(), anyLong(), any());
+                anyString(), anyString(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).sealSegment(
-                anyString(), anyString(), anyLong(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).deleteSegment(
-                anyString(), anyString(), anyLong(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).updatePolicy(
-                anyString(), anyString(), any(), anyLong(), any(), any(), any(), anyLong());
+                anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(true)).when(helper).truncateSegment(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
-                anyString(), anyString(), anyLong(), any(), any(), anyString());
+                anyString(), anyString(), anyLong(), anyString());
 
         return helper;
     }
 
     public static SegmentHelper getFailingSegmentHelperMock() {
-        SegmentHelper helper = spy(new SegmentHelper());
+        SegmentHelper helper = spy(new SegmentHelper(mock(ConnectionFactory.class), mock(HostControllerStore.class)));
 
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
-                anyString(), anyString(), anyLong(), any());
+                anyString(), anyString(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).sealSegment(
-                anyString(), anyString(), anyLong(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createSegment(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).deleteSegment(
-                anyString(), anyString(), anyLong(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyLong(), any(), anyLong());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).createTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).abortTransaction(
-                anyString(), anyString(), anyLong(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).commitTransaction(
-                anyString(), anyString(), anyLong(), anyLong(), any(), any(), any(), any());
+                anyString(), anyString(), anyLong(), anyLong(), any(), any());
 
         doReturn(Futures.failedFuture(new RuntimeException())).when(helper).updatePolicy(
-                anyString(), anyString(), any(), anyLong(), any(), any(), any(), anyLong());
+                anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
         return helper;
     }

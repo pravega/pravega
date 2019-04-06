@@ -11,7 +11,6 @@ package io.pravega.controller.task.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
@@ -20,7 +19,6 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -84,9 +82,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     protected final ScheduledExecutorService executor;
 
     private final StreamMetadataStore streamMetadataStore;
-    private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
-    private final ConnectionFactory connectionFactory;
     private final AuthHelper authHelper;
     @Getter
     @VisibleForTesting
@@ -99,20 +95,16 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     @VisibleForTesting
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                          final HostControllerStore hostControllerStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final ConnectionFactory connectionFactory,
                                           AuthHelper authHelper) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
-        this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        this.connectionFactory = connectionFactory;
         this.authHelper = authHelper;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
@@ -121,25 +113,21 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                          final HostControllerStore hostControllerStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final ConnectionFactory connectionFactory, AuthHelper authHelper) {
-        this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId, timeoutServiceConfig, null, 
-                connectionFactory, authHelper);
+                                          AuthHelper authHelper) {
+        this(streamMetadataStore, segmentHelper, executor, hostId, timeoutServiceConfig, null, authHelper);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                          final HostControllerStore hostControllerStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final ConnectionFactory connectionFactory,
                                           AuthHelper authHelper) {
-        this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId,
-                TimeoutServiceConfig.defaultConfig(), connectionFactory, authHelper);
+        this(streamMetadataStore, segmentHelper, executor, hostId,
+                TimeoutServiceConfig.defaultConfig(), authHelper);
     }
 
     protected void setReady() {
@@ -653,8 +641,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 stream,
                 segmentId,
                 txnId,
-                this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken()), executor);
+                this.retrieveDelegationToken()), executor);
     }
 
     private OperationContext getNonNullOperationContext(final String scope,

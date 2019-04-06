@@ -19,7 +19,6 @@ import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -68,7 +67,6 @@ import org.apache.commons.lang3.tuple.Pair;
 public class ControllerService {
 
     private final StreamMetadataStore streamStore;
-    private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final SegmentHelper segmentHelper;
@@ -77,11 +75,10 @@ public class ControllerService {
     private final StreamMetrics streamMetrics;
     private final TransactionMetrics transactionMetrics;
 
-    public ControllerService(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks,
+    public ControllerService(StreamMetadataStore streamStore, StreamMetadataTasks streamMetadataTasks,
                              StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
                              Executor executor, Cluster cluster) {
         this.streamStore = streamStore;
-        this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.segmentHelper = segmentHelper;
@@ -273,7 +270,7 @@ public class ControllerService {
 
         return CompletableFuture.completedFuture(
                 segmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
-                        segment.getSegmentId(), hostStore)
+                        segment.getSegmentId())
         );
     }
 

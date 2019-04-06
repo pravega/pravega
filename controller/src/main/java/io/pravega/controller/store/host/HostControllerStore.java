@@ -52,4 +52,13 @@ public interface HostControllerStore {
      */
     Host getHostForSegment(String scope, String stream, long segmentId);
 
+    /**
+     * Fetch the Host which owns the specified segment.
+     * 
+     * @param scope                         The scope of the segment
+     * @param table                         The table segment name
+     * @return                              The host which owns the supplied segment.
+     * @throws HostStoreException           On error while fetching host info from the ownership Map.
+     */
+    Host getHostForTableSegment(String scope, String table);
 }
