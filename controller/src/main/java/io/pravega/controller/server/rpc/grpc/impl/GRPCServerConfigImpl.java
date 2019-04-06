@@ -10,6 +10,7 @@
 package io.pravega.controller.server.rpc.grpc.impl;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import java.util.Optional;
@@ -60,5 +61,43 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.tokenSigningKey = tokenSigningKey;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.requestTracingEnabled = requestTracingEnabled;
+    }
+
+    @Override
+    public String toString() {
+        // Note: We don't use Lombok @ToString to automatically generate an implementation of this method,
+        // in order to avoid returning a string containing sensitive security configuration.
+
+        return new StringBuilder("GRPCServerConfigImpl(")
+
+                // Endpoint config
+                .append(String.format("port: %d, ", port))
+                .append(String.format("publishedRPCHost: %s, ",
+                        publishedRPCHost.isPresent() ? publishedRPCHost.get() : "null"))
+                .append(String.format("publishedRPCPort: %d, ",
+                        publishedRPCPort.isPresent() ? publishedRPCPort.get() : "null"))
+
+                // Auth config
+                .append(String.format("authorizationEnabled: %b, ", authorizationEnabled))
+                .append(String.format("userPasswordFile is %s, ",
+                        Strings.isNullOrEmpty(userPasswordFile) ? "unspecified" : "specified"))
+                .append(String.format("tokenSigningKey is %s, ",
+                        Strings.isNullOrEmpty(tokenSigningKey) ? "unspecified" : "specified"))
+
+                // TLS config
+                .append(String.format("tlsEnabled: %b, ", tlsEnabled))
+                .append(String.format("tlsCertFile is %s, ",
+                        Strings.isNullOrEmpty(tlsCertFile) ? "unspecified" : "specified"))
+                .append(String.format("tlsKeyFile is %s, ",
+                        Strings.isNullOrEmpty(tlsKeyFile) ? "unspecified" : "specified"))
+                .append(String.format("tlsTrustStore is %s, ",
+                        Strings.isNullOrEmpty(tlsTrustStore) ? "unspecified" : "specified"))
+
+                // Request processing config
+                .append(String.format("replyWithStackTraceOnError: %b, ", replyWithStackTraceOnError))
+                .append(String.format("requestTracingEnabled: %b", requestTracingEnabled))
+
+                .append(")")
+                .toString();
     }
 }

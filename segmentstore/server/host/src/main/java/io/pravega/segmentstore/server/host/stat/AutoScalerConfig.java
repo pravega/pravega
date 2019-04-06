@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
+import com.google.common.base.Strings;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
@@ -130,5 +131,29 @@ public class AutoScalerConfig {
 
     public static ConfigBuilder<AutoScalerConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, AutoScalerConfig::new);
+    }
+
+    @Override
+    public String toString() {
+        // Note: We don't use Lombok @ToString to automatically generate an implementation of this method,
+        // in order to avoid returning a string containing sensitive security configuration.
+
+        return new StringBuilder("AutoScalerConfig(")
+                .append(String.format("controllerUri: %s, ", (controllerUri != null) ? controllerUri.toString() : "null"))
+                .append(String.format("internalRequestStream: %s, ", internalRequestStream))
+                .append(String.format("cooldownDuration: %s, ", (cooldownDuration != null) ? cooldownDuration.toString() : "null"))
+                .append(String.format("muteDuration: %s, ", (muteDuration != null) ? muteDuration.toString() : "null"))
+                .append(String.format("cacheExpiry: %s, ", (cacheExpiry != null) ? cacheExpiry.toString() : "null"))
+                .append(String.format("cacheCleanup: %s, ", (cacheCleanup != null) ? cacheCleanup.toString() : "null"))
+                .append(String.format("tlsEnabled: %b, ", tlsEnabled))
+                .append(String.format("tlsCertFile is %s, ",
+                        Strings.isNullOrEmpty(tlsCertFile) ? "unspecified" : "specified"))
+                .append(String.format("authEnabled: %b, ", authEnabled))
+                .append(String.format("tokenSigningKey is %s, ",
+                        Strings.isNullOrEmpty(tokenSigningKey) ? "unspecified" : "specified"))
+                .append(String.format("validateHostName: %b, ", validateHostName))
+                .append(String.format("threadPoolSize: %d, ", threadPoolSize))
+                .append(")")
+                .toString();
     }
 }
