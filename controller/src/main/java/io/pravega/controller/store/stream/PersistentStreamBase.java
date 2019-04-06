@@ -1003,10 +1003,13 @@ public abstract class PersistentStreamBase implements Stream {
         final int epoch = RecordHelper.getTransactionEpoch(txnId);
         ActiveTxnRecord record = ActiveTxnRecord.builder().txnStatus(TxnStatus.OPEN).leaseExpiryTime(leaseTimestamp)
                                                 .txCreationTimestamp(current).maxExecutionExpiryTime(maxExecTimestamp)
+                                                .writerId(Optional.empty())
+                                                .commitTime(Optional.empty())
+                                                .commitOrder(Optional.empty())
                                                 .build();
         return verifyNotSealed().thenCompose(v -> createNewTransaction(epoch, txnId, record)
                 .thenApply(version -> new VersionedTransactionData(epoch, txnId, version,
-                        TxnStatus.OPEN, current, maxExecTimestamp)));
+                        TxnStatus.OPEN, current, maxExecTimestamp, "", Long.MIN_VALUE, Long.MIN_VALUE)));
     }
 
     @Override
@@ -1019,12 +1022,16 @@ public abstract class PersistentStreamBase implements Stream {
         final long creationTime = txnData.getCreationTime();
         final long maxExecutionExpiryTime = txnData.getMaxExecutionExpiryTime();
         final TxnStatus status = txnData.getStatus();
+        final String writerId = txnData.getWriterId();
+        final long commitTime = txnData.getCommitTime();
+        final long position = txnData.getPosition();
         final ActiveTxnRecord newData = new ActiveTxnRecord(creationTime, System.currentTimeMillis() + lease,
-                maxExecutionExpiryTime, status);
+                maxExecutionExpiryTime, status, writerId, commitTime, position);
         final VersionedMetadata<ActiveTxnRecord> data = new VersionedMetadata<>(newData, version);
 
         return updateActiveTx(epoch, txnId, data)
-                .thenApply(updatedVersion -> new VersionedTransactionData(epoch, txnId, updatedVersion, status, creationTime, maxExecutionExpiryTime));
+                .thenApply(updatedVersion -> new VersionedTransactionData(epoch, txnId, updatedVersion, status, creationTime, 
+                        maxExecutionExpiryTime, writerId, commitTime, position));
     }
 
     @Override
@@ -1035,7 +1042,8 @@ public abstract class PersistentStreamBase implements Stream {
                     ActiveTxnRecord activeTxnRecord = data.getObject();
                     return new VersionedTransactionData(epoch, txId, data.getVersion(),
                             activeTxnRecord.getTxnStatus(), activeTxnRecord.getTxCreationTimestamp(),
-                            activeTxnRecord.getMaxExecutionExpiryTime());
+                            activeTxnRecord.getMaxExecutionExpiryTime(), activeTxnRecord.getWriterId(), 
+                            activeTxnRecord.getCommitTime(), activeTxnRecord.getCommitOrder());
                 });
     }
 
@@ -1077,7 +1085,7 @@ public abstract class PersistentStreamBase implements Stream {
                 .exceptionally(ex -> new SimpleEntry<>(handleDataNotFoundException(ex), null))
                 .thenCompose(pair -> {
                     if (pair.getKey() == TxnStatus.UNKNOWN) {
-                        return validateCompletedTxn(txId, commit, "seal").thenApply(status -> new SimpleEntry<>(status, null));
+                        return validateCompletedTxn(txId, commit).thenApply(status -> new SimpleEntry<>(status, null));
                     } else {
                         return CompletableFuture.completedFuture(pair);
                     }
@@ -1134,15 +1142,37 @@ public abstract class PersistentStreamBase implements Stream {
     private CompletableFuture<Version> sealActiveTx(final int epoch, final UUID txId, final boolean commit,
                                                     final ActiveTxnRecord previous,
                                                     final Version version) {
-        final ActiveTxnRecord updated = new ActiveTxnRecord(previous.getTxCreationTimestamp(),
-                previous.getLeaseExpiryTime(),
-                previous.getMaxExecutionExpiryTime(),
-                commit ? TxnStatus.COMMITTING : TxnStatus.ABORTING);
-        final VersionedMetadata<ActiveTxnRecord> data = new VersionedMetadata<>(updated, version);
-        return updateActiveTx(epoch, txId, data);
+        CompletableFuture<ActiveTxnRecord> future;
+        if (commit) {
+            // if request is for commit --> add a new entry to orderer. 
+            // update record
+            if (!previous.getTxnStatus().equals(TxnStatus.COMMITTING)) {
+                future = addTxnToCommitOrder(txId)
+                        .thenApply(position -> {
+                            return new ActiveTxnRecord(previous.getTxCreationTimestamp(),
+                                    previous.getLeaseExpiryTime(),
+                                    previous.getMaxExecutionExpiryTime(),
+                                    TxnStatus.COMMITTING,
+                                    "",
+                                    Long.MIN_VALUE,
+                                    position);
+                        });
+            } else {
+                future = CompletableFuture.completedFuture(previous);
+            }
+        } else {
+            future = CompletableFuture.completedFuture(new ActiveTxnRecord(previous.getTxCreationTimestamp(),
+                    previous.getLeaseExpiryTime(),
+                    previous.getMaxExecutionExpiryTime(),
+                    TxnStatus.ABORTING));
+        }
+        return future.thenCompose(updated -> {
+            final VersionedMetadata<ActiveTxnRecord> data = new VersionedMetadata<>(updated, version);
+            return updateActiveTx(epoch, txId, data);  
+        });
     }
 
-    @Override
+    @VisibleForTesting
     public CompletableFuture<TxnStatus> commitTransaction(final UUID txId) {
         int epoch = RecordHelper.getTransactionEpoch(txId);
 
@@ -1208,7 +1238,7 @@ public abstract class PersistentStreamBase implements Stream {
         }
     }
 
-    private CompletableFuture<TxnStatus> validateCompletedTxn(UUID txId, boolean commit, String operation) {
+    private CompletableFuture<TxnStatus> validateCompletedTxn(UUID txId, boolean commit) {
         return getCompletedTxnStatus(txId).thenApply(status -> {
             if ((commit && status == TxnStatus.COMMITTED) || (!commit && status == TxnStatus.ABORTED)) {
                 return status;
@@ -1299,25 +1329,29 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     @Override
-    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions(final int epoch) {
+    public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommittingTransactions() {
         return getVersionedCommitTransactionsRecord()
                 .thenCompose(versioned -> {
                     if (versioned.getObject().equals(CommittingTransactionsRecord.EMPTY)) {
-                        return getTxnCommitList(epoch)
+                        return getOrderedCommittingTxnInLowestEpoch()
                                 .thenCompose(list -> {
                                     if (list.isEmpty()) {
                                         return CompletableFuture.completedFuture(versioned);
                                     } else {
-                                        CommittingTransactionsRecord record = 
-                                                new CommittingTransactionsRecord(epoch, list);
+                                        Map.Entry<UUID, ActiveTxnRecord> firstEntry = list.get(0);
+                                        ImmutableList.Builder<UUID> txIdList = ImmutableList.builder(); 
+                                        list.forEach(x -> txIdList.add(x.getKey()));
+                                        List<Long> positions = list.stream().map(x -> x.getValue().getCommitOrder()).collect(Collectors.toList());
+                                        int epoch = RecordHelper.getTransactionEpoch(firstEntry.getKey());
+                                        CommittingTransactionsRecord record =
+                                                new CommittingTransactionsRecord(epoch, txIdList.build());
                                         return updateCommittingTxnRecord(new VersionedMetadata<>(record, versioned.getVersion()))
-                                                .thenApply(version -> new VersionedMetadata<>(record, version));
+                                                // now that we have included transactions from positions for commit, we
+                                                // can safely remove the position references in orderer. 
+                                                .thenCompose(version -> removeTxnsFromCommitOrder(positions)
+                                                        .thenApply(v -> new VersionedMetadata<>(record, version)));
                                     }
                                 });
-                    } else if (epoch != versioned.getObject().getEpoch() ) {
-                        // check if the epoch in record matches current epoch. if not throw OperationNotAllowed
-                        throw StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED,
-                                "Transactions on different epoch are being committed");
                     } else {
                         return CompletableFuture.completedFuture(versioned);
                     }
@@ -1365,7 +1399,7 @@ public abstract class PersistentStreamBase implements Stream {
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new VersionedMetadata<>(CommittingTransactionsRecord.EMPTY,
                         record.getVersion()))));
     }
-    
+
     @Override
     public CompletableFuture<Void> createWaitingRequestIfAbsent(String processorName) {
         return createWaitingRequestNodeIfAbsent(processorName);
@@ -1701,6 +1735,23 @@ public abstract class PersistentStreamBase implements Stream {
                                                        final UUID txId,
                                                        final VersionedMetadata<ActiveTxnRecord> data);
 
+    /**
+     * This method is called for adding a transaction to committing order. 
+     * It is important to note that this method is called before marking transaction as committing in active txn record. 
+     * So retrieving a transaction from this ordered list is no guarantee that the transaction has been set to committing. 
+     * Similarly, there could be duplicate entries for the same transaction if retried. 
+     * So the ordered list merely captures the order in which a request may have been received and is only opportunistic 
+     * and makes no strong claim of its consistency with active txn record. 
+     * To summarize some key points:
+     *      1. we could have duplicate entries for same transaction in commit order.
+     *      2. we could have transactions that are marked for aborting added to commit order
+     *      3. we could have transactions that are no longer in activeTxn list yet present in commit order. 
+     * @return CompletableFuture which when completed will have transactions added to commit order
+    */
+    abstract CompletableFuture<Long> addTxnToCommitOrder(final UUID txId);
+
+    abstract CompletableFuture<Void> removeTxnsFromCommitOrder(final List<Long> positions);
+
     abstract CompletableFuture<VersionedMetadata<CompletedTxnRecord>> getCompletedTx(final UUID txId);
 
     abstract CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId);
@@ -1708,6 +1759,16 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, CompletedTxnRecord data);
     
     abstract CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch);
+
+    /**
+     * This method finds transactions to commit in lowest epoch and returns a sorted list of transaction ids, 
+     * sorted by their order of commits. 
+     * @return CompletableFuture which when completed will return ordered list of transaction ids and records.
+     */
+    abstract CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch();
+    
+    @VisibleForTesting
+    abstract CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxns();
     // endregion
 
     // region marker

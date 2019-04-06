@@ -102,7 +102,7 @@ public abstract class StreamTestBase {
     }
 
     private void rollTransactions(Stream stream, long time, int epoch, int activeEpoch, Map<Long, Long> txnSizeMap, Map<Long, Long> activeSizeMap) {
-        stream.startCommittingTransactions(epoch)
+        stream.startCommittingTransactions()
                                         .thenCompose(ctr ->
                                                 stream.getVersionedState()
                                                       .thenCompose(state -> stream.updateVersionedState(state, State.COMMITTING_TXN))
@@ -611,7 +611,7 @@ public abstract class StreamTestBase {
         List<StreamSegmentRecord> activeSegmentsBefore = stream.getActiveSegments().join();
 
         // start commit transactions
-        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions(0).join();
+        VersionedMetadata<CommittingTransactionsRecord> ctr = stream.startCommittingTransactions().join();
         stream.getVersionedState().thenCompose(s -> stream.updateVersionedState(s, State.COMMITTING_TXN)).join();
 
         // start rolling transaction
