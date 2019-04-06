@@ -53,7 +53,6 @@ import static io.pravega.shared.MetricsNames.CONTROLLER_ZK_SESSION_EXPIRATION;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
-import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM;
@@ -219,11 +218,6 @@ public class ControllerMetricsTest {
         log.info(">>>> SEAL_STREAM_LATENCY.count: " + latencyValues2.count() + ", expected: " + iterations);
         Assert.assertNotNull(latencyValues2);
         Assert.assertTrue(iterations <= latencyValues2.count());
-
-        Timer latencyValues3 = MetricRegistryUtils.getTimer(getTimerMetricName(DELETE_STREAM_LATENCY));
-        log.info(">>>> DELETE_STREAM_LATENCY.count: " + latencyValues3.count() + ", expected: " + iterations);
-        Assert.assertNotNull(latencyValues3);
-        Assert.assertTrue(iterations <= latencyValues3.count());
 
         Timer latencyValues4 = MetricRegistryUtils.getTimer(getTimerMetricName(UPDATE_STREAM_LATENCY));
         log.info(">>>> UPDATE_STREAM_LATENCY.count: " + latencyValues4.count() + ", expected: " + iterations);
