@@ -164,6 +164,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
+            log.info(serviceConfig.getGRPCServerConfig().get().toString());
+
             ClientConfig clientConfig = ClientConfig.builder()
                                                     .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
                                                                           "tls://" : "tcp://") + "localhost"))
