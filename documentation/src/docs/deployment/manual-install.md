@@ -34,12 +34,12 @@ For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache
 
 ### Bookkeeper
 
-Pravega requires **Bookkeeper 4.7.0**. At least 3 Bookkeeper servers are recommended for a quorum.
+Pravega requires **Bookkeeper 4.7.3**. At least 3 Bookkeeper servers are recommended for a quorum.
 
-This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.7.0-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.7.0//bookkeeper-server-4.7-bin.tar.gz).
+This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.7.3-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.7.3//bookkeeper-server-4.7.3-bin.tar.gz).
 
-For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/r4.7.0/bookkeeperStarted.html).
-Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.7.0` directory.
+For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/4.7.3/getting-started).
+Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.7.3` directory.
 
 #### Bookkeeper Configuration
 
