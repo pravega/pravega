@@ -18,7 +18,6 @@ import io.pravega.test.system.framework.SystemTestRunner;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -35,7 +34,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @RunWith(SystemTestRunner.class)
-@Ignore
 public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalabilityTest {
     private static final String STREAM_NAME = "metadataScalabilitySegments";
     private static final int NUM_SEGMENTS = 10000;
