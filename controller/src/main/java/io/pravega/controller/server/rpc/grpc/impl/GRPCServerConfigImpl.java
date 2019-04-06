@@ -74,7 +74,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                 .append(String.format("port: %d, ", port))
                 .append(String.format("publishedRPCHost: %s, ",
                         publishedRPCHost.isPresent() ? publishedRPCHost.get() : "null"))
-                .append(String.format("publishedRPCPort: %d, ",
+                .append(String.format("publishedRPCPort: %s, ",
                         publishedRPCPort.isPresent() ? publishedRPCPort.get() : "null"))
 
                 // Auth config
