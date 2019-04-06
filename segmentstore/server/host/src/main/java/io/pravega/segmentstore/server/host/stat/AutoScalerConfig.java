@@ -152,7 +152,7 @@ public class AutoScalerConfig {
                 .append(String.format("tokenSigningKey is %s, ",
                         Strings.isNullOrEmpty(tokenSigningKey) ? "unspecified" : "specified"))
                 .append(String.format("validateHostName: %b, ", validateHostName))
-                .append(String.format("threadPoolSize: %d, ", threadPoolSize))
+                .append(String.format("threadPoolSize: %d", threadPoolSize))
                 .append(")")
                 .toString();
     }
