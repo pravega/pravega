@@ -138,7 +138,7 @@ public class ControllerMetricsTest {
      * tests running, it might be possible that metrics get updated by other tests.
      */
     @Test(timeout = 300000)
-    public void streamMetricsTest() {
+    public void streamMetricsTest() throws Exception {
         //make unique scope to improve the test isolation.
         final String scope = "controllerMetricsTestScope" + RandomFactory.getSeed();
         final String streamName = "controllerMetricsTestStream";
@@ -205,6 +205,9 @@ public class ControllerMetricsTest {
             Counter streamDeleteCounter = MetricRegistryUtils.getCounter(getCounterMetricName(DELETE_STREAM));
             Assert.assertTrue(i + 1 <= streamDeleteCounter.count());
         }
+
+        //Give metrics some time to update count internally.
+        Thread.sleep(200);
 
         //Put assertion on different lines so it can tell more information in case of failure.
         Timer latencyValues1 = MetricRegistryUtils.getTimer(getTimerMetricName(CREATE_STREAM_LATENCY));
