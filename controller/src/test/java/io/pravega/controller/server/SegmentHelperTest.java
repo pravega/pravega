@@ -665,7 +665,7 @@ public class SegmentHelperTest {
         @Override
         public CompletableFuture<ClientConnection> establishConnection(Session session, PravegaNodeUri endpoint, ReplyProcessor rp) {
             this.rp = rp;
-            ClientConnection connection = new MockConnection(rp);
+            ClientConnection connection = new MockConnection(rp, failConnection);
             return CompletableFuture.completedFuture(connection);
         }
 
