@@ -328,7 +328,7 @@ public class ServiceConfig {
         // Note: We don't use Lombok @ToString to automatically generate an implementation of this method,
         // in order to avoid returning a string containing sensitive security configuration.
 
-        return new StringBuilder("ServiceConfig(")
+        return new StringBuilder(String.format("%s(", getClass().getSimpleName()))
                 .append(String.format("containerCount: %d, ", containerCount))
                 .append(String.format("coreThreadPoolSize: %d, ", coreThreadPoolSize))
                 .append(String.format("storageThreadPoolSize: %d, ", storageThreadPoolSize))
@@ -348,15 +348,13 @@ public class ServiceConfig {
                 .append(String.format("clusterName: %s, ", clusterName))
                 .append(String.format("dataLogTypeImplementation: %s, ", dataLogTypeImplementation.name()))
                 .append(String.format("storageImplementation: %s, ", storageImplementation.name()))
-                .append(String.format("storageImplementation: %s, ", storageImplementation.name()))
                 .append(String.format("readOnlySegmentStore: %b, ", readOnlySegmentStore))
                 .append(String.format("enableTls: %b, ", enableTls))
                 .append(String.format("certFile is %s, ",
                         Strings.isNullOrEmpty(certFile) ? "unspecified" : "specified"))
                 .append(String.format("keyFile is %s, ",
                         Strings.isNullOrEmpty(keyFile) ? "unspecified" : "specified"))
-                .append(String.format("cachePolicy is %s, ",
-                        Strings.isNullOrEmpty(keyFile) ? "unspecified" : "specified"))
+                .append(String.format("cachePolicy is %s, ", (cachePolicy != null) ? cachePolicy.toString() : "null"))
                 .append(String.format("replyWithStackTraceOnError: %b, ", replyWithStackTraceOnError))
                 .append(String.format("instanceId: %s", instanceId))
                 .append(")")
