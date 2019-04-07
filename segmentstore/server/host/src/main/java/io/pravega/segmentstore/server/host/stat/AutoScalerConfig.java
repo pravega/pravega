@@ -138,7 +138,7 @@ public class AutoScalerConfig {
         // Note: We don't use Lombok @ToString to automatically generate an implementation of this method,
         // in order to avoid returning a string containing sensitive security configuration.
 
-        return new StringBuilder("AutoScalerConfig(")
+        return new StringBuilder(String.format("%s(", getClass().getSimpleName()))
                 .append(String.format("controllerUri: %s, ", (controllerUri != null) ? controllerUri.toString() : "null"))
                 .append(String.format("internalRequestStream: %s, ", internalRequestStream))
                 .append(String.format("cooldownDuration: %s, ", (cooldownDuration != null) ? cooldownDuration.toString() : "null"))
