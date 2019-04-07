@@ -112,6 +112,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
     protected void startUp() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         log.info("Initiating controller service startUp");
+
+        log.info("Controller serviceConfig = {}", serviceConfig.toString());
         log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
         log.info("Cluster listener enabled = {}", serviceConfig.isControllerClusterListenerEnabled());
         log.info("    Host monitor enabled = {}", serviceConfig.getHostMonitorConfig().isHostMonitorEnabled());
@@ -163,8 +165,6 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Starting segment container monitor");
                 monitor.startAsync();
             }
-
-            log.info(serviceConfig.getGRPCServerConfig().get().toString());
 
             ClientConfig clientConfig = ClientConfig.builder()
                                                     .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
