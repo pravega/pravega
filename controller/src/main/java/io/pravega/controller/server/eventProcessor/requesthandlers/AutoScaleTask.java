@@ -16,8 +16,8 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -130,23 +130,23 @@ public class AutoScaleTask {
                 .thenCompose(x -> streamMetadataStore.getActiveSegments(request.getScope(), request.getStream(), context, executor))
                 .thenApply(activeSegments -> {
                     assert activeSegments != null;
-                    final Optional<Segment> currentOpt = activeSegments.stream()
+                    final Optional<StreamSegmentRecord> currentOpt = activeSegments.stream()
                             .filter(y -> y.segmentId() == request.getSegmentId()).findAny();
                     if (!currentOpt.isPresent() || activeSegments.size() == policy.getMinNumSegments()) {
                         // if we are already at min-number of segments, we cant scale down, we have put the marker,
                         // we should simply return and do nothing.
                         return null;
                     } else {
-                        final List<Segment> candidates = activeSegments.stream().filter(z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
+                        final List<StreamSegmentRecord> candidates = activeSegments.stream().filter(z -> z.getKeyEnd() == currentOpt.get().getKeyStart() ||
                                 z.getKeyStart() == currentOpt.get().getKeyEnd() || z.segmentId() == request.getSegmentId())
-                                .sorted(Comparator.comparingDouble(Segment::getKeyStart))
-                                .collect(Collectors.toList());
+                                                                                   .sorted(Comparator.comparingDouble(StreamSegmentRecord::getKeyStart))
+                                                                                   .collect(Collectors.toList());
                         return new ImmutablePair<>(candidates, activeSegments.size() - policy.getMinNumSegments());
                     }
                 })
                 .thenCompose(input -> {
                     if (input != null && input.getLeft().size() > 1) {
-                        final List<Segment> candidates = input.getLeft();
+                        final List<StreamSegmentRecord> candidates = input.getLeft();
                         final int maxScaleDownFactor = input.getRight();
 
                         // fetch their cold status for all candidates
@@ -175,8 +175,8 @@ public class AutoScaleTask {
                         });
 
                         final ArrayList<Map.Entry<Double, Double>> simpleEntries = new ArrayList<>();
-                        double min = toMerge.stream().mapToDouble(Segment::getKeyStart).min().getAsDouble();
-                        double max = toMerge.stream().mapToDouble(Segment::getKeyEnd).max().getAsDouble();
+                        double min = toMerge.stream().mapToDouble(StreamSegmentRecord::getKeyStart).min().getAsDouble();
+                        double max = toMerge.stream().mapToDouble(StreamSegmentRecord::getKeyEnd).max().getAsDouble();
                         simpleEntries.add(new AbstractMap.SimpleEntry<>(min, max));
                         final ArrayList<Long> segments = new ArrayList<>();
                         toMerge.forEach(segment -> segments.add(segment.segmentId()));

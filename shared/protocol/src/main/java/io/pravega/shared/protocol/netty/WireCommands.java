@@ -51,7 +51,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 7;
+    public static final int WIRE_VERSION = 8;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -153,6 +153,10 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final String serverStackTrace;
+        /**
+         * This represents the offset at which the segment is sealed.
+         */
+        final long offset;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -164,13 +168,15 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(serverStackTrace);
+            out.writeLong(offset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            return new SegmentIsSealed(requestId, segment, serverStackTrace);
+            long offset = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+            return new SegmentIsSealed(requestId, segment, serverStackTrace, offset);
         }
         
         @Override
@@ -186,6 +192,10 @@ public final class WireCommands {
         final String segment;
         final long startOffset;
         final String serverStackTrace;
+        /**
+         * This represents the offset at which the segment is truncated.
+         */
+        final long offset;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -198,6 +208,7 @@ public final class WireCommands {
             out.writeUTF(segment);
             out.writeLong(startOffset);
             out.writeUTF(serverStackTrace);
+            out.writeLong(offset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
@@ -205,7 +216,8 @@ public final class WireCommands {
             String segment = in.readUTF();
             long startOffset = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            return new SegmentIsTruncated(requestId, segment, startOffset, serverStackTrace);
+            long offset = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+            return new SegmentIsTruncated(requestId, segment, startOffset, serverStackTrace, offset);
         }
         
         @Override
@@ -257,6 +269,10 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final String serverStackTrace;
+        /**
+         * This represents the offset that was sent by the request.
+         */
+        final long offset;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -268,13 +284,15 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(segment);
             out.writeUTF(serverStackTrace);
+            out.writeLong(offset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String segment = in.readUTF();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            return new NoSuchSegment(requestId, segment, serverStackTrace);
+            long offset = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+            return new NoSuchSegment(requestId, segment, serverStackTrace, offset);
         }
 
         @Override
@@ -520,29 +538,34 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.APPEND_BLOCK;
         final UUID writerId;
         final ByteBuf data;
+        final long requestId;
 
-        AppendBlock(UUID writerId) {
+        AppendBlock(long requestId, UUID writerId) {
             this.writerId = writerId;
             this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
+            this.requestId = requestId;
         }
 
-        AppendBlock(UUID writerId, ByteBuf data) {
+        AppendBlock(long requestId, UUID writerId, ByteBuf data) {
             this.writerId = writerId;
             this.data = data;
+            this.requestId = requestId;
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(requestId);
             // Data not written, as it should be null.
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            byte[] data = new byte[length - 16];
+            byte[] data = new byte[length - Long.BYTES * 3];
+            long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
             in.readFully(data);
-            return new AppendBlock(writerId, wrappedBuffer(data));
+            return new AppendBlock(requestId, writerId, wrappedBuffer(data));
         }
     }
 
@@ -554,7 +577,7 @@ public final class WireCommands {
         final ByteBuf data;
         final int numEvents;
         final long lastEventNumber;
-        final long unused; // Will be used by AppendSequence:  
+        final long requestId;
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
@@ -569,10 +592,10 @@ public final class WireCommands {
             }
             out.writeInt(numEvents);
             out.writeLong(lastEventNumber);
-            out.writeLong(unused);
+            out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             int sizeOfHeaderlessAppends = in.readInt();
             int dataLength = in.readInt();
@@ -585,8 +608,8 @@ public final class WireCommands {
             }
             int numEvents = in.readInt();
             long lastEventNumber = in.readLong();
-            long unused = in.readLong();
-            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, wrappedBuffer(data), numEvents, lastEventNumber, unused);
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new AppendBlockEnd(writerId, sizeOfHeaderlessAppends, wrappedBuffer(data), numEvents, lastEventNumber, requestId);
         }
     }
 
@@ -597,7 +620,7 @@ public final class WireCommands {
         final long eventNumber;
         final long expectedOffset;
         final Event event;
-
+        final long requestId;
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
@@ -606,19 +629,21 @@ public final class WireCommands {
             out.writeLong(eventNumber);
             out.writeLong(expectedOffset);
             event.writeFields(out);
+            out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
-            Event event = Event.readFrom(in, length - 8 * 4);
-            return new ConditionalAppend(writerId, eventNumber, expectedOffset, event);
+            Event event = Event.readFrom(in, length - 8 * 5);
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId);
         }
 
         @Override
         public long getRequestId() {
-            return eventNumber;
+            return requestId;
         }
 
         @Override
@@ -662,6 +687,7 @@ public final class WireCommands {
     @Data
     public static final class DataAppended implements Reply, WireCommand {
         final WireCommandType type = WireCommandType.DATA_APPENDED;
+        final long requestId;
         final UUID writerId;
         final long eventNumber;
         final long previousEventNumber;
@@ -677,22 +703,24 @@ public final class WireCommands {
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
             out.writeLong(previousEventNumber);
+            out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
             long previousEventNumber = -1;
             if (length >= 32) {
                 previousEventNumber = in.readLong();
             }
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
 
-            return new DataAppended(writerId, offset, previousEventNumber);
+            return new DataAppended(requestId, writerId, offset, previousEventNumber);
         }
         
         @Override
         public long getRequestId() {
-            return eventNumber;
+            return requestId;
         }
     }
 
@@ -701,6 +729,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.CONDITIONAL_CHECK_FAILED;
         final UUID writerId;
         final long eventNumber;
+        final long requestId;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -712,17 +741,19 @@ public final class WireCommands {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
             out.writeLong(eventNumber);
+            out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long offset = in.readLong();
-            return new ConditionalCheckFailed(writerId, offset);
+            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new ConditionalCheckFailed(writerId, offset, requestId);
         }
 
         @Override
         public long getRequestId() {
-            return eventNumber;
+            return requestId;
         }
     }
 
@@ -733,6 +764,7 @@ public final class WireCommands {
         final long offset;
         final int suggestedLength;
         final String delegationToken;
+        final long requestId;
 
         @Override
         public void process(RequestProcessor cp) {
@@ -745,19 +777,21 @@ public final class WireCommands {
             out.writeLong(offset);
             out.writeInt(suggestedLength);
             out.writeUTF(delegationToken == null ? "" : delegationToken);
+            out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             String segment = in.readUTF();
             long offset = in.readLong();
             int suggestedLength = in.readInt();
             String delegationToken = in.readUTF();
-            return new ReadSegment(segment, offset, suggestedLength, delegationToken);
+            long requestId = in.available()  >= Long.BYTES ? in.readLong() : -1L;
+            return new ReadSegment(segment, offset, suggestedLength, delegationToken, requestId);
         }
 
         @Override
         public long getRequestId() {
-            return offset;
+            return requestId;
         }
     }
 
@@ -769,6 +803,7 @@ public final class WireCommands {
         final boolean atTail; //TODO: Is sometimes false when actual state is unknown.
         final boolean endOfSegment;
         final ByteBuffer data;
+        final long requestId;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -784,9 +819,10 @@ public final class WireCommands {
             int dataLength = data.remaining();
             out.writeInt(dataLength);
             out.write(data.array(), data.arrayOffset() + data.position(), data.remaining());
+            out.writeLong(requestId);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             String segment = in.readUTF();
             long offset = in.readLong();
             boolean atTail = in.readBoolean();
@@ -797,12 +833,13 @@ public final class WireCommands {
             }
             byte[] data = new byte[dataLength];
             in.readFully(data);
-            return new SegmentRead(segment, offset, atTail, endOfSegment, ByteBuffer.wrap(data));
+            long requestId =  in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new SegmentRead(segment, offset, atTail, endOfSegment, ByteBuffer.wrap(data), requestId);
         }
 
         @Override
         public long getRequestId() {
-            return offset;
+            return requestId;
         }
     }
 
@@ -1472,17 +1509,6 @@ public final class WireCommands {
         @Override
         public long getRequestId() {
             return -1;
-        }
-    }
-
-    @Data
-    public static final class Flush implements WireCommand {
-        final WireCommandType type = WireCommandType.KEEP_ALIVE;
-        private final int blockSize;
-
-        @Override
-        public void writeFields(DataOutput out) {
-            throw new IllegalStateException("This command is not sent over the wire.");
         }
     }
 

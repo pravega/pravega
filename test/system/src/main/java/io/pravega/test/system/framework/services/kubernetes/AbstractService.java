@@ -72,6 +72,7 @@ public abstract class AbstractService implements Service {
     static final String PRAVEGA_SEGMENTSTORE_LABEL = "pravega-segmentstore";
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
+    static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
     private static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
@@ -139,8 +140,8 @@ public abstract class AbstractService implements Service {
                 .put("curator-default-session-timeout", "10000")
                 .put("bookkeeper.bkAckQuorumSize", "3")
                 // Controller properties.
-                .put("MAX_LEASE_VALUE", "60000")
-                .put("RETENTION_FREQUENCY_MINUTES", "2")
+                .put("controller.transaction.maxLeaseValue", "60000")
+                .put("controller.retention.frequencyMinutes", "2")
                 .put("log.level", "DEBUG")
                 .build();
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
@@ -221,7 +222,7 @@ public abstract class AbstractService implements Service {
                                   .withScope("Namespaced")
                                   .withVersion(CUSTOM_RESOURCE_VERSION_PRAVEGA)
                                   .withNewSubresources()
-                                                     .withStatus(new V1beta1CustomResourceDefinitionStatus())
+                                  .withStatus(new V1beta1CustomResourceDefinitionStatus())
                                   .endSubresources()
                                   .build())
                 .build();

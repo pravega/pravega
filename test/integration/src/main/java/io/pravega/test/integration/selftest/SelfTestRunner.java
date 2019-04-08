@@ -113,9 +113,7 @@ public class SelfTestRunner {
         if (testConfig.isMetricsEnabled()) {
             b.include(MetricsConfig.builder()
                                    .with(MetricsConfig.ENABLE_STATISTICS, true)
-                                   .with(MetricsConfig.ENABLE_CSV_REPORTER, true)
-                                   .with(MetricsConfig.OUTPUT_FREQUENCY, 1)
-                                   .with(MetricsConfig.CSV_ENDPOINT, testConfig.getComponentMetricsPath("segmentstore", 0)));
+                                   .with(MetricsConfig.OUTPUT_FREQUENCY, 1));
         }
 
         return b.build();
@@ -213,6 +211,8 @@ public class SelfTestRunner {
                     new Shortcut("reads", TestConfig.READS_ENABLED),
                     new Shortcut("txnf", TestConfig.TRANSACTION_FREQUENCY),
                     new Shortcut("txnc", TestConfig.MAX_TRANSACTION_SIZE),
+                    new Shortcut("tcu", TestConfig.TABLE_CONDITIONAL_UPDATES),
+                    new Shortcut("tct", TestConfig.TABLE_CONSUMERS_PER_TABLE),
                     new Shortcut("pause", TestConfig.PAUSE_BEFORE_EXIT)));
 
             SHORTCUTS = Collections.unmodifiableMap(s);

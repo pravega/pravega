@@ -97,7 +97,8 @@ public class StreamMetaDataTests {
 
     private RESTServerConfig serverConfig;
     private RESTServer restServer;
-
+    private ConnectionFactoryImpl connectionFactory;
+    
     private final String stream1 = "stream1";
     private final String stream2 = "stream2";
     private final String stream3 = "stream3";
@@ -146,10 +147,11 @@ public class StreamMetaDataTests {
         mockControllerService = mock(ControllerService.class);
         serverConfig = RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort()).build();
         LocalController controller = new LocalController(mockControllerService, false, "");
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                        .controllerURI(URI.create("tcp://localhost"))
+                                                                                        .build());
         restServer = new RESTServer(controller, mockControllerService, authManager, serverConfig,
-                new ConnectionFactoryImpl(ClientConfig.builder()
-                                                      .controllerURI(URI.create("tcp://localhost"))
-                                                      .build()));
+                connectionFactory);
         restServer.startAsync();
         restServer.awaitRunning();
         client = ClientBuilder.newClient();
@@ -215,6 +217,7 @@ public class StreamMetaDataTests {
         client.close();
         restServer.stopAsync();
         restServer.awaitTerminated();
+        connectionFactory.close();
     }
 
     /**
@@ -526,11 +529,9 @@ public class StreamMetaDataTests {
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("List Scopes response code", 200, response.getStatus());
         assertTrue(response.bufferEntity());
-        final ScopesList scopesList1 = response.readEntity(ScopesList.class);
-        assertEquals("List count", scopesList1.getScopes().size(), 3);
-        assertEquals("List element", scopesList1.getScopes().get(0).getScopeName(), "scope1");
-        assertEquals("List element", scopesList1.getScopes().get(1).getScopeName(), "scope2");
-        assertEquals("List element", scopesList1.getScopes().get(2).getScopeName(), "scope3");
+
+        verifyScopes(response.readEntity(ScopesList.class));
+
         response.close();
 
         // Test for list scopes failure.
@@ -540,6 +541,13 @@ public class StreamMetaDataTests {
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("List Scopes response code", 500, response.getStatus());
         response.close();
+    }
+
+    protected void verifyScopes(ScopesList scopesList1) {
+        assertEquals(3, scopesList1.getScopes().size());
+        assertEquals("scope1", scopesList1.getScopes().get(0).getScopeName());
+        assertEquals("scope2", scopesList1.getScopes().get(1).getScopeName());
+        assertEquals("scope3", scopesList1.getScopes().get(2).getScopeName());
     }
 
     /**

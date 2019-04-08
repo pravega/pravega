@@ -18,10 +18,12 @@ import io.pravega.client.stream.ScalingPolicy;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.ToString;
 
 /**
  * Configuration of controller event processors.
  */
+@ToString
 @Getter
 public class ControllerEventProcessorConfigImpl implements ControllerEventProcessorConfig {
 

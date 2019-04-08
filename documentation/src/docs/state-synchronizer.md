@@ -19,7 +19,7 @@ we explore with this document.
 
 Instructions for running the sample applications can be found in the[ Pravega
 Samples
-readme](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md).
+readme](https://github.com/pravega/pravega-samples/blob/v0.5.0/pravega-client-examples/README.md).
 
 You really should be familiar with Pravega Concepts (see [Pravega
 Concepts](pravega-concepts.md)) before continuing reading this page.
@@ -44,7 +44,7 @@ concurrently read and write the shared state in a consistent fashion. 
 Before we dive into the details about how to use State Synchronizer, let's take
 a quick look at an example application that uses State Synchronizer.  We have
 provided a simple yet illustrative example of using State
-Synchronizer [here.](https://github.com/pravega/pravega-samples/tree/v0.4.0/pravega-client-examples/src/main/java/io/pravega/example/statesynchronizer)
+Synchronizer [here.](https://github.com/pravega/pravega-samples/tree/v0.5.0/pravega-client-examples/src/main/java/io/pravega/example/statesynchronizer)
 
 The example uses State Synchronizer to build an implementation of Java's Map
 data structure called SharedMap.  We use that primitive SharedMap data structure

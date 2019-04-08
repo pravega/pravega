@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework.kubernetes;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 import io.kubernetes.client.ApiCallback;
@@ -74,7 +75,7 @@ public class K8sClient {
 
     private static final int DEFAULT_TIMEOUT_MINUTES = 10; // timeout of http client.
     private static final int RETRY_MAX_DELAY_MS = 1_000; // max time between retries to check if pod has completed.
-    private static final int RETRY_COUNT = 50; // Max duration of a pod is 1 hour.
+    private static final int RETRY_COUNT = 50; // Max duration incase of an exception is around 50 * RETRY_MAX_DELAY_MS = 50 seconds.
     private static final int LOG_DOWNLOAD_RETRY_COUNT = 7;
     // Delay before starting to download the logs. The K8s api server responds with error code 400 if immediately requested for log download.
     private static final long LOG_DOWNLOAD_INIT_DELAY_MS = SECONDS.toMillis(20);
@@ -185,7 +186,6 @@ public class K8sClient {
                        });
     }
 
-
     /**
      * Method to fetch the status of all pods which match a label.
      * @param namespace Namespace on which the pod(s) reside.
@@ -193,23 +193,62 @@ public class K8sClient {
      * @param labelValue Value of the label.
      * @return Future representing the list of pod status.
      */
-    @SneakyThrows(ApiException.class)
     public CompletableFuture<List<V1PodStatus>> getStatusOfPodWithLabel(final String namespace, final String labelName, final String labelValue) {
+        return getPodsWithLabel(namespace, labelName, labelValue)
+                .thenApply(v1PodList -> {
+                    List<V1Pod> podList = v1PodList.getItems();
+                    log.debug("{} pod(s) found with label {}={}.", podList.size(), labelName, labelValue);
+                    return podList.stream().map(V1Pod::getStatus).collect(Collectors.toList());
+                });
+    }
+
+    /**
+     * Method to fetch all pods which match a label.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @param labelName Name of the label.
+     * @param labelValue Value of the label.
+     * @return Future representing the list of pod status.
+     */
+    public CompletableFuture<V1PodList> getPodsWithLabel(String namespace, String labelName, String labelValue) {
+       return getPodsWithLabels(namespace, ImmutableMap.of(labelName, labelValue));
+    }
+
+    /**
+     * Method to fetch all pods which match a set of labels.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @param labels Name of the label.
+     * @return Future representing the list of pod status.
+     */
+    @SneakyThrows(ApiException.class)
+    public CompletableFuture<V1PodList> getPodsWithLabels(String namespace, Map<String, String> labels) {
         CoreV1Api api = new CoreV1Api();
 
         // Workaround for okhttp issue, tracked by https://github.com/pravega/pravega/issues/3361
         log.debug("Current number of http interceptors {}", api.getApiClient().getHttpClient().networkInterceptors().size());
         api.getApiClient().getHttpClient().networkInterceptors().clear();
 
+        String labelSelector = labels.entrySet().stream().map(entry -> entry.getKey() + "=" + entry.getValue()).collect(Collectors.joining());
         K8AsyncCallback<V1PodList> callback = new K8AsyncCallback<>("listPods");
-        api.listNamespacedPodAsync(namespace, true, PRETTY_PRINT, null, null, labelName + "=" + labelValue, null,
+        api.listNamespacedPodAsync(namespace, PRETTY_PRINT, null, null, true, labelSelector, null,
                                    null, null, false, callback);
-        return callback.getFuture()
-                       .thenApply(v1PodList -> {
-                           List<V1Pod> podList = v1PodList.getItems();
-                           log.debug("{} pod(s) found with label {}={}.", podList.size(), labelName, labelValue);
-                           return podList.stream().map(V1Pod::getStatus).collect(Collectors.toList());
-                       });
+        return callback.getFuture();
+    }
+
+    /**
+     * Method to fetch all restarted pods which match a label.
+     * Note: This method currently supports only one container per pod.
+     * @param namespace Namespace on which the pod(s) reside.
+     * @param labelName Name of the label.
+     * @param labelValue Value of the label.
+     * @return Future representing the list of pod status.
+     */
+    public CompletableFuture<Map<String, V1ContainerStatus>> getRestartedPods(String namespace, String labelName, String labelValue) {
+        return getPodsWithLabel(namespace, labelName, labelValue)
+                     .thenApply(v1PodList -> v1PodList.getItems().stream()
+                                                      .filter(pod -> !pod.getStatus().getContainerStatuses().isEmpty() &&
+                                                              (pod.getStatus().getContainerStatuses().get(0).getRestartCount() != 0))
+                                                      .collect(Collectors.toMap(pod -> pod.getMetadata().getName(),
+                                                                                pod -> pod.getStatus().getContainerStatuses().get(0))));
     }
 
     /**
@@ -453,29 +492,24 @@ public class K8sClient {
      * @return A future which is complete once the pod completes.
      */
     public CompletableFuture<V1ContainerStateTerminated> waitUntilPodCompletes(final String namespace, final String podName) {
-
-        CompletableFuture<V1ContainerStateTerminated> future = new CompletableFuture<>();
-
-        Retry.RetryAndThrowConditionally retryConfig = retryWithBackoff
-                .retryWhen(t -> {
-                    Throwable ex = Exceptions.unwrap(t);
-                    if (ex.getCause() instanceof IOException) {
-                        log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
-                        return true;
-                    }
-                    log.error("Exception while fetching status of pod", ex);
-                    return false;
-                });
-
-        retryConfig.runInExecutor(() -> {
-            Optional<V1ContainerStateTerminated> state = createAWatchAndReturnOnTermination(namespace, podName);
-            if (state.isPresent()) {
-                future.complete(state.get());
-            } else {
-                throw new RuntimeException("Watch did not return terminated state for pod " + podName);
+        return retryWithBackoff.retryWhen(t -> {
+            Throwable ex = Exceptions.unwrap(t);
+            //Incase of an IO Exception the Kubernetes client wraps the IOException within a RuntimeException.
+            if (ex.getCause() instanceof IOException) {
+                // IOException might occur due multiple reasons, one among them is SocketTimeout exception.
+                // This is observed on long running pods.
+                log.warn("IO Exception while fetching status of pod, will attempt a retry. Details: {}", ex.getMessage());
+                return true;
             }
+            log.error("Exception while fetching status of pod", ex);
+            return false;
+        }).runAsync(() -> {
+            CompletableFuture<V1ContainerStateTerminated> future = new CompletableFuture<>();
+            V1ContainerStateTerminated state = createAWatchAndReturnOnTermination(namespace, podName)
+                    .orElseThrow(() -> new RuntimeException("Watch did not return terminated state for pod " + podName));
+            future.complete(state);
+            return future;
         }, executor);
-        return future;
     }
 
     /**

@@ -63,7 +63,8 @@ public class StreamTest {
     @Test(timeout = 10000)
     public void testZkCreateStream() throws ExecutionException, InterruptedException {
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(cli, executor);
-        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper);
+        ZkOrderedStore orderer = new ZkOrderedStore("txn", zkStoreHelper, executor);
+        ZKStream zkStream = new ZKStream("test", "test", zkStoreHelper, executor, orderer);
         testStream(zkStream);
     }
 
@@ -93,7 +94,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
 
-        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete("test", "test", streamConfig1).toBytes()).get();
+        stream.createConfigurationIfAbsent(StreamConfigurationRecord.complete("test", "test", streamConfig1)).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -102,7 +103,7 @@ public class StreamTest {
         response = stream.checkStreamExists(streamConfig2, creationTime2, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.EXISTS_CREATING, response.getStatus());
 
-        stream.createStateIfAbsent(StateRecord.builder().state(State.UNKNOWN).build().toBytes()).get();
+        stream.createStateIfAbsent(StateRecord.builder().state(State.UNKNOWN).build()).get();
 
         response = stream.checkStreamExists(streamConfig1, creationTime1, startingSegmentNumber).get();
         assertEquals(CreateStreamResponse.CreateStatus.NEW, response.getStatus());
@@ -157,7 +158,8 @@ public class StreamTest {
         store.createStream(scopeName, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(scopeName, streamName, State.ACTIVE, null, executor).get();
 
-        ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper));
+        ZkOrderedStore orderer = new ZkOrderedStore("txn", zkStoreHelper, executor);
+        ZKStream zkStream = spy(new ZKStream("test", "test", zkStoreHelper, executor, orderer));
 
         List<Map.Entry<Double, Double>> newRanges;
 

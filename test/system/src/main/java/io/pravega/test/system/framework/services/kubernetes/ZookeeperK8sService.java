@@ -163,7 +163,7 @@ public class ZookeeperK8sService extends AbstractService {
                                   .withScope("Namespaced")
                                   .withVersion(CUSTOM_RESOURCE_VERSION)
                                   .withNewSubresources()
-                                                     .withStatus(new V1beta1CustomResourceDefinitionStatus())
+                                  .withStatus(new V1beta1CustomResourceDefinitionStatus())
                                   .endSubresources()
                                   .build())
                 .build();
@@ -197,7 +197,7 @@ public class ZookeeperK8sService extends AbstractService {
 
     private V1Deployment getDeployment() {
         V1Container container = new V1ContainerBuilder().withName("zookeeper-operator")
-                                                        .withImage("pravega/zookeeper-operator:latest")
+                                                        .withImage(ZOOKEEPER_OPERATOR_IMAGE)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand("zookeeper-operator")
                                                         .withImagePullPolicy(IMAGE_PULL_POLICY)

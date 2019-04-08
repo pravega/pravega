@@ -105,6 +105,13 @@ public class ZkGarbageCollectorTest {
         Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
         gc2.fetchVersion().join();
         assertEquals(3, gc2.getLatestBatch());
+        
+        // now deliberately set the gc version for gc2 to an older value and call process. 
+        gc2.setVersion(0);
+        gc2.process().join();
+        
+        assertEquals(3, gc2.getVersion());
+        
     }
 
     private void awaitStart(ZKGarbageCollector gc) {

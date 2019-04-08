@@ -7,10 +7,10 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.controller.store.stream;
+package io.pravega.test.integration.selftest;
 
-@lombok.Data
-public class Data {
-    private final byte[] data;
-    private final Version version;
+/**
+ * Defines a modification that the SelfTester can apply to a Target (Stream/Table).
+ */
+interface ProducerUpdate {
 }
