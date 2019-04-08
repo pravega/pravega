@@ -14,8 +14,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
-import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
+import  io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -48,14 +47,14 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void send(WireCommand cmd) throws ConnectionFailedException {
-        Exceptions.checkNotClosed(closed.get(), this);
+        checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
     }
 
     @Override
     public void send(Append append) throws ConnectionFailedException {
-        Exceptions.checkNotClosed(closed.get(), this);
+        checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
         batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
@@ -63,9 +62,10 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void sendAsync(WireCommand cmd, CompletedCallback callback) {
-        Exceptions.checkNotClosed(closed.get(), this);
-        nettyHandler.setRecentMessage();
         try {
+            checkClientConnectionClosed();
+            nettyHandler.setRecentMessage();
+
             Channel channel = nettyHandler.getChannel();
             channel.writeAndFlush(cmd)
                    .addListener((Future<? super Void> f) -> {
@@ -84,10 +84,10 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
-        Exceptions.checkNotClosed(closed.get(), this);
-        nettyHandler.setRecentMessage();
         Channel ch;
         try {
+            checkClientConnectionClosed();
+            nettyHandler.setRecentMessage();
             ch = nettyHandler.getChannel();
         } catch (ConnectionFailedException e) {
             callback.complete(new ConnectionFailedException("Connection to " + connectionName + " is not established."));
@@ -111,6 +111,13 @@ public class ClientConnectionImpl implements ClientConnection {
     public void close() {
         if (!closed.getAndSet(true)) {
             nettyHandler.closeSession(this);
+        }
+    }
+
+    private void checkClientConnectionClosed() throws ConnectionFailedException {
+        if (closed.get()) {
+            log.error("ClientConnection to {} with session id {} is already closed", connectionName, session);
+            throw new ConnectionFailedException("Client connection already closed for session " + session);
         }
     }
 

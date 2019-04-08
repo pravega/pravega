@@ -352,7 +352,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              .collect(Collectors.toList());
             ClientConnection connection = state.getConnection();
             if (connection == null) {
-                log.warn("Connection setup could not be completed because connection is already failed.", writerId);
+                log.warn("Connection setup could not be completed because connection is already failed for writer {}", writerId);
                 return;
             }
             if (toRetransmit == null || toRetransmit.isEmpty()) {

@@ -30,7 +30,6 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.Session;
-import io.pravega.common.ObjectClosedException;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -217,7 +216,7 @@ public class ConnectionPoolingTest {
 
         // close a client connection, this should not close the channel.
         connection2.close();
-        assertThrows(ObjectClosedException.class, () -> connection2.send(readRequestGenerator.apply(session2.asLong())));
+        assertThrows(ConnectionFailedException.class, () -> connection2.send(readRequestGenerator.apply(session2.asLong())));
         // verify we are able to send data over connection1.
         connection1.send(readRequestGenerator.apply(session1.asLong()));
         msg = msgRead.take();
@@ -225,7 +224,7 @@ public class ConnectionPoolingTest {
 
         // close connection1
         connection1.close();
-        assertThrows(ObjectClosedException.class, () -> connection1.send(readRequestGenerator.apply(session2.asLong())));
+        assertThrows(ConnectionFailedException.class, () -> connection1.send(readRequestGenerator.apply(session2.asLong())));
 
     }
 
