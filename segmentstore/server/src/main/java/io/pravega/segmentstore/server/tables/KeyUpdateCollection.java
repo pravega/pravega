@@ -12,35 +12,49 @@ package io.pravega.segmentstore.server.tables;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
-import javax.annotation.concurrent.NotThreadSafe;
-import lombok.Getter;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.val;
 
 /**
  * Collection of Keys to their associated {@link BucketUpdate.KeyUpdate}s.
  */
-@NotThreadSafe
+@ThreadSafe
 class KeyUpdateCollection {
-    private final HashMap<HashedArray, BucketUpdate.KeyUpdate> updates = new HashMap<>();
-    /**
-     * The total number of updates processed, including duplicated keys.
-     */
-    @Getter
-    private int totalUpdateCount;
+    private final Map<HashedArray, BucketUpdate.KeyUpdate> updates = Collections.synchronizedMap(new HashMap<>());
+    private final AtomicInteger totalUpdateCount = new AtomicInteger(0);
+    private final AtomicLong lastIndexedOffset = new AtomicLong(-1L);
+    private final AtomicLong highestCopiedOffset = new AtomicLong(TableKey.NO_VERSION);
 
     /**
-     * The Segment offset before which every single byte has been indexed (i.e., the last offset of the last update).
+     * Gets a value representing the total number of updates processed, including duplicated keys.
+     * @return The total update count.
      */
-    @Getter
-    private long lastIndexedOffset = -1L;
+    int getTotalUpdateCount() {
+        return this.totalUpdateCount.get();
+    }
 
     /**
-     * The highest offset encountered that was copied over during a compaction. If no copied entry was encountered,
-     * then this will be set to {@link TableKey#NO_VERSION}.
+     * Get a value representing the Segment offset before which every single byte has been indexed (i.e., the last offset
+     * of the last update).
+     * @return The last indexed offset.
      */
-    @Getter
-    private long highestCopiedOffset = TableKey.NO_VERSION;
+    long getLastIndexedOffset() {
+        return this.lastIndexedOffset.get();
+    }
+
+    /**
+     * Gets a value representing the highest offset encountered that was copied over during a compaction.
+     * If no copied entry was encountered, then this will be set to {@link TableKey#NO_VERSION}.
+     * @return The highest copied offset.
+     */
+    long getHighestCopiedOffset() {
+        return this.highestCopiedOffset.get();
+    }
 
     /**
      * Includes the given {@link BucketUpdate.KeyUpdate} into this collection.
@@ -62,13 +76,11 @@ class KeyUpdateCollection {
         }
 
         // Update remaining counters, regardless of whether we considered this update or not.
-        this.totalUpdateCount++;
+        this.totalUpdateCount.incrementAndGet();
         long lastOffset = update.getOffset() + entryLength;
-        if (lastOffset > this.lastIndexedOffset) {
-            this.lastIndexedOffset = lastOffset;
-        }
+        this.lastIndexedOffset.updateAndGet(e -> Math.max(lastOffset, e));
         if (originalOffset >= 0) {
-            this.highestCopiedOffset = Math.max(this.highestCopiedOffset, originalOffset + entryLength);
+            this.highestCopiedOffset.updateAndGet(e -> Math.max(e, originalOffset + entryLength));
         }
     }
 
