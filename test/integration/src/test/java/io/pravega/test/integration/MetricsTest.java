@@ -96,26 +96,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
         final int servicePort = TestUtils.getAvailableListenPort();
         final int containerCount = 4;
 
-        // 1. Start ZK
-        this.zkTestServer = new TestingServerStarter().start();
-
-        // 2. Start Pravega SegmentStore service.
-        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
-
-        this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, mock(TableStore.class),
-                monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(), null, null, true);
-        this.server.startListening();
-
-        // 3. Start Pravega Controller service
-        this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                controllerPort, serviceHost, servicePort, containerCount);
-        this.controllerWrapper.awaitRunning();
-        this.controller = controllerWrapper.getController();
-
-        // 4. Start Metrics service
+        // 1. Start Metrics service
         log.info("Initializing metrics provider ...");
 
         MetricsConfig metricsConfig = MetricsConfig.builder()
@@ -127,6 +108,25 @@ public class MetricsTest extends ThreadPooledTestSuite {
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.startWithoutExporting();
         log.info("Metrics Stats provider is started");
+
+        // 2. Start ZK
+        this.zkTestServer = new TestingServerStarter().start();
+
+        // 3. Start Pravega SegmentStore service.
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
+
+        this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, mock(TableStore.class),
+                monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(), null, null, true);
+        this.server.startListening();
+
+        // 4. Start Pravega Controller service
+        this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
+                controllerPort, serviceHost, servicePort, containerCount);
+        this.controllerWrapper.awaitRunning();
+        this.controller = controllerWrapper.getController();
     }
 
     @After

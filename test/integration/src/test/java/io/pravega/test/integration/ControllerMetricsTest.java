@@ -206,9 +206,6 @@ public class ControllerMetricsTest {
             Assert.assertTrue(i + 1 <= streamDeleteCounter.count());
         }
 
-        //Give metrics some time to update count internally.
-        Thread.sleep(200);
-
         //Put assertion on different lines so it can tell more information in case of failure.
         Timer latencyValues1 = MetricRegistryUtils.getTimer(getTimerMetricName(CREATE_STREAM_LATENCY));
         Assert.assertNotNull(latencyValues1);
