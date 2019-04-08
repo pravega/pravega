@@ -26,7 +26,7 @@ You may obtain a copy of the License at
     * [Installing on a Custom Namespace with RBAC enabled](#installing-on-a-custom-namespace-with-rbac-enabled)
     * [Tier 2: Google Filestore Storage](#use-google-filestore-storage-as-tier-2)
     * [Tune Pravega Configurations](#tune-pravega-configuration)
-    * [Enable external access](#enable-external-access)
+    * [Enable External Access](#enable-external-access)
 * [Releases](#releases)
 
 ## Requirements
@@ -407,7 +407,7 @@ spec:
       metrics.statsdPort: "8125"
 ...
 ```
-### Enable external access
+### Enable External Access
 
 By default, a Pravega cluster uses `ClusterIP` services which are only accessible from within Kubernetes. However, when creating the Pravega cluster resource, you can opt to enable external access.
 
