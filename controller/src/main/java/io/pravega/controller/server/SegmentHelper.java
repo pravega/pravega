@@ -11,8 +11,8 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCountUtil;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
@@ -28,6 +28,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.TagLogger;
+
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -39,7 +40,11 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
+
 import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -52,22 +57,36 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionWrapper;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
-public class SegmentHelper {
+public class SegmentHelper implements AutoCloseable {
 
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(SegmentHelper.class));
 
     private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
 
+    private final SegmentStoreConnectionManager connectionManager;
+    private final HostControllerStore hostStore;
+    
+    public SegmentHelper(final ConnectionFactory clientCF, HostControllerStore hostStore) {
+        connectionManager = new SegmentStoreConnectionManager(clientCF);
+        this.hostStore = hostStore;
+    }
+
     public Controller.NodeUri getSegmentUri(final String scope,
                                             final String stream,
-                                            final long segmentId,
-                                            final HostControllerStore hostStore) {
+                                            final long segmentId) {
         final Host host = hostStore.getHostForSegment(scope, stream, segmentId);
+        return Controller.NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build();
+    }
+
+    public Controller.NodeUri getTableUri(final String scope,
+                                            final String stream) {
+        final Host host = hostStore.getHostForTableSegment(scope, stream);
         return Controller.NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build();
     }
 
@@ -75,13 +94,11 @@ public class SegmentHelper {
                                                     final String stream,
                                                     final long segmentId,
                                                     final ScalingPolicy policy,
-                                                    final HostControllerStore hostControllerStore,
-                                                    final ConnectionFactory clientCF,
                                                     String controllerToken,
                                                     final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.CREATE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -114,7 +131,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "CreateSegment {} threw exception", qualifiedStreamSegmentName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -129,7 +146,7 @@ public class SegmentHelper {
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(requestId, qualifiedStreamSegmentName,
                 extracted.getLeft(), extracted.getRight(), controllerToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -137,12 +154,10 @@ public class SegmentHelper {
                                                       final String stream,
                                                       final long segmentId,
                                                       final long offset,
-                                                      final HostControllerStore hostControllerStore,
-                                                      final ConnectionFactory clientCF,
                                                       String delegationToken,
                                                       final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.TRUNCATE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -177,7 +192,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "truncateSegment {} error", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -189,19 +204,17 @@ public class SegmentHelper {
         };
 
         WireCommands.TruncateSegment request = new WireCommands.TruncateSegment(requestId, qualifiedName, offset, delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<Boolean> deleteSegment(final String scope,
                                                     final String stream,
                                                     final long segmentId,
-                                                    final HostControllerStore hostControllerStore,
-                                                    final ConnectionFactory clientCF,
                                                     String delegationToken,
                                                     final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -236,7 +249,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "deleteSegment {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -248,7 +261,7 @@ public class SegmentHelper {
         };
 
         WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(requestId, qualifiedName, delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -258,8 +271,6 @@ public class SegmentHelper {
      * @param scope               stream scope
      * @param stream              stream name
      * @param segmentId           number of segment to be sealed
-     * @param hostControllerStore host controller store
-     * @param clientCF            connection factory
      * @param delegationToken     the token to be presented to segmentstore.
      * @param clientRequestId     client-generated id for end-to-end tracing
      * @return void
@@ -267,19 +278,16 @@ public class SegmentHelper {
     public CompletableFuture<Boolean> sealSegment(final String scope,
                                                   final String stream,
                                                   final long segmentId,
-                                                  final HostControllerStore hostControllerStore,
-                                                  final ConnectionFactory clientCF,
                                                   String delegationToken,
                                                   final long clientRequestId) {
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
-        return sealSegment(qualifiedName, uri, clientCF, delegationToken, requestId);
+        return sealSegment(qualifiedName, uri, delegationToken, requestId);
     }
 
     private CompletableFuture<Boolean> sealSegment(final String qualifiedName,
                                                    final Controller.NodeUri uri,
-                                                   final ConnectionFactory clientCF,
                                                    final String delegationToken,
                                                    long requestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
@@ -314,7 +322,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "sealSegment {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -326,7 +334,7 @@ public class SegmentHelper {
         };
 
         WireCommands.SealSegment request = new WireCommands.SealSegment(requestId, qualifiedName, delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -334,9 +342,8 @@ public class SegmentHelper {
                                                      final String stream,
                                                      final long segmentId,
                                                      final UUID txId,
-                                                     final HostControllerStore hostControllerStore,
-                                                     final ConnectionFactory clientCF, String delegationToken) {
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+                                                     String delegationToken) {
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
 
         final CompletableFuture<UUID> result = new CompletableFuture<>();
@@ -371,7 +378,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error("createTransaction {} failed", transactionName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -384,7 +391,7 @@ public class SegmentHelper {
 
         WireCommands.CreateSegment request = new WireCommands.CreateSegment(idGenerator.get(), transactionName,
                 WireCommands.CreateSegment.NO_SCALE, 0, delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -402,10 +409,9 @@ public class SegmentHelper {
                                                           final long targetSegmentId,
                                                           final long sourceSegmentId,
                                                           final UUID txId,
-                                                          final HostControllerStore hostControllerStore,
-                                                          final ConnectionFactory clientCF, String delegationToken) {
+                                                          String delegationToken) {
         Preconditions.checkArgument(getSegmentNumber(targetSegmentId) == getSegmentNumber(sourceSegmentId));
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, sourceSegmentId);
         final String qualifiedNameTarget = getQualifiedStreamSegmentName(scope, stream, targetSegmentId);
         final String transactionName = getTransactionName(scope, stream, sourceSegmentId, txId);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
@@ -446,7 +452,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error("commitTransaction {} failed", transactionName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -460,7 +466,7 @@ public class SegmentHelper {
 
         WireCommands.MergeSegments request = new WireCommands.MergeSegments(idGenerator.get(),
                 qualifiedNameTarget, transactionName, delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -468,10 +474,9 @@ public class SegmentHelper {
                                                          final String stream,
                                                          final long segmentId,
                                                          final UUID txId,
-                                                         final HostControllerStore hostControllerStore,
-                                                         final ConnectionFactory clientCF, String delegationToken) {
+                                                         String delegationToken) {
         final String transactionName = getTransactionName(scope, stream, segmentId, txId);
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final CompletableFuture<TxnStatus> result = new CompletableFuture<>();
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
@@ -503,7 +508,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.info("abortTransaction {} failed", transactionName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -515,16 +520,15 @@ public class SegmentHelper {
         };
 
         WireCommands.DeleteSegment request = new WireCommands.DeleteSegment(idGenerator.get(), transactionName, delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<Void> updatePolicy(String scope, String stream, ScalingPolicy policy, long segmentId,
-                                                HostControllerStore hostControllerStore, ConnectionFactory clientCF,
                                                 String delegationToken, long clientRequestId) {
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final CompletableFuture<Void> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final WireCommandType type = WireCommandType.UPDATE_SEGMENT_POLICY;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -551,7 +555,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "updatePolicy {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -566,15 +570,15 @@ public class SegmentHelper {
 
         WireCommands.UpdateSegmentPolicy request = new WireCommands.UpdateSegmentPolicy(requestId,
                 qualifiedName, extracted.getLeft(), extracted.getRight(), delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
     public CompletableFuture<WireCommands.StreamSegmentInfo> getSegmentInfo(String scope, String stream, long segmentId,
-                                                                            HostControllerStore hostControllerStore, ConnectionFactory clientCF, String delegationToken) {
+                                                                            String delegationToken) {
         final CompletableFuture<WireCommands.StreamSegmentInfo> result = new CompletableFuture<>();
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId, hostControllerStore);
+        final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
 
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
@@ -600,7 +604,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error("getSegmentInfo {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -613,7 +617,7 @@ public class SegmentHelper {
 
         WireCommands.GetStreamSegmentInfo request = new WireCommands.GetStreamSegmentInfo(idGenerator.get(),
                 qualifiedName, delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -622,8 +626,6 @@ public class SegmentHelper {
      *
      * @param scope               Stream scope.
      * @param stream              Stream name.
-     * @param hostControllerStore Host controller store.
-     * @param clientCF            Client connection factory.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
@@ -632,13 +634,11 @@ public class SegmentHelper {
      */
     public CompletableFuture<Boolean> createTableSegment(final String scope,
                                                          final String stream,
-                                                         final HostControllerStore hostControllerStore,
-                                                         final ConnectionFactory clientCF,
                                                          String delegationToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
         final String qualifiedStreamSegmentName = getScopedStreamName(scope, stream);
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -671,7 +671,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "CreateTableSegment {} threw exception", qualifiedStreamSegmentName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -683,7 +683,7 @@ public class SegmentHelper {
         };
 
         WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, qualifiedStreamSegmentName, delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -693,8 +693,6 @@ public class SegmentHelper {
      * @param scope               Stream scope.
      * @param stream              Stream name.
      * @param mustBeEmpty         Flag to check if the table segment should be empty before deletion.
-     * @param hostControllerStore Host controller store.
-     * @param clientCF            Client connection factory.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will indicate the table segment deletion completed
@@ -704,12 +702,10 @@ public class SegmentHelper {
     public CompletableFuture<Boolean> deleteTableSegment(final String scope,
                                                          final String stream,
                                                          final boolean mustBeEmpty,
-                                                         final HostControllerStore hostControllerStore,
-                                                         final ConnectionFactory clientCF,
                                                          String delegationToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -750,7 +746,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "deleteTableSegment {} failed.", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -762,7 +758,7 @@ public class SegmentHelper {
         };
 
         WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, qualifiedName, mustBeEmpty, delegationToken);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -772,8 +768,6 @@ public class SegmentHelper {
      * @param scope               Stream scope.
      * @param stream              Stream name.
      * @param entries             List of {@link TableEntry}s to be updated.
-     * @param hostControllerStore Host controller store.
-     * @param clientCF            Client connection factory.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will contain the current versions of each {@link TableEntry}
@@ -783,12 +777,10 @@ public class SegmentHelper {
     public CompletableFuture<List<KeyVersion>> updateTableEntries(final String scope,
                                                                   final String stream,
                                                                   final List<TableEntry<byte[], byte[]>> entries,
-                                                                  final HostControllerStore hostControllerStore,
-                                                                  final ConnectionFactory clientCF,
                                                                   String delegationToken,
                                                                   final long clientRequestId) {
         final CompletableFuture<List<KeyVersion>> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -834,7 +826,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "updateTableEntries {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -845,16 +837,21 @@ public class SegmentHelper {
             }
         };
 
+        List<ByteBuf> buffersToRelease = new ArrayList<>();
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> wireCommandEntries = entries.stream().map(te -> {
             final WireCommands.TableKey key = convertToWireCommand(te.getKey());
-            final WireCommands.TableValue value = new WireCommands.TableValue(wrappedBuffer(te.getValue()));
+            ByteBuf valueBuffer = wrappedBuffer(te.getValue());
+            buffersToRelease.add(key.getData());
+            buffersToRelease.add(valueBuffer);
+            final WireCommands.TableValue value = new WireCommands.TableValue(valueBuffer);
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
         WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, delegationToken,
                                                                                       new WireCommands.TableEntries(wireCommandEntries));
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
-        return result;
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
+        return result
+                .whenComplete((r, e) -> release(buffersToRelease));
     }
 
     /**
@@ -863,10 +860,8 @@ public class SegmentHelper {
      * @param scope               Stream scope.
      * @param stream              Stream name.
      * @param keys                List of {@link TableKey}s to be removed. Only if all the elements in the list has version as
-     *                            {@link KeyVersion#NOT_EXISTS} then an unconditional update/removal is performed. Else an atomic conditional
+     *                            {@link KeyVersion#NO_VERSION} then an unconditional update/removal is performed. Else an atomic conditional
      *                            update (removal) is performed.
-     * @param hostControllerStore Host controller store.
-     * @param clientCF            Client connection factory.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that will complete normally when the provided keys are deleted.
@@ -876,12 +871,10 @@ public class SegmentHelper {
     public CompletableFuture<Void> removeTableKeys(final String scope,
                                                    final String stream,
                                                    final List<TableKey<byte[]>> keys,
-                                                   final HostControllerStore hostControllerStore,
-                                                   final ConnectionFactory clientCF,
                                                    String delegationToken,
                                                    final long clientRequestId) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -928,7 +921,7 @@ public class SegmentHelper {
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "removeTableKeys {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -939,11 +932,17 @@ public class SegmentHelper {
             }
         };
 
-        List<WireCommands.TableKey> keyList = keys.stream().map(this::convertToWireCommand).collect(Collectors.toList());
+        List<ByteBuf> buffersToRelease = new ArrayList<>(keys.size());
+        List<WireCommands.TableKey> keyList = keys.stream().map(x -> {
+            WireCommands.TableKey key = convertToWireCommand(x);
+            buffersToRelease.add(key.getData());
+            return key;
+        }).collect(Collectors.toList());
 
         WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, delegationToken, keyList);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
-        return result;
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
+        return result
+                .whenComplete((r, e) -> release(buffersToRelease));
     }
 
     /**
@@ -953,24 +952,19 @@ public class SegmentHelper {
      * @param stream              Stream name.
      * @param keys                List of {@link TableKey}s to be read. {@link TableKey#getVersion()} is not used
      *                            during this operation and the latest version is read.
-     * @param hostControllerStore Host controller store.
-     * @param clientCF            Client connection factory.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will contain a list of {@link TableEntry} with
-     * a value corresponding to the latest version. If the operation failed, the future will be failed with the
-     * causing exception. If the exception can be retried then the future will be failed with
-     * {@link WireCommandFailedException}.
+     * a value corresponding to the latest version. The version will be set to {@link KeyVersion#NOT_EXISTS} if the
+     * key does not exist. If the operation failed, the future will be failed with the causing exception.
      */
     public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
                                                                          final String stream,
                                                                          final List<TableKey<byte[]>> keys,
-                                                                         final HostControllerStore hostControllerStore,
-                                                                         final ConnectionFactory clientCF,
                                                                          String delegationToken,
                                                                          final long clientRequestId) {
         final CompletableFuture<List<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.READ_TABLE;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -998,28 +992,17 @@ public class SegmentHelper {
 
             @Override
             public void tableRead(WireCommands.TableRead tableRead) {
-                log.info(requestId, "readTable {} successful.", qualifiedName);
+                log.debug(requestId, "readTable {} successful.", qualifiedName);
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
-                                                                         .map(e -> {
-                                                                             WireCommands.TableKey k = e.getKey();
-                                                                             TableKey<byte[]> tableKey =
-                                                                                     new TableKeyImpl<>(getArray(k.getData()),
-                                                                                                        new KeyVersionImpl(k.getKeyVersion()));
-                                                                             return new TableEntryImpl<>(tableKey, getArray(e.getValue().getData()));
-                                                                         }).collect(Collectors.toList());
+                                                                         .map(e -> new TableEntryImpl<>(convertFromWireCommand(e.getKey()), getArray(e.getValue().getData())))
+                                                                         .collect(Collectors.toList());
                 result.complete(tableEntries);
-            }
-
-            @Override
-            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-                log.warn(requestId, "readTable request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
             }
 
             @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTable {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1030,14 +1013,18 @@ public class SegmentHelper {
             }
         };
 
+        List<ByteBuf> buffersToRelease = new ArrayList<>();
         // the version is always NO_VERSION as read returns the latest version of value.
-        List<WireCommands.TableKey> keyList = keys.stream().map(k -> new WireCommands.TableKey(wrappedBuffer(k.getKey()),
-                                                                                               WireCommands.TableKey.NO_VERSION))
-                                                  .collect(Collectors.toList());
+        List<WireCommands.TableKey> keyList = keys.stream().map(k -> {
+            ByteBuf buffer = wrappedBuffer(k.getKey());
+            buffersToRelease.add(buffer);
+            return new WireCommands.TableKey(buffer, WireCommands.TableKey.NO_VERSION);
+        }).collect(Collectors.toList());
 
         WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, delegationToken, keyList);
-        sendRequestAsync(request, replyProcessor, result, clientCF, ModelHelper.encode(uri));
-        return result;
+        sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
+        return result
+                .whenComplete((r, e) -> release(buffersToRelease));
     }
 
     /**
@@ -1046,8 +1033,6 @@ public class SegmentHelper {
      * @param stream Stream name.
      * @param suggestedKeyCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
      * @param state Last known state of the iterator.
-     * @param hostControllerStore Host Controller store.
-     * @param clientCF Client connection factory.
      * @param delegationToken The token to be presented to the segmentstore.
      * @param clientRequestId Request id.
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
@@ -1056,12 +1041,10 @@ public class SegmentHelper {
                                                                                     final String stream,
                                                                                     final int suggestedKeyCount,
                                                                                     final IteratorState state,
-                                                                                    final HostControllerStore hostControllerStore,
-                                                                                    final ConnectionFactory clientCF,
                                                                                     final String delegationToken,
                                                                                     final long clientRequestId) {
 
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -1100,15 +1083,9 @@ public class SegmentHelper {
             }
 
             @Override
-            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-                log.warn(requestId, "readTableKeys request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
-            }
-
-            @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTableKeys {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1121,7 +1098,7 @@ public class SegmentHelper {
 
         WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, delegationToken, suggestedKeyCount,
                                                                         token.toBytes());
-        sendRequestAsync(cmd, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -1132,8 +1109,6 @@ public class SegmentHelper {
      * @param stream Stream name.
      * @param suggestedEntryCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
      * @param state Last known state of the iterator.
-     * @param hostControllerStore Host Controller store.
-     * @param clientCF Client connection factory.
      * @param delegationToken The token to be presented to the segmentstore.
      * @param clientRequestId Request id.
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
@@ -1142,12 +1117,10 @@ public class SegmentHelper {
                                                                                final String stream,
                                                                                final int suggestedEntryCount,
                                                                                final IteratorState state,
-                                                                               final HostControllerStore hostControllerStore,
-                                                                               final ConnectionFactory clientCF,
                                                                                final String delegationToken,
                                                                                final long clientRequestId) {
 
-        final Controller.NodeUri uri = getSegmentUri(scope, stream, 0L, hostControllerStore);
+        final Controller.NodeUri uri = getTableUri(scope, stream);
         final String qualifiedName = getScopedStreamName(scope, stream);
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
@@ -1177,7 +1150,7 @@ public class SegmentHelper {
 
             @Override
             public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
-                log.info(requestId, "readTableEntries {} successful.", qualifiedName);
+                log.debug(requestId, "readTableEntries {} successful.", qualifiedName);
                 final IteratorState state = IteratorState.fromBytes(tableEntriesRead.getContinuationToken());
                 final List<TableEntry<byte[], byte[]>> entries =
                         tableEntriesRead.getEntries().getEntries().stream()
@@ -1191,15 +1164,9 @@ public class SegmentHelper {
             }
 
             @Override
-            public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-                log.warn(requestId, "readTableEntries request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
-                result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
-            }
-
-            @Override
             public void processingFailure(Exception error) {
                 log.error(requestId, "readTableEntries {} failed", qualifiedName, error);
-                result.completeExceptionally(error);
+                handleError(error, result, type);
             }
 
             @Override
@@ -1210,9 +1177,9 @@ public class SegmentHelper {
             }
         };
 
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, delegationToken,
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, delegationToken,
                                                                         suggestedEntryCount, token.toBytes());
-        sendRequestAsync(cmd, replyProcessor, result, clientCF, ModelHelper.encode(uri));
+        sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
 
@@ -1220,12 +1187,25 @@ public class SegmentHelper {
         final byte[] bytes = new byte[buf.readableBytes()];
         final int readerIndex = buf.readerIndex();
         buf.getBytes(readerIndex, bytes);
+        release(Collections.singleton(buf));
         return bytes;
+    }
+    
+    private void release(Collection<ByteBuf> buffers) {
+        buffers.forEach(ReferenceCountUtil::safeRelease);
+    }
+
+    private <T> void handleError(Exception error, CompletableFuture<T> result, WireCommandType type) {
+        if (Exceptions.unwrap(error) instanceof ConnectionFailedException) {
+            result.completeExceptionally(new WireCommandFailedException(error, type, WireCommandFailedException.Reason.ConnectionFailed));
+        } else {
+            result.completeExceptionally(error);
+        }
     }
 
     private WireCommands.TableKey convertToWireCommand(final TableKey<byte[]> k) {
         WireCommands.TableKey key;
-        if (k.getVersion() == null) {
+        if (k.getVersion() == null || k.getVersion() == KeyVersion.NO_VERSION) {
             // unconditional update.
             key = new WireCommands.TableKey(wrappedBuffer(k.getKey()), WireCommands.TableKey.NO_VERSION);
         } else {
@@ -1234,31 +1214,98 @@ public class SegmentHelper {
         return key;
     }
 
-    private <ResultT> void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
-                                            final CompletableFuture<ResultT> resultFuture,
-                                            final ConnectionFactory connectionFactory, final PravegaNodeUri uri) {
-        CompletableFuture<ClientConnection> connectionFuture = connectionFactory.establishConnection(uri, replyProcessor);
-        connectionFuture.whenComplete((connection, e) -> {
-            if (connection == null) {
-                resultFuture.completeExceptionally(new WireCommandFailedException(new ConnectionFailedException(e),
-                        request.getType(),
-                        WireCommandFailedException.Reason.ConnectionFailed));
-            } else {                
-                connection.sendAsync(request, cfe -> {
-                    if (cfe != null) {
-                        Throwable cause = Exceptions.unwrap(cfe);
-                        if (cause instanceof ConnectionFailedException) {
-                            resultFuture.completeExceptionally(new WireCommandFailedException(cause, request.getType(), WireCommandFailedException.Reason.ConnectionFailed));
-                        } else {
-                            resultFuture.completeExceptionally(new RuntimeException(cause));
-                        }                        
-                    }
-                });                
+    private TableKey<byte[]> convertFromWireCommand(WireCommands.TableKey k) {
+        final TableKey<byte[]> key;
+        if (k.getKeyVersion() == WireCommands.TableKey.NOT_EXISTS) {
+            key = new TableKeyImpl<>(getArray(k.getData()), KeyVersion.NOT_EXISTS);
+        } else {
+            key = new TableKeyImpl<>(getArray(k.getData()), new KeyVersionImpl(k.getKeyVersion()));
+        }
+        return key;
+    }
+
+    /**
+     * This method takes a new connection from the pool and associates replyProcessor with that connection and sends 
+     * the supplied request over that connection. 
+     * It takes a resultFuture that is completed when the response from the store is processed successfully. 
+     * If there is a failure in establishing connection or sending the request over the wire, 
+     * the resultFuture is completedExceptionally explicitly by this method. Otherwise, it simply registers a callback
+     * on result future's completion to return the connection back to the pool. 
+     * @param request request to send.
+     * @param replyProcessor reply processor to associate with the connection.
+     * @param resultFuture A future that when completed signals completion of request processing, either via 
+     *                     recieving a response from segment store or a failure (to send the request/receive a response).  
+     * @param uri segment store uri where the request needs to be sent.
+     */
+    private void sendRequestAsync(final WireCommand request, final ReplyProcessor replyProcessor,
+                                            final CompletableFuture<?> resultFuture,
+                                            final PravegaNodeUri uri) {
+        try {
+            // get connection for the segment store node from the connectionManager. 
+            // take a new connection from the connection manager
+            CompletableFuture<ConnectionWrapper> connectionFuture = connectionManager.getConnection(uri, replyProcessor);
+            connectionFuture.whenComplete((connection, e) -> connectionCompleteCallback(request, resultFuture, connection, e));
+            resultFuture.whenComplete((result, e) -> requestCompleteCallback(connectionFuture, e));
+        } catch (Exception e) {
+            resultFuture.completeExceptionally(e);
+        }
+    }
+
+    /**
+     * Connection completion callback method. This is invoked when the future returned by the connection pool completes.
+     * If it succeeded, we will have a connection object where send the request. 
+     * If it failed, the resultFuture is failed with ConnectionFailedException. 
+     * @param request request to send over to segment store.
+     * @param resultFuture Future to complete in case of a connection failure. This future is completed in the reply 
+     *                     processor in successful case.  
+     * @param connection Connection object received upon successful completion of future from the request for new 
+     *                   connection from the pool. 
+     * @param e Exception, if any, thrown from attempting to get a new connection.  
+     */
+    private  void connectionCompleteCallback(WireCommand request, CompletableFuture<?> resultFuture,
+                                             ConnectionWrapper connection, Throwable e) {
+        if (connection == null || e != null) {
+            ConnectionFailedException cause = e != null ? new ConnectionFailedException(e) : new ConnectionFailedException();
+            resultFuture.completeExceptionally(new WireCommandFailedException(cause,
+                    request.getType(),
+                    WireCommandFailedException.Reason.ConnectionFailed));
+        } else {                
+            connection.sendAsync(request, resultFuture);
+        }
+    }
+
+    /**
+     * Request Complete callback is invoked when the request is complete, either by sending and receiving a response from 
+     * segment store or by way of failure of connection. 
+     * This is responsible for returning the connection back to the connection pool. 
+     * @param connectionFuture conection future that when completed successfully holds the connection object taken from the pool. 
+     * @param e Exception, if any, thrown from the request processing. 
+     */
+    private void requestCompleteCallback(CompletableFuture<ConnectionWrapper> connectionFuture, 
+                                         Throwable e) {
+        // when processing completes, return the connection back to connection manager asynchronously.
+        // Note: If result future is complete, connectionFuture is definitely complete. if connectionFuture had failed,
+        // we would not have received a connection object anyway. 
+        if (e != null) {
+            Throwable unwrap = Exceptions.unwrap(e);
+            if (hasConnectionFailed(unwrap)) {
+                connectionFuture.thenAccept(connectionObject -> {
+                    connectionObject.failConnection();
+                    connectionObject.close();
+                });
+            } else {
+                connectionFuture.thenAccept(ConnectionWrapper::close);
             }
-        });
-        resultFuture.whenComplete((result, e) -> {
-            connectionFuture.thenAccept(ClientConnection::close);
-        });
+        } else {
+            connectionFuture.thenAccept(ConnectionWrapper::close);
+        }
+    }
+
+    private boolean hasConnectionFailed(Throwable unwrap) {
+        return unwrap instanceof WireCommandFailedException &&
+                (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed) ||
+                        (((WireCommandFailedException) unwrap).getReason().equals(WireCommandFailedException.Reason.ConnectionDropped))
+                );
     }
 
     private Pair<Byte, Integer> extractFromPolicy(ScalingPolicy policy) {
@@ -1277,5 +1324,10 @@ public class SegmentHelper {
         }
 
         return new ImmutablePair<>(rateType, desiredRate);
+    }
+
+    @Override
+    public void close() {
+        connectionManager.close();
     }
 }

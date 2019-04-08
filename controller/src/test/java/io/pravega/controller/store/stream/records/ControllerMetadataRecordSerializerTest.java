@@ -9,6 +9,9 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
@@ -35,7 +38,8 @@ public class ControllerMetadataRecordSerializerTest {
     @Test
     public void commitTransactionsRecordTest() {
         List<UUID> list = Lists.newArrayList(UUID.randomUUID(), UUID.randomUUID());
-        CommittingTransactionsRecord commitTransactionsRecord = CommittingTransactionsRecord.builder().epoch(0).transactionsToCommit(list).build();
+        CommittingTransactionsRecord commitTransactionsRecord = 
+                new CommittingTransactionsRecord(0, ImmutableList.copyOf(list));
         assertEquals(CommittingTransactionsRecord.fromBytes(commitTransactionsRecord.toBytes()), commitTransactionsRecord);
         CommittingTransactionsRecord updated = commitTransactionsRecord.createRollingTxnRecord(10);
         assertNotEquals(CommittingTransactionsRecord.fromBytes(updated.toBytes()), commitTransactionsRecord);
@@ -45,7 +49,7 @@ public class ControllerMetadataRecordSerializerTest {
     @Test
     public void epochRecordTest() {
         List<StreamSegmentRecord> list = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(1, 0, 10L, 0.0, 1.0));
-        EpochRecord record = EpochRecord.builder().epoch(10).referenceEpoch(0).creationTime(10L).segments(list).build();
+        EpochRecord record = new EpochRecord(10, 0, ImmutableList.copyOf(list), 10L);
         assertEquals(EpochRecord.fromBytes(record.toBytes()), record);
     }
     
@@ -53,32 +57,28 @@ public class ControllerMetadataRecordSerializerTest {
     public void historyTimeSeriesTest() {
         List<StreamSegmentRecord> sealedSegments = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(0, 0, 0L, 0.0, 1.0));
         List<StreamSegmentRecord> newSegments = Lists.newArrayList(StreamSegmentRecord.newSegmentRecord(0, 0, 0L, 0.0, 1.0));
-        HistoryTimeSeriesRecord node = HistoryTimeSeriesRecord.builder().epoch(0).creationTime(0L).referenceEpoch(0)
-                                                              .segmentsCreated(newSegments).segmentsSealed(sealedSegments)
-                                                              .build();
+        HistoryTimeSeriesRecord node = new HistoryTimeSeriesRecord(0, 0, ImmutableList.copyOf(sealedSegments),
+                ImmutableList.copyOf(newSegments), 0L);
 
         assertEquals(HistoryTimeSeriesRecord.fromBytes(node.toBytes()), node);
 
-        HistoryTimeSeries timeSeries = HistoryTimeSeries.builder().historyRecords(Lists.newArrayList(node)).build();
+        HistoryTimeSeries timeSeries = new HistoryTimeSeries(ImmutableList.of(node));
         assertEquals(HistoryTimeSeries.fromBytes(timeSeries.toBytes()), timeSeries);
 
         HistoryTimeSeries newTimeSeries = HistoryTimeSeries.addHistoryRecord(timeSeries, node);
         assertEquals(newTimeSeries, timeSeries);
 
         AssertExtensions.assertThrows(IllegalArgumentException.class, 
-                () -> HistoryTimeSeriesRecord.builder().epoch(1).creationTime(1L).referenceEpoch(0)
-                               .segmentsCreated(newSegments).segmentsSealed(sealedSegments)
-                               .build());
+                () -> new HistoryTimeSeriesRecord(1, 0, ImmutableList.copyOf(sealedSegments), 
+                        ImmutableList.copyOf(newSegments), 1L));
         
-        HistoryTimeSeriesRecord node2 = HistoryTimeSeriesRecord.builder().epoch(1).creationTime(1L).referenceEpoch(0)
-                                                               .build();
+        HistoryTimeSeriesRecord node2 = new HistoryTimeSeriesRecord(1, 0, 1L);
 
         newTimeSeries = HistoryTimeSeries.addHistoryRecord(timeSeries, node2);
         assertEquals(newTimeSeries.getLatestRecord(), node2);
 
-        HistoryTimeSeriesRecord node3 = HistoryTimeSeriesRecord.builder().epoch(4).creationTime(1L).referenceEpoch(4)
-                                                               .segmentsCreated(newSegments).segmentsSealed(sealedSegments)
-                                                               .build();
+        HistoryTimeSeriesRecord node3 = new HistoryTimeSeriesRecord(4, 4,
+                ImmutableList.copyOf(sealedSegments), ImmutableList.copyOf(newSegments), 1L);
 
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> HistoryTimeSeries.addHistoryRecord(timeSeries, node3));
     }
@@ -88,7 +88,7 @@ public class ControllerMetadataRecordSerializerTest {
         StreamCutReferenceRecord record = StreamCutReferenceRecord.builder().recordingSize(0L).recordingTime(10L).build();
         assertEquals(StreamCutReferenceRecord.fromBytes(record.toBytes()), record);
 
-        RetentionSet set = RetentionSet.builder().retentionRecords(Lists.newArrayList(record)).build();
+        RetentionSet set = new RetentionSet(ImmutableList.of(record));
         assertEquals(RetentionSet.fromBytes(set.toBytes()), set);
     }
 
@@ -96,7 +96,7 @@ public class ControllerMetadataRecordSerializerTest {
     public void retentionStreamCutRecordTest() {
         Map<Long, Long> cut = new HashMap<>();
         cut.put(0L, 0L);
-        StreamCutRecord record = StreamCutRecord.builder().recordingSize(100L).recordingTime(10L).streamCut(cut).build();
+        StreamCutRecord record = new StreamCutRecord(10L, 100L, ImmutableMap.copyOf(cut));
         assertEquals(StreamCutRecord.fromBytes(record.toBytes()), record);
 
         assertTrue(record.getReferenceRecord().getRecordingTime() == 10L && record.getReferenceRecord().getRecordingSize() == 100L);
@@ -124,8 +124,8 @@ public class ControllerMetadataRecordSerializerTest {
         streamCut.put(0L, 0L);
         Set<Long> set = new HashSet<>();
         set.add(0L);
-        StreamTruncationRecord record = StreamTruncationRecord.builder().span(span).streamCut(streamCut).toDelete(set)
-                                                              .deletedSegments(set).updating(true).build();
+        StreamTruncationRecord record = new StreamTruncationRecord(ImmutableMap.copyOf(streamCut),
+                ImmutableMap.copyOf(span), ImmutableSet.copyOf(set), ImmutableSet.copyOf(set), 0L, true);
         assertEquals(StreamTruncationRecord.fromBytes(record.toBytes()), record);
         assertTrue(record.isUpdating());
         StreamTruncationRecord completed = StreamTruncationRecord.complete(record);

@@ -11,7 +11,6 @@ package io.pravega.controller.task.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.EventStreamClientFactory;
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.common.Exceptions;
@@ -20,15 +19,14 @@ import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.Version;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.RecordHelper;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
@@ -50,7 +48,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -77,17 +78,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     private static final int MAX_EXECUTION_TIME_MULTIPLIER = 1000;
 
-    protected EventStreamWriter<CommitEvent> commitEventEventStreamWriter;
-    protected EventStreamWriter<AbortEvent> abortEventEventStreamWriter;
-    protected String commitStreamName;
-    protected String abortStreamName;
     protected final String hostId;
     protected final ScheduledExecutorService executor;
 
     private final StreamMetadataStore streamMetadataStore;
-    private final HostControllerStore hostControllerStore;
     private final SegmentHelper segmentHelper;
-    private final ConnectionFactory connectionFactory;
     private final AuthHelper authHelper;
     @Getter
     @VisibleForTesting
@@ -95,55 +90,44 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     private volatile boolean ready;
     private final CountDownLatch readyLatch;
+    private final CompletableFuture<EventStreamWriter<CommitEvent>> commitWriterFuture;
+    private final CompletableFuture<EventStreamWriter<AbortEvent>> abortWriterFuture;
 
     @VisibleForTesting
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                          final HostControllerStore hostControllerStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final ConnectionFactory connectionFactory,
                                           AuthHelper authHelper) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
-        this.hostControllerStore = hostControllerStore;
         this.segmentHelper = segmentHelper;
-        this.connectionFactory = connectionFactory;
         this.authHelper = authHelper;
         this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig, taskCompletionQueue);
         readyLatch = new CountDownLatch(1);
+        this.commitWriterFuture = new CompletableFuture<>();
+        this.abortWriterFuture = new CompletableFuture<>();
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                          final HostControllerStore hostControllerStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final ConnectionFactory connectionFactory, AuthHelper authHelper) {
-        this.hostId = hostId;
-        this.executor = executor;
-        this.streamMetadataStore = streamMetadataStore;
-        this.hostControllerStore = hostControllerStore;
-        this.segmentHelper = segmentHelper;
-        this.connectionFactory = connectionFactory;
-        this.timeoutService = new TimerWheelTimeoutService(this, timeoutServiceConfig);
-        this.authHelper = authHelper;
-        readyLatch = new CountDownLatch(1);
+                                          AuthHelper authHelper) {
+        this(streamMetadataStore, segmentHelper, executor, hostId, timeoutServiceConfig, null, authHelper);
     }
 
     public StreamTransactionMetadataTasks(final StreamMetadataStore streamMetadataStore,
-                                          final HostControllerStore hostControllerStore,
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final ConnectionFactory connectionFactory,
                                           AuthHelper authHelper) {
-        this(streamMetadataStore, hostControllerStore, segmentHelper, executor, hostId,
-                TimeoutServiceConfig.defaultConfig(), connectionFactory, authHelper);
+        this(streamMetadataStore, segmentHelper, executor, hostId,
+                TimeoutServiceConfig.defaultConfig(), authHelper);
     }
 
     protected void setReady() {
@@ -171,33 +155,31 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param clientFactory Client factory reference.
      * @param config Controller event processor configuration.
      */
-    public Void initializeStreamWriters(final EventStreamClientFactory clientFactory,
+    @Synchronized
+    public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
                                         final ControllerEventProcessorConfig config) {
-        this.commitStreamName = config.getCommitStreamName();
-        this.commitEventEventStreamWriter = clientFactory.createEventWriter(
-                config.getCommitStreamName(),
-                ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build());
-
-        this.abortStreamName = config.getAbortStreamName();
-        this.abortEventEventStreamWriter = clientFactory.createEventWriter(
-                config.getAbortStreamName(),
-                ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
-                EventWriterConfig.builder().build());
-
+        if (!commitWriterFuture.isDone()) {
+            commitWriterFuture.complete(clientFactory.createEventWriter(
+                    config.getCommitStreamName(),
+                    ControllerEventProcessors.COMMIT_EVENT_SERIALIZER,
+                    EventWriterConfig.builder().build()));
+        }
+        if (!abortWriterFuture.isDone()) {
+            abortWriterFuture.complete(clientFactory.createEventWriter(
+                    config.getAbortStreamName(),
+                    ControllerEventProcessors.ABORT_EVENT_SERIALIZER,
+                    EventWriterConfig.builder().build()));
+        }
         this.setReady();
-        return null;
     }
 
     @VisibleForTesting
-    public Void initializeStreamWriters(final String commitStreamName, final EventStreamWriter<CommitEvent> commitWriter,
-                                        final String abortStreamName, final EventStreamWriter<AbortEvent> abortWriter) {
-        this.commitStreamName = commitStreamName;
-        this.commitEventEventStreamWriter = commitWriter;
-        this.abortStreamName = abortStreamName;
-        this.abortEventEventStreamWriter = abortWriter;
+    @Synchronized
+    public void initializeStreamWriters(final EventStreamWriter<CommitEvent> commitWriter,
+                                        final EventStreamWriter<AbortEvent> abortWriter) {
+        this.commitWriterFuture.complete(commitWriter);
+        this.abortWriterFuture.complete(abortWriter);
         this.setReady();
-        return null;
     }
 
     /**
@@ -210,14 +192,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param contextOpt         operational context
      * @return transaction id.
      */
-    public CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxn(final String scope,
+    public CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createTxn(final String scope,
                                                                                       final String stream,
                                                                                       final long lease,
                                                                                       final OperationContext contextOpt) {
-        return checkReady().thenComposeAsync(x -> {
-            final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return createTxnBody(scope, stream, lease, context);
-        }, executor);
+        final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
+        return createTxnBody(scope, stream, lease, context);
     }
 
     /**
@@ -235,10 +215,8 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                     final UUID txId,
                                                     final long lease,
                                                     final OperationContext contextOpt) {
-        return checkReady().thenComposeAsync(x -> {
-            final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return pingTxnBody(scope, stream, txId, lease, context);
-        }, executor);
+        final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
+        return pingTxnBody(scope, stream, txId, lease, context);
     }
 
     /**
@@ -256,11 +234,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                  final UUID txId,
                                                  final Version version,
                                                  final OperationContext contextOpt) {
-        return checkReady().thenComposeAsync(x -> {
-            final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context),
-                    RETRYABLE_PREDICATE, 3, executor);
-        }, executor);
+        final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
+        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, false, txId, version, context),
+                RETRYABLE_PREDICATE, 3, executor);
     }
 
     /**
@@ -274,11 +250,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      */
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final OperationContext contextOpt) {
-        return checkReady().thenComposeAsync(x -> {
-            final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-            return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, context),
-                    RETRYABLE_PREDICATE, 3, executor);
-        }, executor);
+        final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
+        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, context),
+                RETRYABLE_PREDICATE, 3, executor);
     }
 
     /**
@@ -308,7 +282,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @param ctx                 context.
      * @return                    identifier of the created txn.
      */
-    CompletableFuture<Pair<VersionedTransactionData, List<Segment>>> createTxnBody(final String scope,
+    CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createTxnBody(final String scope,
                                                                                    final String stream,
                                                                                    final long lease,
                                                                                    final OperationContext ctx) {
@@ -336,7 +310,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                             ctx, maxExecutionPeriod, txnId, addIndex);
 
                     // Step 4. Notify segment stores about new txn.
-                    CompletableFuture<List<Segment>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
+                    CompletableFuture<List<StreamSegmentRecord>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
                             streamMetadataStore.getSegmentsInEpoch(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
                     CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
@@ -349,9 +323,12 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                     return notify.whenCompleteAsync((result, ex) -> {
                         addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture);
                     }, executor).thenApplyAsync(v -> {
-                        List<Segment> segments = segmentsFuture.join().stream().map(x -> {
+                        List<StreamSegmentRecord> segments = segmentsFuture.join().stream().map(x -> {
                             long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
-                            return new Segment(generalizedSegmentId, x.getStart(), x.getKeyStart(), x.getKeyEnd());
+                            int epoch = StreamSegmentNameUtils.getEpoch(generalizedSegmentId);
+                            int segmentNumber = StreamSegmentNameUtils.getSegmentNumber(generalizedSegmentId);
+                            return StreamSegmentRecord.builder().creationEpoch(epoch).segmentNumber(segmentNumber)
+                                    .creationTime(x.getCreationTime()).keyStart(x.getKeyStart()).keyEnd(x.getKeyEnd()).build();
                         }).collect(Collectors.toList());
 
                         return new ImmutablePair<>(txnFuture.join(), segments);
@@ -613,44 +590,45 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     public CompletableFuture<Void> writeCommitEvent(CommitEvent event) {
-        return TaskStepsRetryHelper.withRetries(() -> commitEventEventStreamWriter.writeEvent(event.getKey(), event), executor);
+        return commitWriterFuture
+                .thenCompose(commitWriter -> commitWriter.writeEvent(event.getKey(), event));
     }
 
     CompletableFuture<TxnStatus> writeCommitEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
-        String key = scope + stream;
         CommitEvent event = new CommitEvent(scope, stream, epoch);
-        return TaskStepsRetryHelper.withRetries(() -> writeEvent(commitEventEventStreamWriter, commitStreamName,
-                key, event, txnId, status), executor);
+        return TaskStepsRetryHelper.withRetries(() -> writeCommitEvent(event)
+                .handle((r, e) -> {
+                    if (e != null) {
+                        log.debug("Transaction {}, failed posting commit event. Retrying...", txnId);
+                        throw new WriteFailedException(e);
+                    } else {
+                        log.debug("Transaction {} commit event posted", txnId);
+                        return status;
+                    }
+                }), executor);
+    }
+
+    public CompletableFuture<Void> writeAbortEvent(AbortEvent event) {
+        return abortWriterFuture
+                .thenCompose(abortWriter -> abortWriter.writeEvent(event.getKey(), event));
     }
 
     CompletableFuture<TxnStatus> writeAbortEvent(String scope, String stream, int epoch, UUID txnId, TxnStatus status) {
-        String key = txnId.toString();
         AbortEvent event = new AbortEvent(scope, stream, epoch, txnId);
-        return TaskStepsRetryHelper.withRetries(() -> writeEvent(abortEventEventStreamWriter, abortStreamName,
-                key, event, txnId, status), executor);
-    }
-
-    private <T> CompletableFuture<TxnStatus> writeEvent(final EventStreamWriter<T> streamWriter,
-                                                        final String streamName,
-                                                        final String key,
-                                                        final T event,
-                                                        final UUID txnId,
-                                                        final TxnStatus txnStatus) {
-        log.debug("Txn={}, state={}, sending request to {}", txnId, txnStatus, streamName);
-        return streamWriter.writeEvent(key, event)
-                .thenApplyAsync(v -> {
-                    log.debug("Transaction {}, sent request to {}", txnId, streamName);
-                    return txnStatus;
-                }, executor)
-                .exceptionally(ex -> {
-                    log.debug("Transaction {}, failed sending {} to {}. Retrying...", txnId, event.getClass()
-                            .getSimpleName(), streamName);
-                    throw new WriteFailedException(ex);
-                });
+        return TaskStepsRetryHelper.withRetries(() -> writeAbortEvent(event)
+                .handle((r, e) -> {
+                    if (e != null) {
+                        log.debug("Transaction {}, failed posting abort event. Retrying...", txnId);
+                        throw new WriteFailedException(e);
+                    } else {
+                        log.debug("Transaction {} abort event posted", txnId);
+                        return status;
+                    }
+                }), executor);
     }
 
     private CompletableFuture<Void> notifyTxnCreation(final String scope, final String stream,
-                                                      final List<Segment> segments, final UUID txnId) {
+                                                      final List<StreamSegmentRecord> segments, final UUID txnId) {
         return Futures.allOf(segments.stream()
                 .parallel()
                 .map(segment -> notifyTxnCreation(scope, stream, segment.segmentId(), txnId))
@@ -663,16 +641,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 stream,
                 segmentId,
                 txnId,
-                this.hostControllerStore,
-                this.connectionFactory, this.retrieveDelegationToken()), executor);
-    }
-
-    private CompletableFuture<Void> checkReady() {
-        if (!ready) {
-            return Futures.failedFuture(new IllegalStateException(getClass().getName() + " not yet ready"));
-        } else {
-            return CompletableFuture.completedFuture(null);
-        }
+                this.retrieveDelegationToken()), executor);
     }
 
     private OperationContext getNonNullOperationContext(final String scope,
@@ -686,14 +655,24 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     }
 
     @Override
+    @Synchronized
     public void close() throws Exception {
         timeoutService.stopAsync();
         timeoutService.awaitTerminated();
-        if (commitEventEventStreamWriter != null) {
-            commitEventEventStreamWriter.close();
+        CompletableFuture<Void> commitCloseFuture = commitWriterFuture.thenAccept(EventStreamWriter::close);
+        CompletableFuture<Void> abortCloseFuture = abortWriterFuture.thenAccept(EventStreamWriter::close);
+
+        // since we do the checks under synchronized block, we know the promise for writers cannot be completed 
+        // by anyone if we have the lock and we can simply cancel the futures.  
+        if (commitWriterFuture.isDone()) {
+            commitCloseFuture.join();
+        } else {
+            commitWriterFuture.cancel(true);
         }
-        if (abortEventEventStreamWriter != null) {
-            abortEventEventStreamWriter.close();
+        if (abortWriterFuture.isDone()) {
+            abortCloseFuture.join();
+        } else {
+            abortWriterFuture.cancel(true);
         }
     }
 }

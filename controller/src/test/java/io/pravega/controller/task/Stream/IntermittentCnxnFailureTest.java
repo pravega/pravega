@@ -10,6 +10,7 @@
 package io.pravega.controller.task.Stream;
 
 import io.pravega.client.ClientConfig;
+import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -74,7 +75,8 @@ public class IntermittentCnxnFailureTest {
 
     private SegmentHelper segmentHelperMock;
     private RequestTracker requestTracker = new RequestTracker(true);
-
+    private ConnectionFactory connectionFactory;
+    
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -87,20 +89,20 @@ public class IntermittentCnxnFailureTest {
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
-        segmentHelperMock = spy(new SegmentHelper());
+        segmentHelperMock = spy(new SegmentHelper(connectionFactory, hostStore));
 
         doReturn(Controller.NodeUri.newBuilder().setEndpoint("localhost").setPort(Config.SERVICE_PORT).build()).when(segmentHelperMock).getSegmentUri(
-                anyString(), anyString(), anyInt(), any());
+                anyString(), anyString(), anyInt());
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
 
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+                streamStore, segmentHelperMock, executor, "host", AuthHelper.getDisabledAuthHelper());
 
-        controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
+        controllerService = new ControllerService(streamStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
 
         controllerService.createScope(SCOPE).get();
@@ -112,6 +114,7 @@ public class IntermittentCnxnFailureTest {
         streamTransactionMetadataTasks.close();
         zkClient.close();
         zkServer.close();
+        connectionFactory.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -142,7 +145,7 @@ public class IntermittentCnxnFailureTest {
 
         // Mock createSegment to return success.
         doReturn(CompletableFuture.completedFuture(true)).when(segmentHelperMock).createSegment(
-                anyString(), anyString(), anyInt(), any(), any(), any(), any(), anyLong());
+                anyString(), anyString(), anyInt(), any(), any(), anyLong());
 
         AtomicBoolean result = new AtomicBoolean(false);
         Retry.withExpBackoff(10, 10, 4)

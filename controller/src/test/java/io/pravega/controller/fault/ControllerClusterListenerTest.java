@@ -131,10 +131,9 @@ public class ControllerClusterListenerTest {
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
-        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelper, executor, host.getHostId(), connectionFactory, AuthHelper.getDisabledAuthHelper());
-        txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
-                new EventStreamWriterMock<>());
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
+                segmentHelper, executor, host.getHostId(), AuthHelper.getDisabledAuthHelper());
+        txnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
         // Create ControllerClusterListener.
@@ -208,8 +207,8 @@ public class ControllerClusterListenerTest {
         ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
         // create streamtransactionmetadatatasks but dont initialize it with writers. this will not be
         // ready until writers are supplied.
-        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelper, executor, host.getHostId(), connectionFactory, AuthHelper.getDisabledAuthHelper());
+        StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
+                segmentHelper, executor, host.getHostId(), AuthHelper.getDisabledAuthHelper());
 
         TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
         // any attempt to sweep txnHost should have been ignored
@@ -278,8 +277,7 @@ public class ControllerClusterListenerTest {
         doCallRealMethod().when(txnSweeper).isReady();
 
         // Complete txn sweeper initialization by adding event writers.
-        txnTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(), "abortStream",
-                new EventStreamWriterMock<>());
+        txnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
         txnSweeper.awaitInitialization();
 
         assertTrue(Futures.await(txnSweep, 3000));

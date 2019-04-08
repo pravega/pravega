@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
+    static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     @VisibleForTesting
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
@@ -58,9 +60,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
     static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
     static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
+    
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private ZKStoreHelper storeHelper;
+    private final ZkOrderedStore orderer;
     private final Object lock;
     @GuardedBy("lock")
     private final AtomicInt96 limit;
@@ -70,6 +74,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     private volatile CompletableFuture<Void> refreshFutureRef;
 
     private final ZKGarbageCollector completedTxnGC;
+    private final Executor executor;
     
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
@@ -79,7 +84,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod) {
         super(new ZKHostIndex(client, "/hostTxnIndex", executor));
-        storeHelper = new ZKStoreHelper(client, executor);
+        this.storeHelper = new ZKStoreHelper(client, executor);
+        this.orderer = new ZkOrderedStore("txnCommitOrderer", storeHelper, executor);
         this.lock = new Object();
         this.counter = new AtomicInt96();
         this.limit = new AtomicInt96();
@@ -87,6 +93,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
+        this.executor = executor;
     }
 
     private CompletableFuture<Void> gcCompletedTxn() {
@@ -113,7 +120,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @Override
     ZKStream newStream(final String scope, final String name) {
-        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch);
+        return new ZKStream(scope, name, storeHelper, completedTxnGC::getLatestBatch, executor, orderer);
     }
 
     @Override
@@ -181,11 +188,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @VisibleForTesting
     CompletableFuture<Void> getRefreshFuture() {
         return storeHelper.createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
-                .thenCompose(v -> storeHelper.getData(COUNTER_PATH)
+                .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
                         .thenCompose(data -> {
-                            Int96 previous = Int96.fromBytes(data.getData());
+                            Int96 previous = data.getObject();
                             Int96 nextLimit = previous.add(COUNTER_RANGE);
-                            return storeHelper.setData(COUNTER_PATH, new Data(nextLimit.toBytes(), data.getVersion()))
+                            return storeHelper.setData(COUNTER_PATH, nextLimit.toBytes(), data.getVersion())
                                     .thenAccept(x -> {
                                         // Received new range, we should reset the counter and limit under the lock
                                         // and then reset refreshfutureref to null
@@ -248,10 +255,10 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @Override
     public CompletableFuture<Integer> getSafeStartingSegmentNumberFor(final String scopeName, final String streamName) {
-        return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)))
+        return storeHelper.getData(String.format(DELETED_STREAMS_PATH, getScopedStreamName(scopeName, streamName)), x -> BitConverter.readInt(x, 0))
                           .handleAsync((data, ex) -> {
                               if (ex == null) {
-                                  return BitConverter.readInt(data.getData(), 0) + 1;
+                                  return data.getObject() + 1;
                               } else if (ex instanceof StoreException.DataNotFoundException) {
                                   return 0;
                               } else {
@@ -268,7 +275,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         final String deletePath = String.format(DELETED_STREAMS_PATH, getScopedStreamName(scope, stream));
         byte[] maxSegmentNumberBytes = new byte[Integer.BYTES];
         BitConverter.writeInt(maxSegmentNumberBytes, 0, lastActiveSegment);
-        return storeHelper.getData(deletePath)
+        return storeHelper.getData(deletePath, x -> BitConverter.readInt(x, 0))
                           .exceptionally(e -> {
                               if (e instanceof StoreException.DataNotFoundException) {
                                   return null;
@@ -281,11 +288,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                               if (data == null) {
                                   return Futures.toVoid(storeHelper.createZNodeIfNotExist(deletePath, maxSegmentNumberBytes));
                               } else {
-                                  final int oldLastActiveSegment = BitConverter.readInt(data.getData(), 0);
+                                  final int oldLastActiveSegment = data.getObject();
                                   Preconditions.checkArgument(lastActiveSegment >= oldLastActiveSegment,
                                           "Old last active segment ({}) for {}/{} is higher than current one {}.",
                                           oldLastActiveSegment, scope, stream, lastActiveSegment);
-                                  return Futures.toVoid(storeHelper.setData(deletePath, new Data(maxSegmentNumberBytes, data.getVersion())));
+                                  return Futures.toVoid(storeHelper.setData(deletePath, maxSegmentNumberBytes, data.getVersion()));
                               }
                           });
     }

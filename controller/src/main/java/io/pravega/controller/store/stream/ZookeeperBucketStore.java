@@ -92,8 +92,8 @@ public class ZookeeperBucketStore implements BucketStore {
         return storeHelper.createEphemeralZNode(bucketPath, SerializationUtils.serialize(processId))
                           .thenCompose(created -> {
                               if (!created) {
-                                  return storeHelper.getData(bucketPath)
-                                                    .thenApply(data -> (SerializationUtils.deserialize(data.getData())).equals(processId));
+                                  return storeHelper.getData(bucketPath, x -> x)
+                                                    .thenApply(data -> (SerializationUtils.deserialize(data.getObject())).equals(processId));
                               } else {
                                   return CompletableFuture.completedFuture(true);
                               }

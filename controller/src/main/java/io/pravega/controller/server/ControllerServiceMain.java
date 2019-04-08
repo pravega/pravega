@@ -11,6 +11,7 @@ package io.pravega.controller.server;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.controller.metrics.ZookeeperMetrics;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.client.StoreType;
@@ -48,6 +49,8 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
     private final Monitor.Guard hasReachedStarting = new HasReachedState(ServiceState.STARTING);
     private final Monitor.Guard hasReachedPausing = new HasReachedState(ServiceState.PAUSING);
 
+    private final ZookeeperMetrics zookeeperMetrics;
+
     final class HasReachedState extends Monitor.Guard {
         private ServiceState desiredState;
 
@@ -74,6 +77,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
         this.starterFactory = starterFactory;
         this.serviceStopFuture = new CompletableFuture<>();
         this.serviceState = ServiceState.NEW;
+        this.zookeeperMetrics = new ZookeeperMetrics();
     }
 
     @Override
@@ -132,6 +136,7 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                     // Once ZK session expires or once ControllerServiceMain is externally stopped,
                     // stop ControllerServiceStarter.
                     if (sessionExpiryFuture.isDone()) {
+                        zookeeperMetrics.reportZKSessionExpiration();
                         log.info("ZK session expired");
                     }
                 } else {

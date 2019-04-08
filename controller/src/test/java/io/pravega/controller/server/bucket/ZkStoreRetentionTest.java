@@ -145,7 +145,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, 
-                hostStore, taskMetadataStore, segmentHelper, executor2, hostId, connectionFactory, AuthHelper.getDisabledAuthHelper(), 
+                taskMetadataStore, segmentHelper, executor2, hostId, AuthHelper.getDisabledAuthHelper(), 
                 requestTracker);
 
         String scope = "scope1";
