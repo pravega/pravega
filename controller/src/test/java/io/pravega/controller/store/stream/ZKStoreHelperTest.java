@@ -46,7 +46,7 @@ public class ZKStoreHelperTest {
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 100, 100, new RetryNTimes(0, 0));
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 10000, new RetryNTimes(0, 0));
         cli.start();
         zkStoreHelper = new ZKStoreHelper(cli, executor);
     }
@@ -94,6 +94,7 @@ public class ZKStoreHelperTest {
 
         Assert.assertTrue(zkStoreHelper2.createEphemeralZNode("/testEphemeral", new byte[0]).join());
         Assert.assertNotNull(zkStoreHelper2.getData("/testEphemeral", x -> x).join());
+        zkStoreHelper2.getClient().getZookeeperClient().close();
         zkStoreHelper2.getClient().close();
         // let session get expired.
         // now read the data again. Verify that node no longer exists

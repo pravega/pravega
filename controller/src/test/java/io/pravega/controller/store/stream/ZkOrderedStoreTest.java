@@ -46,7 +46,7 @@ public class ZkOrderedStoreTest {
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 100, 100, new RetryNTimes(0, 0));
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 10000, new RetryNTimes(0, 0));
         cli.start();
         zkStoreHelper = new ZKStoreHelper(cli, executor);
     }
