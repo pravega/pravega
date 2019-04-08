@@ -12,10 +12,12 @@ package io.pravega.controller.timeout;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.ToString;
 
 /**
  * Timeout service config.
  */
+@ToString
 @Getter
 public class TimeoutServiceConfig {
     private final long maxLeaseValue;

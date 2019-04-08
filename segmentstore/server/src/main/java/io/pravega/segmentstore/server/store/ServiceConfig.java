@@ -255,6 +255,7 @@ public class ServiceConfig {
 
     //endregion
 
+
     //region Constructor
 
     /**
@@ -321,6 +322,45 @@ public class ServiceConfig {
     }
 
     //endregion
+
+    @Override
+    public String toString() {
+        // Note: We don't use Lombok @ToString to automatically generate an implementation of this method,
+        // in order to avoid returning a string containing sensitive security configuration.
+
+        return new StringBuilder(String.format("%s(", getClass().getSimpleName()))
+                .append(String.format("containerCount: %d, ", containerCount))
+                .append(String.format("coreThreadPoolSize: %d, ", coreThreadPoolSize))
+                .append(String.format("storageThreadPoolSize: %d, ", storageThreadPoolSize))
+                .append(String.format("listeningPort: %d, ", listeningPort))
+                .append(String.format("listeningIPAddress: %s, ", listeningIPAddress))
+                .append(String.format("publishedPort: %d, ", publishedPort))
+                .append(String.format("publishedIPAddress: %s, ", publishedIPAddress))
+                .append(String.format("zkURL: %s, ", zkURL))
+                .append(String.format("zkRetrySleepMs: %d, ", zkRetrySleepMs))
+                .append(String.format("zkSessionTimeoutMs: %d, ", zkSessionTimeoutMs))
+                .append(String.format("zkRetryCount: %d, ", zkRetryCount))
+                .append(String.format("secureZK: %b, ", secureZK))
+                .append(String.format("zkTrustStore is %s, ",
+                        Strings.isNullOrEmpty(zkTrustStore) ? "unspecified" : "specified"))
+                .append(String.format("zkTrustStorePasswordPath is %s, ",
+                        Strings.isNullOrEmpty(zkTrustStorePasswordPath) ? "unspecified" : "specified"))
+                .append(String.format("clusterName: %s, ", clusterName))
+                .append(String.format("dataLogTypeImplementation: %s, ", dataLogTypeImplementation.name()))
+                .append(String.format("storageImplementation: %s, ", storageImplementation.name()))
+                .append(String.format("readOnlySegmentStore: %b, ", readOnlySegmentStore))
+                .append(String.format("enableTls: %b, ", enableTls))
+                .append(String.format("certFile is %s, ",
+                        Strings.isNullOrEmpty(certFile) ? "unspecified" : "specified"))
+                .append(String.format("keyFile is %s, ",
+                        Strings.isNullOrEmpty(keyFile) ? "unspecified" : "specified"))
+                .append(String.format("cachePolicy is %s, ", (cachePolicy != null) ? cachePolicy.toString() : "null"))
+                .append(String.format("replyWithStackTraceOnError: %b, ", replyWithStackTraceOnError))
+                .append(String.format("instanceId: %s", instanceId))
+                .append(")")
+                .toString();
+    }
+
 
     @SneakyThrows(UnknownHostException.class)
     private static String getHostAddress() {

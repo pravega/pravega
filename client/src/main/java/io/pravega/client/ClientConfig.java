@@ -100,9 +100,6 @@ public class ClientConfig implements Serializable {
                 controllerURI = URI.create("tcp://localhost:9090");
             }
             extractCredentials();
-            if (credentials == null) {
-                log.warn("The credentials are not specified or could not be extracted.");
-            }
             if (maxConnectionsPerSegmentStore == 0) {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTION_PER_SEGMENT_STORE;
             }
