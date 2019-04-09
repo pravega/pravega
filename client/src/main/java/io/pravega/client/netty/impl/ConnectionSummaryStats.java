@@ -40,7 +40,7 @@ public final class ConnectionSummaryStats {
     // Combiner
     public ConnectionSummaryStats combine(ConnectionSummaryStats other) {
         other.minSessionCountMap.forEach((uri, con) -> minSessionCountMap.merge(uri, con, (con1, con2) -> (con1.getSessionCount() < con2.getSessionCount()) ? con1 : con2));
-        other.connectionCountMap.forEach((uri, count) -> connectionCountMap.merge(uri, count, (count1, count2) -> count1 + count2));
+        other.connectionCountMap.forEach((uri, count) -> connectionCountMap.merge(uri, count, Integer::sum));
         return this;
     }
 

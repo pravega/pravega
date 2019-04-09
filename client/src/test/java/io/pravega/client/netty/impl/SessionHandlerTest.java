@@ -16,11 +16,13 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
 import io.pravega.client.Session;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.junit.Assert;
@@ -30,15 +32,22 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static java.lang.String.valueOf;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -141,4 +150,70 @@ public class SessionHandlerTest {
         Assert.assertTrue(Futures.isSuccessful(testFuture1));
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void createDuplicateSession() throws Exception {
+        Session session = new Session(11, 0);
+        ClientConnection connection1 = sessionHandler.createSession(session, processor);
+        sessionHandler.channelRegistered(ctx);
+        connection1.send(appendCmd);
+        // Creating a session with the same session id.
+        sessionHandler.createSession(session, processor);
+    }
+
+    @Test
+    public void testCloseSession() throws Exception {
+        sessionHandler.channelRegistered(ctx);
+        clientConnection.send(appendCmd);
+        sessionHandler.closeSession(clientConnection);
+        assertEquals(0, sessionHandler.getSessionIdReplyProcessorMap().size());
+    }
+
+    @Test
+    public void testCloseSessionHandler() throws Exception {
+        sessionHandler.channelRegistered(ctx);
+        clientConnection.send(appendCmd);
+        sessionHandler.close();
+        // verify that the Channel.close is invoked.
+        Mockito.verify(ch, times(1)).close();
+        assertThrows(ObjectClosedException.class, () -> sessionHandler.createSession(session, processor));
+        assertThrows(ObjectClosedException.class, () -> sessionHandler.createConnectionWithSessionDisabled(processor));
+    }
+
+    @Test
+    public void testCreateConnectionWithSessionDisabled() throws Exception {
+        sessionHandler = new SessionHandler("testConnection1", tracker);
+        sessionHandler.channelRegistered(ctx);
+        ClientConnection connection = sessionHandler.createConnectionWithSessionDisabled(processor);
+        connection.send(appendCmd);
+        assertThrows(IllegalStateException.class, () -> sessionHandler.createSession(session, processor));
+    }
+
+    @Test
+    public void testChannelUnregistered() throws Exception {
+        sessionHandler.channelRegistered(ctx);
+        clientConnection.send(appendCmd);
+        //simulate a connection dropped
+        sessionHandler.channelUnregistered(ctx);
+        assertFalse(sessionHandler.isConnectionEstablished());
+        assertThrows(ConnectionFailedException.class, () -> clientConnection.send(appendCmd));
+    }
+
+    @Test
+    public void testChannelReadWithHello() throws Exception {
+        WireCommands.Hello helloCmd = new WireCommands.Hello(8, 4);
+        InOrder order = inOrder(processor);
+        sessionHandler.channelRegistered(ctx);
+        sessionHandler.channelRead(ctx, helloCmd);
+        order.verify(processor, times(1)).hello(helloCmd);
+
+    }
+
+    @Test
+    public void testChannelReadDataAppended() throws Exception {
+        WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(session.asLong(), UUID.randomUUID(), 2, 1);
+        InOrder order = inOrder(processor);
+        sessionHandler.channelRegistered(ctx);
+        sessionHandler.channelRead(ctx, dataAppendedCmd);
+        order.verify(processor, times(1)).process(dataAppendedCmd);
+    }
 }

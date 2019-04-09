@@ -9,6 +9,7 @@
  */
 package io.pravega.client.netty.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -30,6 +31,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -43,6 +46,8 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AppendBatchSizeTracker batchSizeTracker;
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<Integer, ReplyProcessor> sessionIdReplyProcessorMap = new ConcurrentHashMap<>();
     private final AtomicBoolean disableSession = new AtomicBoolean(false);
 
@@ -59,9 +64,8 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
      */
     public ClientConnection createSession(final Session session, final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkState(!disableSession.get(), "Ensure sessions are enabled");
-        log.info("Creating Session: {} for Endpoint: {}. The current Channel is {}.", session.getSessionId(), connectionName,
-                 channel.get());
+        Preconditions.checkState(!disableSession.get(), "Ensure sessions are enabled.");
+        log.info("Creating Session {} for Endpoint {}. The current Channel is {}.", session.getSessionId(), connectionName, channel.get());
         if (sessionIdReplyProcessorMap.put(session.getSessionId(), rp) != null) {
             throw new IllegalArgumentException("Multiple sessions cannot be created with the same Session id " + session.getSessionId());
         }
@@ -76,9 +80,8 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
      */
     public ClientConnection createConnectionWithSessionDisabled(final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkState(!disableSession.getAndSet(true), "Sessions are disabled, incorrect usage patter");
-        log.info("Creating a new connection with session disabled for Endpoint: {}. The current Channel is {}.", connectionName,
-                 channel.get());
+        Preconditions.checkState(!disableSession.getAndSet(true), "Sessions are disabled, incorrect usage pattern.");
+        log.info("Creating a new connection with session disabled for Endpoint {}. The current Channel is {}.", connectionName, channel.get());
         sessionIdReplyProcessorMap.put(SESSION_DISABLED, rp);
         return new ClientConnectionImpl(connectionName, SESSION_DISABLED, batchSizeTracker, this);
     }
@@ -219,7 +222,6 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         public void run() {
             try {
                 if (!recentMessage.getAndSet(false)) {
-                    recentMessage.set(true);
                     Futures.getAndHandleExceptions(getChannel().writeAndFlush(new WireCommands.KeepAlive()), ConnectionFailedException::new);
                 }
             } catch (Exception e) {
