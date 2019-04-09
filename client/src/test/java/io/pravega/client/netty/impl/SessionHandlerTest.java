@@ -23,6 +23,7 @@ import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.junit.Assert;
@@ -42,6 +43,7 @@ import static java.lang.String.valueOf;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -171,7 +173,8 @@ public class SessionHandlerTest {
     @Test
     public void testCloseSessionHandler() throws Exception {
         sessionHandler.channelRegistered(ctx);
-        clientConnection.send(appendCmd);
+        WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(session.asLong(), "seg", UUID.randomUUID(), "");
+        clientConnection.sendAsync(cmd, e -> fail("Exception while invoking sendAsync"));
         sessionHandler.close();
         // verify that the Channel.close is invoked.
         Mockito.verify(ch, times(1)).close();
@@ -196,6 +199,9 @@ public class SessionHandlerTest {
         sessionHandler.channelUnregistered(ctx);
         assertFalse(sessionHandler.isConnectionEstablished());
         assertThrows(ConnectionFailedException.class, () -> clientConnection.send(appendCmd));
+        WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(session.asLong(), "seg", UUID.randomUUID(), "");
+        clientConnection.sendAsync(cmd, Assert::assertNotNull);
+        clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
     }
 
     @Test

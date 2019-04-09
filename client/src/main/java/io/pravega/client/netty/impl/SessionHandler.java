@@ -38,7 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class SessionHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
 
-    public static final int SESSION_DISABLED = -1;
+    private static final int SESSION_DISABLED = -1;
     private final String connectionName;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
