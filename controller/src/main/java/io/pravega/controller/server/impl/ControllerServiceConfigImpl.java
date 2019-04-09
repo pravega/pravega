@@ -21,12 +21,14 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.ToString;
 
 import java.util.Optional;
 
 /**
  * Controller Service Configuration.
  */
+@ToString
 @Getter
 public class ControllerServiceConfigImpl implements ControllerServiceConfig {
 

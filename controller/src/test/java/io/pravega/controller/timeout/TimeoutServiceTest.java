@@ -141,6 +141,8 @@ public abstract class TimeoutServiceTest {
         streamTransactionMetadataTasks.close();
         streamStore.close();
         ExecutorServiceHelpers.shutdown(executor);
+        timeoutService.stopAsync();
+        timeoutService.awaitTerminated();
         client.close();
         storeClient.close();
         zkTestServer.close();

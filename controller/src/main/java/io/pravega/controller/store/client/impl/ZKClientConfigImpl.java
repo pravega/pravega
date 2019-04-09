@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.client.impl;
 
+import com.google.common.base.Strings;
 import io.pravega.common.Exceptions;
 import io.pravega.controller.store.client.ZKClientConfig;
 import lombok.Builder;
@@ -51,5 +52,25 @@ public class ZKClientConfigImpl implements ZKClientConfig {
         this.secureConnectionToZooKeeper = secureConnectionToZooKeeper;
         this.trustStorePath = trustStorePath;
         this.trustStorePasswordPath = trustStorePasswordPath;
+    }
+
+    @Override
+    public String toString() {
+        // Note: We don't use Lombok @ToString to automatically generate an implementation of this method,
+        // in order to avoid returning a string containing sensitive security configuration.
+
+        return new StringBuilder(String.format("%s(", getClass().getSimpleName()))
+                .append(String.format("connectionString: %s, ", connectionString))
+                .append(String.format("namespace: %s, ", namespace))
+                .append(String.format("initialSleepInterval: %d, ", initialSleepInterval))
+                .append(String.format("maxRetries: %d, ", maxRetries))
+                .append(String.format("sessionTimeoutMs: %d, ", sessionTimeoutMs))
+                .append(String.format("secureConnectionToZooKeeper: %b, ", secureConnectionToZooKeeper))
+                .append(String.format("trustStorePath is %s, ",
+                        Strings.isNullOrEmpty(trustStorePath) ? "unspecified" : "specified"))
+                .append(String.format("trustStorePasswordPath is %s",
+                        Strings.isNullOrEmpty(trustStorePasswordPath) ? "unspecified" : "specified"))
+                .append(")")
+                .toString();
     }
 }

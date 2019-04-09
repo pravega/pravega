@@ -123,6 +123,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
     protected void startUp() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         log.info("Initiating controller service startUp");
+
+        log.info("Controller serviceConfig = {}", serviceConfig.toString());
         log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
         log.info("Cluster listener enabled = {}", serviceConfig.isControllerClusterListenerEnabled());
         log.info("    Host monitor enabled = {}", serviceConfig.getHostMonitorConfig().isHostMonitorEnabled());
