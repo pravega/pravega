@@ -141,16 +141,15 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
     @Override
     public int getActiveChannelCount() {
-        return (int) this.channelGroup.stream()
-                                      .filter(Channel::isActive)
-                                      .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.", ch.id(),
-                                                            ch.localAddress(), ch.remoteAddress()))
-                                      .count();
+        return getActiveChannels().size();
     }
 
     @VisibleForTesting
     public List<Channel> getActiveChannels() {
-        return this.channelGroup.stream().filter(Channel::isActive).collect(Collectors.toList());
+        return this.channelGroup.stream().filter(Channel::isActive)
+                                .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.", ch.id(),
+                                                      ch.localAddress(), ch.remoteAddress()))
+                                .collect(Collectors.toList());
     }
 
     /**
@@ -162,7 +161,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private CompletableFuture<SessionHandler> establishConnection(PravegaNodeUri location) {
         final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
         final SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
-        final Bootstrap b = getNettyBootStrap().handler(getChannelInitializer(location, batchSizeTracker, handler));
+        final Bootstrap b = getNettyBootstrap().handler(getChannelInitializer(location, batchSizeTracker, handler));
 
         // Initiate Connection.
         final CompletableFuture<SessionHandler> connectionComplete = new CompletableFuture<>();
@@ -192,7 +191,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     /**
      * Create {@link Bootstrap}.
      */
-    private Bootstrap getNettyBootStrap() {
+    private Bootstrap getNettyBootstrap() {
         Bootstrap b = new Bootstrap();
         b.group(group)
          .channel(Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class)

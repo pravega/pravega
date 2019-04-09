@@ -43,8 +43,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     @VisibleForTesting
     public ConnectionFactoryImpl(ClientConfig clientConfig, ConnectionPool connectionPool, Integer numThreadsInPool) {
         this.clientConfig = Preconditions.checkNotNull(clientConfig, "clientConfig");
-        this.connectionPool = connectionPool;
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(getNumThreads(numThreadsInPool), "clientInternal");
+        this.connectionPool = Preconditions.checkNotNull(connectionPool);
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(getThreadPoolSize(numThreadsInPool), "clientInternal");
     }
 
     @VisibleForTesting
@@ -83,9 +83,9 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
        return connectionPool.getActiveChannelCount();
     }
 
-    private int getNumThreads(Integer numThreadsInPool) {
-        if (numThreadsInPool != null) {
-            return numThreadsInPool;
+    private int getThreadPoolSize(Integer threadCount) {
+        if (threadCount != null) {
+            return threadCount;
         }
         String configuredThreads = System.getProperty("pravega.client.internal.threadpool.size", null);
         if (configuredThreads != null) {

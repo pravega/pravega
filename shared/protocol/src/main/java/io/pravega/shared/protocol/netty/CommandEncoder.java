@@ -21,6 +21,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.io.IOException;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -30,7 +31,6 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
@@ -66,7 +66,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
     private final AppendBatchSizeTracker blockSizeSupplier;
-    private final Map<Pair<String, UUID>, Session> setupSegments = new HashMap<>();
+    private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
     private String segmentBeingAppendedTo;
     private UUID writerIdPerformingAppends;
     private int currentBlockSize;
@@ -85,7 +85,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         log.trace("Encoding message to send over the wire {}", msg);
         if (msg instanceof Append) {
             Append append = (Append) msg;
-                Session session = setupSegments.get(Pair.of(append.segment, append.getWriterId()));
+                Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
             validateAppend(append, session);
             if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
                 breakFromAppend(out);
@@ -129,7 +129,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             breakFromAppend(out);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
-            setupSegments.put(Pair.of(setup.getSegment(), setup.getWriterId()), new Session(setup.getWriterId(), setup.getRequestId()));
+            setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
+                              new Session(setup.getWriterId(), setup.getRequestId()));
         } else if (msg instanceof BlockTimeout) {
             BlockTimeout timeoutMsg = (BlockTimeout) msg;
             if (currentBlockSize == timeoutMsg.ifStillBlockSize) {
@@ -161,7 +162,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private void breakFromAppend(ByteBuf out) {
         if (bytesLeftInBlock != 0) {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
-            Session session = setupSegments.get(Pair.of(segmentBeingAppendedTo, writerIdPerformingAppends));
+            Session session = setupSegments.get(new SimpleImmutableEntry<>(segmentBeingAppendedTo, writerIdPerformingAppends));
 
             writeMessage(new AppendBlockEnd(session.id,
                     currentBlockSize - bytesLeftInBlock,

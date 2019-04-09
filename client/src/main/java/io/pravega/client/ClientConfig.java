@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Builder(toBuilder = true)
 public class ClientConfig implements Serializable {
 
-    static final int DEFAULT_MAX_CONNECTION_PER_SEGMENT_STORE = 5;
+    static final int DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE = 5;
     private static final long serialVersionUID = 1L;
 
 
@@ -100,8 +100,8 @@ public class ClientConfig implements Serializable {
                 controllerURI = URI.create("tcp://localhost:9090");
             }
             extractCredentials();
-            if (maxConnectionsPerSegmentStore == 0) {
-                maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTION_PER_SEGMENT_STORE;
+            if (maxConnectionsPerSegmentStore <= 0) {
+                maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore);
         }

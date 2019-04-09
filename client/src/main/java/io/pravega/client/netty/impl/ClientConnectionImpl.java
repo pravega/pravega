@@ -14,7 +14,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
-import  io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -77,7 +77,7 @@ public class ClientConnectionImpl implements ClientConnection {
                    });
         } catch (ConnectionFailedException cfe) {
             callback.complete(cfe);
-        } catch (RuntimeException e) {
+        } catch (Throwable e) {
             callback.complete(new ConnectionFailedException(e));
         }
     }

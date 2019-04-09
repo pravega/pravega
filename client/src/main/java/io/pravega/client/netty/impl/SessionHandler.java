@@ -26,6 +26,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,7 +63,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         log.info("Creating Session: {} for Endpoint: {}. The current Channel is {}.", session.getSessionId(), connectionName,
                  channel.get());
         if (sessionIdReplyProcessorMap.put(session.getSessionId(), rp) != null) {
-            throw new IllegalArgumentException("Multiple sessions cannot be created with the same Session id {}" + session.getSessionId());
+            throw new IllegalArgumentException("Multiple sessions cannot be created with the same Session id " + session.getSessionId());
         }
         return new ClientConnectionImpl(connectionName, session.getSessionId(), batchSizeTracker, this);
     }
@@ -87,8 +88,9 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
      * @param clientConnection Client Connection.
      */
     public void closeSession(ClientConnection clientConnection) {
-        int session = ((ClientConnectionImpl) clientConnection).getSession();
-        log.info("Closing Session: {} for Endpoint: {}", session, ((ClientConnectionImpl) clientConnection).getConnectionName());
+        final ClientConnectionImpl clientConnectionImpl = (ClientConnectionImpl) clientConnection;
+        int session = clientConnectionImpl.getSession();
+        log.info("Closing Session: {} for Endpoint: {}", session, clientConnectionImpl.getConnectionName());
         sessionIdReplyProcessorMap.remove(session);
     }
 
@@ -183,8 +185,8 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         getReplyProcessor(cmd).ifPresent(processor -> {
             try {
                 processor.process(cmd);
-            } catch (Exception e) {
-                processor.processingFailure(e);
+            } catch (Throwable e) {
+                processor.processingFailure(new ExecutionException(e));
             }
         });
     }
@@ -203,7 +205,10 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
             Channel ch = channel.get();
             if (ch != null) {
                 log.debug("Closing channel:{} ", ch);
-                log.warn("{} sessions are not closed", sessionIdReplyProcessorMap.size());
+                final int openSessionCount = sessionIdReplyProcessorMap.size();
+                if (openSessionCount != 0) {
+                    log.warn("{} sessions are not closed", openSessionCount);
+                }
                 ch.close();
             }
         }
