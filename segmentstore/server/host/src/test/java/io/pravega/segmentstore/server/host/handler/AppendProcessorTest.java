@@ -58,7 +58,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testAppend() throws Exception {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/0.#epoch.0";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -89,7 +89,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testTransactionAppend() throws Exception {
-        String streamSegmentName = "transactionSegment#transaction.01234567890123456789012345678901";
+        String streamSegmentName = "scope/stream/transactionSegment#transaction.01234567890123456789012345678901";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -120,8 +120,8 @@ public class AppendProcessorTest {
 
     @Test
     public void testSwitchingSegment() {
-        String streamSegmentName1 = "testAppendSegment1";
-        String streamSegmentName2 = "testAppendSegment2";
+        String streamSegmentName1 = "scope/stream/testAppendSegment1";
+        String streamSegmentName2 = "scope/stream/testAppendSegment2";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -160,7 +160,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testConditionalAppendSuccess() throws Exception {
-        String streamSegmentName = "testConditionalAppendSuccess";
+        String streamSegmentName = "scope/stream/testConditionalAppendSuccess";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -195,7 +195,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testConditionalAppendFailure() throws Exception {
-        String streamSegmentName = "testConditionalAppendFailure";
+        String streamSegmentName = "scope/stream/testConditionalAppendFailure";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -229,7 +229,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testInvalidOffset() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -253,7 +253,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testSetupSkipped() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -271,8 +271,8 @@ public class AppendProcessorTest {
 
     @Test
     public void testSwitchingStream() {
-        String segment1 = "segment1";
-        String segment2 = "segment2";
+        String segment1 = "scope/stream/segment1";
+        String segment2 = "scope/stream/segment2";
         UUID clientId1 = UUID.randomUUID();
         UUID clientId2 = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
@@ -316,7 +316,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testAppendFails() throws Exception {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -349,7 +349,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testEventNumbers() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -395,7 +395,7 @@ public class AppendProcessorTest {
         @Cleanup("shutdownNow")
         ScheduledExecutorService nettyExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "Netty-threadPool");
 
-        String streamSegmentName = "testDelayedAppend";
+        String streamSegmentName = "scope/stream/testDelayedAppend";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -456,7 +456,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testEventNumbersOldClient() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);
@@ -488,7 +488,7 @@ public class AppendProcessorTest {
 
     @Test
     public void testUnsupportedOperation() {
-        String streamSegmentName = "testAppendSegment";
+        String streamSegmentName = "scope/stream/testAppendSegment";
         UUID clientId = UUID.randomUUID();
         byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
         StreamSegmentStore store = mock(StreamSegmentStore.class);

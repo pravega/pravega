@@ -41,7 +41,7 @@ public class TestUtils {
      *
      * @return free port.
      */
-    public static int getAvailableListenPort() {
+    public synchronized static int getAvailableListenPort() {
         for (int i = 0; i < MAX_PORT_COUNT; i++) {
             int candidatePort = BASE_PORT + NEXT_PORT.getAndIncrement() % MAX_PORT_COUNT;
             try {
