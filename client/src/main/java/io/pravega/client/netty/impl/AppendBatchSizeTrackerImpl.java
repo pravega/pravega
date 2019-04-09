@@ -30,7 +30,7 @@ import java.util.function.Supplier;
  */
 class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     private static final int MAX_BATCH_TIME_MILLIS = 100;
-    private static final int MAX_BATCH_SIZE = 32 * 1024;
+    private static final int MAX_BATCH_SIZE = 8 * 1024;
 
     private final Supplier<Long> clock;
     private final AtomicLong lastAppendNumber;
