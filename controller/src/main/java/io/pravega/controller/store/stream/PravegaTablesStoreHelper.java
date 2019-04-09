@@ -27,6 +27,7 @@ import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.util.RetryHelper;
+import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -53,7 +54,7 @@ import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DAT
 
 @Slf4j
 public class PravegaTablesStoreHelper {
-    private static final int NUM_OF_TRIES = 15; // approximately 1 minute worth of retries
+    private static final int NUM_OF_RETRIES = 15; // approximately 1 minute worth of retries
     private final SegmentHelper segmentHelper;
     private final ScheduledExecutorService executor;
     private final Cache cache;
@@ -61,30 +62,13 @@ public class PravegaTablesStoreHelper {
     private final AuthHelper authHelper;
     
     @lombok.Data
+    @EqualsAndHashCode
     private class TableCacheKey<T> implements Cache.CacheKey {
         private final String scope;
         private final String table;
         private final String key;
 
         private final Function<byte[], T> fromBytesFunc;
-
-        @Override
-        public int hashCode() {
-            int result = 17;
-            result = 31 * result + scope.hashCode();
-            result = 31 * result + table.hashCode();
-            result = 31 * result + key.hashCode();
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            return obj instanceof TableCacheKey
-                    && scope.equals(((TableCacheKey) obj).scope)
-                    && table.equals(((TableCacheKey) obj).table)
-                    && key.equals(((TableCacheKey) obj).key);
-        }
-
     }
     
     public PravegaTablesStoreHelper(SegmentHelper segmentHelper, AuthHelper authHelper, ScheduledExecutorService executor) {
@@ -418,6 +402,6 @@ public class PravegaTablesStoreHelper {
                 e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
                     return unwrap instanceof StoreException.StoreConnectionException;
-                }, NUM_OF_TRIES, executor);
+                }, NUM_OF_RETRIES, executor);
     }
 }

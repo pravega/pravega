@@ -892,9 +892,8 @@ class PravegaTablesStream extends PersistentStreamBase {
 
     @Override
     public void refresh() {
-        String id = idRef.get();
+        String id = idRef.getAndSet(null);
         if (!Strings.isNullOrEmpty(id)) {
-            idRef.set(null);
             // refresh all mutable records
             storeHelper.invalidateCache(getScope(), getMetadataTableName(id), STATE_KEY);
             storeHelper.invalidateCache(getScope(), getMetadataTableName(id), CONFIGURATION_KEY);
