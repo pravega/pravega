@@ -102,7 +102,7 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
         final String scope = "test";
         final String streamName = "test";
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
 
         // Test scale both in a new stream and in a re-created one.
