@@ -62,7 +62,7 @@ public class PravegaTablesStoreHelper {
     private final AuthHelper authHelper;
     
     @lombok.Data
-    @EqualsAndHashCode
+    @EqualsAndHashCode(exclude = {"fromBytesFunc"})
     private class TableCacheKey<T> implements Cache.CacheKey {
         private final String scope;
         private final String table;
@@ -375,10 +375,6 @@ public class PravegaTablesStoreHelper {
                 }
             } else if (cause instanceof HostStoreException) {
                 log.warn("Host Store exception {}", cause.getMessage());
-                toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, cause, errorMessage);
-            } else if (cause instanceof ArrayIndexOutOfBoundsException) {
-                // todo: temporary hack added to work around concurrent write and get issue
-                log.warn("received array out of bounds", cause.getMessage());
                 toThrow = StoreException.create(StoreException.Type.CONNECTION_ERROR, cause, errorMessage);
             } else {
                 log.warn("exception of unknown type thrown {} ", errorMessage, cause);
