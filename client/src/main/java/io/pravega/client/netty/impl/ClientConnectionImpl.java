@@ -77,7 +77,7 @@ public class ClientConnectionImpl implements ClientConnection {
                    });
         } catch (ConnectionFailedException cfe) {
             callback.complete(cfe);
-        } catch (Throwable e) {
+        } catch (RuntimeException e) {
             callback.complete(new ConnectionFailedException(e));
         }
     }

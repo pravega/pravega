@@ -27,7 +27,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -188,8 +187,8 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         getReplyProcessor(cmd).ifPresent(processor -> {
             try {
                 processor.process(cmd);
-            } catch (Throwable e) {
-                processor.processingFailure(new ExecutionException(e));
+            } catch (Exception e) {
+                processor.processingFailure(e);
             }
         });
     }
