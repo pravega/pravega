@@ -9,9 +9,9 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.Session;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.common.concurrent.Futures;
@@ -244,7 +244,7 @@ public class SegmentMetadataClientTest {
         ClientConnection connection1 = mock(ClientConnection.class);
         ClientConnection connection2 = mock(ClientConnection.class);
         AtomicReference<ReplyProcessor> processor = new AtomicReference<>();
-        Mockito.when(cf.establishConnection(Mockito.any(Session.class), Mockito.eq(endpoint), Mockito.any()))
+        Mockito.when(cf.establishConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any()))
                .thenReturn(Futures.failedFuture(new ConnectionFailedException()))
                .thenReturn(CompletableFuture.completedFuture(connection1))
                .thenAnswer(new Answer<CompletableFuture<ClientConnection>>() {
@@ -284,11 +284,11 @@ public class SegmentMetadataClientTest {
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         InOrder order = Mockito.inOrder(connection1, connection2, cf);
         long length = client.fetchCurrentSegmentLength();
-        order.verify(cf, Mockito.times(2)).establishConnection(Mockito.any(Session.class), Mockito.eq(endpoint), Mockito.any());
+        order.verify(cf, Mockito.times(2)).establishConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any());
         order.verify(connection1).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")),
                                             Mockito.any(ClientConnection.CompletedCallback.class));
         order.verify(connection1).close();
-        order.verify(cf).establishConnection(Mockito.any(Session.class), Mockito.eq(endpoint), Mockito.any());
+        order.verify(cf).establishConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any());
         order.verify(connection2).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(1), segment.getScopedName(), "")),
                                             Mockito.any(ClientConnection.CompletedCallback.class));
         order.verifyNoMoreInteractions();

@@ -9,7 +9,6 @@
  */
 package io.pravega.client.netty.impl;
 
-import io.pravega.client.Session;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import java.util.concurrent.CompletableFuture;
@@ -23,12 +22,12 @@ public interface ConnectionPool extends AutoCloseable {
      * This is used to create a {@link ClientConnection} on an existing Connection pool. The Connection pool implementation
      * decides if a new connection needs to be established to the PravegaNode or an existing connection can be reused to establish
      * the connection.
-     * @param session Session
+     * @param flow Flow
      * @param uri The Pravega Node Uri.
      * @param rp ReplyProcessor instance.
      * @return An instance of client connection.
      */
-    CompletableFuture<ClientConnection> getClientConnection(Session session, PravegaNodeUri uri, ReplyProcessor rp);
+    CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp);
 
     /**
      * This is used to create a {@link ClientConnection} where sessions are disabled. This implies that only one ClientConnection

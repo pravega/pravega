@@ -12,7 +12,6 @@ package io.pravega.client.netty.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.Session;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -23,7 +22,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * A Connection factory implementation used to create {@link ClientConnection}s by creating new Session over existing connection pool.
+ * A Connection factory implementation used to create {@link ClientConnection}s by creating new Flow over existing connection pool.
  *
  */
 @Slf4j
@@ -55,8 +54,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @Override
-    public CompletableFuture<ClientConnection> establishConnection(Session session, PravegaNodeUri endpoint, ReplyProcessor rp) {
-        return connectionPool.getClientConnection(session, endpoint, rp);
+    public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
+        return connectionPool.getClientConnection(flow, endpoint, rp);
     }
 
     @Override

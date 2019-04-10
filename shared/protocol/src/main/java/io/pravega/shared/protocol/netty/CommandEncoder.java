@@ -85,7 +85,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         log.trace("Encoding message to send over the wire {}", msg);
         if (msg instanceof Append) {
             Append append = (Append) msg;
-                Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
+            Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
             validateAppend(append, session);
             if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
                 breakFromAppend(out);

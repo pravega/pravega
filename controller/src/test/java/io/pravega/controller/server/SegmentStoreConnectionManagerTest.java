@@ -9,9 +9,9 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.client.Session;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -360,7 +360,7 @@ public class SegmentStoreConnectionManagerTest {
         }
 
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(Session session, PravegaNodeUri endpoint, ReplyProcessor rp) {
+        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
             this.rp = rp;
             ClientConnection connection = new MockConnection(rp);
             return CompletableFuture.completedFuture(connection);

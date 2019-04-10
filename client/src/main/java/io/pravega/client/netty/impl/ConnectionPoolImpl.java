@@ -35,7 +35,6 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.Session;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -89,8 +88,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
     @Override
     @Synchronized
-    public CompletableFuture<ClientConnection> getClientConnection(Session session, PravegaNodeUri location, ReplyProcessor rp) {
-        Preconditions.checkNotNull(session, "Session");
+    public CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp) {
+        Preconditions.checkNotNull(flow, "Flow");
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
         Exceptions.checkNotClosed(closed.get(), this);
@@ -124,7 +123,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         }
         prunedConnectionList.add(connection);
         connectionMap.put(location, prunedConnectionList);
-        return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createSession(session, rp));
+        return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createSession(flow, rp));
     }
 
     @Override

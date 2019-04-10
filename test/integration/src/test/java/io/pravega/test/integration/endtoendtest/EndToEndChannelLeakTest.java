@@ -260,7 +260,7 @@ public class EndToEndChannelLeakTest {
         event = reader2.readNextEvent(10000);
         assertNotNull(event.getEvent());
 
-        //+1 sesson  (a new session to the remaining stream segment)
+        //+1 session  (a new session to the remaining stream segment)
         expectedChannelCount += 1;
         assertEventuallyEquals(5, () -> connectionFactory.getActiveChannelCount());
     }

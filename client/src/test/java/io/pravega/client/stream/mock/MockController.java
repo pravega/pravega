@@ -12,7 +12,7 @@ package io.pravega.client.stream.mock;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.Session;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -73,7 +73,7 @@ public class MockController implements Controller {
     private final Map<String, Set<Stream>> createdScopes = new HashMap<>();
     @GuardedBy("$lock")
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
-    private final Supplier<Long> idGenerator = () -> Session.create().asLong();
+    private final Supplier<Long> idGenerator = () -> Flow.create().asLong();
     
     @Override
     @Synchronized
@@ -493,7 +493,7 @@ public class MockController implements Controller {
 
     private <T> void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor, CompletableFuture<T> resultFuture) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
-            .establishConnection(Session.from(((Request) request).getRequestId()), new PravegaNodeUri(endpoint, port), replyProcessor),
+            .establishConnection(Flow.from(((Request) request).getRequestId()), new PravegaNodeUri(endpoint, port), replyProcessor),
                                                              RuntimeException::new);
         resultFuture.whenComplete((result, e) -> {
             connection.close();

@@ -29,7 +29,6 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.Session;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -51,7 +50,9 @@ import javax.net.ssl.SSLParameters;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
@@ -59,6 +60,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ConnectionPoolingTest {
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(10);
 
     boolean ssl = false;
     private Channel serverChannel;
@@ -185,46 +188,46 @@ public class ConnectionPoolingTest {
             }
         };
 
-        Session session1 = new Session(1, 0);
+        Flow flow1 = new Flow(1, 0);
         @Cleanup
-        ClientConnection connection1 = factory.establishConnection(session1, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection1 = factory.establishConnection(flow1, new PravegaNodeUri("localhost", port), rp).join();
 
-        connection1.send(readRequestGenerator.apply(session1.asLong()));
+        connection1.send(readRequestGenerator.apply(flow1.asLong()));
 
         WireCommands.SegmentRead msg = msgRead.take();
-        assertEquals(readResponseGenerator.apply(session1.asLong()), msg);
+        assertEquals(readResponseGenerator.apply(flow1.asLong()), msg);
 
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
-        Session session2 = new Session(2, 0);
+        Flow flow2 = new Flow(2, 0);
         @Cleanup
-        ClientConnection connection2 = factory.establishConnection(session2, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection2 = factory.establishConnection(flow2, new PravegaNodeUri("localhost", port), rp).join();
 
         // send data over connection2 and verify.
-        connection2.send(readRequestGenerator.apply(session2.asLong()));
+        connection2.send(readRequestGenerator.apply(flow2.asLong()));
         msg = msgRead.take();
-        assertEquals(readResponseGenerator.apply(session2.asLong()), msg);
+        assertEquals(readResponseGenerator.apply(flow2.asLong()), msg);
 
         // send data over connection1 and verify.
-        connection1.send(readRequestGenerator.apply(session1.asLong()));
+        connection1.send(readRequestGenerator.apply(flow1.asLong()));
         msg = msgRead.take();
-        assertEquals(readResponseGenerator.apply(session1.asLong()), msg);
+        assertEquals(readResponseGenerator.apply(flow1.asLong()), msg);
 
         // send data over connection2 and verify.
-        connection2.send(readRequestGenerator.apply(session2.asLong()));
+        connection2.send(readRequestGenerator.apply(flow2.asLong()));
         msg = msgRead.take();
-        assertEquals(readResponseGenerator.apply(session2.asLong()), msg);
+        assertEquals(readResponseGenerator.apply(flow2.asLong()), msg);
 
         // close a client connection, this should not close the channel.
         connection2.close();
-        assertThrows(ConnectionFailedException.class, () -> connection2.send(readRequestGenerator.apply(session2.asLong())));
+        assertThrows(ConnectionFailedException.class, () -> connection2.send(readRequestGenerator.apply(flow2.asLong())));
         // verify we are able to send data over connection1.
-        connection1.send(readRequestGenerator.apply(session1.asLong()));
+        connection1.send(readRequestGenerator.apply(flow1.asLong()));
         msg = msgRead.take();
-        assertEquals(readResponseGenerator.apply(session1.asLong()), msg);
+        assertEquals(readResponseGenerator.apply(flow1.asLong()), msg);
 
         // close connection1
         connection1.close();
-        assertThrows(ConnectionFailedException.class, () -> connection1.send(readRequestGenerator.apply(session2.asLong())));
+        assertThrows(ConnectionFailedException.class, () -> connection1.send(readRequestGenerator.apply(flow2.asLong())));
 
     }
 
@@ -260,23 +263,23 @@ public class ConnectionPoolingTest {
             }
         };
 
-        Session session1 = new Session(1, 0);
+        Flow flow1 = new Flow(1, 0);
         @Cleanup
-        ClientConnection connection1 = factory.establishConnection(session1, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection1 = factory.establishConnection(flow1, new PravegaNodeUri("localhost", port), rp).join();
 
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
-        Session session2 = new Session(2, 0);
+        Flow flow2 = new Flow(2, 0);
         @Cleanup
-        ClientConnection connection2 = factory.establishConnection(session2, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection2 = factory.establishConnection(flow2, new PravegaNodeUri("localhost", port), rp).join();
 
-        connection1.send(readRequestGenerator.apply(session1.asLong()));
-        connection2.send(readRequestGenerator.apply(session2.asLong()));
+        connection1.send(readRequestGenerator.apply(flow1.asLong()));
+        connection2.send(readRequestGenerator.apply(flow2.asLong()));
 
         List<WireCommands.SegmentRead> msgs = new ArrayList<WireCommands.SegmentRead>();
         msgs.add(msgRead.take());
         msgs.add(msgRead.take());
-        assertTrue(msgs.contains(readResponseGenerator.apply(session1.asLong())));
-        assertTrue(msgs.contains(readResponseGenerator.apply(session1.asLong())));
+        assertTrue(msgs.contains(readResponseGenerator.apply(flow1.asLong())));
+        assertTrue(msgs.contains(readResponseGenerator.apply(flow1.asLong())));
     }
 
 }

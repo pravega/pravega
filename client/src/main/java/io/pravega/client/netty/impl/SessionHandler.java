@@ -15,7 +15,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.concurrent.ScheduledFuture;
-import io.pravega.client.Session;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableFutureLatch;
@@ -56,19 +55,19 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     }
 
     /**
-     * Create a session on existing connection.
-     * @param session Session.
-     * @param rp ReplyProcessor for the specified session.
+     * Create a flow on existing connection.
+     * @param flow Flow.
+     * @param rp ReplyProcessor for the specified flow.
      * @return Client Connection object.
      */
-    public ClientConnection createSession(final Session session, final ReplyProcessor rp) {
+    public ClientConnection createSession(final Flow flow, final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkState(!disableSession.get(), "Ensure sessions are enabled.");
-        log.info("Creating Session {} for Endpoint {}. The current Channel is {}.", session.getSessionId(), connectionName, channel.get());
-        if (sessionIdReplyProcessorMap.put(session.getSessionId(), rp) != null) {
-            throw new IllegalArgumentException("Multiple sessions cannot be created with the same Session id " + session.getSessionId());
+        log.info("Creating Flow {} for Endpoint {}. The current Channel is {}.", flow.getFlowId(), connectionName, channel.get());
+        if (sessionIdReplyProcessorMap.put(flow.getFlowId(), rp) != null) {
+            throw new IllegalArgumentException("Multiple sessions cannot be created with the same Flow id " + flow.getFlowId());
         }
-        return new ClientConnectionImpl(connectionName, session.getSessionId(), batchSizeTracker, this);
+        return new ClientConnectionImpl(connectionName, flow.getFlowId(), batchSizeTracker, this);
     }
 
     /**
@@ -92,7 +91,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     public void closeSession(ClientConnection clientConnection) {
         final ClientConnectionImpl clientConnectionImpl = (ClientConnectionImpl) clientConnection;
         int session = clientConnectionImpl.getSession();
-        log.info("Closing Session: {} for Endpoint: {}", session, clientConnectionImpl.getConnectionName());
+        log.info("Closing Flow: {} for Endpoint: {}", session, clientConnectionImpl.getConnectionName());
         sessionIdReplyProcessorMap.remove(session);
     }
 
@@ -173,7 +172,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Reply cmd = (Reply) msg;
-        log.debug(connectionName + " processing reply: {} with session {}.", cmd, Session.from(cmd.getRequestId()));
+        log.debug(connectionName + " processing reply: {} with session {}.", cmd, Flow.from(cmd.getRequestId()));
 
         if (cmd instanceof WireCommands.Hello) {
             sessionIdReplyProcessorMap.forEach((sessionId, rp) -> rp.hello((WireCommands.Hello) cmd));
@@ -231,7 +230,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     }
 
     private Optional<ReplyProcessor> getReplyProcessor(Reply cmd) {
-        int sessionId = disableSession.get() ? SESSION_DISABLED : Session.from(cmd.getRequestId()).getSessionId();
+        int sessionId = disableSession.get() ? SESSION_DISABLED : Flow.from(cmd.getRequestId()).getFlowId();
         final ReplyProcessor processor = sessionIdReplyProcessorMap.get(sessionId);
         if (processor == null) {
             log.warn("No ReplyProcessor found for the provided sessionId {}. Ignoring response", sessionId);

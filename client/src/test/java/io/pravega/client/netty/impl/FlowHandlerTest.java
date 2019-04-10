@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
- * <p>
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.client.netty.impl;
 
@@ -15,7 +15,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
-import io.pravega.client.Session;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
@@ -53,12 +52,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
-public class SessionHandlerTest {
+public class FlowHandlerTest {
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(15);
 
-    private Session session;
+    private Flow flow;
     private SessionHandler sessionHandler;
     private ClientConnection clientConnection;
     @Mock
@@ -85,9 +84,9 @@ public class SessionHandlerTest {
 
     @Before
     public void setUp() throws Exception {
-        session = new Session(10, 0);
+        flow = new Flow(10, 0);
         when(buffer.readableBytes()).thenReturn(10);
-        appendCmd = new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, session.asLong());
+        appendCmd = new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, flow.asLong());
         doNothing().when(tracker).recordAppend(anyLong(), anyInt());
 
         when(ctx.channel()).thenReturn(ch);
@@ -95,7 +94,7 @@ public class SessionHandlerTest {
         when(ch.writeAndFlush(any(Object.class))).thenReturn(completedFuture);
 
         sessionHandler = new SessionHandler("testConnection", tracker);
-        clientConnection = sessionHandler.createSession(session, processor);
+        clientConnection = sessionHandler.createSession(flow, processor);
     }
 
     @Test
@@ -154,12 +153,12 @@ public class SessionHandlerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void createDuplicateSession() throws Exception {
-        Session session = new Session(11, 0);
-        ClientConnection connection1 = sessionHandler.createSession(session, processor);
+        Flow flow = new Flow(11, 0);
+        ClientConnection connection1 = sessionHandler.createSession(flow, processor);
         sessionHandler.channelRegistered(ctx);
         connection1.send(appendCmd);
-        // Creating a session with the same session id.
-        sessionHandler.createSession(session, processor);
+        // Creating a flow with the same flow id.
+        sessionHandler.createSession(flow, processor);
     }
 
     @Test
@@ -173,12 +172,12 @@ public class SessionHandlerTest {
     @Test
     public void testCloseSessionHandler() throws Exception {
         sessionHandler.channelRegistered(ctx);
-        WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(session.asLong(), "seg", UUID.randomUUID(), "");
+        WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, e -> fail("Exception while invoking sendAsync"));
         sessionHandler.close();
         // verify that the Channel.close is invoked.
         Mockito.verify(ch, times(1)).close();
-        assertThrows(ObjectClosedException.class, () -> sessionHandler.createSession(session, processor));
+        assertThrows(ObjectClosedException.class, () -> sessionHandler.createSession(flow, processor));
         assertThrows(ObjectClosedException.class, () -> sessionHandler.createConnectionWithSessionDisabled(processor));
     }
 
@@ -188,7 +187,7 @@ public class SessionHandlerTest {
         sessionHandler.channelRegistered(ctx);
         ClientConnection connection = sessionHandler.createConnectionWithSessionDisabled(processor);
         connection.send(appendCmd);
-        assertThrows(IllegalStateException.class, () -> sessionHandler.createSession(session, processor));
+        assertThrows(IllegalStateException.class, () -> sessionHandler.createSession(flow, processor));
     }
 
     @Test
@@ -199,7 +198,7 @@ public class SessionHandlerTest {
         sessionHandler.channelUnregistered(ctx);
         assertFalse(sessionHandler.isConnectionEstablished());
         assertThrows(ConnectionFailedException.class, () -> clientConnection.send(appendCmd));
-        WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(session.asLong(), "seg", UUID.randomUUID(), "");
+        WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, Assert::assertNotNull);
         clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
     }
@@ -216,7 +215,7 @@ public class SessionHandlerTest {
 
     @Test
     public void testChannelReadDataAppended() throws Exception {
-        WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(session.asLong(), UUID.randomUUID(), 2, 1);
+        WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1);
         InOrder order = inOrder(processor);
         sessionHandler.channelRegistered(ctx);
         sessionHandler.channelRead(ctx, dataAppendedCmd);
