@@ -1,3 +1,12 @@
+<!--
+Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+-->
 # Setting Up Security for a Distributed Mode Cluster
 
 In the Distributed Mode of running a cluster, each component runs separately on one or more processes, usually distributed across multiple machines. The deployment options in this mode include:
