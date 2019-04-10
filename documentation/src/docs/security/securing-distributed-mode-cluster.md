@@ -9,7 +9,8 @@ You may obtain a copy of the License at
 -->
 # Setting Up Security for a Distributed Mode Cluster
 
-In the Distributed Mode of running a cluster, each component runs separately on one or more processes, usually distributed across multiple machines. The deployment options in this mode include:
+In the [distributed mode](../deployment/deployment.md#pravega-modes) of running a Pravega cluster, each service runs
+separately on one or more processes, usually spread across multiple machines. The deployment options in this mode include:
 
 * A manual deployment in hardware or virtual machines
 * Containerized deployments of these types:
@@ -17,20 +18,30 @@ In the Distributed Mode of running a cluster, each component runs separately on 
   * A Docker Compose application deployment
   * A Docker Swarm based distributed deployment
 
-Regardless of the deployment option used, setting up Transport Layer Security (SSL/TLS) for as well as client authentication and authorization (`Auth` in short) are important steps towards a secure deployment. TLS enables encryption of client-server and inter-component traffic and the clients to authenticate the server. Client `auth` enables the servers to authenticate and authorize the clients. Pravega strongly recommends always enabling security for production clusters.
+Regardless of the deployment option used, setting up Transport Layer Security (SSL/TLS) as well as client
+authentication and authorization (`Auth` in short) are important steps towards a secure deployment. TLS encrypts
+client-server and inter-component traffic and enables clients to authenticate the server. Client `Auth`
+enables the servers to authenticate and authorize the clients. Pravega strongly recommends always enabling security,
+for production clusters.
 
-Setting up security - especially TLS - in a large cluster can be daunting at first. To make it easier, this document provides step-by-step instructions on how to enable security when deloying a Pravega cluster manually.
+Setting up security - especially TLS - in a large cluster can be daunting at first. To make it easier, this document
+provides step-by-step instructions on how to enable it, when deploying a Pravega cluster manually.
 
-Depending on the deployment option used and your environment, you might need to modify the steps and commands  to suite your specific needs and policies. Also, some of the deployment options open up additional ways of securing a cluster, as we will see in the next sub-section; We'll not discuss those ways in detail in this document, for the sake of brevity.
+Depending on the deployment option used and your environment, you might need to modify the steps and commands to
+suite your specific needs and policies. Also, some of the deployment options open up additional ways of securing
+a cluster, as we will see in the next sub-section.
 
 ## Setting up SSL/TLS
 
 There are two common ways of using TLS for client-server communications:
 
 1. Setup Pravega to handle TLS directly.
-2. Terminate TLS outside of Pravega, in an infrastructure component such as a reverse proxy or a Load Balancer.
+2. Terminate TLS outside of Pravega - in an infrastructure component such as a reverse proxy or a load balancer.
 
-Depending on the deployment option used, it might be easier to use one or the other approach. For instance, if you are deploying a Pravega cluster in Kubernetes, you might find using approach 2 simpler to use and manage. Also, the specifics of how to enable TLS will differ depending on the deployment option used. This document focuses on approach 1. For approach 2, refer to the vendor's documentation.
+Depending on the deployment option used, it might be easier to use one or the other approach. For example, if you
+are deploying a Pravega cluster in Kubernetes, you might find using approach 2 simpler to use and manage. Also,
+the specifics of how to enable TLS will differ depending on the deployment option used. This document focuses on
+approach 1. For approach 2, refer to the platform vendor's documentation.
 
 At a high level, setting up TLS in Pravega can be divided into three distinct stages:
 
@@ -38,17 +49,19 @@ At a high level, setting up TLS in Pravega can be divided into three distinct st
 2. Obtaining server certificates and keys
 3. Deploying certificates and enabling TLS in Pravega
 
-The following sub-sections discuss the steps required for each of these phases. For setting up Zookeeper security, refer to the security documentation of Zookeeper.
+The following sub-sections describe the steps required for each stage.
 
 **Before you Begin:**
 
-You need to have the following installed on the server(s), as the commands in this section use either OpenSSL or Java Keytool.
+You need to have the following installed on the server(s), as the commands in this section use either OpenSSL or
+Java Keytool.
 * OpenSSL
 * A supported version of Java Development Kit (JDK)
 
 Also, note the following:
 
-* In the examples shown in this section, we use command line arguments to pass all inputs to the command. To pass sensitive command arguments via prompts instead, just exclude the corresponding option. For example,
+* The examples shown in this section use command line arguments to pass all inputs to the command. To pass
+sensitive command arguments via prompts instead, just exclude the corresponding option. For example,
 
   ```
   # Inputs passed as command line arguments.
@@ -59,13 +72,15 @@ Also, note the following:
   # Passwords and other arguments entered interactively on the prompt.
   $ keytool -keystore server01.keystore.jks -alias server01 -genkey
   ```
-* In the samples below, a weak password `changeit` is used everywhere for easier reading. Be sure to replace it with strong and separate passwords for each file.
+* A weak password `changeit` is used everywhere for easier reading. Be sure to replace it with strong and separate
+passwords for each file.
 
 ### Stage 1: Setting up a Certificate Authority (CA)
 
 If you are going to use an existing public or internal CA service or certificate and key bundle, you may skip this stage.
 
-In this stage, we'll generate a CA in the form of a public-private key pair and a self-signed signed certificate. Later, we'll use the CA to sign other certificates used in the cluster.
+In this stage, we'll generate a CA in the form of a public-private key pair and a self-signed signed certificate.
+Later, we'll use the CA to sign other certificates used in the cluster.
 
 1. Create a certificate and key for use as a CA.
 
@@ -83,7 +98,8 @@ In this stage, we'll generate a CA in the form of a public-private key pair and 
 
 2. Create a truststore containing the CA's certificate.
 
-   This truststore will be used by external and internal clients. External clients are client applications connected to a Pravega cluster. Internal clients are services on the server playing the role of a client in internal communications.
+   This truststore will be used by external and internal clients. External clients are client applications connected
+   to a Pravega cluster. Internal clients are services on the server playing the role of a client in internal communications.
 
    ```
    $ keytool -keystore client.truststore.jks -noprompt -alias CARoot -import -file ca-cert \
@@ -104,7 +120,7 @@ That's it! You now have the following CA and client truststore artifacts:
 
 ### Stage 2: Obtaining Server Certificates and keys
 
-This phase is doing the following for each service:
+This phase is about performing the following steps, for each service.
 
 1. Generating server certificates and keys
 2. Generating a Certificate Signing Request (CSR)
@@ -112,29 +128,35 @@ This phase is doing the following for each service:
 4. Preparing a keystore containing the signed server certificate and the CA's certificate
 5. Exporting the server certificate's private key
 
-Note:
+*Note:* For services running on the same host, you may use the same certificate if those services are accessed using
+the same hostname/IP address. You may even use wildcard certificates to share certificates across hosts. However,
+it is strongly recommended that you use separate certificates for each service.
 
-* For services running on the same host, you may use the same certificate if those services are exposed using the same hostname/IP address. You may even use wildcard certificates to share certificates across hosts. However, it is strongly recommended that you use seperate certificates for each service.
+The steps are:
 
-Let's see the steps in detail below.
+1. Generate keys and certificates for each service.
 
-1. Generate keys and certificates for each service. This certificate is used for establishing TLS as well as for verifying the server's identity.
+   This certificate is used for establishing TLS as well as for verifying the server's identity.
 
    ```bash
    $ keytool -keystore controller01.jks\
     -genkey -keyalg RSA -keysize 2048 -keypass changeit\
     -alias controller01 -validity 365\
     -dname "CN=controller01.pravega.io, OU=Pravega, O=Company, L=Locality, S=StateOrProvince, C=Country"\
-    -ext san=dns:controller01.pravega.io,ip:<IP_ADDRESS>\
+    -ext san=dns:controller01.pravega.io,ip:...\
     -storepass changeit
 
    # Optionally, verify the contents of the generated file:
    $ keytool -list -v -keystore controller01.jks -storepass changeit
    ```
 
-2. Generate CSR for each service. It helps to think of a CSR as an application for getting a certificate signed by a trusted authority.
+2. Generate CSR for each service.
 
-   A CSR is typically generated on the same server on which the service is planned to be installed. Some organizations generate these outside of the servers in a central location and then distribute the resulting certificates to the services for use.
+   It helps to think of a CSR as an application for getting a certificate signed by a trusted authority.
+
+   A CSR is typically generated on the same server on which the service is planned to be installed. Some organizations
+   generate these outside of the servers in a central location and then distribute the resulting certificates to the
+   services for their use.
 
    ```
    $ keytool -keystore controller01.jks -alias controller01 -certreq -file controller01.csr \
@@ -146,7 +168,9 @@ Let's see the steps in detail below.
 
 3. Submit the CSR to a CA and obtain a signed certificate for each service.
 
-   If you are using a public or internal CA service, follow that CA's process for submitting the CSR and obtaining a signed certificate. To use the custom CA generated using the steps mentioned earlier or an internal CA certificate/key bundle, use the following command to generate a CA-signed server certificate in PEM format:
+   If you are using a public or internal CA service, follow that CA's process for submitting the CSR and obtaining
+   a signed certificate. To use the custom CA generated using the steps mentioned earlier or an internal CA
+   certificate/key bundle, use the following command to generate a CA-signed server certificate in PEM format:
 
    ```
    $ openssl x509 -req -CA ca-cert -CAkey ca-key -in controller01.csr -out controller01.pem \
@@ -176,15 +200,18 @@ Let's see the steps in detail below.
                            -srcstorepass changeit -deststorepass changeit
    ```
 
-   Then, export the private key of the server into a `.pem` file. Note that the generated .pem file is not protected by a password, even though the key itself is password-protected, as we are using the `-nodes` flag. So, be sure to protect it using operating system's technical controls as well as procedural controls.
+   Then, export the private key of the server into a `.pem` file. Note that the generated `.pem` file is not protected
+   by a password, even though the key itself is password-protected, as we are using the `-nodes` flag. So, be sure
+   to protect it using operating system's technical controls as well as procedural controls.
 
    ```
    openssl pkcs12 -in controller01.p12 -out controller01.key.pem -passin pass:1111_aaaa -nodes
    ```
 
-Step 5 concludes this stage, and you are now all set to deploy the certificates and other material in Pravega.
+The last step concludes this stage, and you should now be all set to install the certificates and other material in Pravega.
 
-The table below lists the key output of this stage. Note that you'll typically need one of each file per Pravega service, but you may share the same file for services collocated on the same host for logistical or cost reasons.
+The table below lists the key output of this stage. Note that you'll typically need one of each file per Pravega
+service, but you may share the same file for services collocated on the same host for logistical or economical reasons.
 
 | Files | Example File| Description |
 |:-----:| :---:|:--------|
@@ -192,42 +219,52 @@ The table below lists the key output of this stage. Note that you'll typically n
 | Private key in PEM format | `controller01.key.pem` file  |  The private key to be used by the service. |
 | Server keystore in JKS format | `controller01.server.jks` file | The keystore file to be used by the service. |
 
+
 ### Deploying certificates and enabling TLS in Pravega
 
-We'll discuss this in the section titled Enabling Security in Pravega, together with other security configuration and setup.
+We'll discuss this in the next section, together with other security configuration and setup.
 
-## Enabling Security in Pravega
+## Enabling TLS and Auth in Pravega
 
-Here, we discuss about these tasks:
+Enabling TLS and Auth in Pravega involves the following steps:
 
-1. Configuring TLS and Auth Parameters on the Server
-2. Configuring TLS and credentials on the client
+1. Configuring TLS and Auth Parameters for the Services
+2. Configuring TLS and Credentials on the Client Side
 3. Having the TLS and Auth parameters take effect
 
+Each of the above tasks are discussed in the following sub-sections.
 
-### Configuring TLS and Auth Parameters on the Server
+### Configuring TLS and Auth Parameters for for the Services
 
-This task is about using the certificates, keys, keystores and truststores to configure TLS on the server side, and configuring Auth.
+This step is about using the certificates, keys, keystores and truststores generated earlier to configure
+TLS and Auth for the services on the server side.
 
-We'll need to configure the following services on the server side:
+Note that if you enable TLS and Auth on one service, you must enable them for all the other services too. Pravega
+does not support using TLS and Auth for only some instances of the services.
 
-1. Controller services
-2. Segment Store services
-3. Zookeeper services (Optionally)
+You can configure the following services for TLS and Auth:
 
-Lets' discuss about #1 and #2 below. For information about turning TLS on for Zookeeper, refer to its [SSL](https://cwiki.apache.org/confluence/display/ZOOKEEPER/ZooKeeper+SSL+User+Guide) documentation.
+1. Controller
+2. Segment Store
+3. Zookeeper (optionally)
+4. Bookkeeper (optionally)
+
+Let's discuss about #1 and #2 below. For information about enabling TLS for Zookeeper and Bookeeper, refer to
+their documentation here:
+* [ZooKeeper SSL Guide](https://cwiki.apache.org/confluence/display/ZOOKEEPER/ZooKeeper+SSL+User+Guide)
+* [BookKeeper - Encryption and Authentication using TLS](https://bookkeeper.apache.org/docs/latest/security/tls/)
 
 **Controller Service:**
 
-Controller services can be configured in three distinct ways:
+Controller services can be configured in three different ways:
 
-1. By specifying the configuration parameter values directly in the `controller.config.properties` file.
+1. By specifying the configuration parameter values directly in the `controller.config.properties` file. For example,
 
    ```
    controller.auth.tlsEnabled=true
    controller.auth.tlsCertFile=/etc/secrets/controller01.pem
    ```
-2. By specifying configuration parameters via corresponding environment variables. For example,
+2. By specifying configuration values via corresponding environment variables. For example,
 
    ```
    # TLS_ENABLED environment variable corresponds to Controller configuration parameter
@@ -235,14 +272,16 @@ Controller services can be configured in three distinct ways:
    $ export TLS_ENABLED: "true"
    ```
 
-   To identify the environment variables corresponding to the configuration parameter, inspect the default `controller.config.properties` file and locate the variables.
+   To identify the environment variables corresponding to the configuration parameter, inspect the default
+   `controller.config.properties` file and locate the variables.
 
    ```
    controller.auth.tlsEnabled=${TLS_ENABLED}
    controller.auth.tlsCertFile=${TLS_CERT_FILE}
    ```
 
-3. By specifying configuration parameters (such as `controller.auth.tlsEnabled`) as JVM system properties. This is not applicable for manual deployment and is relevant for container application deployment tools and orchestrators such as Docker Compose, Swarm and Kubernetes.
+3. By specifying configuration parameters (such as `controller.auth.tlsEnabled`) as JVM system properties. This is not
+applicable for manual deployment and is relevant for container application deployment tools and orchestrators such as Docker Compose, Swarm and Kubernetes.
 
 
 The table below lists the Controller services' TLS and auth parameters and representative values for quick reference. For a detailed discription of these parameters refer to [this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
@@ -291,11 +330,15 @@ Segment store supports configuration via a properties file (`config.properties`)
 
 <sup>2</sup>: The secret value you use here must match the same value used for other Controller and Segment Store services.
 
-## Setting up Client Authentication and Authorization
+### Configuring TLS and Credentials on the Client Side
 
-On the client application side, you'll need to establish trust for the servers' certificates. There are multiple ways of doing that:
+After you have enabled TLS and Auth and configured them for server-side services, you need to update any existing client
+applications to use TLS and supply their credentials. This sub-section described how to do that.
 
-* Supplying the client library with the certificate of the trusted CA that has signed the servers' certificates.
+For TLS, you'll need to establish trust for the servers' certificates on the client sde. There are multiple ways of
+doing that:
+
+  1. Supplying the client library with the certificate of the trusted CA that has signed the servers' certificates.
 
   ```
   ClientConfig clientConfig = ClientConfig.builder()
@@ -305,10 +348,12 @@ On the client application side, you'll need to establish trust for the servers' 
                 .build();
   ```
 
-* Installing the CA's certificate in the Java system key store.
-* Creating a custom truststore with the CA's certificate and supplying it to the Pravega client application via the system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
+  2. Installing the CA's certificate in the Java system key store.
+  3. Creating a custom truststore with the CA's certificate and supplying it to the Pravega client application via the
+system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
 
-Further, when using the default Auth Handler implementation - the Pasword AuthHandler, supply the account credentials using Pravega ClientConfig, as shown below:
+For Auth, client-side configuration depends on the `AuthHandler` implementation used. If your server is configured to
+use the default `PasswordAuthHandler`, you may supply the credentials as shown below.
 
   ```
   ClientConfig clientConfig = ClientConfig.builder()
@@ -318,3 +363,8 @@ Further, when using the default Auth Handler implementation - the Pasword AuthHa
                 .build();
 
   ```
+
+### Having the TLS and Auth parameters take effect
+
+If you are enabling TLS and Auth in an existing Pravega cluster, having the security parameters take effect simply requires
+restarting the services. Your client applications might need to be restarted as well.
