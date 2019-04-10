@@ -57,10 +57,10 @@ import lombok.Data;
 public final class MetricsNames {
     // Metrics in Segment Store Service
     // Segment-related stats
-    public static final String SEGMENT_CREATE_LATENCY = "segment.create_latency_ms"; // Histogram
-    public static final String SEGMENT_DELETE_LATENCY = "segment.delete_latency_ms"; // Histogram
-    public static final String SEGMENT_READ_LATENCY = "segment.read_latency_ms";     // Histogram
-    public static final String SEGMENT_WRITE_LATENCY = "segment.write_latency_ms";   // Histogram
+    public static final String SEGMENT_CREATE_LATENCY = "segment.create_latency_ms";              // Histogram
+    public static final String SEGMENT_DELETE_LATENCY = "segment.delete_latency_ms";              // Histogram
+    public static final String SEGMENT_READ_LATENCY = "segment.read_latency_ms";                  // Histogram
+    public static final String SEGMENT_WRITE_LATENCY = "segment.write_latency_ms";                // Histogram
     public static final String SEGMENT_READ_BYTES = "segmentstore.segment.read_bytes";            // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_BYTES = "segmentstore.segment.write_bytes";          // Counter and Per-segment Counter
     public static final String SEGMENT_WRITE_EVENTS = "segmentstore.segment.write_events";        // Counter and Per-segment Counter
@@ -95,14 +95,14 @@ public final class MetricsNames {
     public static final String CACHE_GET_LATENCY = "segmentstore.cache.get_latency_ms";         // Histogram
     public static final String CACHE_READ_BYTES = "segmentstore.cache.read_bytes";              // Counter
     public static final String CACHE_TOTAL_SIZE_BYTES = "segmentstore.cache.size_bytes";        // Gauge
-    public static final String CACHE_GENERATION_SPREAD = "cache.gen";              // Histogram
+    public static final String CACHE_GENERATION_SPREAD = "cache.gen";                           // Histogram
 
     // DurableDataLog (Tier1) stats
-    public static final String BK_TOTAL_WRITE_LATENCY = "total_write_latency_ms";   // Including Queue. Per-container Histogram.
-    public static final String BK_WRITE_LATENCY = "write_latency_ms";               // Exclusively the write to BK. Per-container Histogram.
+    public static final String BK_TOTAL_WRITE_LATENCY = "total_write_latency_ms";                           // Including Queue. Per-container Histogram.
+    public static final String BK_WRITE_LATENCY = "write_latency_ms";                                       // Exclusively the write to BK. Per-container Histogram.
     public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";                      // Counter
-    public static final String BK_WRITE_QUEUE_SIZE = "write_queue_size";            // Per-container Histogram
-    public static final String BK_WRITE_QUEUE_FILL_RATE = "write_queue_fill";       // Per-container Histogram
+    public static final String BK_WRITE_QUEUE_SIZE = "write_queue_size";                                    // Per-container Histogram
+    public static final String BK_WRITE_QUEUE_FILL_RATE = "write_queue_fill";                               // Per-container Histogram
     public static final String BK_LEDGER_COUNT = "segmentstore.bookkeeper.bookkeeper_ledger_count";         // Per-container Gauge
 
     // Segment container metrics
@@ -129,7 +129,7 @@ public final class MetricsNames {
     public static final String OPERATION_LATENCY = "container.operation.latency_ms";                                   // Per-container Histogram
     public static final String OPERATION_COMMIT_METADATA_TXN_COUNT = "container.operation_commit.metadata_txn_count";  // Per-container Histogram
     public static final String OPERATION_COMMIT_MEMORY_LATENCY = "container.operation_commit.memory_latency_ms";       // Per-container Histogram
-    public static final String OPERATION_LOG_SIZE = "segmentstore.container.operation.log_size";                                    // Per-container Counter
+    public static final String OPERATION_LOG_SIZE = "segmentstore.container.operation.log_size";                       // Per-container Counter
 
     // Segment container metadata
     public static final String ACTIVE_SEGMENT_COUNT = "segmentstore.container.active_segments";   // Per-container Gauge
@@ -141,30 +141,30 @@ public final class MetricsNames {
     // Metrics in Controller
     // Stream request counts
     public static final String CREATE_STREAM = "controller.stream.created";                         // Counter
-    public static final String CREATE_STREAM_LATENCY = "stream.created_latency_ms";      // Histogram
+    public static final String CREATE_STREAM_LATENCY = "stream.created_latency_ms";                 // Histogram
     public static final String CREATE_STREAM_FAILED = "controller.stream.create_failed";            // Counter and Per-stream Counter
     public static final String SEAL_STREAM = "controller.stream.sealed";                            // Counter
-    public static final String SEAL_STREAM_LATENCY = "stream.sealed_latency_ms";         // Histogram
+    public static final String SEAL_STREAM_LATENCY = "stream.sealed_latency_ms";                    // Histogram
     public static final String SEAL_STREAM_FAILED = "controller.stream.seal_failed";                // Counter and Per-stream Counter
     public static final String DELETE_STREAM = "controller.stream.deleted";                         // Counter
-    public static final String DELETE_STREAM_LATENCY = "stream.deleted_latency_ms";      // Histogram
+    public static final String DELETE_STREAM_LATENCY = "stream.deleted_latency_ms";                 // Histogram
     public static final String DELETE_STREAM_FAILED = "controller.stream.delete_failed";            // Counter and Per-stream Counter
     public static final String UPDATE_STREAM = "controller.stream.updated";                         // Counter and Per-stream Counter
-    public static final String UPDATE_STREAM_LATENCY = "stream.updated_latency_ms";      // Histogram
+    public static final String UPDATE_STREAM_LATENCY = "stream.updated_latency_ms";                 // Histogram
     public static final String UPDATE_STREAM_FAILED = "controller.stream.update_failed";            // Counter and Per-stream Counter
     public static final String TRUNCATE_STREAM = "controller.stream.truncated";                     // Counter and Per-stream Counter
-    public static final String TRUNCATE_STREAM_LATENCY = "stream.truncated_latency_ms";  // Histogram
+    public static final String TRUNCATE_STREAM_LATENCY = "stream.truncated_latency_ms";             // Histogram
     public static final String TRUNCATE_STREAM_FAILED = "controller.stream.truncate_failed";        // Counter and Per-stream Counter
 
     // Transaction request Operations
     public static final String CREATE_TRANSACTION = "controller.transactions.created";                      // Counter and Per-stream Counter
-    public static final String CREATE_TRANSACTION_LATENCY = "transactions.created_latency_ms";   // Histogram
+    public static final String CREATE_TRANSACTION_LATENCY = "transactions.created_latency_ms";              // Histogram
     public static final String CREATE_TRANSACTION_FAILED = "controller.transactions.create_failed";         // Counter and Per-stream Counter
     public static final String COMMIT_TRANSACTION = "controller.transactions.committed";                    // Counter and Per-stream Counter
-    public static final String COMMIT_TRANSACTION_LATENCY = "transactions.committed_latency_ms"; // Histogram
+    public static final String COMMIT_TRANSACTION_LATENCY = "transactions.committed_latency_ms";            // Histogram
     public static final String COMMIT_TRANSACTION_FAILED = "controller.transactions.commit_failed";         // Counter, Per-stream Counter, Per-transaction Counter
     public static final String ABORT_TRANSACTION = "controller.transactions.aborted";                       // Counter and Per-stream Counter
-    public static final String ABORT_TRANSACTION_LATENCY = "transactions.aborted_latency_ms";    // Histogram
+    public static final String ABORT_TRANSACTION_LATENCY = "transactions.aborted_latency_ms";               // Histogram
     public static final String ABORT_TRANSACTION_FAILED = "controller.transactions.abort_failed";           // Counter, Per-stream Counter, Per-transaction Counter
     public static final String OPEN_TRANSACTIONS = "controller.transactions.opened";                        // Per-stream Gauge
     public static final String TIMEDOUT_TRANSACTIONS = "controller.transactions.timedout";                  // Per-stream Counter
