@@ -27,7 +27,7 @@ package io.pravega.shared;
  * Some common combinations of component and sub-components (or abstractions) being used are:
  * - segmentstore.segment: metrics for individual segments
  * - segmentstore.storage: metrics related to our long-term storage (Tier 2)
- * - bookkeeper.segmentstore: metrics related to bookkeeper (Tier 1)
+ * - segmentstore.bookkeeper: metrics related to bookkeeper (Tier 1)
  * - segmentstore.container: metrics for segment containers
  * - segmentstore.thread_pool: metrics for segmentstore thread pool
  * - segmentstore.cache: cache-related metrics (RocksDB)
@@ -105,12 +105,12 @@ public final class MetricsNames {
     public static final String CACHE_GENERATION_SPREAD = "cache.gen";                           // Histogram, logger: "segmentstore"
 
     // DurableDataLog (Tier1) stats
-    public static final String BK_TOTAL_WRITE_LATENCY = "segmentstore.total_write_latency_ms";              // Including Queue. Per-container Histogram. Logger: "bookkeeper"
-    public static final String BK_WRITE_LATENCY = "segmentstore.write_latency_ms";                          // Exclusively the write to BK. Per-container Histogram. Logger: "bookkeeper"
-    public static final String BK_WRITE_BYTES = "bookkeeper.segmentstore.write_bytes";                      // Counter
-    public static final String BK_WRITE_QUEUE_SIZE = "segmentstore.write_queue_size";                       // Per-container Histogram. Logger: "bookkeeper"
-    public static final String BK_WRITE_QUEUE_FILL_RATE = "segmentstore.write_queue_fill";                  // Per-container Histogram. Logger: "bookkeeper"
-    public static final String BK_LEDGER_COUNT = "bookkeeper.segmentstore.bookkeeper_ledger_count";         // Per-container Gauge
+    public static final String BK_TOTAL_WRITE_LATENCY = "segmentstore.bookkeeper.total_write_latency_ms";              // Including Queue. Per-container Histogram. Logger: "bookkeeper"
+    public static final String BK_WRITE_LATENCY = "segmentstore.bookkeeper.write_latency_ms";                          // Exclusively the write to BK. Per-container Histogram. Logger: "bookkeeper"
+    public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";                                 // Counter
+    public static final String BK_WRITE_QUEUE_SIZE = "segmentstore.bookkeeper.write_queue_size";                       // Per-container Histogram. Logger: "bookkeeper"
+    public static final String BK_WRITE_QUEUE_FILL_RATE = "segmentstore.bookkeeper.write_queue_fill";                  // Per-container Histogram. Logger: "bookkeeper"
+    public static final String BK_LEDGER_COUNT = "segmentstore.bookkeeper.ledger_count";                               // Per-container Gauge
 
     // Segment container metrics
     public static final String CONTAINER_APPEND_COUNT = "segmentstore.container.append_count";                          // Per-container Event Counter
@@ -205,8 +205,8 @@ public final class MetricsNames {
      * this method is called to create the name of fail metric for a given metric.
      *
      * Some examples of OpStats metrics and their corresponding fail metrics:
-     * pravega.bookkeeper.segmentstore.write_latency_ms.0
-     * pravega.bookkeeper.segmentstore.write_latency_ms_fail.0
+     * pravega.bookkeeper.segmentstore.bookkeeper.write_latency_ms.0
+     * pravega.bookkeeper.segmentstore.bookkeeper.write_latency_ms_fail.0
      *
      * pravega.segmentstore.thread_pool.active_threads
      * pravega.segmentstore.thread_pool.active_threads_fail
