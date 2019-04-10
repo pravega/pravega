@@ -52,6 +52,8 @@ public class Main {
             ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                     .connectionString(Config.ZK_URL)
                     .secureConnectionToZooKeeper(Config.SECURE_ZK)
+                    .trustStorePath(Config.ZK_TRUSTSTORE_FILE_PATH)
+                    .trustStorePasswordPath(Config.ZK_TRUSTSTORE_PASSWORD_FILE_PATH)
                     .namespace("pravega/" + Config.CLUSTER_NAME)
                     .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
                     .maxRetries(Config.ZK_MAX_RETRIES)
@@ -79,6 +81,9 @@ public class Main {
             RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
                     .host(Config.REST_SERVER_IP)
                     .port(Config.REST_SERVER_PORT)
+                    .tlsEnabled(Config.TLS_ENABLED)
+                    .keyFilePath(Config.REST_KEYSTORE_FILE_PATH)
+                    .keyFilePasswordPath(Config.REST_KEYSTORE_PASSWORD_FILE_PATH)
                     .build();
 
             ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()

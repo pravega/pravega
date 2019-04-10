@@ -18,6 +18,8 @@ import java.time.Duration;
 import lombok.AccessLevel;
 import lombok.Getter;
 
+import static io.pravega.shared.MetricsTags.segmentTags;
+
 /**
  * Implementation for {@link TableSegmentStatsRecorder}.
  */
@@ -71,14 +73,14 @@ public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder 
     @Override
     public void deleteTableSegment(String tableSegmentName, Duration elapsed) {
         getDeleteSegment().reportSuccessEvent(elapsed);
-        getDynamicLogger().freezeCounters(
-                MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_UPDATE_CONDITIONAL, tableSegmentName),
-                MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_UPDATE, tableSegmentName),
-                MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_REMOVE_CONDITIONAL, tableSegmentName),
-                MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_REMOVE, tableSegmentName),
-                MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_GET, tableSegmentName),
-                MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS, tableSegmentName),
-                MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES, tableSegmentName));
+        String[] segmentTags = segmentTags(tableSegmentName);
+        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_UPDATE_CONDITIONAL, segmentTags);
+        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_UPDATE, segmentTags);
+        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_REMOVE_CONDITIONAL, segmentTags);
+        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_REMOVE, segmentTags);
+        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_GET, segmentTags);
+        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS, segmentTags);
+        getDynamicLogger().freezeCounter(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES, segmentTags);
     }
 
     @Override
@@ -86,7 +88,7 @@ public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder 
         choose(conditional, getUpdateConditional(), getUpdateUnconditional()).reportSuccessEvent(elapsed);
         String countMetric = choose(conditional, MetricsNames.TABLE_SEGMENT_UPDATE_CONDITIONAL, MetricsNames.TABLE_SEGMENT_UPDATE);
         getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(countMetric), entryCount);
-        getDynamicLogger().incCounterValue(MetricsNames.nameFromSegment(countMetric, tableSegmentName), entryCount);
+        getDynamicLogger().incCounterValue(countMetric, entryCount, segmentTags(tableSegmentName));
     }
 
     @Override
@@ -94,28 +96,28 @@ public class TableSegmentStatsRecorderImpl implements TableSegmentStatsRecorder 
         choose(conditional, getRemoveConditional(), getRemoveUnconditional()).reportSuccessEvent(elapsed);
         String countMetric = choose(conditional, MetricsNames.TABLE_SEGMENT_REMOVE_CONDITIONAL, MetricsNames.TABLE_SEGMENT_REMOVE);
         getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(countMetric), keyCount);
-        getDynamicLogger().incCounterValue(MetricsNames.nameFromSegment(countMetric, tableSegmentName), keyCount);
+        getDynamicLogger().incCounterValue(countMetric, keyCount, segmentTags(tableSegmentName));
     }
 
     @Override
     public void getKeys(String tableSegmentName, int keyCount, Duration elapsed) {
         getGetKeys().reportSuccessEvent(elapsed);
         getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(MetricsNames.TABLE_SEGMENT_GET), keyCount);
-        getDynamicLogger().incCounterValue(MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_GET, tableSegmentName), keyCount);
+        getDynamicLogger().incCounterValue(MetricsNames.TABLE_SEGMENT_GET, keyCount, segmentTags(tableSegmentName));
     }
 
     @Override
     public void iterateKeys(String tableSegmentName, int resultCount, Duration elapsed) {
         getIterateKeys().reportSuccessEvent(elapsed);
         getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS), resultCount);
-        getDynamicLogger().incCounterValue(MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS, tableSegmentName), resultCount);
+        getDynamicLogger().incCounterValue(MetricsNames.TABLE_SEGMENT_ITERATE_KEYS, resultCount, segmentTags(tableSegmentName));
     }
 
     @Override
     public void iterateEntries(String tableSegmentName, int resultCount, Duration elapsed) {
         getIterateEntries().reportSuccessEvent(elapsed);
         getDynamicLogger().incCounterValue(MetricsNames.globalMetricName(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES), resultCount);
-        getDynamicLogger().incCounterValue(MetricsNames.nameFromSegment(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES, tableSegmentName), resultCount);
+        getDynamicLogger().incCounterValue(MetricsNames.TABLE_SEGMENT_ITERATE_ENTRIES, resultCount, segmentTags(tableSegmentName));
     }
 
     //endregion

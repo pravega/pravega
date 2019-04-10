@@ -27,6 +27,8 @@ import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.MetricsTags.createHostTag;
+
 @Slf4j
 class StatsProviderImpl implements StatsProvider {
     @Getter
@@ -57,13 +59,14 @@ class StatsProviderImpl implements StatsProvider {
         init();
         log.info("Metrics prefix: {}", conf.getMetricsPrefix());
 
-        if (conf.isEnableStatsdReporter()) {
-            metrics.add(new StatsdMeterRegistry(RegistryConfigUtil.createStatsdConfig(conf), Clock.SYSTEM));
+        if (conf.isEnableStatsDReporter()) {
+            metrics.add(new StatsdMeterRegistry(RegistryConfigUtil.createStatsDConfig(conf), Clock.SYSTEM));
         }
 
         if (conf.isEnableInfluxDBReporter()) {
             metrics.add(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
         }
+        metrics.config().commonTags(createHostTag());
         Preconditions.checkArgument(metrics.getRegistries().size() != 0,
                 "No meter register bound hence no storage for metrics!");
     }
@@ -75,6 +78,7 @@ class StatsProviderImpl implements StatsProvider {
             metrics.remove(registry);
         }
         Metrics.addRegistry(new SimpleMeterRegistry());
+        metrics.config().commonTags(createHostTag());
     }
 
     @Synchronized

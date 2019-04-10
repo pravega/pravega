@@ -59,6 +59,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsTags.segmentTags;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -94,26 +95,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
         final int servicePort = TestUtils.getAvailableListenPort();
         final int containerCount = 4;
 
-        // 1. Start ZK
-        this.zkTestServer = new TestingServerStarter().start();
-
-        // 2. Start Pravega SegmentStore service.
-        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
-
-        this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, mock(TableStore.class),
-                monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(), null, null, true);
-        this.server.startListening();
-
-        // 3. Start Pravega Controller service
-        this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                controllerPort, serviceHost, servicePort, containerCount);
-        this.controllerWrapper.awaitRunning();
-        this.controller = controllerWrapper.getController();
-
-        // 4. Start Metrics service
+        // 1. Start Metrics service
         log.info("Initializing metrics provider ...");
 
         MetricsConfig metricsConfig = MetricsConfig.builder()
@@ -125,6 +107,25 @@ public class MetricsTest extends ThreadPooledTestSuite {
         statsProvider = MetricsProvider.getMetricsProvider();
         statsProvider.startWithoutExporting();
         log.info("Metrics Stats provider is started");
+
+        // 2. Start ZK
+        this.zkTestServer = new TestingServerStarter().start();
+
+        // 3. Start Pravega SegmentStore service.
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize();
+        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
+
+        this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, mock(TableStore.class),
+                monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(), null, null, true);
+        this.server.startListening();
+
+        // 4. Start Pravega Controller service
+        this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
+                controllerPort, serviceHost, servicePort, containerCount);
+        this.controllerWrapper.awaitRunning();
+        this.controller = controllerWrapper.getController();
     }
 
     @After
@@ -200,7 +201,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             readAllEvents(reader1);
 
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
-                return (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").count();
+                return (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes", segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0")).count();
             }, 10000);
 
             String readerGroupName2 = readerGroupName + "2";
@@ -219,7 +220,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
             readAllEvents(reader2);
 
-            long countAfterCacheEvicted = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").count();
+            long countAfterCacheEvicted = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes", segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0")).count();
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
@@ -244,7 +245,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             readAllEvents(reader1);
 
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
-                return (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter").count();
+                return (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes", segmentTags(scope + "/" + STREAM_NAME + "/1.#epoch.1")).count();
             }, 10000);
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);

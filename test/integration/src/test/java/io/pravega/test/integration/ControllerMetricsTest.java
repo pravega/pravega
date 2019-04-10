@@ -56,11 +56,12 @@ import static io.pravega.shared.MetricsNames.DELETE_STREAM;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM;
 import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromStream;
+import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;
 import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
 import static org.mockito.Mockito.mock;
@@ -137,8 +138,9 @@ public class ControllerMetricsTest {
      * tests running, it might be possible that metrics get updated by other tests.
      */
     @Test(timeout = 300000)
-    public void streamMetricsTest() {
-        final String scope = "controllerMetricsTestScope";
+    public void streamMetricsTest() throws Exception {
+        //make unique scope to improve the test isolation.
+        final String scope = "controllerMetricsTestScope" + RandomFactory.getSeed();
         final String streamName = "controllerMetricsTestStream";
         final String readerGroupName = "RGControllerMetricsTestStream";
         final int parallelism = 4;
@@ -147,14 +149,12 @@ public class ControllerMetricsTest {
 
         // At this point, we have at least 6 internal streams.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                                                                     .scalingPolicy(ScalingPolicy.fixed(parallelism))
-                                                                     .build();
+                .scalingPolicy(ScalingPolicy.fixed(parallelism)).build();
         StreamManager streamManager = StreamManager.create(controllerURI);
         streamManager.createScope(scope);
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder()
-                                                                                                       .controllerURI(controllerURI)
-                                                                                                       .build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory
+                .withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, controllerURI);
 
@@ -165,10 +165,10 @@ public class ControllerMetricsTest {
             // Check that the number of streams in metrics has been incremented.
             streamManager.createStream(scope, iterationStreamName, streamConfiguration);
             Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
-            AssertExtensions.assertGreaterThanOrEqual("The counter of created streams", i, (long) createdStreamsCounter.count());
-            groupManager.createReaderGroup(iterationReaderGroupName, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
-                                                                                                .stream(scope + "/" + iterationStreamName)
-                                                                                                .build());
+            AssertExtensions.assertGreaterThanOrEqual("The counter of created streams",
+                    i, (long) createdStreamsCounter.count());
+            groupManager.createReaderGroup(iterationReaderGroupName, ReaderGroupConfig.builder()
+                    .disableAutomaticCheckpoints().stream(scope + "/" + iterationStreamName).build());
 
             for (long j = 1; j < iterations + 1; j++) {
                 @Cleanup
@@ -177,9 +177,9 @@ public class ControllerMetricsTest {
                 streamManager.updateStream(scope, iterationStreamName, streamConfiguration);
                 Counter updatedStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter streamUpdatesCounter = MetricRegistryUtils.getCounter(
-                        getCounterMetricName(nameFromStream(UPDATE_STREAM, scope, iterationStreamName)));
+                        getCounterMetricName(UPDATE_STREAM), streamTags(scope, iterationStreamName));
                 Assert.assertTrue(iterations * i + j <= updatedStreamsCounter.count());
-                Assert.assertTrue(j <= streamUpdatesCounter.count());
+                Assert.assertTrue(j == streamUpdatesCounter.count());
 
                 // Read and write some events.
                 writeEvents(clientFactory, iterationStreamName, eventsWritten);
@@ -190,11 +190,11 @@ public class ControllerMetricsTest {
 
                 // Truncate the Stream and check that the number of truncated Streams and per-Stream truncations is incremented.
                 streamManager.truncateStream(scope, iterationStreamName, streamCut);
-                Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
+                Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(TRUNCATE_STREAM)));
                 Counter perStreamTruncationCounter = MetricRegistryUtils.getCounter(
-                        getCounterMetricName(nameFromStream(UPDATE_STREAM, scope, iterationStreamName)));
+                        getCounterMetricName(TRUNCATE_STREAM), streamTags(scope, iterationStreamName));
                 Assert.assertTrue(iterations * i + j <= streamTruncationCounter.count());
-                Assert.assertTrue(j <= perStreamTruncationCounter.count());
+                Assert.assertTrue(j == perStreamTruncationCounter.count());
             }
 
             // Check metrics accounting for sealed and deleted streams.
@@ -206,8 +206,26 @@ public class ControllerMetricsTest {
             Assert.assertTrue(i + 1 <= streamDeleteCounter.count());
         }
 
-        checkStatsRegisteredValues(iterations, CREATE_STREAM_LATENCY, SEAL_STREAM_LATENCY, DELETE_STREAM_LATENCY);
-        checkStatsRegisteredValues(iterations * iterations, UPDATE_STREAM_LATENCY, TRUNCATE_STREAM_LATENCY);
+        //Put assertion on different lines so it can tell more information in case of failure.
+        Timer latencyValues1 = MetricRegistryUtils.getTimer(getTimerMetricName(CREATE_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues1);
+        Assert.assertTrue(iterations <= latencyValues1.count());  //also system streams created so count() is bigger
+
+        Timer latencyValues2 = MetricRegistryUtils.getTimer(getTimerMetricName(SEAL_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues2);
+        Assert.assertTrue(iterations == latencyValues2.count());
+
+        Timer latencyValues3 = MetricRegistryUtils.getTimer(getTimerMetricName(DELETE_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues3);
+        Assert.assertTrue(iterations == latencyValues3.count());
+
+        Timer latencyValues4 = MetricRegistryUtils.getTimer(getTimerMetricName(UPDATE_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues4);
+        Assert.assertTrue(iterations * iterations == latencyValues4.count());
+
+        Timer latencyValues5 = MetricRegistryUtils.getTimer(getTimerMetricName(TRUNCATE_STREAM_LATENCY));
+        Assert.assertNotNull(latencyValues5);
+        Assert.assertTrue(iterations * iterations == latencyValues5.count());
     }
 
     /**
@@ -227,16 +245,8 @@ public class ControllerMetricsTest {
         Assert.assertEquals(zkSessionExpirationCounter.count(), 1, 0.1);
     }
 
-    private void checkStatsRegisteredValues(int minExpectedValues, String...metricNames) {
-        for (String metricName: metricNames) {
-            Timer latencyValues = MetricRegistryUtils.getTimer(getTimerMetricName(metricName));
-            Assert.assertNotNull(latencyValues);
-            Assert.assertTrue(minExpectedValues <= latencyValues.takeSnapshot().count());
-        }
-    }
-
     private static String getCounterMetricName(String metricName) {
-        return "pravega." + metricName + ".Counter";
+        return "pravega." + metricName;
     }
 
     private static String getTimerMetricName(String metricName) {

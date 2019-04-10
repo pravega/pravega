@@ -55,6 +55,6 @@ public class ConfigTest {
     @Test
     public void testMetricsConfig() {
         val mc = Config.METRICS_CONFIG;
-        Assert.assertEquals("localhost", mc.getStatsdHost());
+        Assert.assertEquals("no-host", mc.getStatsDHost());
     }
 }
