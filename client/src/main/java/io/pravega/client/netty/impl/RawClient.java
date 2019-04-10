@@ -10,7 +10,6 @@
 package io.pravega.client.netty.impl;
 
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.Session;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
@@ -45,7 +44,7 @@ public class RawClient implements AutoCloseable {
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @Getter
-    private final Session session = Session.create();
+    private final Flow flow = Flow.create();
 
     private final class ResponseProcessor extends FailingReplyProcessor {
 
@@ -76,7 +75,7 @@ public class RawClient implements AutoCloseable {
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth token failure: ", authTokenCheckFailed);
+            log.warn("Auth token failure: {}", authTokenCheckFailed);
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
     }
@@ -84,7 +83,7 @@ public class RawClient implements AutoCloseable {
     public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
         this.segmentId = segmentId;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
+                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(flow, uri, responseProcessor));
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 

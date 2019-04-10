@@ -13,6 +13,7 @@ import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.tables.impl.IteratorState;
 import io.pravega.client.tables.impl.IteratorStateImpl;
@@ -659,6 +660,13 @@ public class SegmentHelperTest {
                 ClientConnection connection = new MockConnection(rp, failConnection);
                 return CompletableFuture.completedFuture(connection);
             }
+        }
+
+        @Override
+        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
+            this.rp = rp;
+            ClientConnection connection = new MockConnection(rp, failConnection);
+            return CompletableFuture.completedFuture(connection);
         }
 
         @Override
