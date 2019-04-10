@@ -9,46 +9,63 @@ You may obtain a copy of the License at
 -->
 # Pravega Security Configurations
 
-The following is the list of configuration parameters for different Pravega components.
+This document describes the list of security configuration parameters for Pravega components.
 
-## Pravega Segment store <a name = "pravega-segment-store"></a>
+## Security Configuration Parameters in Distributed Mode
 
-|Parameter|Details|Default Value|
-|---------|-------|-------------|
-|pravegaservice.enableTls| Enable TLS on client to segment store connection.|False|
-|pravegaservice.certFile|Certificate file used for TLS (public key)| Empty|
-|pravegaservice.keyFile|Key file (Private key) used for TLS|Empty|
-|autoScale.tlsEnabled| Enable TLS for internal communication between segment store and controller|False|
-|autoScale.authEnabled|Enable authorization/authentication for internal communication  between segment store and controller|False|
-|autoScale.tlsCertFile|Certificate file used for encrypted internal communication between segment store and controller| Empty|
-|autoScale.tokenSigningKey|Signing key used to sign the delegation token sent from controller to segment store| Empty|
-|bookkeeper.tlsEnabled|Enable TLS for communication between segment store and Apache Bookkeeper| False|
-|bookkeeper.tlsTrustStorePath| Truststore for TLS communication between segment store and Apache Bookkeeper| Empty |
-|pravegaservice.secureZK|Enable TLS for communication between segment store and Apache Zookeeper| False|
-|bookkeeper.zkTrustStore| Truststore for TLS communication between segment store and Apache Zookeeper| Empty |
+This section lists the security configuration parameters for Segment Store and Controller in a distributed mode deployment.
 
-## Pravega Controller <a name ="pravega-controller"></a>
+### Segment store <a name = "pravega-segment-store"></a>
 
-|Parameter|Details|Default Value|
-|---------|-------|-------------|
-|config.controller.server.authorizationEnabled|Enable authorization/authentication| False|
-|config.controller.server.tlsEnabled|Enable encrypted channel between Pravega client and controller|False|
-|config.controller.server.tlsKeyFile|The key file (Private key) for communication between Pravega client and controller|Empty|
-|config.controller.server.tlsCertFile|Public key certificate for communication between Pravega client and controller|Empty|
-|config.controller.server.tokenSigningKey|Signing key used to sign the delegation token passed on to the segment store|Empty|
-|config.controller.server.userPasswordFile|File containing user details for default _auth_ implementation for Pravega (similar to `/etc/passwd`)|Empty|
-|config.controller.server.zk.secureConnectionToZooKeeper|Enable TLS for connection to Apache ZooKeeper| False|
-|config.controller.server.zk.trustStorePath|Truststore for TLS communications with Apache ZooKeeper| False|
+|Parameter|Description|Default Value|Feature|
+|---------|-------|-------------|------------|
+| pravegaservice.enableTls | Whether to enable TLS for client-server communications. | False | TLS |
+| pravegaservice.certFile | Path of the Certificate file containing the public key, to be used for TLS. | Empty | TLS |
+| pravegaservice.keyFile | Path of the file containing the private key, to be used for TLS. | Empty | TLS |
+| pravegaservice.secureZK | Whether to enable TLS for communication with Apache Zookeeper. | False | TLS |
+| pravegaservice.zkTrustStore | Path of the truststore file to be used for communicating with Apache Zookeeer. | Empty | TLS |
+| pravegaservice.zkTrustStorePasswordPath | Path of the file containing the password of the truststore. | Empty | TLS |
+| autoScale.tlsEnabled | Whether to enable TLS for internal communication between segment store and controller. | False | TLS |
+| autoScale.tlsCertFile | Path of the certificate file used for TLS-enabled internal communication between segment store and controller. | Empty | TLS |
+| autoScale.validateHostName | Whether to enable hostname verification during TLS-enabled internal communication between segment store and controller. | True | TLS |
+| autoScale.authEnabled | Whether to enable authorization and authentication for internal communication with controller. | False | Auth |
+| autoScale.tokenSigningKey | The signing key used to sign the delegation token sent from controller to segment store. | Empty | Auth |
+| bookkeeper.tlsEnabled | Whether to enable TLS for communication between segment store and Apache Bookkeeper. | False | TLS |
+| bookkeeper.tlsTrustStorePath | Path of the truststore file to be used for communicating with Apache Bookkeeper. | Empty | TLS |
 
-## Pravega Standalone
-For ease of use Pravega standalone hides some of the configurations that are mentioned above. Below is the table containing relevant configurations for Pravega Standalone:
 
-|Parameter|Details|Default Value|
-|---------|-------|-------------|
-|singlenode.enableTls|Enable TLS between all the components deployed within the singlenode| False|
-|singlenode.enableAuth|Enable authentication/authorization between all the components within the singlenode |False|
-|singlenode.certFile|If TLS is enabled, the public key certificate is used for internal communication between segment store and controller|Empty|
-|singlenode.keyFile|If TLS is enabled, this represents the private key by all the server sockets| Empty|
-|singlenode.passwdFile|If _auth_ is enabled, this represents the password file for the default _auth_ plugin implementation|Empty|
-|singlenode.userName|If _auth_ is enabled, this represents the username used for internal communication between segment store and controller|Empty|
-|singlenode.passwd|If _auth_ is enabled, this represents the password used for internal communication between segment store and controller|Empty|
+### Controller <a name ="pravega-controller"></a>
+
+|Parameter|Details|Default Value|Feature|
+|---------|-------|-------------|-------|
+| controller.auth.tlsEnabled | Whether to enable TLS for client-server communications. | False | TLS |
+| controller.auth.tlsCertFile | Path of the Certificate file containing the public key, to be used for TLS. | Empty | TLS |
+| controller.auth.tlsKeyFile | Path of the file containing the private key, to be used for TLS. | Empty | TLS |
+| controller.auth.tlsTrustStore | Path of the truststore file, to be used for communicating with segment stores. | Empty | TLS |
+| controller.rest.tlsKeyStoreFile | Path of the keystore file in `.jks` format, to be used for REST API | Empty | TLS |
+| controller.rest.tlsKeyStorePasswordFile | Path of the file containing the REST API's keystore password. | Empty | TLS |
+| controller.zk.secureConnection | Whether to enable TLS for communication with Apache Zookeeper| False | TLS |
+| controller.zk.tlsTrustStoreFile | Path of the truststore file to be used communicating with Apache Zookeeer. | Empty | TLS |
+| controller.zk.tlsTrustStorePasswordFile | Path of the file containing the password of the truststore. | Empty | TLS |
+| controller.auth.enabled | Whether to enable authentication and authorization for clients. | False | Auth |
+| controller.auth.userPasswordFile | Path of the file containing user credentials and ACLs, to be used by the PasswordAuthHandler.| Empty | Auth |
+| controller.auth.tokenSigningKey | Signing key used to sign the delegation token passed on to the segment store. | Empty | Auth |
+
+
+## Security Configurations in Standalone Mode
+
+For ease of use, Pravega standalone hides some of the configurations that are mentioned above for configuring
+Segment Store and Controller services individually for deployments in distributed mode.
+
+|Parameter|Details|Default Value|Feature|
+|---------|-------|-------------|-------|
+|singlenode.enableTls | Whether to enable TLS for client-server communications. | False | TLS |
+|singlenode.certFile | Path of the Certificate file containing the public key, to be used for TLS. |Empty| TLS |
+|singlenode.keyFile | Path of the file containing the private key, to be used for TLS. | Empty | TLS |
+|singlenode.keyStoreJKS | Path of the keystore file in `.jks` format, to be used for REST API. | Empty | TLS |
+|singlenode.keyStoreJKSPasswordFile | Path of the file containing the REST API's keystore password. | Empty | TLS |
+|singlenode.trustStoreJKS | Path of the truststore file, to be used for communicating with segment stores. | Empty | TLS |
+|singlenode.enableAuth | Whether to enable authentication and authorization for clients. |False| Auth |
+|singlenode.passwdFile | Path of the file containing user credentials and ACLs, to be used by the  PasswordAuthHandler.|Empty| Auth |
+|singlenode.userName | The default username used for internal communication between segment store and controller| Empty| Auth |
+|singlenode.passwd | The default password used for internal communication between segment store and controller| Empty| Auth |
