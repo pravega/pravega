@@ -18,6 +18,7 @@ import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_FAILED;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.INITIAL_SEGMENTS_COUNT;
 import static io.pravega.shared.MetricsNames.OPEN_TRANSACTIONS;
 import static io.pravega.shared.MetricsNames.RETENTION_FREQUENCY;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM;
@@ -57,11 +58,8 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      */
     public void createStream(String scope, String streamName, int minNumSegments, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(CREATE_STREAM, 1);
-        DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, 0, streamTags(scope, streamName));
-        DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_COUNT, minNumSegments, streamTags(scope, streamName));
-        DYNAMIC_LOGGER.incCounterValue(SEGMENTS_SPLITS, 0, streamTags(scope, streamName));
-        DYNAMIC_LOGGER.incCounterValue(SEGMENTS_MERGES, 0, streamTags(scope, streamName));
-
+        // Report the initial number of segments in the Stream.
+        DYNAMIC_LOGGER.reportGaugeValue(INITIAL_SEGMENTS_COUNT, minNumSegments, streamTags(scope, streamName));
         createStreamLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -211,10 +209,10 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      * @param merges        Number of segment merges in the scale operation.
      */
     public static void reportSegmentSplitsAndMerges(String scope, String streamName, long splits, long merges) {
-        DYNAMIC_LOGGER.updateCounterValue(globalMetricName(SEGMENTS_SPLITS), splits);
-        DYNAMIC_LOGGER.updateCounterValue(SEGMENTS_SPLITS, splits, streamTags(scope, streamName));
-        DYNAMIC_LOGGER.updateCounterValue(globalMetricName(SEGMENTS_MERGES), merges);
-        DYNAMIC_LOGGER.updateCounterValue(SEGMENTS_MERGES, merges, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.reportGaugeValue(globalMetricName(SEGMENTS_SPLITS), splits);
+        DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_SPLITS, splits, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.reportGaugeValue(globalMetricName(SEGMENTS_MERGES), merges);
+        DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_MERGES, merges, streamTags(scope, streamName));
     }
 
     @Override

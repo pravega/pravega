@@ -15,12 +15,20 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
+import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
@@ -39,6 +47,9 @@ import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.net.URI;
 import java.time.Duration;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
@@ -54,14 +65,19 @@ import static io.pravega.shared.MetricsNames.CREATE_STREAM;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM;
 import static io.pravega.shared.MetricsNames.DELETE_STREAM_LATENCY;
+import static io.pravega.shared.MetricsNames.INITIAL_SEGMENTS_COUNT;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM;
 import static io.pravega.shared.MetricsNames.SEAL_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM;
+import static io.pravega.shared.MetricsNames.SEGMENTS_COUNT;
+import static io.pravega.shared.MetricsNames.SEGMENTS_MERGES;
+import static io.pravega.shared.MetricsNames.SEGMENTS_SPLITS;
 import static io.pravega.shared.MetricsNames.TRUNCATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;
 import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
 
@@ -245,11 +261,95 @@ public class ControllerMetricsTest {
         Assert.assertEquals(zkSessionExpirationCounter.count(), 1, 0.1);
     }
 
+    /**
+     * This test verifies the correct reporting of segment splits, merges and count metrics. Concretely, this test
+     * checks that segment splits and merges are not initialized upon a createStream operation. Moreover, we also make
+     * sure to report the initial number of Stream segment in "segment count" metric. After reporting this value once,
+     * we need to remove this metric from the local cache of the Controller handling the createStream operation to avoid
+     * conflicts with another Controller that may handle a scaleStream request. Finally, this test checks that upon a
+     * scaleStream request, the segment splits, merges and count metrics are correctly reported.
+     *
+     * @throws InterruptedException
+     */
+    @Test(timeout = 15000)
+    public void mergesSplitsAndSegmentCountMetricsTest() throws Exception {
+        final String scope = "mergesSplitsAndSegmentCountMetricsTestScope";
+        final String streamName = "mergesSplitsAndSegmentCountMetricsTestStream";
+        final int minNumSegments = 1;
+
+        StreamConfiguration streamConfiguration = StreamConfiguration.builder()
+                                                                     .scalingPolicy(ScalingPolicy.byEventRate(10, 2, minNumSegments))
+                                                                     .build();
+        StreamManager streamManager = StreamManager.create(controllerURI);
+        streamManager.createScope(scope);
+        streamManager.createStream(scope, streamName, streamConfiguration);
+
+        // Segment count, splits and merges should remain not initialized.
+        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_SPLITS))));
+        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_SPLITS), streamTags(scope, streamName)));
+        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_MERGES))));
+        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_MERGES), streamTags(scope, streamName)));
+        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_COUNT), streamTags(scope, streamName)));
+
+        // Check that the initial number of segments for this Stream is reported correctly.
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(INITIAL_SEGMENTS_COUNT), streamTags(scope, streamName)));
+        assertEventuallyEquals((double) minNumSegments, () ->
+                MetricRegistryUtils.getGauge(getGaugeMetricName(INITIAL_SEGMENTS_COUNT), streamTags(scope, streamName)).value());
+
+        // Scale the Stream and check that all these metrics have been set up again.
+        performScaleStream(scope, streamName);
+
+        // Check that all the metrics are being reported, now originated from the scale request.
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_SPLITS))));
+        assertEventuallyEquals(1.0, () ->
+                MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_SPLITS))).value());
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_SPLITS), streamTags(scope, streamName)));
+        assertEventuallyEquals(1.0, () ->
+                MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_SPLITS), streamTags(scope, streamName)).value());
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_MERGES))));
+        assertEventuallyEquals(0.0, () ->
+                MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_MERGES))).value());
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_MERGES), streamTags(scope, streamName)));
+        assertEventuallyEquals(0.0, () ->
+                MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_MERGES), streamTags(scope, streamName)).value());
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_COUNT), streamTags(scope, streamName)));
+        assertEventuallyEquals(3.0, () ->
+                MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_COUNT), streamTags(scope, streamName)).value());
+    }
+
+    private void performScaleStream(String scope, String streamName) throws InterruptedException {
+        @Cleanup
+        Controller controller = controllerWrapper.getController();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                    .controllerURI(URI.create("tcp://localhost"))
+                                                                                    .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+                EventWriterConfig.builder().build());
+        writer.writeEvent("0", "event1").join();
+        Stream stream = new StreamImpl(scope, streamName);
+        Map<Double, Double> map = new HashMap<>();
+        map.put(0.0, 0.33);
+        map.put(0.33, 0.66);
+        map.put(0.66, 1.0);
+        boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().join();
+        Assert.assertTrue(result);
+        writer.writeEvent("0", "event2").join();
+    }
+
     private static String getCounterMetricName(String metricName) {
+        return "pravega." + metricName;
+    }
+
+    private static String getGaugeMetricName(String metricName) {
         return "pravega." + metricName;
     }
 
     private static String getTimerMetricName(String metricName) {
         return "pravega.controller." + metricName;
     }
+
 }

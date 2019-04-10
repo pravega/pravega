@@ -441,11 +441,10 @@ controller.retention.truncated_size - with tags {"scope", $scope, "stream", $str
 
 - Controller Stream Segment operations (counters) and open/timed out Transactions on a Stream (gauge/counter) metrics - all with tags {"scope", $scope, "stream", $stream}:
 ```
-controller.transactions.opened
-controller.transactions.timedout
-controller.segments.count
-controller.segment.splits
-controller.segment.merges
+controller.segments.count - with tags {"scope", $scope, "stream", $stream}
+controller.segments.initial_count - with tags {"scope", $scope, "stream", $stream}
+controller.segment.splits - with tags {"scope", $scope, "stream", $stream}
+controller.segment.merges - with tags {"scope", $scope, "stream", $stream}
 ```
 
 - Controller Transaction operation latency metrics:
@@ -471,6 +470,8 @@ controller.transactions.aborted - with tags {"scope", $scope, "stream", $stream}
 controller.transactions.abort_failed_global
 controller.transactions.abort_failed - with tags {"scope", $scope, "stream", $stream}
 controller.transactions.abort_failed - with tags {"scope", $scope, "stream", $stream, "transaction", $txnId}
+controller.transactions.opened - with tags {"scope", $scope, "stream", $stream}
+controller.transactions.timedout - with tags {"scope", $scope, "stream", $stream}
 ```
 
 - Controller hosts available (gauge) and host failure (counter) metrics:

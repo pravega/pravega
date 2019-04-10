@@ -178,9 +178,10 @@ public final class MetricsNames {
     public static final String CONTAINER_FAILOVERS = "controller.container.failovers";    // Counter and Per-container Counter
 
     // Stream segment counts
-    public static final String SEGMENTS_COUNT = "controller.segments.count";    // Per-stream Gauge
-    public static final String SEGMENTS_SPLITS = "controller.segment.splits";   // Per-stream Counter
-    public static final String SEGMENTS_MERGES = "controller.segment.merges";   // Per-stream Counter
+    public static final String SEGMENTS_COUNT = "controller.segments.count";                    // Per-stream Gauge
+    public static final String INITIAL_SEGMENTS_COUNT = "controller.segments.initial_count";    // Per-stream Gauge
+    public static final String SEGMENTS_SPLITS = "controller.segment.splits";                   // Per-stream Gauge
+    public static final String SEGMENTS_MERGES = "controller.segment.merges";                   // Per-stream Gauge
 
     // Stream retention operations
     public static final String RETENTION_FREQUENCY = "controller.retention.frequency";   // Per-stream Counter
