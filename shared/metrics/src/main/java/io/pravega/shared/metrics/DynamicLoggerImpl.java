@@ -25,9 +25,6 @@ import io.pravega.shared.MetricsNames;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.MetricsNames.metricKey;
-import static io.pravega.shared.MetricsNames.COUNTER_SUFFIX;
-import static io.pravega.shared.MetricsNames.GAUGE_SUFFIX;
-import static io.pravega.shared.MetricsNames.METER_SUFFIX;
 
 @Slf4j
 public class DynamicLoggerImpl implements DynamicLogger {
@@ -98,7 +95,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(delta);
         try {
-            MetricsNames.MetricKey keys = metricKey(name, COUNTER_SUFFIX, tags);
+            MetricsNames.MetricKey keys = metricKey(name, tags);
             Counter counter = countersCache.get(keys.getCacheKey(), new Callable<Counter>() {
                 @Override
                 public Counter call() throws Exception {
@@ -114,7 +111,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
     @Override
     public void updateCounterValue(String name, long value, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
-        MetricsNames.MetricKey keys = metricKey(name, COUNTER_SUFFIX, tags);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
         Counter counter = countersCache.getIfPresent(keys.getCacheKey());
         if (counter != null) {
             counter.clear();
@@ -122,12 +119,12 @@ public class DynamicLoggerImpl implements DynamicLogger {
             counter = underlying.createCounter(keys.getRegistryKey(), tags);
         }
         counter.add(value);
-        countersCache.put(name, counter);
+        countersCache.put(keys.getCacheKey(), counter);
     }
 
     @Override
     public void freezeCounter(String name, String... tags) {
-        MetricsNames.MetricKey keys = metricKey(name, COUNTER_SUFFIX, tags);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
         Counter counter = countersCache.getIfPresent(keys.getCacheKey());
         if (counter != null) {
             metrics.remove(counter.getId());
@@ -140,7 +137,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(value);
         Gauge newGauge = null;
-        MetricsNames.MetricKey keys = metricKey(name, GAUGE_SUFFIX, tags);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
 
         if (value instanceof Float) {
             newGauge = underlying.registerGauge(keys.getRegistryKey(), value::floatValue, tags);
@@ -165,7 +162,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
 
     @Override
     public void freezeGaugeValue(String name, String... tags) {
-        MetricsNames.MetricKey keys = metricKey(name, GAUGE_SUFFIX, tags);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
         Gauge gauge = gaugesCache.getIfPresent(keys.getCacheKey());
         if (gauge != null) {
             metrics.remove(gauge.getId());
@@ -177,7 +174,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
     public void recordMeterEvents(String name, long number, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(number);
-        MetricsNames.MetricKey keys = metricKey(name, METER_SUFFIX, tags);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
         try {
             Meter meter = metersCache.get(keys.getCacheKey(), new Callable<Meter>() {
                 @Override

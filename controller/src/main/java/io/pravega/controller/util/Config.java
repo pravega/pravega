@@ -81,10 +81,14 @@ public final class Config {
     public static final int ZK_MAX_RETRIES;
     public static final int ZK_SESSION_TIMEOUT_MS;
     public static final boolean SECURE_ZK;
+    public static final String ZK_TRUSTSTORE_FILE_PATH;
+    public static final String ZK_TRUSTSTORE_PASSWORD_FILE_PATH;
 
     //REST server configuration
     public static final String REST_SERVER_IP;
     public static final int REST_SERVER_PORT;
+    public static final String REST_KEYSTORE_FILE_PATH;
+    public static final String REST_KEYSTORE_PASSWORD_FILE_PATH;
 
     // Store configuration
     public static final boolean USE_PRAVEGA_TABLES;
@@ -133,26 +137,37 @@ public final class Config {
     private static final Property<String> PROPERTY_RPC_HOST = Property.named("service.publishedRPCHost", NULL_VALUE);
     private static final Property<Integer> PROPERTY_RPC_PORT = Property.named("service.publishedRPCPort", 9090);
     private static final Property<String> PROPERTY_CLUSTER_NAME = Property.named("service.cluster", "pravega-cluster");
+
     private static final Property<String> PROPERTY_REST_IP = Property.named("service.restIp", "0.0.0.0");
     private static final Property<Integer> PROPERTY_REST_PORT = Property.named("service.restPort", 9091);
+    private static final Property<String> PROPERTY_REST_KEYSTORE_FILE_PATH = Property.named("rest.tlsKeyStoreFile", "");
+    private static final Property<String> PROPERTY_REST_KEYSTORE_PASSWORD_FILE_PATH = Property.named("rest.tlsKeyStorePasswordFile", "");
+
     private static final Property<Boolean> PROPERTY_AUTH_ENABLED = Property.named("auth.enabled", false);
     private static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named("auth.userPasswordFile", "");
+    private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("auth.tokenSigningKey", "");
+
     private static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named("auth.tlsEnabled", false);
     private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("auth.tlsCertFile", "");
     private static final Property<String> PROPERTY_TLS_TRUST_STORE = Property.named("auth.tlsTrustStore", "");
     private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named("auth.tlsKeyFile", "");
-    private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("auth.tokenSigningKey", "");
+
     private static final Property<String> PROPERTY_ZK_URL = Property.named("zk.url", "localhost:2181");
     private static final Property<Integer> PROPERTY_ZK_RETRY_MILLIS = Property.named("zk.retryIntervalMillis", 5000);
     private static final Property<Integer> PROPERTY_ZK_MAX_RETRY_COUNT = Property.named("maxRetries", 5);
     private static final Property<Integer> PROPERTY_ZK_SESSION_TIMEOUT_MILLIS = Property.named("sessionTimeoutMillis", 10000);
     private static final Property<Boolean> PROPERTY_ZK_SECURE_CONNECTION = Property.named("secureConnection", false);
+    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_FILE_PATH = Property.named("zk.tlsTrustStoreFile", "");
+    private static final Property<String> PROPERTY_ZK_TRUSTSTORE_PASSWORD_FILE_PATH = Property.named("zk.tlsTrustStorePasswordFile", "");
+
     private static final Property<Integer> PROPERTY_RETENTION_FREQUENCY_MINUTES = Property.named("retention.frequencyMinutes", 30);
     private static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named("retention.bucketCount", 1);
     private static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named("retention.threadCount", 1);
+
     private static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named("transaction.minLeaseValue", 10000);
     private static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named("transaction.maxLeaseValue", 120000);
     private static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named("transaction.ttlHours", 24);
+
     private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("scale.streamName", "_requeststream");
     private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("scale.ReaderGroup", "scaleGroup");
     private static final String COMPONENT_CODE = "controller";
@@ -164,6 +179,7 @@ public final class Config {
     static {
         val properties = loadConfiguration();
         val p = new TypedProperties(properties, COMPONENT_CODE);
+
         RPC_SERVER_PORT = p.getInt(PROPERTY_SERVICE_PORT);
         ASYNC_TASK_POOL_SIZE = p.getInt(PROPERTY_TASK_POOL_SIZE);
         RPC_PUBLISHED_SERVER_HOST = p.get(PROPERTY_RPC_HOST);
@@ -174,22 +190,32 @@ public final class Config {
         HOST_MONITOR_ENABLED = p.getBoolean(PROPERTY_HOST_MONITORING_ENABLED);
         CLUSTER_NAME = p.get(PROPERTY_CLUSTER_NAME);
         CLUSTER_MIN_REBALANCE_INTERVAL = p.getInt(PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS);
+
         AUTHORIZATION_ENABLED = p.getBoolean(PROPERTY_AUTH_ENABLED);
         USER_PASSWORD_FILE = p.get(PROPERTY_AUTH_PASSWORD_FILE);
+        TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
+
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
         TLS_CERT_FILE = p.get(PROPERTY_TLS_CERT_FILE);
         TLS_TRUST_STORE = p.get(PROPERTY_TLS_TRUST_STORE);
-        TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
+
         REPLY_WITH_STACK_TRACE_ON_ERROR = p.getBoolean(PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR);
         REQUEST_TRACING_ENABLED = p.getBoolean(PROPERTY_REQUEST_TRACING_ENABLED);
+
         ZK_URL = p.get(PROPERTY_ZK_URL);
         ZK_RETRY_SLEEP_MS = p.getInt(PROPERTY_ZK_RETRY_MILLIS);
         ZK_MAX_RETRIES = p.getInt(PROPERTY_ZK_MAX_RETRY_COUNT);
         ZK_SESSION_TIMEOUT_MS = p.getInt(PROPERTY_ZK_SESSION_TIMEOUT_MILLIS);
         SECURE_ZK = p.getBoolean(PROPERTY_ZK_SECURE_CONNECTION);
+        ZK_TRUSTSTORE_FILE_PATH = p.get(PROPERTY_ZK_TRUSTSTORE_FILE_PATH);
+        ZK_TRUSTSTORE_PASSWORD_FILE_PATH = p.get(PROPERTY_ZK_TRUSTSTORE_PASSWORD_FILE_PATH);
+
         REST_SERVER_IP = p.get(PROPERTY_REST_IP);
         REST_SERVER_PORT = p.getInt(PROPERTY_REST_PORT);
+        REST_KEYSTORE_FILE_PATH = p.get(PROPERTY_REST_KEYSTORE_FILE_PATH);
+        REST_KEYSTORE_PASSWORD_FILE_PATH = p.get(PROPERTY_REST_KEYSTORE_PASSWORD_FILE_PATH);
+
         MIN_LEASE_VALUE = p.getInt(PROPERTY_TXN_MIN_LEASE);
         MAX_LEASE_VALUE = p.getInt(PROPERTY_TXN_MAX_LEASE);
         COMPLETED_TRANSACTION_TTL_IN_HOURS = p.getInt(PROPERTY_TXN_TTL_HOURS);
