@@ -142,6 +142,12 @@ public class ZKHostStore implements HostControllerStore {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
+
+    @Override
+    public Host getHostForTableSegment(String scope, String stream) {
+        String qualifiedName = StreamSegmentNameUtils.getScopedStreamName(scope, stream);
+        return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
+    }
     
     @VisibleForTesting
     public void addListener(Listener listener) {

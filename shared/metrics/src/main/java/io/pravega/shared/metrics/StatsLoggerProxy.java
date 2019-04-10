@@ -19,7 +19,6 @@ import io.pravega.shared.MetricsNames;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.MetricsNames.metricKey;
-import static io.pravega.shared.MetricsNames.NONE_SUFFIX;
 
 @Slf4j
 public class StatsLoggerProxy implements StatsLogger {
@@ -92,7 +91,7 @@ public class StatsLoggerProxy implements StatsLogger {
         // do any IO or acquire other locks, however we have no control over new Metric creation. As such, we use optimistic
         // concurrency, where we assume that the MetricProxy does not exist, create it, and then if it does exist, close
         // the newly created one.
-        MetricsNames.MetricKey keys = metricKey(name, NONE_SUFFIX, tags);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
         T newMetric = createMetric.apply(keys.getRegistryKey());
         V newProxy = createProxy.apply(newMetric, keys.getCacheKey(), cache::remove);
         V existingProxy = cache.putIfAbsent(newProxy.getProxyName(), newProxy);

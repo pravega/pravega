@@ -19,16 +19,14 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Data
-@Builder
 /**
  * This class is the metadata to capture the currently processing transaction commit work. This captures the list of
  * transactions that current round of processing will attempt to commit. If the processing fails and retries, it will
@@ -46,7 +44,7 @@ public class CommittingTransactionsRecord {
     /**
      * Transactions to be be committed.
      */
-    private final List<UUID> transactionsToCommit;
+    private final ImmutableList<UUID> transactionsToCommit;
 
     /**
      * Set only for rolling transactions and identify the active epoch that is being rolled over.
@@ -54,21 +52,22 @@ public class CommittingTransactionsRecord {
     @Getter(AccessLevel.PRIVATE)
     private Optional<Integer> activeEpoch;
 
-    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit) {
+    public CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit) {
         this(epoch, transactionsToCommit, Optional.empty());
     }
 
-    CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, int activeEpoch) {
+    public CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, int activeEpoch) {
         this(epoch, transactionsToCommit, Optional.of(activeEpoch));
     }
 
-    private CommittingTransactionsRecord(int epoch, List<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
+    @Builder
+    private CommittingTransactionsRecord(int epoch, @NonNull ImmutableList<UUID> transactionsToCommit, Optional<Integer> activeEpoch) {
         this.epoch = epoch;
-        this.transactionsToCommit = ImmutableList.copyOf(transactionsToCommit);
+        this.transactionsToCommit = transactionsToCommit;
         this.activeEpoch = activeEpoch;
     }
 
-    public static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
+    private static class CommittingTransactionsRecordBuilder implements ObjectBuilder<CommittingTransactionsRecord> {
         private Optional<Integer> activeEpoch = Optional.empty();
     }
 
@@ -120,8 +119,11 @@ public class CommittingTransactionsRecord {
 
         private void read00(RevisionDataInput revisionDataInput, CommittingTransactionsRecordBuilder builder)
                 throws IOException {
-            builder.epoch(revisionDataInput.readInt())
-                   .transactionsToCommit(revisionDataInput.readCollection(RevisionDataInput::readUUID, ArrayList::new));
+            ImmutableList.Builder<UUID> listBuilder = ImmutableList.builder(); 
+            builder.epoch(revisionDataInput.readInt());
+
+            revisionDataInput.readCollection(RevisionDataInput::readUUID, listBuilder);
+            builder.transactionsToCommit(listBuilder.build());
 
             int read = revisionDataInput.readInt();
             if (read == Integer.MIN_VALUE) {

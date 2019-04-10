@@ -47,7 +47,7 @@ public class StoreClientFactoryTest {
         executor.shutdown();
     }
     
-    @Test
+    @Test(timeout = 60000)
     public void testZkSessionExpiryRetry() throws Exception {
         CompletableFuture<Void> sessionExpiry = new CompletableFuture<>();
         AtomicInteger expirationRetryCounter = new AtomicInteger();

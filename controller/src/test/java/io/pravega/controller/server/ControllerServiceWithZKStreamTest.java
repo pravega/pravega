@@ -31,9 +31,9 @@ import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -108,10 +108,10 @@ public class ControllerServiceWithZKStreamTest {
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelperMock,
-                executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelperMock, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
+                executor, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
+                segmentHelperMock, executor, "host", AuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executor),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executor),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executor),
@@ -122,8 +122,7 @@ public class ControllerServiceWithZKStreamTest {
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+        consumer = new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, segmentHelperMock, executor, null);
     }
 
     @After
@@ -282,7 +281,7 @@ public class ControllerServiceWithZKStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(streamCut023).build();
-        List<Segment> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(4, segments.size());
         assertTrue(segments.stream().anyMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3)));
@@ -341,7 +340,7 @@ public class ControllerServiceWithZKStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(streamCut01).putAllTo(Collections.emptyMap()).build();
-        List<Segment> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(7, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(4) ||
@@ -396,7 +395,7 @@ public class ControllerServiceWithZKStreamTest {
                 Controller.StreamInfo.newBuilder().setScope(SCOPE).setStream(STREAM).build());
         Controller.StreamCutRange streamCutRange;
         streamCutRange = rangeBuilder.putAllFrom(Collections.emptyMap()).putAllTo(streamCut01).build();
-        List<Segment> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
+        List<StreamSegmentRecord> segments = consumer.getSegmentsBetweenStreamCuts(streamCutRange).get();
         assertEquals(2, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1)));
 

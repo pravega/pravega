@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.metrics;
 
+import io.pravega.shared.MetricsTags;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
 import org.junit.Test;
@@ -88,5 +89,15 @@ public class BasicMetricTest {
         testCounter.clear();
         testCounter.inc();
         assertTrue(1 == MetricRegistryUtils.getCounter("pravega.testStatsLogger.testCounter", "key", "value").count());
+    }
+
+    @Test
+    public void testCommonHostTag() {
+        Counter counter = statsLogger.createCounter("counterWithCommonTag", "key", "value");
+        counter.add(117);
+        assertNotNull(counter.getId().getTag(MetricsTags.TAG_HOST));
+        assertTrue(117 == MetricRegistryUtils.getCounter("pravega.testStatsLogger.counterWithCommonTag", "key", "value", MetricsTags.TAG_HOST, counter.getId().getTag(MetricsTags.TAG_HOST)).count());
+        assertTrue(117 == MetricRegistryUtils.getCounter("pravega.testStatsLogger.counterWithCommonTag", "key", "value").count());
+        assertNull(MetricRegistryUtils.getCounter("pravega.testStatsLogger.counterWithCommonTag", "key", "value", MetricsTags.TAG_HOST, "non-exist"));
     }
 }

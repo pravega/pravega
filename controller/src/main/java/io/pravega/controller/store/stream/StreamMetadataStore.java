@@ -18,6 +18,7 @@ import io.pravega.controller.store.stream.records.RetentionSet;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -345,7 +346,7 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return segment at given number.
      */
-    CompletableFuture<Segment> getSegment(final String scope, final String name, final long number, final OperationContext context, final Executor executor);
+    CompletableFuture<StreamSegmentRecord> getSegment(final String scope, final String name, final long number, final OperationContext context, final Executor executor);
 
     /**
      * Api to get all segments in the stream. 
@@ -369,7 +370,7 @@ public interface StreamMetadataStore {
      * @param context  operation context
      * @return currently active segments
      */
-    CompletableFuture<List<Segment>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor);
+    CompletableFuture<List<StreamSegmentRecord>> getActiveSegments(final String scope, final String name, final OperationContext context, final Executor executor);
     
     /**
      * Returns the segments at the head of the stream.
@@ -380,7 +381,7 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return         list of active segments in specified epoch.
      */
-    CompletableFuture<Map<Segment, Long>> getSegmentsAtHead(final String scope,
+    CompletableFuture<Map<StreamSegmentRecord, Long>> getSegmentsAtHead(final String scope,
                                                             final String stream,
                                                             final OperationContext context,
                                                             final Executor executor);
@@ -395,7 +396,7 @@ public interface StreamMetadataStore {
      * @param executor callers executor
      * @return         list of active segments in specified epoch.
      */
-    CompletableFuture<List<Segment>> getSegmentsInEpoch(final String scope,
+    CompletableFuture<List<StreamSegmentRecord>> getSegmentsInEpoch(final String scope,
                                                        final String stream,
                                                        final int epoch,
                                                        final OperationContext context,
@@ -412,7 +413,7 @@ public interface StreamMetadataStore {
      * @param executor      callers executor
      * @return segments that immediately follow the specified segment and the segments they follow.
      */
-    CompletableFuture<Map<Segment, List<Long>>> getSuccessors(final String scope,
+    CompletableFuture<Map<StreamSegmentRecord, List<Long>>> getSuccessors(final String scope,
                                                                                      final String streamName,
                                                                                      final long segmentId,
                                                                                      final OperationContext context,
@@ -429,7 +430,7 @@ public interface StreamMetadataStore {
      * @param executor   callers executor
      * @return Future which when completed contains list of segments between given stream cuts.
      */
-    CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(final String scope,
+    CompletableFuture<List<StreamSegmentRecord>> getSegmentsBetweenStreamCuts(final String scope,
                                                            final String streamName,
                                                            final Map<Long, Long> from,
                                                            final Map<Long, Long> to,
@@ -697,20 +698,6 @@ public interface StreamMetadataStore {
     CompletableFuture<TxnStatus> transactionStatus(final String scope, final String stream, final UUID txId, final OperationContext context, final Executor executor);
 
     /**
-     * Update stream store to mark transaction as committed.
-     *
-     * @param scope    scope
-     * @param stream   stream
-     * @param txId     transaction id
-     * @param context  operation context
-     * @param executor callers executor
-     * @return transaction status.
-     */
-    CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream,
-                                                   final UUID txId, final OperationContext context,
-                                                   final Executor executor);
-
-    /**
      * Update stream store to mark transaction as sealed.
      *
      * @param scope    scope
@@ -966,13 +953,11 @@ public interface StreamMetadataStore {
      *
      * @param scope scope name
      * @param stream stream name
-     * @param epoch epoch
      * @param context operation context
      * @param executor executor
      * @return A completableFuture which, when completed, mean that the record has been created successfully.
      */
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> startCommitTransactions(final String scope, final String stream,
-                                                                                               final int epoch,
                                                                                                final OperationContext context,
                                                                                                final ScheduledExecutorService executor);
 
