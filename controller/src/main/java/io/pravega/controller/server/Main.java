@@ -60,7 +60,12 @@ public class Main {
                     .sessionTimeoutMs(Config.ZK_SESSION_TIMEOUT_MS)
                     .build();
 
-            StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+            StoreClientConfig storeClientConfig;
+            if (Config.USE_PRAVEGA_TABLES) {
+                storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
+            } else {
+                storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+            }
 
             HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                     .hostMonitorEnabled(Config.HOST_MONITOR_ENABLED)

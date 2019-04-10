@@ -31,8 +31,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.mockito.Mockito.mock;
-
 /**
  * Collection of tests to validate controller bootstrap sequence.
  */
@@ -46,6 +44,9 @@ public class ControllerBootstrapTest {
     private TestingServer zkTestServer;
     private ControllerWrapper controllerWrapper;
     private PravegaConnectionListener server;
+    private ServiceBuilder serviceBuilder;
+    private StreamSegmentStore store;
+    private TableStore tableStore;
 
     @Before
     public void setup() {
@@ -76,6 +77,9 @@ public class ControllerBootstrapTest {
         if (server != null) {
             server.close();
         }
+        if (serviceBuilder != null) {
+            serviceBuilder.close();
+        }
         if (zkTestServer != null) {
             zkTestServer.close();
         }
@@ -85,6 +89,15 @@ public class ControllerBootstrapTest {
     public void bootstrapTest() throws Exception {
         Controller controller = controllerWrapper.getController();
 
+        // Now start Pravega service.
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize();
+        store = serviceBuilder.createStreamSegmentService();
+        tableStore = serviceBuilder.createTableStoreService();
+
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        server.startListening();
+
         // Create test scope. This operation should succeed.
         Boolean scopeStatus = controller.createScope(SCOPE).join();
         Assert.assertEquals(true, scopeStatus);
@@ -92,19 +105,10 @@ public class ControllerBootstrapTest {
         // Try creating a stream. It should not complete until Pravega host has started.
         // After Pravega host starts, stream should be successfully created.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build();
+                                                                     .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                     .build();
         CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
-        
-        // Now start Pravega service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
-        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
-        server.startListening();
-
         // Ensure that create stream succeeds.
         try {
             Boolean status = streamStatus.join();
@@ -112,7 +116,7 @@ public class ControllerBootstrapTest {
         } catch (CompletionException ce) {
             Assert.fail();
         }
-        
+
         // Now create transaction should succeed.
         CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
 

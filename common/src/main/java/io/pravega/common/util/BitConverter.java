@@ -13,6 +13,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.UUID;
 
 /**
  * Helper methods for various Number to Bit conversions.
@@ -189,6 +190,46 @@ public final class BitConverter {
         target[offset + 6] = (byte) (value >>> 8);
         target[offset + 7] = (byte) value;
         return Long.BYTES;
+    }
+
+    /**
+     * Writes the given 128-bit UUID to the given byte array at the given offset.
+     *
+     * @param target The byte array to write to.
+     * @param offset The offset within the byte array to write at.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     */
+    public static int writeUUID(byte[] target, int offset, UUID value) {
+        writeLong(target, offset, value.getMostSignificantBits());
+        writeLong(target, offset + Long.BYTES, value.getLeastSignificantBits());
+        return 2 * Long.BYTES;
+    }
+
+    /**
+     * Reads a 128-bit UUID from the given ArrayView starting at the given position.
+     *
+     * @param source   The ArrayView to read from.
+     * @param position The position in the ArrayView to start reading at.
+     * @return The read UUID.
+     */
+    public static UUID readUUID(ArrayView source, int position) {
+        long msb = readLong(source, position);
+        long lsb = readLong(source, position + Long.BYTES);
+        return new UUID(msb, lsb);
+    }
+
+    /**
+     * Reads a 128-bit UUID from the given byte array starting at the given position.
+     *
+     * @param source   The byte array to read from.
+     * @param position The position in the byte array to start reading at.
+     * @return The read UUID.
+     */
+    public static UUID readUUID(byte[] source, int position) {
+        long msb = readLong(source, position);
+        long lsb = readLong(source, position + Long.BYTES);
+        return new UUID(msb, lsb);
     }
 
     /**

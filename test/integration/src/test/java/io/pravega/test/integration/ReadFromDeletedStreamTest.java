@@ -30,8 +30,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
-import static org.mockito.Mockito.mock;
-
 @Slf4j
 public class ReadFromDeletedStreamTest {
     static final StreamConfiguration CONFIG = StreamConfiguration.builder()
@@ -46,9 +44,10 @@ public class ReadFromDeletedStreamTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, mock(TableStore.class),
+        PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, tableStore,
                 SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), null, null, null, true);
         server.startListening();
 

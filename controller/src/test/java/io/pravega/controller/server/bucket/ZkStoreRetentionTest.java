@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.server.bucket;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -19,9 +17,6 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -38,7 +33,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,12 +69,13 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
+        streamMetadataStore.close();
         zkClient.close();
         zkServer.close();
     }
 
     @Override
-    StreamMetadataStore createStreamStore(Executor executor) {
+    StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
         return StreamStoreFactory.createZKStore(zkClient, executor);
     }
 
@@ -139,10 +134,8 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         StreamMetadataStore streamMetadataStore2 = StreamStoreFactory.createZKStore(zkClient2, executor2);
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor2);
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
         StreamMetadataTasks streamMetadataTasks2 = new StreamMetadataTasks(streamMetadataStore2, bucketStore2, 
                 taskMetadataStore, segmentHelper, executor2, hostId, AuthHelper.getDisabledAuthHelper(), 
@@ -170,7 +163,6 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         zkClient2.close();
         zkServer2.close();
         streamMetadataTasks2.close();
-        connectionFactory.close();
         ExecutorServiceHelpers.shutdown(executor2);
     }
 

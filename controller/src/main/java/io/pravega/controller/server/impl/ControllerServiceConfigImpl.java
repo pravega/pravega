@@ -60,7 +60,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
         if (controllerClusterListenerEnabled) {
-            Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper,
+            Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper ||
+                            storeClientConfig.getStoreType() == StoreType.PravegaTable,
                     "If controllerCluster is enabled, store type should be Zookeeper");
         }
         if (eventProcessorConfig.isPresent()) {

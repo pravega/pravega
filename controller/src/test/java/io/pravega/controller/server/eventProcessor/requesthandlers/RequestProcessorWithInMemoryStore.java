@@ -11,6 +11,7 @@ package io.pravega.controller.server.eventProcessor.requesthandlers;
 
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import org.junit.After;
 import org.junit.Before;
 
 public class RequestProcessorWithInMemoryStore extends RequestProcessorTest {
@@ -19,6 +20,11 @@ public class RequestProcessorWithInMemoryStore extends RequestProcessorTest {
     @Before
     public void setUp() {
         store = StreamStoreFactory.createInMemoryStore(executorService());
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        store.close();
     }
 
     @Override
