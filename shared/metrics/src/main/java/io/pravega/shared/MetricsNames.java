@@ -103,7 +103,7 @@ public final class MetricsNames {
     public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";                      // Counter
     public static final String BK_WRITE_QUEUE_SIZE = "write_queue_size";                                    // Per-container Histogram
     public static final String BK_WRITE_QUEUE_FILL_RATE = "write_queue_fill";                               // Per-container Histogram
-    public static final String BK_LEDGER_COUNT = "segmentstore.bookkeeper.bookkeeper_ledger_count";         // Per-container Gauge
+    public static final String BK_LEDGER_COUNT = "segmentstore.bookkeeper_ledger_count";                    // Per-container Gauge
 
     // Segment container metrics
     public static final String CONTAINER_APPEND_COUNT = "segmentstore.container.append_count";                          // Per-container Event Counter
