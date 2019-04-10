@@ -108,7 +108,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         zkTestServer.close();
     }
 
-    @Test(timeout = 10000)
+    @Test//(timeout = 10000)
     public void testTxnWithScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
@@ -123,10 +123,12 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         @Cleanup
         TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("test", new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
-        Transaction<String> transaction = test.beginTxn();
-        transaction.writeEvent("0", "txntest1");
-        transaction.commit();
+        Transaction<String> transaction1 = test.beginTxn();
+        transaction1.writeEvent("0", "txntest1");
+        transaction1.commit();
 
+        assertEventuallyEquals(Transaction.Status.COMMITTED, () -> transaction1.checkStatus(), 5000);
+        
         // scale
         Stream stream = new StreamImpl("test", "test");
         Map<Double, Double> map = new HashMap<>();
@@ -137,9 +139,9 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
 
         assertTrue(result);
 
-        transaction = test.beginTxn();
-        transaction.writeEvent("0", "txntest2");
-        transaction.commit();
+        Transaction<String> transaction2 = test.beginTxn();
+        transaction2.writeEvent("0", "txntest2");
+        transaction2.commit();
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
         groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).stream("test/test").build());
