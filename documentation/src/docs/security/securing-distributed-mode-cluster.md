@@ -294,7 +294,6 @@ On the client application side, you'll need to establish trust for the servers' 
                 .trustStore(Constants.TRUSTSTORE_PATH)
                 ...
                 .build();
-
   ```
 
 * Installing the CA's certificate in the Java system key store.
@@ -302,11 +301,11 @@ On the client application side, you'll need to establish trust for the servers' 
 
 Further, when using the default Auth Handler implementation - the Pasword AuthHandler, supply the account credentials using Pravega ClientConfig, as shown below:
 
-```
-ClientConfig clientConfig = ClientConfig.builder()
+  ```
+  ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI("tls://<controller-hostname-or-ip>:9090")
                 .trustStore(Constants.TRUSTSTORE_PATH)
                 .credentials(new DefaultCredentials("changeit", "marketinganaylticsapp"))
                 .build();
 
- ```
+  ```
