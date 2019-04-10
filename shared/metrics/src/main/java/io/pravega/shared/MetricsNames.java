@@ -98,7 +98,7 @@ public final class MetricsNames {
     public static final String CACHE_GENERATION_SPREAD = "cache.gen";                           // Histogram
 
     // DurableDataLog (Tier1) stats
-    public static final String BK_TOTAL_WRITE_LATENCY = "total_write_latency_ms";                           // Including Queue. Per-container Histogram.
+    public static final String BK_TOTAL_WRITE_LATENCY = "segmentstore.total_write_latency_ms";              // Including Queue. Per-container Histogram.
     public static final String BK_WRITE_LATENCY = "write_latency_ms";                                       // Exclusively the write to BK. Per-container Histogram.
     public static final String BK_WRITE_BYTES = "segmentstore.bookkeeper.write_bytes";                      // Counter
     public static final String BK_WRITE_QUEUE_SIZE = "write_queue_size";                                    // Per-container Histogram
