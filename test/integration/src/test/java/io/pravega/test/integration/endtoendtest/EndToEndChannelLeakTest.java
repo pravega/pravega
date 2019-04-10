@@ -240,27 +240,27 @@ public class EndToEndChannelLeakTest {
         writer.writeEvent("5", "five").get();
         writer.writeEvent("6", "six").get();
 
-        //2 new sessions  are opened.(+3 connections to the segments 1,2,3 after scale by the writer,
-        // -1 session to segment 0 which is sealed.)
+        //2 new flows  are opened.(+3 connections to the segments 1,2,3 after scale by the writer,
+        // -1 flow to segment 0 which is sealed.)
         assertEventuallyEquals(5, () -> connectionFactory.getActiveChannelCount());
 
         //Add a new reader
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", READER_GROUP, serializer,
                 ReaderConfig.builder().build());
-        //Creating a reader spawns a revisioned stream client which opens 4 sessions ( read, write, metadataClient and conditionalUpdates).
+        //Creating a reader spawns a revisioned stream client which opens 4 flows ( read, write, metadataClient and conditionalUpdates).
 
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
 
-        //+1 session (-1 since segment 0 of stream is sealed + 2 connections to two segments of stream (there are
+        //+1 flow (-1 since segment 0 of stream is sealed + 2 connections to two segments of stream (there are
         // 2 readers and 3 segments and the reader1 will be assigned 2 segments))
         assertEventuallyEquals(5, () -> connectionFactory.getActiveChannelCount());
 
         event = reader2.readNextEvent(10000);
         assertNotNull(event.getEvent());
 
-        //+1 session  (a new session to the remaining stream segment)
+        //+1 flow (a new flow to the remaining stream segment)
         expectedChannelCount += 1;
         assertEventuallyEquals(5, () -> connectionFactory.getActiveChannelCount());
     }
