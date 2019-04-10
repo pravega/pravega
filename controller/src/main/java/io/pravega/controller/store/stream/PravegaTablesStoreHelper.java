@@ -30,8 +30,6 @@ import io.pravega.controller.util.RetryHelper;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.shaded.com.google.common.base.Charsets;
 
 import java.util.AbstractMap;
@@ -53,6 +51,10 @@ import java.util.stream.Collectors;
 import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 
 @Slf4j
+/**
+ * Helper class for all table related queries to segment store. This class invokes appropriate wire command calls into
+ * SegmentHelper for all table related apis and then translates the failure responses to Store specific exceptions.   
+ */
 public class PravegaTablesStoreHelper {
     private static final int NUM_OF_RETRIES = 15; // approximately 1 minute worth of retries
     private final SegmentHelper segmentHelper;
@@ -70,7 +72,7 @@ public class PravegaTablesStoreHelper {
 
         private final Function<byte[], T> fromBytesFunc;
     }
-    
+
     public PravegaTablesStoreHelper(SegmentHelper segmentHelper, AuthHelper authHelper, ScheduledExecutorService executor) {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
@@ -86,6 +88,15 @@ public class PravegaTablesStoreHelper {
         this.authToken = new AtomicReference<>(authHelper.retrieveMasterToken());
     }
 
+    /**
+     * Api to read cached value for the specified key from the requested table. 
+     * @param scope table scope
+     * @param table name of table
+     * @param key key to query
+     * @param fromBytes deserialization function. 
+     * @param <T> Type of object to deserialize the response into. 
+     * @return Returns a completableFuture which when completed will have the deserialized value with its store key version. 
+     */
     public <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String scope, String table, String key, Function<byte[], T> fromBytes) {
         return cache.getCachedData(new TableCacheKey<>(scope, table, key, fromBytes))
                     .thenApply(this::getVersionedMetadata);
@@ -98,10 +109,22 @@ public class PravegaTablesStoreHelper {
         return new VersionedMetadata<>((T) v.getObject(), v.getVersion());
     }
 
+    /**
+     * Method to invalidate cached value in the cache for the specified table.
+     * @param scope scope
+     * @param table table name
+     * @param key key to invalidate
+     */
     public void invalidateCache(String scope, String table, String key) {
         cache.invalidateCache(new TableCacheKey<>(scope, table, key, x -> null));
     }
 
+    /**
+     * Method to create a new Table. If the table already exists, segment helper responds with success. 
+     * @param scope scope
+     * @param tableName table name
+     * @return CompletableFuture which when completed will indicate successful creation of table.  
+     */
     public CompletableFuture<Void> createTable(String scope, String tableName) {
         log.debug("create table called for table: {}/{}", scope, tableName);
 
@@ -115,7 +138,17 @@ public class PravegaTablesStoreHelper {
                     }
                 }, executor);
     }
-    
+
+    /**
+     * Method to delete a table. The callers can supply a `mustBeEmpty` flag and the table is deleted only if it is empty.
+     * Note: the mustBeEmpty flag is passed to segment store via segment helper and it is responsibility of segment store
+     * table implementation to delete a table only if it is empty. 
+     * @param scope scope
+     * @param tableName tableName
+     * @param mustBeEmpty flag to indicate to table store to delete table only if it is empty. 
+     * @return CompletableFuture which when completed will indicate that the table was deleted successfully. 
+     * If mustBeEmpty is set to true and the table is non-empty then the future is failed with StoreException.DataNotEmptyException
+     */
     public CompletableFuture<Void> deleteTable(String scope, String tableName, boolean mustBeEmpty) {
         log.debug("delete table called for table: {}/{}", scope, tableName);
         return expectingDataNotFound(withRetries(() -> segmentHelper.deleteTableSegment(
@@ -124,8 +157,17 @@ public class PravegaTablesStoreHelper {
                 .thenAcceptAsync(v -> log.debug("table {}/{} deleted successfully", scope, tableName), executor);
     }
 
+    /**
+     * Method to add new entry to a table.  
+     * @param scope table scope 
+     * @param tableName table name
+     * @param key key to add
+     * @param value value to add
+     * @return CompletableFuture which when completed will have the version of the key returned by segment store. 
+     * If the key already exists, it will throw StoreException.DataExistsException. 
+     */
     public CompletableFuture<Version> addNewEntry(String scope, String tableName, String key, @NonNull byte[] value) {
-        log.debug("addNewEntry called for : {}/{} key : {}", scope, tableName, key);
+        log.trace("addNewEntry called for : {}/{} key : {}", scope, tableName, key);
 
         List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
                 new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), value));
@@ -143,19 +185,39 @@ public class PravegaTablesStoreHelper {
                 })
                 .thenApplyAsync(x -> {
                     KeyVersion first = x.get(0);
-                    log.debug("entry for key {} added to table {}/{} with version {}", key, scope, tableName, first.getSegmentVersion());
+                    log.trace("entry for key {} added to table {}/{} with version {}", key, scope, tableName, first.getSegmentVersion());
                     return new Version.LongVersion(first.getSegmentVersion());
                 }, executor);
     }
 
+    /**
+     * Method to add new entry to table if it does not exist. 
+     * @param scope scope
+     * @param tableName tableName
+     * @param key Key to add
+     * @param value value to add
+     * @return CompletableFuture which when completed will have added entry to the table if it did not exist. 
+     */
     public CompletableFuture<Version> addNewEntryIfAbsent(String scope, String tableName, String key, @NonNull byte[] value) {
         // if entry exists, we will get write conflict in attempting to create it again. 
         return expectingDataExists(addNewEntry(scope, tableName, key, value), null);
     }
 
+    /**
+     * Method to add a batch of entries if absent. Table implementation on segment store guarantees that either all or none of 
+     * the entries are added.
+     * If segment store responds with success, then it is guaranteed that all entries are added to the store. 
+     * However, it is important to note that the segment store could respond with Data Exists even if one of the entries exists. 
+     * In such case, this method will ignore data exist and respond with success for the entire batch. It does not verify
+     * if all entries existed or one of the entries existed. 
+     * Callers should use this only if they are guaranteed to never create the requested entries outside of the requested batch. 
+     * 
+     * @param scope scope
+     * @param tableName table name
+     * @param toAdd map of keys and values to add. 
+     * @return CompletableFuture which when completed successfully will indicate that all entries have been added successfully.  
+     */
     public CompletableFuture<Void> addNewEntriesIfAbsent(String scope, String tableName, Map<String, byte[]> toAdd) {
-        // What happens if we get data exists for one such record? though pravegatablestream, only creates these keys in batch
-        // so ignoring the exception of data exists is safe. But what happens otherwise?
         List<TableEntry<byte[], byte[]>> entries = toAdd.entrySet().stream().map(x ->
                 new TableEntryImpl<>(new TableKeyImpl<>(x.getKey().getBytes(Charsets.UTF_8), KeyVersion.NOT_EXISTS), x.getValue()))
                                                         .collect(Collectors.toList());
@@ -172,30 +234,49 @@ public class PravegaTablesStoreHelper {
                             throw new CompletionException(e);
                         }
                     } else {
-                        log.debug("entries added to table {}/{}", scope, tableName);
+                        log.trace("entries added to table {}/{}", scope, tableName);
                         return null;
                     }
                 }), null);
     }
-    
-    public CompletableFuture<Version> updateEntry(String scope, String tableName, String key, byte[] data, Version v) {
-        log.debug("updateEntry entry called for : {}/{} key : {} version {}", scope, tableName, key, v.asLongVersion().getLongValue());
 
-        KeyVersionImpl version = new KeyVersionImpl(v.asLongVersion().getLongValue());
+    /**
+     * Method to update a single entry. 
+     * @param scope scope
+     * @param tableName tablename
+     * @param key key
+     * @param value value
+     * @param ver previous key version
+     * @return CompletableFuture which when completed will indicate that the value is updated in the table. 
+     */
+    public CompletableFuture<Version> updateEntry(String scope, String tableName, String key, byte[] value, Version ver) {
+        log.trace("updateEntry entry called for : {}/{} key : {} version {}", scope, tableName, key, ver.asLongVersion().getLongValue());
+
+        KeyVersionImpl version = new KeyVersionImpl(ver.asLongVersion().getLongValue());
 
         List<TableEntry<byte[], byte[]>> entries = Collections.singletonList(
-                new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version), data));
+                new TableEntryImpl<>(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version), value));
         return withRetries(() -> segmentHelper.updateTableEntries(scope, tableName, entries, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("updateEntry: key: %s table: %s/%s", key, scope, tableName))
                 .thenApplyAsync(x -> {
                     KeyVersion first = x.get(0);
-                    log.debug("entry for key {} updated to table {}/{} with new version {}", key, scope, tableName, first.getSegmentVersion());
+                    log.trace("entry for key {} updated to table {}/{} with new version {}", key, scope, tableName, first.getSegmentVersion());
                     return new Version.LongVersion(first.getSegmentVersion());
                 }, executor);
     }
 
+    /**
+     * Method to retrieve the value for a given key from a table. This method takes a deserialization function and deserializes
+     * the received byte[] using the supplied function. 
+     * @param scope scope
+     * @param tableName tableName
+     * @param key key
+     * @param fromBytes deserialization function
+     * @param <T> Type of deserialized object
+     * @return CompletableFuture which when completed will have the versionedMetadata retrieved from the store. 
+     */
     public <T> CompletableFuture<VersionedMetadata<T>> getEntry(String scope, String tableName, String key, Function<byte[], T> fromBytes) {
-        log.debug("get entry called for : {}/{} key : {}", scope, tableName, key);
+        log.trace("get entry called for : {}/{} key : {}", scope, tableName, key);
         List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         CompletableFuture<VersionedMetadata<T>> result = new CompletableFuture<>();
         String message = "get entry: key: %s table: %s/%s";
@@ -206,7 +287,7 @@ public class PravegaTablesStoreHelper {
                     if (first.getKey().getVersion().equals(KeyVersion.NOT_EXISTS)) {
                         throw StoreException.create(StoreException.Type.DATA_NOT_FOUND, String.format(message, key, scope, tableName));   
                     } else {
-                        log.debug("returning entry for : {}/{} key : {} with version {}", scope, tableName, key,
+                        log.trace("returning entry for : {}/{} key : {} with version {}", scope, tableName, key,
                                 first.getKey().getVersion().getSegmentVersion());
 
                         T deserialized = fromBytes.apply(first.getValue());
@@ -224,28 +305,55 @@ public class PravegaTablesStoreHelper {
         return result;
     }
 
+    /**
+     * Method to remove entry from the store. 
+     * @param scope scope
+     * @param tableName tableName
+     * @param key key
+     * @return CompletableFuture which when completed will indicate successful deletion of entry from the table. 
+     * It ignores DataNotFound exception. 
+     */
     public CompletableFuture<Void> removeEntry(String scope, String tableName, String key) {
-        log.debug("remove entry called for : {}/{} key : {}", scope, tableName, key);
+        log.trace("remove entry called for : {}/{} key : {}", scope, tableName, key);
 
         List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
         return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
                 scope, tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID), 
                 () -> String.format("remove entry: key: %s table: %s/%s", key, scope, tableName)), null)
-                .thenAcceptAsync(v -> log.debug("entry for key {} removed from table {}/{}", key, scope, tableName), executor);
+                .thenAcceptAsync(v -> log.trace("entry for key {} removed from table {}/{}", key, scope, tableName), executor);
     }
-    
+
+    /**
+     * Removes a batch of entries from the table store. Ignores data not found exception and treats it as success. 
+     * If table store throws dataNotFound for a subset of entries, there is no way for this method to disambiguate. 
+     * So it is the responsibility of the caller to use this api if they are guaranteed to always attempt to 
+     * remove same batch entries. 
+     * @param scope scope
+     * @param tableName table name
+     * @param keys keys to delete
+     * @return CompletableFuture which when completed will have entries removed from the table.  
+     */
     public CompletableFuture<Void> removeEntries(String scope, String tableName, Collection<String> keys) {
-        log.debug("remove entry called for : {}/{} keys : {}", scope, tableName, keys);
+        log.trace("remove entry called for : {}/{} keys : {}", scope, tableName, keys);
 
         List<TableKey<byte[]>> listOfKeys = keys.stream().map(x -> new TableKeyImpl<>(x.getBytes(Charsets.UTF_8), null)).collect(Collectors.toList());
         return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
                 scope, tableName, listOfKeys, authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("remove entries: keys: %s table: %s/%s", keys.toString(), scope, tableName)), null)
-                .thenAcceptAsync(v -> log.debug("entry for keys {} removed from table {}/{}", keys, scope, tableName), executor);
+                .thenAcceptAsync(v -> log.trace("entry for keys {} removed from table {}/{}", keys, scope, tableName), executor);
     }
 
+    /**
+     * Method to get paginated list of keys with a continuation token.  
+     * @param scope scope
+     * @param tableName tableName
+     * @param continuationToken previous continuationToken
+     * @param limit limit on number of keys to retrieve 
+     * @return CompletableFuture which when completed will have a list of keys of size less than or equal to limit and
+     * a new ContinutionToken. 
+     */
     public CompletableFuture<Map.Entry<ByteBuf, List<String>>> getKeysPaginated(String scope, String tableName, ByteBuf continuationToken, int limit) {
-        log.debug("get keys paginated called for : {}/{}", scope, tableName);
+        log.trace("get keys paginated called for : {}/{}", scope, tableName);
 
         return withRetries(() -> 
                 segmentHelper.readTableKeys(scope, tableName, limit, IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
@@ -253,30 +361,56 @@ public class PravegaTablesStoreHelper {
                              .thenApplyAsync(result -> {
                                  List<String> items = result.getItems().stream().map(x -> new String(x.getKey(), Charsets.UTF_8))
                                                             .collect(Collectors.toList());
-                                 log.debug("get keys paginated on table {}/{} returned items {}", scope, tableName, items);
+                                 log.trace("get keys paginated on table {}/{} returned items {}", scope, tableName, items);
                                  return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
                              }, executor);
     }
 
-    public <T> CompletableFuture<Map.Entry<ByteBuf, List<Pair<String, VersionedMetadata<T>>>>> getEntriesPaginated(
+    /**
+     * Method to get paginated list of entries with a continuation token.  
+     * @param scope scope
+     * @param tableName tableName
+     * @param continuationToken previous continuationToken
+     * @param limit limit on number of entries to retrieve 
+     * @param fromBytes function to deserialize byte array into object of type T 
+     * @param <T> type of deserialized entry values
+     * @return CompletableFuture which when completed will have a list of entries of size less than or equal to limit and
+     * a new ContinutionToken. 
+     */
+    public <T> CompletableFuture<Map.Entry<ByteBuf, List<Map.Entry<String, VersionedMetadata<T>>>>> getEntriesPaginated(
             String scope, String tableName, ByteBuf continuationToken, int limit, 
             Function<byte[], T> fromBytes) {
-        log.debug("get entries paginated called for : {}/{}", scope, tableName);
+        log.trace("get entries paginated called for : {}/{}", scope, tableName);
         return withRetries(() -> segmentHelper.readTableEntries(scope, tableName, limit,
                 IteratorState.fromBytes(continuationToken), authToken.get(), RequestTag.NON_EXISTENT_ID),
                 () -> String.format("get entries paginated for table: %s/%s", scope, tableName))
                 .thenApplyAsync(result -> {
-                    List<Pair<String, VersionedMetadata<T>>> items = result.getItems().stream().map(x -> {
+                    List<Map.Entry<String, VersionedMetadata<T>>> items = result.getItems().stream().map(x -> {
                         String key = new String(x.getKey().getKey(), Charsets.UTF_8);
                         T deserialized = fromBytes.apply(x.getValue());
                         VersionedMetadata<T> value = new VersionedMetadata<>(deserialized, new Version.LongVersion(x.getKey().getVersion().getSegmentVersion()));
-                        return new ImmutablePair<>(key, value);
+                        return new AbstractMap.SimpleEntry<>(key, value);
                     }).collect(Collectors.toList());
-                    log.debug("get keys paginated on table {}/{} returned number of items {}", scope, tableName, items.size());
+                    log.trace("get keys paginated on table {}/{} returned number of items {}", scope, tableName, items.size());
                     return new AbstractMap.SimpleEntry<>(result.getState().toBytes(), items);
                 }, executor);
     }
 
+    /**
+     * Method to retrieve a collection of entries bounded by the specified limit size that satisfy the supplied filter. 
+     * This function makes calls into segment store and includes entries that satisfy the supplied
+     * predicate. It makes repeated paginated calls into segment store until it has either collected deseried number
+     * of entries or it has exhausted all entries in the store. 
+     * @param scope scope
+     * @param table table
+     * @param fromStringKey function to deserialize key from String. 
+     * @param fromBytesValue function to deserialize value from byte array
+     * @param filter filer predicate which takes key and value and returns true or false.  
+     * @param limit maximum number of entries to retrieve 
+     * @param <K> Type of Key
+     * @param <V> Type of Value
+     * @return CompletableFuture which when completed will have a map of keys and values of size bounded by supplied limit 
+     */
     public <K, V> CompletableFuture<Map<K, V>> getEntriesWithFilter(
             String scope, String table, Function<String, K> fromStringKey,
             Function<byte[], V> fromBytesValue, BiFunction<K, V, Boolean> filter, int limit) {
@@ -289,8 +423,8 @@ public class PravegaTablesStoreHelper {
                         () -> getEntriesPaginated(scope, table, token.get(), limit, fromBytesValue)
                                 .thenAccept(v -> {
                                     // we exit if we have either received `limit` number of entries
-                                    List<Pair<String, VersionedMetadata<V>>> pair = v.getValue();
-                                    for (Pair<String, VersionedMetadata<V>> val : pair) {
+                                    List<Map.Entry<String, VersionedMetadata<V>>> pair = v.getValue();
+                                    for (Map.Entry<String, VersionedMetadata<V>> val : pair) {
                                         K key = fromStringKey.apply(val.getKey());
                                         V value = val.getValue().getObject();
                                         if (filter.apply(key, value)) {
@@ -312,6 +446,12 @@ public class PravegaTablesStoreHelper {
                        .thenApply(x -> result), DATA_NOT_FOUND_PREDICATE, Collections.emptyMap());
     }
 
+    /**
+     * Method to retrieve all keys in the table. It returns an asyncIterator which can be used to iterate over the returned keys. 
+     * @param scope scope
+     * @param tableName table name
+     * @return AsyncIterator that can be used to iterate over keys in the table.  
+     */
     public AsyncIterator<String> getAllKeys(String scope, String tableName) {
         return new ContinuationTokenAsyncIterator<>(token -> getKeysPaginated(scope, tableName, token, 1000)
                 .thenApplyAsync(result -> {
@@ -321,7 +461,15 @@ public class PravegaTablesStoreHelper {
                 IteratorState.EMPTY.toBytes());
     }
 
-    public <T> AsyncIterator<Pair<String, VersionedMetadata<T>>> getAllEntries(String scope, String tableName, Function<byte[], T> fromBytes) {
+    /**
+     * Method to retrieve all entries in the table. It returns an asyncIterator which can be used to iterate over the returned entries. 
+     * @param scope scope
+     * @param tableName table name
+     * @param fromBytes deserialization function to deserialize returned value. 
+     * @param <T> Type of value  
+     * @return AsyncIterator that can be used to iterate over keys in the table.  
+     */
+    public <T> AsyncIterator<Map.Entry<String, VersionedMetadata<T>>> getAllEntries(String scope, String tableName, Function<byte[], T> fromBytes) {
         return new ContinuationTokenAsyncIterator<>(token -> getEntriesPaginated(scope, tableName, token, 1000, fromBytes)
                 .thenApplyAsync(result -> {
                     token.release();
@@ -330,11 +478,11 @@ public class PravegaTablesStoreHelper {
                 IteratorState.EMPTY.toBytes());
     }
 
-    public <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
+    <T> CompletableFuture<T> expectingDataNotFound(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, toReturn);
     }
 
-    public <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
+    <T> CompletableFuture<T> expectingDataExists(CompletableFuture<T> future, T toReturn) {
         return Futures.exceptionallyExpecting(future, e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, toReturn);
     }
 

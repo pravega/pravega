@@ -18,6 +18,14 @@ import javax.annotation.concurrent.GuardedBy;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+/**
+ * A zookeeper based int 96 counter. At bootstrap, and upon each refresh, it retrieves a unique starting counter from the 
+ * Int96 space. It does this by getting and updating an Int96 value stored in zookeeper. It updates zookeeper node with the 
+ * next highest value that others could access. 
+ * So upon each retrieval from zookeeper, it has a starting counter value and a ceiling on counters it can assign until a refresh
+ * is triggered. Any caller requesting for nextCounter will get a unique value from the range owned by this counter. 
+ * Once it exhausts the range, it refreshes the range by contacting zookeeper and repeating the steps described above. 
+ */
 @Slf4j
 public class ZkInt96Counter {
     /**

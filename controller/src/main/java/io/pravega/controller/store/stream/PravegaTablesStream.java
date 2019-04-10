@@ -624,7 +624,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         //  2. create txns-in-epoch table
         //  3. create txn in txns-in-epoch
         return getTransactionsInEpochTable(epoch)
-                .thenCompose(epochTable -> storeHelper.addNewEntry(scope, epochTable, txId.toString(), txnRecord.toBytes()));
+                .thenCompose(epochTable -> storeHelper.addNewEntryIfAbsent(scope, epochTable, txId.toString(), txnRecord.toBytes()));
     }
 
     private CompletableFuture<Void> createTransactionsInEpochTable(int epoch) {
