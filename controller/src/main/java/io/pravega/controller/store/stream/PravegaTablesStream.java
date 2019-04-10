@@ -831,6 +831,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                 .thenCompose(metadataTable -> storeHelper.updateEntry(getScope(), metadataTable, STATE_KEY,
                         state.getObject().toBytes(), state.getVersion())
                                                          .thenApply(r -> {
+                                                             log.info("shivesh:: state set:: state Data = {}, version = {}.. invalidating cache", state.getObject().getState(), r.asLongVersion().getLongValue());
                                                              storeHelper.invalidateCache(getScope(), metadataTable, STATE_KEY);
                                                              return r;
                                                          }));
@@ -839,12 +840,21 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached) {
         return getMetadataTable()
+                .thenCompose(metadataTable ->
+                        storeHelper.getCachedData(getScope(), metadataTable, STATE_KEY, StateRecord::fromBytes).thenApply(x -> {
+                            log.info("shivesh:: before cache:: state Data = {}, version = {}", x.getObject().getState(), x.getVersion().asLongVersion().getLongValue());
+                            return metadataTable;
+                        }))
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
                         storeHelper.invalidateCache(getScope(), metadataTable, STATE_KEY);
                     }
 
-                    return storeHelper.getCachedData(getScope(), metadataTable, STATE_KEY, StateRecord::fromBytes);
+                    return storeHelper.getCachedData(getScope(), metadataTable, STATE_KEY, StateRecord::fromBytes)
+                                      .thenApply(x -> {
+                                          log.info("shivesh:: after cache:: state Data = {}, version = {}", x.getObject().getState(), x.getVersion().asLongVersion().getLongValue());
+                                          return x;
+                                      });
                 });
     }
 
