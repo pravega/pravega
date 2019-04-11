@@ -73,7 +73,6 @@ public class MockController implements Controller {
     private final Map<String, Set<Stream>> createdScopes = new HashMap<>();
     @GuardedBy("$lock")
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
-    
     private final Supplier<Long> idGenerator = () -> Flow.create().asLong();
     private final boolean callServer;
     
