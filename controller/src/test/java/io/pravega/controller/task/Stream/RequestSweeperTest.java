@@ -139,7 +139,7 @@ public abstract class RequestSweeperTest {
         signalQueue.put(signal1);
         signalQueue.put(signal2);
         doAnswer(x -> {
-            signalQueue.take().complete(x.getArgument(0));
+            signalQueue.take().complete(null);
             return waitQueue.take();
         }).when(requestEventWriter).writeEvent(any(), any());
         
