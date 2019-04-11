@@ -135,7 +135,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
         Exceptions.checkNotClosed(closed.get(), this);
-        
+
         // create a new connection.
         CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
         Connection connection = new Connection(location, sessionHandlerFuture);
