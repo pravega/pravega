@@ -113,7 +113,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      * @param input         An InputStream to read from.
      * @param segmentOffset The Segment Offset that the first byte of the InputStream maps to. This wll be used as a Version,
      *                      unless the deserialized segment's Header contains an explicit version.
-     * @param serializer    The {@link EntrySerializer} to ues for deserializing entries.
+     * @param serializer    The {@link EntrySerializer} to use for deserializing entries.
      * @return A {@link DeserializedEntry} that contains all the components of the {@link TableEntry}.
      * @throws IOException If an Exception occurred while reading from the given InputStream.
      */

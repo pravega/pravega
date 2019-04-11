@@ -220,7 +220,6 @@ class ContainerKeyIndex implements AutoCloseable {
      * @param timer   Timer for the operation.
      * @return A CompletableFuture that, when completed, will contain the sought offset. If the  bucket does not exist,
      * it will contain {@link TableKey#NOT_EXISTS}.
-     * associated with it.
      */
     CompletableFuture<Long> getBucketOffsetDirect(DirectSegmentAccess segment, UUID keyHash, TimeoutTimer timer) {
         // Get the bucket offset from the segment, which will update the cache if actually newer.
