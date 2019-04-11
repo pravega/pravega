@@ -219,6 +219,23 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
 # Available Metrics and Their Names
 
+## Metrics in JVM
+
+   ```
+    jvm_gc_live_data_size
+    jvm_gc_max_data_size
+    jvm_gc_memory_allocated
+    jvm_gc_memory_prompted
+    jvm_gc_pause
+    jvm_memory_committed
+    jvm_memory_max
+    jvm_memory_used
+    jvm_threads_daemon
+    jvm_threads_live
+    jvm_threads_peak
+    jvm_threads_states    
+
+   ```
 ## Metrics in Segment Store Service
 
 - Segment Store Read/Write latency of storage operations ([Histograms](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
@@ -227,6 +244,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     segmentstore.segment.create_latency_ms
     segmentstore.segment.read_latency_ms
     segmentstore.segment.write_latency_ms
+
   ```
 
 - Segment Store global and per-segment Read/Write Metrics ([Counters](https://micrometer.io/docs/concepts#_counters)):
