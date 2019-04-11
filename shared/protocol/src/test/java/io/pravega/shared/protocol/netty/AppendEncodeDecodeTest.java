@@ -320,6 +320,8 @@ public class AppendEncodeDecodeTest {
                 currentCount++;
             }
             assertEquals(currentValue, append.getEventNumber());
+            assertEquals(1L, append.getRequestId());
+
         }
         assertEquals(numValues - 1, currentValue);
         assertEquals(currentCount, sizeOfEachValue);

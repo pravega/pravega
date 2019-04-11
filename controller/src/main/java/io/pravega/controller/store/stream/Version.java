@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.client.tables.impl.KeyVersionImpl;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -26,12 +27,19 @@ import java.io.IOException;
  */
 public interface Version {
     IntVersion asIntVersion();
+    
+    LongVersion asLongVersion();
 
     byte[] toBytes();
 
     abstract class UnsupportedVersion implements Version {
         @Override
         public IntVersion asIntVersion() {
+            throw new UnsupportedOperationException();
+        }
+        
+        @Override
+        public LongVersion asLongVersion() {
             throw new UnsupportedOperationException();
         }
 
@@ -97,6 +105,65 @@ public interface Version {
         @Override
         protected IntVersion.IntVersionBuilder newBuilder() {
             return IntVersion.builder();
+        }
+    }
+    
+    @Data
+    @Builder
+    @EqualsAndHashCode(callSuper = false)
+    /**
+     * A version implementation that uses integer values. 
+     */
+    class LongVersion extends UnsupportedVersion {
+        public static final LongVersion EMPTY = LongVersion.builder().longValue(KeyVersionImpl.NOT_EXISTS.getSegmentVersion()).build();
+        static final LongVersionSerializer SERIALIZER = new LongVersionSerializer();
+        private final long longValue;
+        
+        public static class LongVersionBuilder implements ObjectBuilder<LongVersion> {
+
+        }
+
+        @Override
+        public LongVersion asLongVersion() {
+            return this;
+        }
+
+        @Override
+        @SneakyThrows(IOException.class)
+        public byte[] toBytes() {
+            return SERIALIZER.serialize(this).getCopy();
+        }
+
+        @SneakyThrows(IOException.class)
+        public static LongVersion fromBytes(final byte[] data) {
+            return SERIALIZER.deserialize(data);
+        }
+    }
+
+    class LongVersionSerializer
+            extends VersionedSerializer.WithBuilder<LongVersion, LongVersion.LongVersionBuilder> {
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, LongVersion.LongVersionBuilder builder)
+                throws IOException {
+            builder.longValue(revisionDataInput.readLong());
+        }
+
+        private void write00(LongVersion record, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeLong(record.getLongValue());
+        }
+
+        @Override
+        protected LongVersion.LongVersionBuilder newBuilder() {
+            return LongVersion.builder();
         }
     }
 }

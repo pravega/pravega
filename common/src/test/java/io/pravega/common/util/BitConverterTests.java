@@ -12,11 +12,13 @@ package io.pravega.common.util;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.UUID;
+
 /**
  * Unit tests for the {@link BitConverter} class.
  */
 public class BitConverterTests {
-    private static final int MAX_LENGTH = Long.BYTES;
+    private static final int MAX_LENGTH = 2 * Long.BYTES;
 
     /**
      * Tests the {@link BitConverter#writeShort} and {@link BitConverter#readShort}.
@@ -40,6 +42,17 @@ public class BitConverterTests {
     @Test
     public void testLong() {
         test(BitConverter::writeLong, BitConverter::readLong, Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L);
+    }
+    
+    /**
+     * Tests the {@link BitConverter#writeUUID(byte[], int, UUID)} and {@link BitConverter#readUUID(byte[], int)}.
+     */
+    @Test
+    public void testUUID() {
+        test(BitConverter::writeUUID, BitConverter::readUUID, new UUID(Long.MIN_VALUE, Long.MIN_VALUE),
+                new UUID(Long.MIN_VALUE, Long.MAX_VALUE), new UUID(0L, 0L), UUID.randomUUID(), 
+                new UUID(Long.MAX_VALUE, Long.MIN_VALUE), 
+                new UUID(Long.MAX_VALUE, Long.MAX_VALUE));
     }
 
     /**

@@ -100,7 +100,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          AuthHelper authHelper) {
+                                          final AuthHelper authHelper) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
@@ -117,7 +117,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          AuthHelper authHelper) {
+                                          final AuthHelper authHelper) {
         this(streamMetadataStore, segmentHelper, executor, hostId, timeoutServiceConfig, null, authHelper);
     }
 
@@ -125,12 +125,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          AuthHelper authHelper) {
-        this(streamMetadataStore, segmentHelper, executor, hostId,
-                TimeoutServiceConfig.defaultConfig(), authHelper);
+                                          final AuthHelper authHelper) {
+        this(streamMetadataStore, segmentHelper, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper);
     }
 
-    protected void setReady() {
+    private void setReady() {
         ready = true;
         readyLatch.countDown();
     }
@@ -144,7 +143,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         return readyLatch.await(timeout, timeUnit);
     }
 
-    public void awaitInitialization() throws InterruptedException {
+    void awaitInitialization() throws InterruptedException {
         readyLatch.await();
     }
 
@@ -444,6 +443,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         //         and fencing other processes from tracking this txn's timeout.
         // Step 4. Add this txn to timeout service and start managing timeout for this txn.
         return streamMetadataStore.getTransactionData(scope, stream, txnId, ctx, executor).thenComposeAsync(txnData -> {
+            if (!txnData.getStatus().equals(TxnStatus.OPEN)) { // transaction is not open, dont ping it
+                return CompletableFuture.completedFuture(createStatus(Status.OK));
+            }
             // Step 1. Sanity check for lease value.
             if (lease > timeoutService.getMaxLeaseValue()) {
                 return CompletableFuture.completedFuture(createStatus(Status.LEASE_TOO_LARGE));

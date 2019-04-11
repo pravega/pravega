@@ -70,13 +70,15 @@ import static org.junit.Assert.assertTrue;
  * Task test cases.
  */
 @Slf4j
-public class TaskTest {
+public abstract class TaskTest {
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
+    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected CuratorFramework cli;
+
     private final String stream1 = "stream1";
     private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
     private final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private StreamMetadataStore streamStore;
 
@@ -88,10 +90,10 @@ public class TaskTest {
 
     private StreamMetadataTasks streamMetadataTasks;
     private SegmentHelper segmentHelperMock;
-    private CuratorFramework cli;
-    private Map<Long, Map.Entry<Double, Double>> segmentsCreated;
     private final RequestTracker requestTracker = new RequestTracker(true);
     
+    abstract StreamMetadataStore getStream();
+
     @Before
     public void setUp() throws Exception {
         zkServer = new TestingServerStarter().start();
@@ -99,14 +101,12 @@ public class TaskTest {
 
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
-        streamStore = StreamStoreFactory.createZKStore(cli, executor);
+        streamStore = getStream();
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
-                executor, HOSTNAME,
-                AuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, HOSTNAME, AuthHelper.getDisabledAuthHelper(), requestTracker);
 
         final String stream2 = "stream2";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -130,7 +130,7 @@ public class TaskTest {
         List<Long> sealedSegments = Collections.singletonList(1L);
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore.submitScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, null, null, executor).get();
         EpochTransitionRecord response = versioned.getObject();
-        segmentsCreated = response.getNewSegmentsWithRange();
+        Map<Long, Map.Entry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();
         VersionedMetadata<State> state = streamStore.getVersionedState(SCOPE, stream1, null, executor).join();
         state = streamStore.updateVersionedState(SCOPE, stream1, State.SCALING, state, null, executor).get();
         versioned = streamStore.startScale(SCOPE, stream1, false, versioned, state, null, executor).join();
@@ -160,6 +160,7 @@ public class TaskTest {
     @After
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
+        streamStore.close();
         cli.close();
         zkServer.stop();
         zkServer.close();

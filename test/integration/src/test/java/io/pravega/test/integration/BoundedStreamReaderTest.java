@@ -61,7 +61,6 @@ import org.junit.Test;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class BoundedStreamReaderTest {
@@ -93,7 +92,9 @@ public class BoundedStreamReaderTest {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

@@ -35,7 +35,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /**
  * Controller stream metadata tests.
@@ -65,8 +64,9 @@ public class ControllerStreamMetadataTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            TableStore tableStore = serviceBuilder.createTableStoreService();
 
-            this.server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+            this.server = new PravegaConnectionListener(false, servicePort, store, tableStore);
             this.server.startListening();
 
             // 3. Start controller

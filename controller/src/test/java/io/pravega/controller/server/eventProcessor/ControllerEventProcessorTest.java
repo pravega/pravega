@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server.eventProcessor;
 
-import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
@@ -70,16 +69,16 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /**
  * Controller Event ProcessorTests.
  */
-public class ControllerEventProcessorTest {
+public abstract class ControllerEventProcessorTest {
     private static final String SCOPE = "scope";
     private static final String STREAM = "stream";
 
-    private ScheduledExecutorService executor;
+    protected CuratorFramework zkClient;
+    protected ScheduledExecutorService executor;
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private StreamMetadataTasks streamMetadataTasks;
@@ -87,7 +86,6 @@ public class ControllerEventProcessorTest {
     private HostControllerStore hostStore;
     private TestingServer zkServer;
     private SegmentHelper segmentHelperMock;
-    private CuratorFramework zkClient;
     private RequestTracker requestTracker = new RequestTracker(true);
 
     @Before
@@ -100,11 +98,14 @@ public class ControllerEventProcessorTest {
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         zkClient.start();
 
-        streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
+        streamStore = createStore();
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
+                segmentHelperMock, executor, "1", AuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
+                executor, "host", AuthHelper.getDisabledAuthHelper());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
                 segmentHelperMock, executor, "1", AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelperMock,
@@ -121,12 +122,15 @@ public class ControllerEventProcessorTest {
         // endregion
     }
 
+    abstract StreamMetadataStore createStore();
+
     @After
     public void tearDown() throws Exception {
         zkClient.close();
         zkServer.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStore.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
@@ -225,6 +229,7 @@ public class ControllerEventProcessorTest {
         // subsequent events should be no op
         // 3. commit request for future epoch
         // this should be ignored as there is nothing in the epoch to commit
+        // scale stream
         List<VersionedTransactionData> txnDataList = createAndCommitTransactions(3);
         int epoch = txnDataList.get(0).getEpoch();
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
@@ -233,6 +238,7 @@ public class ControllerEventProcessorTest {
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
         }
 
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1)).join();
         Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch - 1))));
         Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch + 1))));
         Assert.assertTrue(Futures.await(commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, epoch))));

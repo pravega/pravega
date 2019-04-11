@@ -62,8 +62,6 @@ import org.junit.Test;
 import static io.pravega.shared.MetricsTags.segmentTags;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-
 
 @Slf4j
 public class MetricsTest extends ThreadPooledTestSuite {
@@ -116,8 +114,9 @@ public class MetricsTest extends ThreadPooledTestSuite {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, mock(TableStore.class),
+        this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(), null, null, true);
         this.server.startListening();
 

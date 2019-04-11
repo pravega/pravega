@@ -18,9 +18,6 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.task.TaskMetadataStore;
@@ -33,7 +30,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,10 +61,9 @@ public abstract class BucketServiceTest {
         bucketStore = createBucketStore(3);
         
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor);
-        HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 
                 segmentHelper, executor, hostId, AuthHelper.getDisabledAuthHelper(), requestTracker);
@@ -82,13 +77,14 @@ public abstract class BucketServiceTest {
     @After
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
+        streamMetadataStore.close();
         service.stopAsync();
         service.awaitTerminated();
         connectionFactory.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
 
-    abstract StreamMetadataStore createStreamStore(Executor executor);
+    abstract StreamMetadataStore createStreamStore(ScheduledExecutorService executor);
 
     abstract BucketStore createBucketStore(int bucketCount);
 
