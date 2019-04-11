@@ -486,7 +486,7 @@ public final class WireCommands {
                 throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
             }
             int eventLength = in.readInt();
-            if (eventLength != length - TYPE_PLUS_LENGTH_SIZE) {
+            if (eventLength > length - TYPE_PLUS_LENGTH_SIZE) {
                 throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
             }
             byte[] msg = new byte[eventLength];
@@ -636,7 +636,7 @@ public final class WireCommands {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
-            Event event = Event.readFrom(in, length - 8 * 5);
+            Event event = Event.readFrom(in, length - Long.BYTES * 4);
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
             return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId);
         }

@@ -14,6 +14,7 @@ import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -73,9 +74,52 @@ public class WireCommandsTest {
         testCommand(new WireCommands.AppendBlockEnd(uuid, i, buf, i, i, l));
     }
 
+    @Data
+    private static final class ConditionalAppendV7 implements WireCommand, Request {
+        final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
+        final UUID writerId;
+        final long eventNumber;
+        final long expectedOffset;
+        final Event event;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(expectedOffset);
+            event.writeFields(out);
+        }
+
+        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+            UUID writerId = new UUID(in.readLong(), in.readLong());
+            long eventNumber = in.readLong();
+            long expectedOffset = in.readLong();
+            Event event = Event.readFrom(in, length - Long.BYTES * 4);
+            return new ConditionalAppendV7(writerId, eventNumber, expectedOffset, event);
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {
+            //Unreachable. This should be handled in AppendDecoder.
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Test
     public void testConditionalAppend() throws IOException {
         testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l));
+
+        // Test that we are able to decode a message with a previous version.
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        ConditionalAppendV7 commandV7 = new ConditionalAppendV7(uuid, l, l, new Event(buf));
+        commandV7.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1));
     }
 
     @Test
