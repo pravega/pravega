@@ -140,11 +140,13 @@ public abstract class RequestSweeperTest {
         signalQueue.put(signal1);
         signalQueue.put(signal2);
         doAnswer(x -> {
-            log.info("shivesh:: write event called, completing future");
-            signalQueue.take().complete(x.getArgument(0));
-            CompletableFuture<Void> taken = waitQueue.take();
+            log.info("shivesh:: write event called, completing future queue size = {}", signalQueue.size());
+            CompletableFuture<Void> taken1 = signalQueue.take();
+            log.info("shivesh:: taken1 == {} .. argument = {}", taken1, x.getArgument(0));
+            taken1.complete(null);
+            CompletableFuture<Void> taken2 = waitQueue.take();
             log.info("shivesh:: completed future.. taken from wait queue");
-            return taken;
+            return taken2;
         }).when(requestEventWriter).writeEvent(anyString(), any());
         
         streamMetadataTasks.manualScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), 
