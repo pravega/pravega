@@ -77,7 +77,7 @@ import static io.pravega.shared.MetricsNames.UPDATE_STREAM;
 import static io.pravega.shared.MetricsNames.UPDATE_STREAM_LATENCY;
 import static io.pravega.shared.MetricsNames.globalMetricName;
 import static io.pravega.shared.MetricsTags.streamTags;
-import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static io.pravega.test.common.AssertExtensions.assertEventuallyNearlyEquals;
 import static io.pravega.test.integration.ReadWriteUtils.readEvents;
 import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
 
@@ -180,7 +180,7 @@ public class ControllerMetricsTest {
 
             // Check that the number of streams in metrics has been incremented.
             streamManager.createStream(scope, iterationStreamName, streamConfiguration);
-            Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CREATE_STREAM));
+            Counter createdStreamsCounter = MetricRegistryUtils.getCounter(getPrefixedMetricName(CREATE_STREAM));
             AssertExtensions.assertGreaterThanOrEqual("The counter of created streams",
                     i, (long) createdStreamsCounter.count());
             groupManager.createReaderGroup(iterationReaderGroupName, ReaderGroupConfig.builder()
@@ -191,11 +191,11 @@ public class ControllerMetricsTest {
                 ReaderGroup readerGroup = groupManager.getReaderGroup(iterationReaderGroupName);
                 // Update the Stream and check that the number of updated streams and per-stream updates is incremented.
                 streamManager.updateStream(scope, iterationStreamName, streamConfiguration);
-                Counter updatedStreamsCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(UPDATE_STREAM)));
+                Counter updatedStreamsCounter = MetricRegistryUtils.getCounter(getPrefixedMetricName(globalMetricName(UPDATE_STREAM)));
                 Counter streamUpdatesCounter = MetricRegistryUtils.getCounter(
-                        getCounterMetricName(UPDATE_STREAM), streamTags(scope, iterationStreamName));
+                        getPrefixedMetricName(UPDATE_STREAM), streamTags(scope, iterationStreamName));
                 Assert.assertTrue(iterations * i + j <= updatedStreamsCounter.count());
-                Assert.assertTrue(j == streamUpdatesCounter.count());
+                Assert.assertEquals(j, streamUpdatesCounter.count(), 0.);
 
                 // Read and write some events.
                 writeEvents(clientFactory, iterationStreamName, eventsWritten);
@@ -206,42 +206,42 @@ public class ControllerMetricsTest {
 
                 // Truncate the Stream and check that the number of truncated Streams and per-Stream truncations is incremented.
                 streamManager.truncateStream(scope, iterationStreamName, streamCut);
-                Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(globalMetricName(TRUNCATE_STREAM)));
+                Counter streamTruncationCounter = MetricRegistryUtils.getCounter(getPrefixedMetricName(globalMetricName(TRUNCATE_STREAM)));
                 Counter perStreamTruncationCounter = MetricRegistryUtils.getCounter(
-                        getCounterMetricName(TRUNCATE_STREAM), streamTags(scope, iterationStreamName));
+                        getPrefixedMetricName(TRUNCATE_STREAM), streamTags(scope, iterationStreamName));
                 Assert.assertTrue(iterations * i + j <= streamTruncationCounter.count());
-                Assert.assertTrue(j == perStreamTruncationCounter.count());
+                Assert.assertEquals(j, perStreamTruncationCounter.count(), 0.1);
             }
 
             // Check metrics accounting for sealed and deleted streams.
             streamManager.sealStream(scope, iterationStreamName);
-            Counter streamSealCounter = MetricRegistryUtils.getCounter(getCounterMetricName(SEAL_STREAM));
+            Counter streamSealCounter = MetricRegistryUtils.getCounter(getPrefixedMetricName(SEAL_STREAM));
             Assert.assertTrue(i + 1 <= streamSealCounter.count());
             streamManager.deleteStream(scope, iterationStreamName);
-            Counter streamDeleteCounter = MetricRegistryUtils.getCounter(getCounterMetricName(DELETE_STREAM));
+            Counter streamDeleteCounter = MetricRegistryUtils.getCounter(getPrefixedMetricName(DELETE_STREAM));
             Assert.assertTrue(i + 1 <= streamDeleteCounter.count());
         }
 
         //Put assertion on different lines so it can tell more information in case of failure.
-        Timer latencyValues1 = MetricRegistryUtils.getTimer(getTimerMetricName(CREATE_STREAM_LATENCY));
+        Timer latencyValues1 = MetricRegistryUtils.getTimer(getControllerPrefixedMetricName(CREATE_STREAM_LATENCY));
         Assert.assertNotNull(latencyValues1);
         Assert.assertTrue(iterations <= latencyValues1.count());  //also system streams created so count() is bigger
 
-        Timer latencyValues2 = MetricRegistryUtils.getTimer(getTimerMetricName(SEAL_STREAM_LATENCY));
+        Timer latencyValues2 = MetricRegistryUtils.getTimer(getControllerPrefixedMetricName(SEAL_STREAM_LATENCY));
         Assert.assertNotNull(latencyValues2);
-        Assert.assertTrue(iterations == latencyValues2.count());
+        Assert.assertEquals(iterations, latencyValues2.count());
 
-        Timer latencyValues3 = MetricRegistryUtils.getTimer(getTimerMetricName(DELETE_STREAM_LATENCY));
+        Timer latencyValues3 = MetricRegistryUtils.getTimer(getControllerPrefixedMetricName(DELETE_STREAM_LATENCY));
         Assert.assertNotNull(latencyValues3);
-        Assert.assertTrue(iterations == latencyValues3.count());
+        Assert.assertEquals(iterations, latencyValues3.count());
 
-        Timer latencyValues4 = MetricRegistryUtils.getTimer(getTimerMetricName(UPDATE_STREAM_LATENCY));
+        Timer latencyValues4 = MetricRegistryUtils.getTimer(getControllerPrefixedMetricName(UPDATE_STREAM_LATENCY));
         Assert.assertNotNull(latencyValues4);
-        Assert.assertTrue(iterations * iterations == latencyValues4.count());
+        Assert.assertEquals(iterations * iterations, latencyValues4.count());
 
-        Timer latencyValues5 = MetricRegistryUtils.getTimer(getTimerMetricName(TRUNCATE_STREAM_LATENCY));
+        Timer latencyValues5 = MetricRegistryUtils.getTimer(getControllerPrefixedMetricName(TRUNCATE_STREAM_LATENCY));
         Assert.assertNotNull(latencyValues5);
-        Assert.assertTrue(iterations * iterations == latencyValues5.count());
+        Assert.assertEquals(iterations * iterations, latencyValues5.count());
     }
 
     /**
@@ -251,12 +251,12 @@ public class ControllerMetricsTest {
      */
     @Test(timeout = 25000)
     public void zookeeperMetricsTest() throws Exception {
-        Counter zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
+        Counter zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getPrefixedMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
         Assert.assertNull(zkSessionExpirationCounter);
         controllerWrapper.forceClientSessionExpiry();
         while (zkSessionExpirationCounter == null) {
             Thread.sleep(100);
-            zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getCounterMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
+            zkSessionExpirationCounter = MetricRegistryUtils.getCounter(getPrefixedMetricName(CONTROLLER_ZK_SESSION_EXPIRATION));
         }
         Assert.assertEquals(zkSessionExpirationCounter.count(), 1, 0.1);
     }
@@ -271,7 +271,7 @@ public class ControllerMetricsTest {
      *
      * @throws InterruptedException
      */
-    @Test(timeout = 15000)
+    @Test(timeout = 150000)
     public void mergesSplitsAndSegmentCountMetricsTest() throws Exception {
         final String scope = "mergesSplitsAndSegmentCountMetricsTestScope";
         final String streamName = "mergesSplitsAndSegmentCountMetricsTestStream";
@@ -285,36 +285,37 @@ public class ControllerMetricsTest {
         streamManager.createStream(scope, streamName, streamConfiguration);
 
         // Segment count, splits and merges should remain not initialized.
-        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_SPLITS))));
-        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_SPLITS), streamTags(scope, streamName)));
-        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_MERGES))));
-        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_MERGES), streamTags(scope, streamName)));
-        Assert.assertNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_COUNT), streamTags(scope, streamName)));
+        Assert.assertNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(globalMetricName(SEGMENTS_SPLITS))));
+        Assert.assertNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(SEGMENTS_SPLITS), streamTags(scope, streamName)));
+        Assert.assertNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(globalMetricName(SEGMENTS_MERGES))));
+        Assert.assertNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(SEGMENTS_MERGES), streamTags(scope, streamName)));
+        Assert.assertNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(SEGMENTS_COUNT), streamTags(scope, streamName)));
 
         // Check that the initial number of segments for this Stream is reported correctly.
-        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(INITIAL_SEGMENTS_COUNT), streamTags(scope, streamName)));
-        assertEventuallyEquals((double) minNumSegments, () ->
-                MetricRegistryUtils.getGauge(getGaugeMetricName(INITIAL_SEGMENTS_COUNT), streamTags(scope, streamName)).value());
+        final int timeout = 5000;
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(INITIAL_SEGMENTS_COUNT), streamTags(scope, streamName)));
+        assertEventuallyNearlyEquals((double) minNumSegments, () ->
+                MetricRegistryUtils.getGauge(getPrefixedMetricName(INITIAL_SEGMENTS_COUNT), streamTags(scope, streamName)).value(), timeout);
 
         // Scale the Stream and check that all these metrics have been set up again.
         performScaleStream(scope, streamName);
 
         // Check that all the metrics are being reported, now originated from the scale request.
-        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_SPLITS))));
-        assertEventuallyEquals(1.0, () ->
-                MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_SPLITS))).value());
-        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_SPLITS), streamTags(scope, streamName)));
-        assertEventuallyEquals(1.0, () ->
-                MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_SPLITS), streamTags(scope, streamName)).value());
-        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_MERGES))));
-        assertEventuallyEquals(0.0, () ->
-                MetricRegistryUtils.getGauge(getGaugeMetricName(globalMetricName(SEGMENTS_MERGES))).value());
-        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_MERGES), streamTags(scope, streamName)));
-        assertEventuallyEquals(0.0, () ->
-                MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_MERGES), streamTags(scope, streamName)).value());
-        Assert.assertNotNull(MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_COUNT), streamTags(scope, streamName)));
-        assertEventuallyEquals(3.0, () ->
-                MetricRegistryUtils.getGauge(getGaugeMetricName(SEGMENTS_COUNT), streamTags(scope, streamName)).value());
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(globalMetricName(SEGMENTS_SPLITS))));
+        assertEventuallyNearlyEquals(1.0, () ->
+                MetricRegistryUtils.getGauge(getPrefixedMetricName(globalMetricName(SEGMENTS_SPLITS))).value(), timeout);
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(SEGMENTS_SPLITS), streamTags(scope, streamName)));
+        assertEventuallyNearlyEquals(1.0, () ->
+                MetricRegistryUtils.getGauge(getPrefixedMetricName(SEGMENTS_SPLITS), streamTags(scope, streamName)).value(), timeout);
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(globalMetricName(SEGMENTS_MERGES))));
+        assertEventuallyNearlyEquals(0.0, () ->
+                MetricRegistryUtils.getGauge(getPrefixedMetricName(globalMetricName(SEGMENTS_MERGES))).value(), timeout);
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(SEGMENTS_MERGES), streamTags(scope, streamName)));
+        assertEventuallyNearlyEquals(0.0, () ->
+                MetricRegistryUtils.getGauge(getPrefixedMetricName(SEGMENTS_MERGES), streamTags(scope, streamName)).value(), timeout);
+        Assert.assertNotNull(MetricRegistryUtils.getGauge(getPrefixedMetricName(SEGMENTS_COUNT), streamTags(scope, streamName)));
+        assertEventuallyNearlyEquals(3.0, () ->
+                MetricRegistryUtils.getGauge(getPrefixedMetricName(SEGMENTS_COUNT), streamTags(scope, streamName)).value(), timeout);
     }
 
     private void performScaleStream(String scope, String streamName) throws InterruptedException {
@@ -340,16 +341,11 @@ public class ControllerMetricsTest {
         writer.writeEvent("0", "event2").join();
     }
 
-    private static String getCounterMetricName(String metricName) {
+    private static String getPrefixedMetricName(String metricName) {
         return "pravega." + metricName;
     }
 
-    private static String getGaugeMetricName(String metricName) {
-        return "pravega." + metricName;
-    }
-
-    private static String getTimerMetricName(String metricName) {
+    private static String getControllerPrefixedMetricName(String metricName) {
         return "pravega.controller." + metricName;
     }
-
 }

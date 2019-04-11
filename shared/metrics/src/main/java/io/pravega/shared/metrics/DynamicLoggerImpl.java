@@ -150,7 +150,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
         } else if (value instanceof Integer) {
             newGauge = underlying.registerGauge(keys.getRegistryKey(), value::intValue, tags);
         } else if (value instanceof Long) {
-            newGauge = underlying.registerGauge(keys.getRegistryKey(), value::longValue);
+            newGauge = underlying.registerGauge(keys.getRegistryKey(), value::longValue, tags);
         }
 
         if (null == newGauge) {

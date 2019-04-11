@@ -27,7 +27,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.junit.Assert;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Additional Assert Methods that are useful during testing.
@@ -515,16 +515,18 @@ public class AssertExtensions {
      *
      * @param expected  Expected value for the comparison.
      * @param eval      Function to be evaluated until the assertion is met.
+     * @param timeout   Timeout for actively testing the equality condition.
+     * @throws Exception if a problem occurs.
      */
-    public static <T extends Number> void assertEventuallyEquals(T expected, Callable<T> eval) throws Exception {
-        final int assertTimeout = 5000;
-        long endTime = System.currentTimeMillis() + assertTimeout;
+    public static void assertEventuallyNearlyEquals(double expected, Callable<Double> eval, int timeout) throws Exception {
+        final double precision = 0.1;
+        long endTime = System.currentTimeMillis() + timeout;
         while (endTime > System.currentTimeMillis()) {
-            if (expected == eval.call()) {
+            if (nearlyEquals(expected, eval.call(), precision)) {
                 return;
             }
-            Thread.sleep(10);
+            Thread.sleep(100);
         }
-        assertEquals(expected, eval.call());
+        assertTrue(nearlyEquals(expected, eval.call(), precision));
     }
 }
