@@ -22,15 +22,12 @@ jobs:
 # which will be used for publishing artifacts to snapshot repository
     - stage: build
       if: type IN (push, pull_request)
-      install: ./gradlew assemble
+      install: echo "nothing"
       script: ./gradlew :controller:cleanTest :controller:test --tests io.pravega.controller.server.eventProcessor.*
       after_success:
            - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
       after_failure:
-           - cat file:///home/travis/build/pravega/pravega/controller/build/reports/tests/test/index.html
-    - stage: javadocs
-      install: echo "Building javadocs"
-      script: ./gradlew javadocs
+           - cat /home/travis/build/pravega/pravega/controller/build/reports/tests/test/index.html
 
     - stage: snapshot
       if: branch = master AND NOT (type = pull_request)
