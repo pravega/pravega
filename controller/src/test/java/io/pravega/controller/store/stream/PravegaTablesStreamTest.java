@@ -35,7 +35,6 @@ import java.util.stream.Collectors;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.*;
-import static org.junit.Assert.assertFalse;
 
 public class PravegaTablesStreamTest extends StreamTestBase {
 
@@ -96,6 +95,9 @@ public class PravegaTablesStreamTest extends StreamTestBase {
 
         store.createStream(scope, streamName, streamConfig, System.currentTimeMillis(), null, executor).get();
         store.setState(scope, streamName, State.ACTIVE, null, executor).get();
+        store.getState(scope, streamName, false, null, executor);
+        store.getState(scope, streamName, false, null, executor);
+        store.getState(scope, streamName, false, null, executor);
         State state1 = store.getState(scope, streamName, false, null, executor).join();
         assertEquals(state1, State.ACTIVE);
         OperationContext context = store.createContext(scope, streamName);
@@ -185,5 +187,4 @@ public class PravegaTablesStreamTest extends StreamTestBase {
         state1 = store.getState(scope, streamName, false, null, executor).join();
         assertEquals(state1, State.ACTIVE);
     }
-
 }

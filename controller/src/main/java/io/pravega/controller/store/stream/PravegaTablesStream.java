@@ -831,7 +831,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                 .thenCompose(metadataTable -> storeHelper.updateEntry(getScope(), metadataTable, STATE_KEY,
                         state.getObject().toBytes(), state.getVersion())
                                                          .thenApply(r -> {
-                                                             log.info("shivesh:: state set:: state Data = {}, version = {}.. invalidating cache", state.getObject().getState(), r.asLongVersion().getLongValue());
+                                                             log.info("shivesh:: state set:: state Data = {}, version = {}.. invalidating cache, metadata table {}/{}", state.getObject().getState(), r.asLongVersion().getLongValue(), getScope(), metadataTable);
                                                              storeHelper.invalidateCache(getScope(), metadataTable, STATE_KEY);
                                                              return r;
                                                          }));
@@ -842,17 +842,18 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getMetadataTable()
                 .thenCompose(metadataTable ->
                         storeHelper.getCachedData(getScope(), metadataTable, STATE_KEY, StateRecord::fromBytes).thenApply(x -> {
-                            log.info("shivesh:: before cache:: state Data = {}, version = {}", x.getObject().getState(), x.getVersion().asLongVersion().getLongValue());
+                            log.info("shivesh:: before cache:: state Data = {}, version = {}, metadataTable = {}/{}", x.getObject().getState(), x.getVersion().asLongVersion().getLongValue(), getScope(), metadataTable);
                             return metadataTable;
                         }))
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
+                        log.info("shivesh:: ignoreCached true: invalidating cache {}/{}", getScope(), metadataTable);
                         storeHelper.invalidateCache(getScope(), metadataTable, STATE_KEY);
                     }
 
                     return storeHelper.getCachedData(getScope(), metadataTable, STATE_KEY, StateRecord::fromBytes)
                                       .thenApply(x -> {
-                                          log.info("shivesh:: after cache:: state Data = {}, version = {}", x.getObject().getState(), x.getVersion().asLongVersion().getLongValue());
+                                          log.info("shivesh:: after cache:: state Data = {}, version = {}.. metadatatable = {}/{}", x.getObject().getState(), x.getVersion().asLongVersion().getLongValue(), getScope(), metadataTable);
                                           return x;
                                       });
                 });

@@ -98,7 +98,12 @@ public class PravegaTablesStoreHelper {
      * @return Returns a completableFuture which when completed will have the deserialized value with its store key version. 
      */
     public <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String scope, String table, String key, Function<byte[], T> fromBytes) {
-        return cache.getCachedData(new TableCacheKey<>(scope, table, key, fromBytes))
+        TableCacheKey<T> key1 = new TableCacheKey<>(scope, table, key, fromBytes);
+        if (key.equals("state")) {
+            log.info("shivesh:: getting state key with hash code = {}", key1.hashCode());
+        }
+
+        return cache.getCachedData(key1)
                     .thenApply(this::getVersionedMetadata);
     }
 
@@ -116,7 +121,12 @@ public class PravegaTablesStoreHelper {
      * @param key key to invalidate
      */
     public void invalidateCache(String scope, String table, String key) {
-        cache.invalidateCache(new TableCacheKey<>(scope, table, key, x -> null));
+        
+        TableCacheKey<Object> key1 = new TableCacheKey<>(scope, table, key, x -> null);
+        if (key.equals("state")) {
+            log.info("shivesh:: invalidating state key with hash code = {}", key1.hashCode());
+        }
+        cache.invalidateCache(key1);
     }
 
     /**
