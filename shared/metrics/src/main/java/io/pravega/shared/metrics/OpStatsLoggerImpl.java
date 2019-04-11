@@ -25,9 +25,7 @@ class OpStatsLoggerImpl implements OpStatsLogger {
     //region Members
 
     private final Timer success;
-    private final String successName;
     private final Timer fail;
-    private final String failName;
     private final MeterRegistry meterRegistry;
 
     //endregion
@@ -36,12 +34,10 @@ class OpStatsLoggerImpl implements OpStatsLogger {
 
     OpStatsLoggerImpl(MeterRegistry metricRegistry, String statName, String... tags) {
         this.meterRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
-        this.successName = statName;
-        this.failName = failMetricName(statName);
         //This will publish additional percentile metrics
-        this.success = Timer.builder(successName).tags(tags).publishPercentiles(OpStatsData.PERCENTILE_ARRAY)
+        this.success = Timer.builder(statName).tags(tags).publishPercentiles(OpStatsData.PERCENTILE_ARRAY)
                 .register(this.meterRegistry);
-        this.fail = Timer.builder(failName).tags(tags).publishPercentiles(OpStatsData.PERCENTILE_ARRAY)
+        this.fail = Timer.builder(failMetricName(statName)).tags(tags).publishPercentiles(OpStatsData.PERCENTILE_ARRAY)
                 .register(this.meterRegistry);
     }
 

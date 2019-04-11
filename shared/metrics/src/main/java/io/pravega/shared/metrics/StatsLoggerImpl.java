@@ -125,11 +125,10 @@ public class StatsLoggerImpl implements StatsLogger {
         private final Id id;
 
         GaugeImpl(String statName, Supplier<T> value, String... tagPairs) {
-            String name = statName;
             io.micrometer.core.instrument.Tags tags = io.micrometer.core.instrument.Tags.of(tagPairs);
-            this.id = new Id(name, tags, null, null, io.micrometer.core.instrument.Meter.Type.GAUGE);
+            this.id = new Id(statName, tags, null, null, io.micrometer.core.instrument.Meter.Type.GAUGE);
             metrics.remove(this.id);
-            metrics.gauge(name, tags, value, obj -> obj.get().doubleValue());
+            metrics.gauge(statName, tags, value, obj -> obj.get().doubleValue());
         }
 
         @Override
