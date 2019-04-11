@@ -159,7 +159,7 @@ The steps are:
    $ keytool -keystore controller01.jks -alias controller01 -certreq -file controller01.csr \
        -storepass changeit
 
-   # Optionally, inspect the contents of the CSR file. The CSR is created in Base-64 encoded PEM format.
+   # Optionally, inspect the contents of the CSR file. The CSR is created in Base-64 encoded `PEM` format.
    $ openssl req -in controller01.csr -noout -text
    ```
 
@@ -212,9 +212,9 @@ service, but you may share the same file for services collocated on the same hos
 
 | Files | Example File| Description |
 |:-----:| :---:|:--------|
-| Certificate in PEM format | `controller01.pem` file | The signed certificate to be used by the service.|
-| Private key in PEM format | `controller01.key.pem` file  |  The private key to be used by the service. |
-| Server keystore in JKS format | `controller01.server.jks` file | The keystore file to be used by the service. |
+| Certificate in `PEM` format | `controller01.pem` file | The signed certificate to be used by the service.|
+| Private key in `PEM` format | `controller01.key.pem` file  |  The private key to be used by the service. |
+| Server keystore in `JKS` format | `controller01.server.jks` file | The keystore file to be used by the service. |
 
 
 ### Deploying certificates and enabling TLS in Pravega
@@ -253,7 +253,7 @@ their documentation here:
 
 Configuring security for Controllers and Segment Stores is discussed below.
 
-**Controller Service:**
+**Controller**
 
 Controller services can be configured in three different ways:
 
@@ -282,7 +282,6 @@ Controller services can be configured in three different ways:
 3. By specifying configuration parameters (such as `controller.auth.tlsEnabled`) as JVM system properties. This is not
 applicable for manual deployment and is relevant for container application deployment tools and orchestrators such as Docker Compose, Swarm and Kubernetes.
 
-
 The table below lists the Controller services' TLS and auth parameters and representative values for quick reference. For a detailed discription of these parameters refer to [this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
 
  | Configuration Parameter| Sample Value |
@@ -306,7 +305,7 @@ The table below lists the Controller services' TLS and auth parameters and repre
 
  <sup>3</sup>: This configuration property is required when using the default Password Auth Handler only.
 
-**Segment Store Service:**
+**Segment Store**
 
 Segment store supports configuration via a properties file (`config.properties`) or JVM system properties. The table below lists its TLS and auth parameters and sample values. For a detailed discription of these parameters refer to [this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
 
