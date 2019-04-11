@@ -47,7 +47,6 @@ package io.pravega.shared;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.primitives.Ints;
-import io.pravega.shared.metrics.MetricsConfig;
 import lombok.Data;
 
 public final class MetricsNames {
