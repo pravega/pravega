@@ -104,7 +104,14 @@ public class PravegaTablesStoreHelper {
         }
 
         return cache.getCachedData(key1)
-                    .thenApply(this::getVersionedMetadata);
+                    .thenApply(x -> {
+                        VersionedMetadata<T> versionedMetadata = getVersionedMetadata(x);
+                        if (key.equals("state")) {
+                            log.info("shivesh:: retrieved state {} for key with hash code = {}", versionedMetadata.getObject(), key1.hashCode());
+                        }
+
+                        return versionedMetadata;
+                    });
     }
 
     @SuppressWarnings("unchecked")
@@ -121,12 +128,14 @@ public class PravegaTablesStoreHelper {
      * @param key key to invalidate
      */
     public void invalidateCache(String scope, String table, String key) {
-        
         TableCacheKey<Object> key1 = new TableCacheKey<>(scope, table, key, x -> null);
         if (key.equals("state")) {
             log.info("shivesh:: invalidating state key with hash code = {}", key1.hashCode());
         }
         cache.invalidateCache(key1);
+        if (key.equals("state")) {
+            log.info("shivesh:: invalidated state key with hash code = {}", key1.hashCode());
+        }
     }
 
     /**
