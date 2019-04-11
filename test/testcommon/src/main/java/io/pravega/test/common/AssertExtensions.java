@@ -510,9 +510,9 @@ public class AssertExtensions {
     }
 
     /**
-     * Actively tests for an equality assertion to be met in case where values are not immediately available. The
-     * polling is performed for a limited amount of time (e.g., 5 seconds). If the assertion is not met within that time
-     * period, an {@link AssertionError} will be raised.
+     * Actively tests for an (near) equality assertion to be met in case where values are not immediately available. The
+     * polling is performed for a limited amount of time. If the assertion is not met within that time period, an
+     * {@link AssertionError} will be raised.
      *
      * @param expected  Expected value for the comparison.
      * @param eval      Function to be evaluated until the assertion is met.
