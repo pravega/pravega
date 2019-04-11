@@ -77,7 +77,6 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -394,7 +393,6 @@ public abstract class ScaleRequestHandlerTest {
 
     @Test(timeout = 30000)
     public void testMigrateManualScaleRequestAfterRollingTxn() throws Exception {
-        Assert.fail();
         // This test checks a scenario where after rolling txn, if an outstanding scale request
         // was present, its epoch consistency should fail
         String stream = "newStream";
