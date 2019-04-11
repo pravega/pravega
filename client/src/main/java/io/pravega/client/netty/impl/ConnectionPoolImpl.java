@@ -48,13 +48,14 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
@@ -68,6 +69,14 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ConnectionPoolImpl implements ConnectionPool {
 
+    private static final Comparator<Connection> COMPARATOR = new Comparator<Connection>() {
+        @Override
+        public int compare(Connection c1, Connection c2) {
+            int v1 = c1.getSessionCount().orElse(Integer.MAX_VALUE);
+            int v2 = c2.getSessionCount().orElse(Integer.MAX_VALUE);
+            return Integer.compare(v1, v2);
+        }
+    }; 
     private final ClientConfig clientConfig;
     private final EventLoopGroup group;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -76,9 +85,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private final ChannelGroup channelGroup = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
     @GuardedBy("$lock")
     private final Map<PravegaNodeUri, List<Connection>> connectionMap = new HashMap<>();
-    private final Collector<Connection, ConnectionSummaryStats, ConnectionSummaryStats> collectorStats =
-            Collector.of(ConnectionSummaryStats::new, ConnectionSummaryStats::accept, ConnectionSummaryStats::combine,
-                         Collector.Characteristics.IDENTITY_FINISH);
 
     public ConnectionPoolImpl(ClientConfig clientConfig) {
         this.clientConfig = clientConfig;
@@ -100,26 +106,24 @@ public class ConnectionPoolImpl implements ConnectionPool {
         List<Connection> prunedConnectionList = connectionList.stream().filter(connection -> {
             // Filter out Connection objects which have been completed exceptionally or have been disconnected.
             CompletableFuture<SessionHandler> r = connection.getSessionHandler();
-            return !r.isDone() || Futures.isSuccessful(r) && r.join().isConnectionEstablished();
+            return !r.isDone() || (Futures.isSuccessful(r) && r.join().isConnectionEstablished());
         }).collect(Collectors.toList());
         log.debug("List of connections to {} that can be used: {}", location, prunedConnectionList);
 
-        // Fetch the Connection related stats.
-        ConnectionSummaryStats stats = prunedConnectionList.parallelStream().collect(collectorStats);
         // Choose the connection with the least number of sessions.
-        Optional<Connection> suggestedConnection = stats.getConnectionWithMinimumSession(location);
+        Optional<Connection> suggestedConnection = prunedConnectionList.stream().min(COMPARATOR);
 
         final Connection connection;
-        if (suggestedConnection.isPresent() && stats.getConnectionCount(location) == clientConfig.getMaxConnectionsPerSegmentStore()) {
+        if (suggestedConnection.isPresent() && (prunedConnectionList.size() >= clientConfig.getMaxConnectionsPerSegmentStore() || isUnused(suggestedConnection.get()))) {
             log.debug("Reusing connection: {}", suggestedConnection.get());
             Connection oldConnection = suggestedConnection.get();
             prunedConnectionList.remove(oldConnection);
-            connection = new Connection(oldConnection.getUri(), oldConnection.getSessionHandler(), oldConnection.getSessionCount() + 1);
+            connection = new Connection(oldConnection.getUri(), oldConnection.getSessionHandler());
         } else {
             // create a new connection.
             log.debug("Creating a new connection to {}", location);
             CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
-            connection = new Connection(location, sessionHandlerFuture, 1);
+            connection = new Connection(location, sessionHandlerFuture);
         }
         prunedConnectionList.add(connection);
         connectionMap.put(location, prunedConnectionList);
@@ -131,11 +135,31 @@ public class ConnectionPoolImpl implements ConnectionPool {
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
         Exceptions.checkNotClosed(closed.get(), this);
-
+        
         // create a new connection.
         CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
-        Connection connection = new Connection(location, sessionHandlerFuture, 1);
+        Connection connection = new Connection(location, sessionHandlerFuture);
         return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createConnectionWithSessionDisabled(rp));
+    }
+
+    private boolean isUnused(Connection connection) {
+        return connection.getSessionCount().isPresent() && connection.getSessionCount().get() == 0;
+    }
+
+    /**
+     * Used only for testing.
+     */
+    @VisibleForTesting
+    public void pruneUnusedConnections() {
+        for (List<Connection> connections : connectionMap.values()) {
+            for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext();) {
+                Connection connection = iterator.next();
+                if (isUnused(connection)) {
+                    connection.getSessionHandler().join().close();
+                    iterator.remove();
+                }
+            }
+        }
     }
 
     @Override

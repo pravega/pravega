@@ -96,6 +96,13 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     }
 
     /**
+     * Returns the number of open sessions.
+     */
+    public int getNumOpenSession() {
+        return sessionIdReplyProcessorMap.size();
+    }
+    
+    /**
      * Check the current status of Connection.
      * @return True if the connection is established.
      */
