@@ -1271,7 +1271,20 @@ public abstract class StreamMetadataTasksTest {
         assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map2, null).get());
         // end region
     }
-    
+
+    @Test(timeout = 10000)
+    public void testThrowSynchronousExceptionOnWriteEvent() {
+        EventStreamWriter<ControllerEvent> requestEventWriter = mock(EventStreamWriter.class);
+        doAnswer(x -> {
+            throw new RuntimeException();
+        }).when(requestEventWriter).writeEvent(anyString(), any());
+        
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        AssertExtensions.assertFutureThrows("",
+                streamMetadataTasks.writeEvent(new UpdateStreamEvent("scope", "stream", 0L)),
+                e -> Exceptions.unwrap(e) instanceof TaskExceptions.PostEventException);
+    }
+
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         return Retry.withExpBackoff(100, 10, 5, 1000)
                 .retryingOn(TaskExceptions.StartException.class)

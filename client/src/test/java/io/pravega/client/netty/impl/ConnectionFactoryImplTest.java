@@ -144,7 +144,7 @@ public class ConnectionFactoryImplTest {
                                                                               .build());
         // establish a connection.
         @Cleanup
-        ClientConnectionInboundHandler connection = (ClientConnectionInboundHandler) factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
+        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
@@ -166,14 +166,16 @@ public class ConnectionFactoryImplTest {
 
         // add a listener to track the channel close.
         final CountDownLatch latch = new CountDownLatch(1);
-        connection.getChannel().closeFuture().addListener(future -> latch.countDown());
+        connection.getNettyHandler().getChannel().closeFuture().addListener(future -> latch.countDown());
 
-        // close the connection.
+        // close the connection, this does not close the underlying network connection due to connection pooling.
         connection.close();
+        factory.getConnectionPool().close();
 
         // wait until the channel is closed.
         assertTrue(latch.await(10, TimeUnit.SECONDS));
         assertEquals("Expected active channel count is 0", 0, factory.getActiveChannelCount());
-        assertEquals(0, factory.getChannelGroup().size()); // verify that the channel is removed from channelGroup too.
+        // verify that the channel is removed from channelGroup too.
+        assertEquals(0,  ((ConnectionPoolImpl) factory.getConnectionPool()).getChannelGroup().size());
     }
 }
