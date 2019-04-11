@@ -81,6 +81,7 @@ public class ZkStreamTest {
         cli.close();
         zkTestServer.close();
         ExecutorServiceHelpers.shutdown(executor);
+        storePartialMock.close();
     }
 
     @Test

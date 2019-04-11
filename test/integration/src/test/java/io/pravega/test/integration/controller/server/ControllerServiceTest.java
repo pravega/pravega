@@ -40,7 +40,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class ControllerServiceTest {
@@ -61,8 +60,9 @@ public class ControllerServiceTest {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        
-        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
         
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,

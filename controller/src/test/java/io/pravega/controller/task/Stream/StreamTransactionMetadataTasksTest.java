@@ -169,8 +169,8 @@ public class StreamTransactionMetadataTasksTest {
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = Mockito.mock(ConnectionFactory.class);
+        segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
@@ -179,6 +179,7 @@ public class StreamTransactionMetadataTasksTest {
     @After
     public void teardown() throws Exception {
         streamMetadataTasks.close();
+        streamStore.close();
         txnTasks.close();
         zkClient.close();
         zkServer.close();

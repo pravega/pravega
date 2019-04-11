@@ -17,7 +17,7 @@ echo "Master IP of jarvis cluster is $MASTER"
 NUM_SLAVES=${3:-null}
 DOCKER_VERSION=`docker version --format '{{.Server.APIVersion}}'`
 echo "Docker API version is $DOCKER_VERSION"
-DOCKER_API_MIN_VERSION=1.22
+DOCKER_API_MIN_VERSION=1.37
 st=`echo "${DOCKER_VERSION} < ${DOCKER_API_MIN_VERSION}" | bc`
 if [ 1 -eq $st ];
 then

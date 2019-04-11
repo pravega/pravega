@@ -112,16 +112,16 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-public class StreamMetadataTasksTest {
+public abstract class StreamMetadataTasksTest {
 
     private static final String SCOPE = "scope";
+    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     protected boolean authEnabled = false;
+    protected CuratorFramework zkClient;
     private final String stream1 = "stream1";
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
     private ControllerService consumer;
 
-    private CuratorFramework zkClient;
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStorePartialMock;
@@ -141,7 +141,7 @@ public class StreamMetadataTasksTest {
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
+        StreamMetadataStore streamStore = getStore();
         streamStorePartialMock = spy(streamStore); //create a partial mock.
         bucketStore = StreamStoreFactory.createInMemoryBucketStore(1);
         
@@ -190,10 +190,13 @@ public class StreamMetadataTasksTest {
         streamStorePartialMock.updateVersionedState(SCOPE, stream1, State.ACTIVE, state, null, executor).get();
     }
 
+    abstract StreamMetadataStore getStore();
+
     @After
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStorePartialMock.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();
@@ -955,11 +958,13 @@ public class StreamMetadataTasksTest {
 
         VersionedTransactionData committingTxn = streamTransactionMetadataTasks.createTxn(SCOPE, streamWithTxn, 100L, null)
                 .get().getKey();
+
         // set transaction to committing
         streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), null, executor).join();
 
         // Mock getActiveTransactions call such that we return committing txn as OPEN txn.
         Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
+
         Map<UUID, ActiveTxnRecord> retVal = activeTxns.entrySet().stream()
                 .map(tx -> {
                     if (!tx.getValue().getTxnStatus().equals(TxnStatus.OPEN)) {
@@ -1042,7 +1047,7 @@ public class StreamMetadataTasksTest {
         assertFalse(streamStorePartialMock.checkStreamExists(SCOPE, stream1).join());
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void eventWriterInitializationTest() throws Exception {
         final ScalingPolicy policy = ScalingPolicy.fixed(1);
 
@@ -1050,9 +1055,6 @@ public class StreamMetadataTasksTest {
 
         streamStorePartialMock.createStream(SCOPE, "test", configuration, System.currentTimeMillis(), null, executor).get();
         streamStorePartialMock.setState(SCOPE, "test", State.ACTIVE, null, executor).get();
-
-        AssertExtensions.assertThrows("", () -> streamMetadataTasks.manualScale(SCOPE, "test", Collections.singletonList(0L),
-                Arrays.asList(), 30, null).get(), e -> e instanceof TaskExceptions.ProcessingDisabledException);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
         List<Map.Entry<Double, Double>> newRanges = new ArrayList<>();
@@ -1269,7 +1271,20 @@ public class StreamMetadataTasksTest {
         assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map2, null).get());
         // end region
     }
-    
+
+    @Test(timeout = 10000)
+    public void testThrowSynchronousExceptionOnWriteEvent() {
+        EventStreamWriter<ControllerEvent> requestEventWriter = mock(EventStreamWriter.class);
+        doAnswer(x -> {
+            throw new RuntimeException();
+        }).when(requestEventWriter).writeEvent(anyString(), any());
+        
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+        AssertExtensions.assertFutureThrows("",
+                streamMetadataTasks.writeEvent(new UpdateStreamEvent("scope", "stream", 0L)),
+                e -> Exceptions.unwrap(e) instanceof TaskExceptions.PostEventException);
+    }
+
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         return Retry.withExpBackoff(100, 10, 5, 1000)
                 .retryingOn(TaskExceptions.StartException.class)

@@ -14,6 +14,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.lang.Int96;
@@ -33,11 +34,14 @@ import io.pravega.controller.store.stream.records.StreamTruncationRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
+import io.pravega.shared.controller.event.ControllerEvent;
+import io.pravega.shared.controller.event.ControllerEventSerializer;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collections;
 import java.util.HashMap;
@@ -50,6 +54,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -59,14 +64,18 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
+    public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
+    public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
 
     private final static String RESOURCE_PART_SEPARATOR = "_%_";
     
     private final LoadingCache<String, Scope> scopeCache;
     private final LoadingCache<Pair<String, String>, Stream> cache;
-    private final HostIndex hostIndex;
+    private final HostIndex hostTxnIndex;
+    private final HostIndex hostTaskIndex;
+    private final ControllerEventSerializer controllerEventSerializer;
 
-    protected AbstractStreamMetadataStore(HostIndex hostIndex) {
+    protected AbstractStreamMetadataStore(HostIndex hostTxnIndex, HostIndex hostTaskIndex) {
         cache = CacheBuilder.newBuilder()
                 .maximumSize(10000)
                 .refreshAfterWrite(10, TimeUnit.MINUTES)
@@ -101,7 +110,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                             }
                         });
 
-        this.hostIndex = hostIndex;
+        this.hostTxnIndex = hostTxnIndex;
+        this.hostTaskIndex = hostTaskIndex;
+        this.controllerEventSerializer = new ControllerEventSerializer();
     }
 
     /**
@@ -126,7 +137,16 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                    final Executor executor) {
         return getSafeStartingSegmentNumberFor(scope, name)
                 .thenCompose(startingSegmentNumber ->
-                    withCompletion(getStream(scope, name, context).create(configuration, createTimestamp, startingSegmentNumber), executor));
+                        withCompletion(checkScopeExists(scope)
+                                .thenCompose(exists -> {
+                                    if (exists) {
+                                        // Create stream may fail if scope is deleted as we attempt to create the stream under scope. 
+                                        return getStream(scope, name, context)
+                                                .create(configuration, createTimestamp, startingSegmentNumber);
+                                    } else {
+                                        return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope does not exist"));
+                                    }
+                                }), executor));
     }
 
     @Override
@@ -210,15 +230,14 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
      */
     @Override
     public CompletableFuture<DeleteScopeStatus> deleteScope(final String scopeName) {
-        return getScope(scopeName).deleteScope().handle((result, ex) -> {
+        return getScope(scopeName).deleteScope().handle((result, e) -> {
+            Throwable ex = Exceptions.unwrap(e);
             if (ex == null) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SUCCESS).build();
             }
-            if (ex.getCause() instanceof StoreException.DataNotFoundException
-                    || ex instanceof StoreException.DataNotFoundException) {
+            if (ex instanceof StoreException.DataNotFoundException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_FOUND).build();
-            } else if (ex.getCause() instanceof StoreException.DataNotEmptyException
-                    || ex instanceof StoreException.DataNotEmptyException) {
+            } else if (ex instanceof StoreException.DataNotEmptyException) {
                 return DeleteScopeStatus.newBuilder().setStatus(DeleteScopeStatus.Status.SCOPE_NOT_EMPTY).build();
             } else {
                 log.debug("DeleteScope failed due to {} ", ex);
@@ -590,34 +609,69 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<Void> addTxnToIndex(String hostId, TxnResource txn, Version version) {
-        return hostIndex.addEntity(hostId, getTxnResourceString(txn), Optional.ofNullable(version).orElse(getEmptyVersion()).toBytes());
+        return hostTxnIndex.addEntity(hostId, getTxnResourceString(txn), Optional.ofNullable(version).orElse(getEmptyVersion()).toBytes());
     }
 
     @Override
     public CompletableFuture<Void> removeTxnFromIndex(String hostId, TxnResource txn, boolean deleteEmptyParent) {
-        return hostIndex.removeEntity(hostId, getTxnResourceString(txn), deleteEmptyParent);
+        return hostTxnIndex.removeEntity(hostId, getTxnResourceString(txn), deleteEmptyParent);
     }
 
     @Override
     public CompletableFuture<Optional<TxnResource>> getRandomTxnFromIndex(final String hostId) {
-        return hostIndex.getEntities(hostId).thenApply(list -> list != null && list.size() > 0 ?
+        return hostTxnIndex.getEntities(hostId).thenApply(list -> list != null && list.size() > 0 ?
                 Optional.of(this.getTxnResource(list.get(RandomFactory.create().nextInt(list.size())))) : Optional.empty());
     }
 
     @Override
     public CompletableFuture<Version> getTxnVersionFromIndex(final String hostId, final TxnResource resource) {
-        return hostIndex.getEntityData(hostId, getTxnResourceString(resource))
+        return hostTxnIndex.getEntityData(hostId, getTxnResourceString(resource))
                 .thenApply(data -> Optional.ofNullable(data).map(this::parseVersionData).filter(x -> !x.equals(getEmptyVersion())).orElse(null));
     }
 
     @Override
     public CompletableFuture<Void> removeHostFromIndex(String hostId) {
-        return hostIndex.removeHost(hostId);
+        return hostTxnIndex.removeHost(hostId);
     }
 
     @Override
     public CompletableFuture<Set<String>> listHostsOwningTxn() {
-        return hostIndex.getHosts();
+        return hostTxnIndex.getHosts();
+    }
+
+    @Override
+    public CompletableFuture<Void> addRequestToIndex(String hostId, String id, ControllerEvent task) {
+        return hostTaskIndex.addEntity(hostId, id, controllerEventSerializer.toByteBuffer(task).array());
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTaskFromIndex(String hostId, String id) {
+        return hostTaskIndex.removeEntity(hostId, id, true);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, ControllerEvent>> getPendingsTaskForHost(String hostId, int limit) {
+        return hostTaskIndex.getEntities(hostId)
+                .thenCompose(list ->
+                        Futures.allOfWithResults(list.stream()
+                                                     .limit(limit)
+                                                     .collect(Collectors.toMap(id -> id,
+                                                             id -> getControllerTask(hostId, id)))));
+    }
+
+    private CompletableFuture<ControllerEvent> getControllerTask(String hostId, String id) {
+        return hostTaskIndex.getEntityData(hostId, id)
+                          .thenApply(data -> controllerEventSerializer.fromByteBuffer(ByteBuffer.wrap(data)));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeHostFromTaskIndex(String hostId) {
+        return hostTaskIndex.removeHost(hostId);
+    }
+
+    @Override
+    public CompletableFuture<Set<String>> listHostsWithPendingTask() {
+        return hostTaskIndex.getHosts();
     }
 
     @Override
@@ -733,7 +787,7 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return scope;
     }
 
-    private <T> CompletableFuture<T> withCompletion(CompletableFuture<T> future, final Executor executor) {
+    protected <T> CompletableFuture<T> withCompletion(CompletableFuture<T> future, final Executor executor) {
 
         // Following makes sure that the result future given out to caller is actually completed on
         // caller's executor. So any chaining, if done without specifying an executor, will either happen on
@@ -795,6 +849,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     abstract Stream newStream(final String scope, final String name);
 
     abstract CompletableFuture<Int96> getNextCounter();
+
+    abstract CompletableFuture<Boolean> checkScopeExists(String scope);
 
     private String getTxnResourceString(TxnResource txn) {
         return txn.toString(RESOURCE_PART_SEPARATOR);

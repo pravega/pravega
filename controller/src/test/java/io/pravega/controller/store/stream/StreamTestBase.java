@@ -580,8 +580,8 @@ public abstract class StreamTestBase {
     }
 
     private VersionedMetadata<EpochTransitionRecord> resetScale(VersionedMetadata<EpochTransitionRecord> etr, Stream stream) {
-        stream.completeScale(etr);
-        stream.updateState(State.ACTIVE);
+        stream.completeScale(etr).join();
+        stream.updateState(State.ACTIVE).join();
         return stream.getEpochTransition().join();
     }
 
