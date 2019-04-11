@@ -903,8 +903,10 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     public void refresh() {
         String id = idRef.getAndSet(null);
+        log.info("shivesh:: refresh called: id = {}", id);
         if (!Strings.isNullOrEmpty(id)) {
             // refresh all mutable records
+            log.info("shivesh:: refreshing state for : id = {}", getMetadataTableName(id));
             storeHelper.invalidateCache(getScope(), getMetadataTableName(id), STATE_KEY);
             storeHelper.invalidateCache(getScope(), getMetadataTableName(id), CONFIGURATION_KEY);
             storeHelper.invalidateCache(getScope(), getMetadataTableName(id), TRUNCATION_KEY);
