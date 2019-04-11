@@ -10,23 +10,25 @@
 package io.pravega.client;
 
 
+import io.pravega.client.netty.impl.Flow;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 
-public class SessionTest {
+public class FlowTest {
 
     @Test
     public void testNextSequenceNumber() {
-        Session id = Session.create();
-        assertEquals(id.getSessionId(), (int) (id.asLong() >> 32));
+        Flow id = Flow.create();
+        assertEquals(id.getFlowId(), (int) (id.asLong() >> 32));
         assertEquals("SequenceNumber should be 0 for " + id, 0, (int) id.asLong());
         assertEquals("SequenceNumber should be incremented", (int) id.asLong() + 1, (int) id.getNextSequenceNumber());
+        assertEquals(id, Flow.from(id.asLong()));
     }
 
     @Test
     public void testSequenceNumberOverflow() {
-        Session id = new Session(Integer.MAX_VALUE, Integer.MAX_VALUE);
+        Flow id = new Flow(Integer.MAX_VALUE, Integer.MAX_VALUE);
         assertEquals(0,  (int) id.getNextSequenceNumber());
     }
 }

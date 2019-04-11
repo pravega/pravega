@@ -19,6 +19,7 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionPoolImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
@@ -139,7 +140,7 @@ public class AppendReconnectTest {
         SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(payload), ack));
-        for (Channel c : clientCF.getActiveChannels()) {
+        for (Channel c : ((ConnectionPoolImpl) clientCF.getConnectionPool()).getActiveChannels()) {
             c.close();
         }
         CompletableFuture<Void> ack2 = new CompletableFuture<>();
@@ -175,7 +176,7 @@ public class AppendReconnectTest {
         @Cleanup
         ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
         assertTrue(out.write(ByteBuffer.wrap(payload), 0));
-        for (Channel c : clientCF.getActiveChannels()) {
+        for (Channel c : ((ConnectionPoolImpl) (clientCF.getConnectionPool())).getActiveChannels()) {
             c.close();
         }
         assertTrue(out.write(ByteBuffer.wrap(payload), payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE));

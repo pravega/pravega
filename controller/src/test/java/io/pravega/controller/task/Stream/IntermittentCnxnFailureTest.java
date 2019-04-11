@@ -112,6 +112,7 @@ public class IntermittentCnxnFailureTest {
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStore.close();
         zkClient.close();
         zkServer.close();
         connectionFactory.close();

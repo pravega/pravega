@@ -65,7 +65,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 /**
  * End-to-end tests for event processor.
@@ -79,6 +78,9 @@ public class EventProcessorTest {
     ControllerWrapper controllerWrapper;
     Controller controller;
     EventSerializer<TestEvent> eventSerializer;
+    private ServiceBuilder serviceBuilder;
+    private StreamSegmentStore store;
+    private TableStore tableStore;
     
     public static class TestEventProcessor extends EventProcessor<TestEvent> {
         long sum;
@@ -164,12 +166,13 @@ public class EventProcessorTest {
     public void setUp() throws Exception {
         zkTestServer = new TestingServerStarter().start();
 
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
+        tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
 

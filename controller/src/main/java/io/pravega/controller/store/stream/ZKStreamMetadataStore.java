@@ -14,7 +14,6 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.index.ZKHostIndex;
@@ -23,15 +22,14 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.utils.ZKPaths;
 
-import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -39,7 +37,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
-    static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     @VisibleForTesting
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
@@ -51,8 +48,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
      * a controller crashes.
      * Since we use a 96 bit number for our counter, so
      */
-    static final int COUNTER_RANGE = 10000;
-    static final String COUNTER_PATH = "/counter";
+    static final String SCOPE_ROOT_PATH = "/store";
     static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
@@ -65,17 +61,11 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @Getter(AccessLevel.PACKAGE)
     private ZKStoreHelper storeHelper;
     private final ZkOrderedStore orderer;
-    private final Object lock;
-    @GuardedBy("lock")
-    private final AtomicInt96 limit;
-    @GuardedBy("lock")
-    private final AtomicInt96 counter;
-    @GuardedBy("lock")
-    private volatile CompletableFuture<Void> refreshFutureRef;
 
     private final ZKGarbageCollector completedTxnGC;
+    private final ZkInt96Counter counter;
     private final Executor executor;
-    
+
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor) {
         this(client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS));
@@ -83,16 +73,13 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @VisibleForTesting
     ZKStreamMetadataStore(CuratorFramework client, Executor executor, Duration gcPeriod) {
-        super(new ZKHostIndex(client, "/hostTxnIndex", executor));
+        super(new ZKHostIndex(client, "/hostTxnIndex", executor), new ZKHostIndex(client, "/hostRequestIndex", executor));
         this.storeHelper = new ZKStoreHelper(client, executor);
         this.orderer = new ZkOrderedStore("txnCommitOrderer", storeHelper, executor);
-        this.lock = new Object();
-        this.counter = new AtomicInt96();
-        this.limit = new AtomicInt96();
-        this.refreshFutureRef = null;
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, storeHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
+        this.counter = new ZkInt96Counter(storeHelper);
         this.executor = executor;
     }
 
@@ -125,17 +112,13 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @Override
     CompletableFuture<Int96> getNextCounter() {
-        CompletableFuture<Int96> future;
-        synchronized (lock) {
-            Int96 next = counter.incrementAndGet();
-            if (next.compareTo(limit.get()) > 0) {
-                // ignore the counter value and after refreshing call getNextCounter
-                future = refreshRangeIfNeeded().thenCompose(x -> getNextCounter());
-            } else {
-                future = CompletableFuture.completedFuture(next);
-            }
-        }
-        return future;
+        return counter.getNextCounter();
+    }
+
+    @Override
+    CompletableFuture<Boolean> checkScopeExists(String scope) {
+        String scopePath = ZKPaths.makePath(SCOPE_ROOT_PATH, scope);
+        return storeHelper.checkExists(scopePath);
     }
 
     @Override
@@ -146,67 +129,6 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     @Override
     Version parseVersionData(byte[] data) {
         return Version.IntVersion.fromBytes(data);
-    }
-
-    @VisibleForTesting
-    CompletableFuture<Void> refreshRangeIfNeeded() {
-        CompletableFuture<Void> refreshFuture;
-        synchronized (lock) {
-            // Ensure that only one background refresh is happening. For this we will reference the future in refreshFutureRef
-            // If reference future ref is not null, we will return the reference to that future.
-            // It is set to null when refresh completes.
-            refreshFuture = this.refreshFutureRef;
-            if (this.refreshFutureRef == null) {
-                // no ongoing refresh, check if refresh is still needed
-                if (counter.get().compareTo(limit.get()) >= 0) {
-                    log.info("Refreshing counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
-
-                    // Need to refresh counter and limit. Start a new refresh future. We are under lock so no other
-                    // concurrent thread can start the refresh future.
-                    refreshFutureRef = getRefreshFuture()
-                            .exceptionally(e -> {
-                                // if any exception is thrown here, we would want to reset refresh future so that it can be retried.
-                                synchronized (lock) {
-                                    refreshFutureRef = null;
-                                }
-                                log.warn("Exception thrown while trying to refresh transaction counter range", e);
-                                throw new CompletionException(e);
-                            });
-                    // Note: refreshFutureRef is reset to null under the lock, and since we have the lock in this thread
-                    // until we release it, refresh future ref cannot be reset to null. So we will always return a non-null
-                    // future from here.
-                    refreshFuture = refreshFutureRef;
-                } else {
-                    // nothing to do
-                    refreshFuture = CompletableFuture.completedFuture(null);
-                }
-            }
-        }
-        return refreshFuture;
-    }
-
-    @VisibleForTesting
-    CompletableFuture<Void> getRefreshFuture() {
-        return storeHelper.createZNodeIfNotExist(COUNTER_PATH, Int96.ZERO.toBytes())
-                .thenCompose(v -> storeHelper.getData(COUNTER_PATH, Int96::fromBytes)
-                        .thenCompose(data -> {
-                            Int96 previous = data.getObject();
-                            Int96 nextLimit = previous.add(COUNTER_RANGE);
-                            return storeHelper.setData(COUNTER_PATH, nextLimit.toBytes(), data.getVersion())
-                                    .thenAccept(x -> {
-                                        // Received new range, we should reset the counter and limit under the lock
-                                        // and then reset refreshfutureref to null
-                                        synchronized (lock) {
-                                            // Note: counter is set to previous range's highest value. Always get the
-                                            // next counter by calling counter.incrementAndGet otherwise there will
-                                            // be a collision with counter used by someone else.
-                                            counter.set(previous.getMsb(), previous.getLsb());
-                                            limit.set(nextLimit.getMsb(), nextLimit.getLsb());
-                                            refreshFutureRef = null;
-                                            log.info("Refreshed counter range. Current counter is {}. Current limit is {}", counter.get(), limit.get());
-                                        }
-                                    });
-                        }));
     }
 
     @Override
@@ -228,7 +150,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
-        return storeHelper.listScopes();
+        return storeHelper.getChildren(SCOPE_ROOT_PATH);
     }
 
     @Override
@@ -304,31 +226,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
         return Futures.exceptionallyExpecting(zkStream.getStreamPosition()
                 .thenCompose(id -> zkScope.removeStreamFromScope(name, id)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
-                .thenCompose(v -> super.deleteStream(scope, name, context, executor)); 
-                
-    }
-
-    // region getters and setters for testing
-    @VisibleForTesting
-    void setCounterAndLimitForTesting(int counterMsb, long counterLsb, int limitMsb, long limitLsb) {
-        synchronized (lock) {
-            limit.set(limitMsb, limitLsb);
-            counter.set(counterMsb, counterLsb);
-        }
-    }
-
-    @VisibleForTesting
-    Int96 getLimitForTesting() {
-        synchronized (lock) {
-            return limit.get();
-        }
-    }
-
-    @VisibleForTesting
-    Int96 getCounterForTesting() {
-        synchronized (lock) {
-            return counter.get();
-        }
+                .thenCompose(v -> super.deleteStream(scope, name, context, executor));
     }
 
     @VisibleForTesting
@@ -337,7 +235,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         completedTxnGC.stopAsync();
         completedTxnGC.awaitTerminated();
     }

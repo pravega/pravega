@@ -46,7 +46,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 public class AbstractEndToEndTest extends ThreadPooledTestSuite {
     protected static final String SCOPE = "testScope";
@@ -86,8 +85,9 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),

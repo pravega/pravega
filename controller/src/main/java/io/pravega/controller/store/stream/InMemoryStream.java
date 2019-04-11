@@ -32,6 +32,7 @@ import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -160,6 +161,11 @@ public class InMemoryStream extends PersistentStreamBase {
         }
 
         return result;
+    }
+
+    @Override
+    CompletableFuture<Void> createStreamMetadata() {
+        return CompletableFuture.completedFuture(null);
     }
 
     private void handleStreamMetadataExists(final long timestamp, CompletableFuture<CreateStreamResponse> result, final long time,
@@ -504,7 +510,11 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> createSegmentSealedEpochRecordData(long segment, int epoch) {
+    CompletableFuture<Void> createSegmentSealedEpochRecords(Collection<Long> segmentToSeal, int epoch) {
+        return Futures.allOf(segmentToSeal.stream().map(x -> createSegmentSealedEpochRecordData(x, epoch)).collect(Collectors.toList()));
+    }
+
+    private CompletableFuture<Void> createSegmentSealedEpochRecordData(long segment, int epoch) {
         Preconditions.checkNotNull(epoch);
 
         synchronized (lock) {
@@ -761,24 +771,18 @@ public class InMemoryStream extends PersistentStreamBase {
     CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
         synchronized (txnsLock) {
             Set<UUID> transactions = epochTxnMap.get(epoch);
-            Map<UUID, VersionedMetadata<ActiveTxnRecord>> map;
+            Map<UUID, ActiveTxnRecord> map;
             if (transactions != null) {
                 map = activeTxns.entrySet().stream().filter(x -> transactions.contains(x.getKey()))
-                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                        .collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject()));
                 map = Collections.unmodifiableMap(map);
             } else {
                 map = Collections.emptyMap();
             }
-            return CompletableFuture.completedFuture(map.entrySet().stream().collect(
-                    Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject())));
+            return CompletableFuture.completedFuture(map);
         }
     }
-
-    @Override
-    CompletableFuture<Void> checkScopeExists() throws StoreException {
-        return CompletableFuture.completedFuture(null);
-    }
-
+     
     @Override
     CompletableFuture<Void> createRetentionSetDataIfAbsent(RetentionSet retention) {
         Preconditions.checkNotNull(retention);

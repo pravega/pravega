@@ -90,6 +90,8 @@ public final class Config {
     public static final String REST_KEYSTORE_FILE_PATH;
     public static final String REST_KEYSTORE_PASSWORD_FILE_PATH;
 
+    // Store configuration
+    public static final boolean USE_PRAVEGA_TABLES;
     //Transaction configuration
     public static final long MIN_LEASE_VALUE;
     public static final long MAX_LEASE_VALUE;
@@ -127,6 +129,7 @@ public final class Config {
     private static final Property<Boolean> PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
     private static final Property<Boolean> PROPERTY_REQUEST_TRACING_ENABLED = Property.named("requestTracingEnabled", true);
     private static final Property<Boolean> PROPERTY_DUMP_STACK_ON_SHUTDOWN = Property.named("dumpStackOnShutdown", false);
+    private static final Property<Boolean> PROPERTY_USE_PRAVEGA_TABLES = Property.named("usePravegaTables", true);
     private static final Property<Integer> PROPERTY_SERVICE_PORT = Property.named("service.port", 9090);
     private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("service.asyncTaskPoolSize", 80);
     private static final Property<String> PROPERTY_SERVICE_HOST_IP = Property.named("service.hostIp", "localhost");
@@ -222,6 +225,7 @@ public final class Config {
         SCALE_STREAM_NAME = p.get(PROPERTY_SCALE_STREAM_NAME);
         SCALE_READER_GROUP = p.get(PROPERTY_SCALE_READER_GROUP);
         DUMP_STACK_ON_SHUTDOWN = p.getBoolean(PROPERTY_DUMP_STACK_ON_SHUTDOWN);
+        USE_PRAVEGA_TABLES = p.getBoolean(PROPERTY_USE_PRAVEGA_TABLES);
         GRPC_SERVER_CONFIG = createGrpcServerConfig();
         METRICS_CONFIG = createMetricsConfig(properties);
     }
