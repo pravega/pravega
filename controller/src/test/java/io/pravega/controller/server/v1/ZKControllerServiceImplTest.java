@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.server.v1;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.cluster.Cluster;
@@ -47,6 +45,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.TestingServerStarter;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
@@ -72,14 +71,13 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Cluster cluster;
-    private ConnectionFactoryImpl connectionFactory;
+    private StreamMetadataStore streamStore;
 
     @Override
     public void setup() throws Exception {
-        final StreamMetadataStore streamStore;
         final HostControllerStore hostStore;
         final TaskMetadataStore taskMetadataStore;
-        final SegmentHelper segmentHelper;
+        final SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         final RequestTracker requestTracker = new RequestTracker(true);
 
         zkServer = new TestingServerStarter().start();
@@ -94,9 +92,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
-        segmentHelper = SegmentHelperMock.getSegmentHelperMock();
 
-        connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
@@ -121,7 +117,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         latch.await();
 
         ControllerService controller = new ControllerService(streamStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(connectionFactory, hostStore), executorService, cluster);
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
         controllerService = new ControllerServiceImpl(controller, AuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
@@ -136,13 +132,13 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
         }
+        streamStore.close();
         if (cluster != null) {
             cluster.close();
         }
         storeClient.close();
         zkClient.close();
         zkServer.close();
-        connectionFactory.close();
     }
 
     @Test

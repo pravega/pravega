@@ -57,11 +57,8 @@ public class MultiControllerTest extends AbstractSystemTest {
         log.info("Controller is currently running at {}", controllerUri);
         Service controllerService = Utils.createPravegaControllerService(zkUris);
 
-        // stop all instances of segment store
-        Service segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris, controllerUri);
-        if (segmentStoreService.isRunning()) {
-            Futures.getAndHandleExceptions(segmentStoreService.scaleService(0), ExecutionException::new);
-        }
+        // With Kvs we need segment stores to be running. 
+        ensureSegmentStoreRunning(zkUris, controllerUri);
 
         // scale to two controller instances.
         Futures.getAndHandleExceptions(controllerService.scaleService(2), ExecutionException::new);

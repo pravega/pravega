@@ -53,6 +53,9 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,7 +64,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
+import static io.pravega.controller.store.stream.AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static java.util.stream.Collectors.groupingBy;
@@ -97,9 +102,9 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<CreateStreamResponse> create(final StreamConfiguration configuration, long createTimestamp, int startingSegmentNumber) {
-        return checkScopeExists()
-                .thenCompose((Void v) -> checkStreamExists(configuration, createTimestamp, startingSegmentNumber))
-                .thenCompose(createStreamResponse -> storeCreationTimeIfAbsent(createStreamResponse.getTimestamp())
+        return checkStreamExists(configuration, createTimestamp, startingSegmentNumber)
+                .thenCompose(createStreamResponse -> createStreamMetadata()
+                        .thenCompose((Void v) -> storeCreationTimeIfAbsent(createStreamResponse.getTimestamp()))
                         .thenCompose((Void v) -> createConfigurationIfAbsent(StreamConfigurationRecord.complete(
                                 scope, name, createStreamResponse.getConfiguration())))
                         .thenCompose((Void v) -> createEpochTransitionIfAbsent(EpochTransitionRecord.EMPTY))
@@ -802,20 +807,14 @@ public abstract class PersistentStreamBase implements Stream {
                                         sealedSegmentsBuilder.build(), newSegments, epochRecord.getCreationTime());
                         return createEpochRecord(epochRecord)
                                 .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecord))
-                                .thenCompose(x -> Futures.allOf(epochTransition.getSegmentsToSeal().stream()
-                                                                               .map(segmentToSeal -> recordSegmentSealedEpoch(segmentToSeal, epochTransition.getNewEpoch()))
-                                                                               .collect(Collectors.toList())))
+                                .thenCompose(x -> createSegmentSealedEpochRecords(epochTransition.getSegmentsToSeal(), epochTransition.getNewEpoch()))
                                 .thenApply(x -> versionedMetadata);
                     } else {
                         return CompletableFuture.completedFuture(versionedMetadata);
                     }
                 });
     }
-
-    private CompletableFuture<Void> recordSegmentSealedEpoch(long segmentToSeal, int newEpoch) {
-        return createSegmentSealedEpochRecordData(segmentToSeal, newEpoch);
-    }
-
+ 
     private CompletableFuture<Void> updateHistoryTimeSeries(HistoryTimeSeriesRecord record) {
         int historyChunk = record.getEpoch() / historyChunkSize.get();
         boolean isFirst = record.getEpoch() % historyChunkSize.get() == 0;
@@ -956,10 +955,12 @@ public abstract class PersistentStreamBase implements Stream {
                                     .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordTxnEpoch))
                                     .thenCompose(x -> createEpochRecord(duplicateActiveEpoch))
                                     .thenCompose(x -> updateHistoryTimeSeries(timeSeriesRecordActiveEpoch))
-                                    .thenCompose(x -> Futures.allOf(activeEpochRecord.getSegments().stream().map(segment ->
-                                            recordSegmentSealedEpoch(segment.segmentId(), duplicateTxnEpoch.getEpoch())).collect(Collectors.toList())))
-                                    .thenCompose(x -> Futures.allOf(duplicateTxnEpoch.getSegments().stream().map(segment ->
-                                            recordSegmentSealedEpoch(segment.segmentId(), duplicateActiveEpoch.getEpoch())).collect(Collectors.toList())));
+                                    .thenCompose(x -> createSegmentSealedEpochRecords(
+                                            activeEpochRecord.getSegments().stream().map(StreamSegmentRecord::segmentId)
+                                                             .collect(Collectors.toList()), duplicateTxnEpoch.getEpoch()))
+                                    .thenCompose(x -> createSegmentSealedEpochRecords(
+                                            duplicateTxnEpoch.getSegments().stream().map(StreamSegmentRecord::segmentId)
+                                                             .collect(Collectors.toList()), duplicateActiveEpoch.getEpoch()));
                         })
                         .thenCompose(r -> updateSealedSegmentSizes(sealedTxnEpochSegments)));
     }
@@ -1358,20 +1359,6 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
-    /**
-     * Get transactions in epoch. If no transactions exist return null.
-     */
-    private CompletableFuture<ImmutableList<UUID>> getTxnCommitList(int epoch) {
-        return getTxnInEpoch(epoch)
-                .thenApply(transactions -> {
-                    ImmutableList.Builder<UUID> listBuilder = ImmutableList.builder();
-                    transactions.entrySet().stream()
-                                .filter(entry -> entry.getValue().getTxnStatus().equals(TxnStatus.COMMITTING))
-                                .forEach(x -> listBuilder.add(x.getKey()));
-                    return listBuilder.build();
-                });
-    }
-
     @Override
     public CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommitTransactionsRecord() {
         return getCommitTxnRecord()
@@ -1433,6 +1420,88 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
+    protected CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpochHelper(
+            ZkOrderedStore txnCommitOrderer, Executor executor) {
+        // get all transactions that have been added to commit orderer.
+        return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
+                AbstractStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
+                      .thenCompose(allTxns -> {
+                          // group transactions by epoch and then iterate over it from smallest epoch to largest
+                          val groupByEpoch = allTxns.entrySet().stream().collect(
+                                  Collectors.groupingBy(x -> RecordHelper.getTransactionEpoch(UUID.fromString(x.getValue()))));
+
+                          // sort transaction groups by epoch
+                          val iterator = groupByEpoch
+                                  .entrySet().stream()
+                                  .sorted(Comparator.comparingInt(Map.Entry::getKey))
+                                  .iterator();
+
+                          // We will opportunistically identify ordered positions that are stale (either transaction is no longer active)
+                          // or its a duplicate entry or transaction is aborting. 
+                          ConcurrentSkipListSet<Long> toPurge = new ConcurrentSkipListSet<>();
+                          ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap = new ConcurrentHashMap<>();
+
+                          // Collect transactions that are in committing state from smallest available epoch 
+                          // smallest epoch has transactions in committing state, we should break, else continue.
+                          // also remove any transaction order references which are invalid.
+                          return Futures.loop(() -> iterator.hasNext() && transactionsMap.isEmpty(), () -> {
+                              return processTransactionsInEpoch(iterator.next(), toPurge, transactionsMap);
+                          }, executor).thenCompose(v -> txnCommitOrderer.removeEntities(getScope(), getName(), toPurge))
+                                        .thenApply(v ->
+                                                transactionsMap.entrySet().stream().sorted(
+                                                        Comparator.comparing(x -> x.getValue().getCommitOrder()))
+                                                               .collect(Collectors.toList()));
+                      });
+    }
+
+    protected CompletableFuture<Map<Long, UUID>> getAllOrderedCommittingTxnsHelper(ZkOrderedStore txnCommitOrderer) {
+        return Futures.exceptionallyExpecting(txnCommitOrderer.getEntitiesWithPosition(getScope(), getName()),
+                ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, Collections.emptyMap())
+                      .thenApply(map -> map.entrySet().stream()
+                                           .collect(Collectors.toMap(Map.Entry::getKey, x -> UUID.fromString(x.getValue()))));
+    }
+
+    private CompletableFuture<Void> processTransactionsInEpoch(Map.Entry<Integer, List<Map.Entry<Long, String>>> nextEpoch,
+                                                               ConcurrentSkipListSet<Long> toPurge,
+                                                               ConcurrentHashMap<UUID, ActiveTxnRecord> transactionsMap) {
+        int epoch = nextEpoch.getKey();
+        List<Map.Entry<Long, String>> txnIds = nextEpoch.getValue();
+
+        return Futures.allOf(txnIds.stream().map(txnIdOrder -> {
+            UUID txnId = UUID.fromString(txnIdOrder.getValue());
+            long order = txnIdOrder.getKey();
+            return Futures.exceptionallyExpecting(getActiveTx(epoch, txnId).thenApply(VersionedMetadata::getObject),
+                    ZKStreamMetadataStore.DATA_NOT_FOUND_PREDICATE, ActiveTxnRecord.EMPTY)
+                          .thenAccept(txnRecord -> {
+                              switch (txnRecord.getTxnStatus()) {
+                                  case COMMITTING:
+                                      if (txnRecord.getCommitOrder() == order) {
+                                          // if entry matches record's position then include it
+                                          transactionsMap.put(txnId, txnRecord);
+                                      } else {
+                                          log.debug("duplicate txn {} at position {}. removing {}", txnId, txnRecord.getCommitOrder(), order);
+                                          toPurge.add(order);
+                                      }
+                                      break;
+                                  case OPEN:  // do nothing
+                                      // since we first add reference to transaction order followed by updating transaction
+                                      // metadata record, which may or may not have happened. So we will ignore all open 
+                                      // transactions for which references are found. 
+                                      break;
+                                  case COMMITTED:
+                                  case ABORTING:
+                                  case ABORTED:
+                                  case UNKNOWN:
+                                      // Aborting, aborted, unknown and committed 
+                                      log.debug("stale txn {} with status. removing {}", txnId, txnRecord.getTxnStatus(), order);
+                                      toPurge.add(order);
+                                      break;
+                              }
+                          });
+
+        }).collect(Collectors.toList()));
+    }
+
     private CompletableFuture<Void> verifyLegalState() {
         return getState(false).thenApply(state -> {
             if (state == null || state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
@@ -1488,12 +1557,14 @@ public abstract class PersistentStreamBase implements Stream {
             int shard = x.getKey();
             List<Long> segments = x.getValue();
 
-            return createSealedSegmentSizeMapShardIfAbsent(shard).thenCompose(v -> getSealedSegmentSizesMapShardData(shard)
-                    .thenApply(y -> {
-                        SealedSegmentsMapShard mapShard = y.getObject();
+            return Futures.exceptionallyComposeExpecting(getSealedSegmentSizesMapShardData(shard), 
+                    DATA_NOT_FOUND_PREDICATE, () -> createSealedSegmentSizeMapShardIfAbsent(shard)
+                            .thenCompose(v -> getSealedSegmentSizesMapShardData(shard))) 
+                    .thenCompose(mapShardData -> {
+                        SealedSegmentsMapShard mapShard = mapShardData.getObject();
                         segments.forEach(z -> mapShard.addSealedSegmentSize(z, sealedSegmentSizes.get(z)));
-                        return updateSealedSegmentSizesMapShardData(shard, new VersionedMetadata<>(mapShard, y.getVersion()));
-                    }));
+                        return updateSealedSegmentSizesMapShardData(shard, new VersionedMetadata<>(mapShard, mapShardData.getVersion()));
+                    });
         }).collect(Collectors.toList()));
     }
 
@@ -1649,12 +1720,12 @@ public abstract class PersistentStreamBase implements Stream {
     }
 
     // region abstract methods
-    abstract CompletableFuture<Void> checkScopeExists() throws StoreException;
-
     //region create delete
     abstract CompletableFuture<CreateStreamResponse> checkStreamExists(final StreamConfiguration configuration,
                                                                        final long creationTime, final int startingSegmentNumber);
 
+    abstract CompletableFuture<Void> createStreamMetadata();
+    
     abstract CompletableFuture<Void> storeCreationTimeIfAbsent(final long creationTime);
 
     abstract CompletableFuture<Void> deleteStream();
@@ -1721,7 +1792,7 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<Version> updateSealedSegmentSizesMapShardData(int shard, VersionedMetadata<SealedSegmentsMapShard> data);
 
-    abstract CompletableFuture<Void> createSegmentSealedEpochRecordData(long segmentToSeal, int epoch);
+    abstract CompletableFuture<Void> createSegmentSealedEpochRecords(Collection<Long> segmentToSeal, int epoch);
 
     abstract CompletableFuture<VersionedMetadata<Integer>> getSegmentSealedRecordData(long segmentId);
     // endregion
@@ -1757,7 +1828,7 @@ public abstract class PersistentStreamBase implements Stream {
     abstract CompletableFuture<Void> removeActiveTxEntry(final int epoch, final UUID txId);
 
     abstract CompletableFuture<Void> createCompletedTxEntry(final UUID txId, CompletedTxnRecord data);
-    
+
     abstract CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch);
 
     /**

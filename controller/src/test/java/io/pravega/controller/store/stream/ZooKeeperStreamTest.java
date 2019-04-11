@@ -38,9 +38,9 @@ public class ZooKeeperStreamTest extends StreamTestBase {
 
     @Override
     public void tearDown() throws Exception {
+        store.close();
         cli.close();
         zkServer.close();
-        store.close();
         executor.shutdown();
     }
 
