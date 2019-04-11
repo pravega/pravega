@@ -139,13 +139,14 @@ public abstract class RequestSweeperTest {
         signalQueue.put(signal1);
         signalQueue.put(signal2);
         doAnswer(x -> {
+            log.info("shivesh:: write event called, completing future");
             signalQueue.take().complete(x.getArgument(0));
             return waitQueue.take();
         }).when(requestEventWriter).writeEvent(any(), any());
         
-        streamMetadataTasks.manualScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), 
-                System.currentTimeMillis(), null);
-
+        CompletableFuture.completedFuture(null)
+                         .thenComposeAsync(v -> streamMetadataTasks.manualScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2),
+                                 System.currentTimeMillis(), null), executor);
         signal1.join();
         // since we dont complete writeEventFuture, manual scale will not complete and index is not removed
         // verify that index has the entry.

@@ -641,6 +641,7 @@ public class StreamMetadataTasks extends TaskBase {
     
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        log.info("shivesh:: posting new event request writer future isDone = {}.. request writer = {}", writerInitFuture.isDone(), requestEventWriterRef.get());
 
         writerInitFuture.thenApply(v -> requestEventWriterRef.get().writeEvent(event.getKey(), event).whenComplete((r, e) -> {
             if (e != null) {
