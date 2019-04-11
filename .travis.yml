@@ -27,7 +27,7 @@ jobs:
       after_success:
            - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
       after_failure:
-           - cat /home/travis/build/pravega/pravega/controller/build/reports/tests/test/index.html
+           - cat /home/travis/build/pravega/pravega/controller/build/reports/tests/test/classes/io.pravega.controller.server.eventProcessor.PravegaTablesScaleRequestHandlerTest.html
 
     - stage: snapshot
       if: branch = master AND NOT (type = pull_request)
