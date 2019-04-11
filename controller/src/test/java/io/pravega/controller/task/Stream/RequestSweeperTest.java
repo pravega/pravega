@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.task.Stream;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -31,7 +29,6 @@ import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import io.pravega.shared.controller.event.ScaleOpEvent;
 import io.pravega.test.common.TestingServerStarter;
-import java.net.URI;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Arrays;
@@ -91,9 +88,6 @@ public abstract class RequestSweeperTest {
         cli.start();
         streamStore = getStream();
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
-                                                                                        .controllerURI(URI.create("tcp://localhost"))
-                                                                                        .build());
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(),
                 TaskStoreFactory.createInMemoryStore(executor), segmentHelperMock, executor, HOSTNAME, AuthHelper.getDisabledAuthHelper(), 
