@@ -182,7 +182,6 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 2. Create a new `StatsLogger` instance through the `MetricsProvider.createStatsLogger(String loggerName)`, and register metric using name, e.g. `STATS_LOGGER.createCounter(String name)`; and then update the metric object as appropriately in the code.
 
    ```java
-
     static final StatsLogger STATS_LOGGER = MetricsProvider.getStatsLogger(); // <--- 1
     DynamicLogger dynamicLogger = MetricsProvider.getDynamicLogger();
 
@@ -468,5 +467,6 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
   ```
 
 # Resources
+
 * [Micrometer Metrics](https://micrometer.io/docs)
 * [Statsd_spec](https://github.com/b/statsd_spec)

@@ -24,7 +24,12 @@ import lombok.Data;
  */
 @Data
 public class PendingEvent {
-    public static final int MAX_WRITE_SIZE = Serializer.MAX_EVENT_SIZE;
+    /**
+     * The serialized event max size. Equals to the max event payload size plus additional 8 bytes for the wire command
+     * code and the payload size.
+     * @see Event for the details.
+     */
+    public static final int MAX_WRITE_SIZE = Serializer.MAX_EVENT_SIZE + 8;
     /**
      * The routing key that was provided to route the data.
      */

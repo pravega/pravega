@@ -60,23 +60,62 @@ docker run -it -e HOST_IP=<ip> -p 9090:9090 -p 12345:12345 pravega/pravega:lates
 
 ## Docker Compose (Distributed Mode)
 
-Unlike other options for running locally, the docker compose option runs a full deployment of Pravega
+Unlike other options for running locally, the Docker Compose option runs a full deployment of Pravega
 in distributed mode. It contains containers for running Zookeeper, Bookkeeper and HDFS. Hence Pravega operates as if it would in production. This is the easiest way to get started with the standalone option but requires additional resources.
 
-**Prerequisite:** Docker `1.12` or later.
+1. Ensure that your host machine meets the following prerequisites:
 
-Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) from github. For example:
+   * It has Docker `1.12` or later installed.
+   * It has Docker Compose installed.
 
-```
-wget https://raw.githubusercontent.com/pravega/pravega/master/docker/compose/docker-compose.yml
-```
+2. Download the [docker-compose.yml](https://github.com/pravega/pravega/tree/master/docker/compose/docker-compose.yml) file from [Pravega](https://github.com/pravega/pravega) GitHub repository.
 
-We need to set the IP address of our local machine as the value of `HOST_IP` in the following command.
+   ```
+   $ wget https://raw.githubusercontent.com/pravega/pravega/master/docker/compose/docker-compose.yml
+   ```
 
-```
-HOST_IP=1.2.3.4 docker-compose up
-```
-Clients can then connect to the controller at `${HOST_IP}:9090`.
+   Alternatively, clone the Pravega repository to fetch the code.
+
+   ```
+   $ git clone https://github.com/pravega/pravega.git
+   ```
+
+3. Navigate to the directory containing Docker Compose configuration `.yml` files.
+
+   ```
+   $ cd /path/to/pravega/docker/compose
+   ```
+
+4. Add HOST_IP as an environment variable with the value as the IP address of the host.
+
+   ```
+   $ export HOST_IP=<HOST_IP>
+   ```
+
+5. Run the following command to start a deployment comprising of multiple Docker containers, as specified in the
+   `docker-compose.yml` file.
+
+   ```
+   $ docker-compose up -d
+   ```
+
+   To use one of the other files in the directory, use the `-f` option to specify the file.
+
+   ```
+   $ docker-compose up -d -f docker-compose-nfs.yml
+   ```
+
+6. Verify that the deployment is up and running.
+
+   ```
+   $ docker-compose ps
+   ```
+
+Clients can then connect to the Controller at `<HOST_IP>:9090`.
+
+To access the Pravega Controller `REST` API, invoke it using a URL of the form `http://<HOST_IP>:10080/v1/scopes` (where
+`/scopes` is one of the many endpoints that the API supports).
+
 
 ## Running Pravega in Standalone Mode with SSL/TLS Enabled
 

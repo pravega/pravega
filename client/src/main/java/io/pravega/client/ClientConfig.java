@@ -94,9 +94,6 @@ public class ClientConfig implements Serializable {
                 controllerURI = URI.create("tcp://localhost:9090");
             }
             extractCredentials();
-            if (credentials == null) {
-                log.warn("The credentials are not specified or could not be extracted.");
-            }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName);
         }
 

@@ -77,6 +77,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
     private ScheduledExecutorService retentionExecutor;
 
     private ConnectionFactory connectionFactory;
+    private SegmentHelper segmentHelper; 
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private BucketManager retentionService;
@@ -112,6 +113,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
     protected void startUp() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         log.info("Initiating controller service startUp");
+
+        log.info("Controller serviceConfig = {}", serviceConfig.toString());
         log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
         log.info("Cluster listener enabled = {}", serviceConfig.isControllerClusterListenerEnabled());
         log.info("    Host monitor enabled = {}", serviceConfig.getHostMonitorConfig().isHostMonitorEnabled());
@@ -172,15 +175,15 @@ public class ControllerServiceStarter extends AbstractIdleService {
                                                     .build();
 
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
-            SegmentHelper segmentHelper = new SegmentHelper();
+            segmentHelper = new SegmentHelper(connectionFactory, hostStore);
 
             AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
-            streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory, authHelper, requestTracker);
+            streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
+                    segmentHelper, controllerExecutor, host.getHostId(), authHelper, requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
-                    connectionFactory, authHelper);
+                    segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(),
+                    authHelper);
             
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000, retentionExecutor);
             Duration executionDuration = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
@@ -210,8 +213,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             streamMetrics = new StreamMetrics();
             transactionMetrics = new TransactionMetrics();
-            controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster, streamMetrics, transactionMetrics);
+            controllerService = new ControllerService(streamStore, streamMetadataTasks,
+                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
             setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
@@ -363,6 +366,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (cluster != null) {
                 log.info("Closing controller cluster instance");
                 cluster.close();
+            }
+
+            if (segmentHelper != null) {
+                log.info("closing segment helper");
+                segmentHelper.close();
             }
 
             log.info("Closing connection factory");
