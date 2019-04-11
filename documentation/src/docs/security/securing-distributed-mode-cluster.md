@@ -22,20 +22,19 @@ include:
 Regardless of the deployment option used, setting up Transport Layer Security (SSL/TLS) and client auth (short for
 authentication and authorization) are important steps towards a secure Pravega deployment.
 
-TLS encrypts client-server and internal communication. It also enables clients to authenticate the services running on the server nodes. Client auth enables the services to authenticate and authorize the clients. Pravega strongly recommends enabling both TLS and auth for production clusters.
+TLS encrypts client-server and internal communication. It also enables clients to authenticate the services running on the server nodes. Client auth enables the services to authenticate and authorize the clients. Pravega strongly recommends enabling both TLS and auth, for production clusters.
 
 Setting up security - especially TLS - in a large cluster can be daunting at first. To make it easier, this document
 provides step-by-step instructions on how to enable and configure security manually.
 
 Depending on the deployment option used and your environment, you might need to modify the steps and commands to
-suite your specific needs and policies. Moreover, some of the deployment options open up additional ways of securing
-a cluster, as we will briefly touch on in the next sub-section.
+suit your specific needs and policies.
 
 ## Setting up SSL/TLS
 
 There are broadly two ways of using TLS for client-server communications:
 
-1. Setup Pravega to handle TLS directly. In this case, end-to-end tracleaffic is encrypted.
+1. Setup Pravega to handle TLS directly. In this case, end-to-end traffic is encrypted.
 2. Terminate TLS outside of Pravega, in an infrastructure component such as a reverse proxy or a load balancer. Traffic is encrypted until the terminating point and is in plaintext from there to Pravega.
 
 Depending on the deployment option used, it might be easier to use one or the other approach. For example, if you
@@ -52,9 +51,11 @@ At a high level, setting up TLS can be divided into three distinct stages:
 
 They are described in detail in the following sub-sections.
 
-**Before you Begin:**
+**Before you Begin**
 
-You need to have OpenSSL and Java Development Kit (JDK) installed, as the commands in this section are based on OpenSSL and Java Keytool.
+As the steps in this section use either OpenSSL or Java Keytool, install
+OpenSSL and Java Development Kit (JDK) on the hosts that will be used to  generate
+TLS certificates, keys, keystores are truststores.
 
 NOTE:
 
@@ -108,13 +109,13 @@ Later, we'll use the CA certificate/key bundle to sign server certificates used 
    $ keytool -list -v -keystore client.truststore.jks -storepass changeit
    ```
 
-That's it! You have the following CA and client truststore artifacts:
+At this point, the following CA and client truststore artifacts shall be  available:
 
 | File | Description |
 |:-----:|:--------|
-| ca-cert | PEM-encoded X.509 certificate of the CA |
-| ca-key | PEM-encoded file containing the CA's encrypted private key  |
-| client.truststore.jks | A password-protected truststore file containing the CA's certificate |
+| `ca-cert` | PEM-encoded X.509 certificate of the CA |
+| `ca-key` | PEM-encoded file containing the CA's encrypted private key  |
+| `client.truststore.jks` | A password-protected truststore file containing the CA's certificate |
 
 ### Stage 2: Obtaining Server Certificates and keys
 
@@ -128,9 +129,7 @@ This stage is about performing the following steps for each service.
 
 NOTE:
 
-For services running on the same host, you may use the same certificate, if those services are accessed using
-the same hostname/IP address. You may even use wildcard certificates to share certificates across nodes. However,
-it is strongly recommended that you use separate certificates for each service.
+For services running on the same host, the same certificate can be used, if those services are accessed using the same hostname/IP address. Also, wildcard certificates can be used to share certificates across hosts. However, it is strongly recommended that separate certificates be used for each service.
 
 The steps are:
 
@@ -167,8 +166,8 @@ The steps are:
 3. Submit the CSR to a CA and obtain a signed certificate for each service.
 
    If you are using a public or internal CA service, follow that CA's process for submitting the CSR and obtaining
-   a signed certificate. To use the custom CA generated using the steps mentioned earlier or an internal CA
-   certificate/key bundle, use the following command, to generate a CA-signed server certificate in PEM format:
+   a signed certificate. To use the custom CA generated using the steps mentioned [earlier](#stage-1-setting-up-a-certificate-authority-ca) or an internal CA
+   certificate/key bundle, use the following command, to generate a CA-signed server certificate in `PEM` format:
 
    ```
    $ openssl x509 -req -CA ca-cert -CAkey ca-key -in controller01.csr -out controller01.pem \
@@ -187,26 +186,26 @@ The steps are:
            -import -file controller01.pem -storepass changeit
    ```
 
-5. Export each server's key into a separate .pem file.
+5. Export each server's key into a separate `PEM` file.
 
-   This is a two step process. First, convert the server's keystore in `.jks` format into `.p12` format.
+   This is a two step process.
+   * First, convert the server's keystore in `.jks` format into `.p12` format.
 
-   ```
-   keytool -importkeystore -srckeystore controller01.jks  \
+     ```
+     keytool -importkeystore -srckeystore controller01.jks  \
                            -destkeystore controller01.p12 \
                            -srcstoretype jks -deststoretype pkcs12 \
                            -srcstorepass changeit -deststorepass changeit
-   ```
-
-   Then, export the private key of the server into a `.pem` file. Note that the generated `.pem` file is not protected
-   by a password, even though the key itself is password-protected, as we are using the `-nodes` flag. So, be sure
+    ```
+   * Then, export the private key of the server into a `PEM` file. Note that the generated `PEM` file is not protected
+   by a password. The key itself is password-protected, as we are using the `-nodes` flag. So, be sure
    to protect it using operating system's technical controls as well as procedural controls.
 
-   ```
-   openssl pkcs12 -in controller01.p12 -out controller01.key.pem -passin pass:1111_aaaa -nodes
-   ```
+     ```
+     openssl pkcs12 -in controller01.p12 -out controller01.key.pem -passin pass:1111_aaaa -nodes
+     ```
 
-The last step concludes this stage, and you should now be all set to install the certificates and other material in Pravega.
+Step 5 concludes this stage, and the stage is now set for installing the certificates and other PKI material in Pravega.
 
 The table below lists the key output of this stage. Note that you'll typically need one of each file per Pravega
 service, but you may share the same file for services collocated on the same host for logistical or economical reasons.
@@ -220,15 +219,15 @@ service, but you may share the same file for services collocated on the same hos
 
 ### Deploying certificates and enabling TLS in Pravega
 
-We'll discuss this in the next section, together with other security configuration and setup.
+We'll discuss this in the [next](#enabling-tls-and-auth-in-pravega) section, together with other security configuration and setup.
 
 ## Enabling TLS and Auth in Pravega
 
-Enabling TLS and Auth in Pravega involves the following steps:
+Enabling TLS and auth in Pravega involves the following steps:
 
-1. Configuring TLS and Auth Parameters for the Services
-2. Configuring TLS and Credentials on the Client Side
-3. Having the TLS and Auth parameters take effect
+1. Configuring TLS and auth Parameters for the services
+2. Configuring TLS and credentials on the client Side
+3. Having the TLS and auth parameters take effect
 
 Each of the above tasks are discussed in the following sub-sections.
 
@@ -247,10 +246,12 @@ You can configure the following services for TLS and Auth:
 3. Zookeeper (optionally)
 4. Bookkeeper (optionally)
 
-Let's discuss about #1 and #2 below. For information about enabling TLS for Zookeeper and Bookeeper, refer to
+For information about enabling TLS for Zookeeper and Bookeeper, refer to
 their documentation here:
 * [ZooKeeper SSL Guide](https://cwiki.apache.org/confluence/display/ZOOKEEPER/ZooKeeper+SSL+User+Guide)
 * [BookKeeper - Encryption and Authentication using TLS](https://bookkeeper.apache.org/docs/latest/security/tls/)
+
+Configuring security for Controllers and Segment Stores is discussed below.
 
 **Controller Service:**
 
@@ -369,7 +370,7 @@ Hostname verification during TLS communications verifies that the DNS name to wh
 * Common Name (`CN`) in the certificate's `Subject` field
 * One of the `Subject Alternative Names` field entries
 
-If the server certificates have a hostname assigned, you have used IP addresses as endpoints for the services, and those hostnames are not accessible from 
+If the server certificates have a hostname assigned, you have used IP addresses as endpoints for the services, and those hostnames are not accessible from
 the client nodes, you might need to add mappings of
 IP addresses and DNS/Host names in the client-side operating system hosts file.
 
