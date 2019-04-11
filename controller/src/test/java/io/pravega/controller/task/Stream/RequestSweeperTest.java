@@ -143,7 +143,13 @@ public abstract class RequestSweeperTest {
             log.info("shivesh:: write event called, completing future queue size = {}", signalQueue.size());
             CompletableFuture<Void> taken1 = signalQueue.take();
             log.info("shivesh:: taken1 == {} .. argument = {}", taken1, x.getArgument(0));
-            taken1.complete(null);
+            try {
+                taken1.complete(x.getArgument(0));
+            } catch (Exception e) {
+                log.info("shivesh:: attempting to complete future threw exception ", e);
+
+                taken1.complete(null);
+            }
             CompletableFuture<Void> taken2 = waitQueue.take();
             log.info("shivesh:: completed future.. taken from wait queue");
             return taken2;
