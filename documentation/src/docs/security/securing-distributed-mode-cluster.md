@@ -279,10 +279,24 @@ Controller services can be configured in three different ways:
    controller.auth.tlsCertFile=${TLS_CERT_FILE}
    ```
 
-3. By specifying configuration parameters (such as `controller.auth.tlsEnabled`) as JVM system properties. This is not
-applicable for manual deployment and is relevant for container application deployment tools and orchestrators such as Docker Compose, Swarm and Kubernetes.
+3. By specifying configuration parameters as JVM system properties. This way of configuring Controller service is more relevant for container application deployment tools and orchestrators such as Docker Compose, Swarm and Kubernetes.
 
-The table below lists the Controller services' TLS and auth parameters and representative values for quick reference. For a detailed discription of these parameters refer to [this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
+   ```
+   # Example: docker-compose.yml file
+   ...
+   services:
+      ...
+      controller:
+         environment:
+             ...
+             JAVA_OPTS:
+                -dcontroller.auth.tlsEnabled=true
+                -dcontroller.auth.tlsCertFile=...
+                ...
+      ...          
+   ```
+
+The following table lists the Controller's TLS and auth parameters and representative values, for quick reference. For a detailed description of these parameters, refer to [this](https://github.com/pravega/pravega/blob/master/documentation/src/docs/security/pravega-security-configurations.md) document.
 
  | Configuration Parameter| Sample Value |
  |:-----------------------:|:-------------|
@@ -299,11 +313,11 @@ The table below lists the Controller services' TLS and auth parameters and repre
  | controller.auth.userPasswordFile<sup>3</sup> | `/etc/secrets/password-auth-handler.input` |
  | controller.auth.tokenSigningKey | `a-secret-value` |
 
- <sup>1</sup>: This and other `.password` files are text files containing the password for the corresponding store.
+ [1]: This and other `.password` files are text files containing the password for the corresponding store.
 
- <sup>2</sup>: The assumption is that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `controller.zk.*` properties.
+ [2]: The assumption is that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `controller.zk.*` properties.
 
- <sup>3</sup>: This configuration property is required when using the default Password Auth Handler only.
+ [3]: This configuration property is required when using the default Password Auth Handler only.
 
 **Segment Store**
 
@@ -324,45 +338,43 @@ Segment store supports configuration via a properties file (`config.properties`)
  | autoScale.tokenSigningKey | `a-secret-value` <sup>1</sup>|
  | autoScale.validateHostName | `true` |
 
-<sup>1</sup>: The assumption is that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `pravegaservice.zk.*` properties.
+[1]: The assumption is that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `pravegaservice.zk.*` properties.
 
-<sup>2</sup>: The secret value you use here must match the same value used for other Controller and Segment Store services.
+[2]: The secret value you use here must match the same value used for other Controller and Segment Store services.
 
 ### Configuring TLS and Credentials on the Client Side
 
-After you have enabled TLS and Auth and configured them for server-side services, you need to update any existing client
-applications to use TLS and supply their credentials. This sub-section described how to do that.
+After enabling and configuring TLS and auth on the server-side services, its time to update the clients,
+so that the they can establish TLS connections with the servers and are allowed access.
 
-For TLS, you'll need to establish trust for the servers' certificates on the client sde. There are multiple ways of
-doing that:
+For TLS, establish trust for the servers' certificates on the client side using one of the following ways:
 
-  1. Supplying the client library with the certificate of the trusted CA that has signed the servers' certificates.
+  1. Supply the client library with the certificate of the trusted CA that has signed the servers' certificates.
 
   ```
   ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI("tls://<controller-hostname-or-ip>:9090")
-                .trustStore(Constants.TRUSTSTORE_PATH)
+                .controllerURI("tls://<DNS-NAME-OR-IP>:9090")
+                .trustStore("/etc/secrets/ca-cert")
                 ...
                 .build();
   ```
 
-  2. Installing the CA's certificate in the Java system key store.
-  3. Creating a custom truststore with the CA's certificate and supplying it to the Pravega client application via the
-system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
+  2. Install the CA's certificate in the Java system key store.
+  3. Create a custom truststore with the CA's certificate and supply it to the Pravega client application via system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
 
-For Auth, client-side configuration depends on the `AuthHandler` implementation used. If your server is configured to
+For auth, client-side configuration depends on the `AuthHandler` implementation used. If your server is configured to
 use the default `PasswordAuthHandler`, you may supply the credentials as shown below.
 
   ```
   ClientConfig clientConfig = ClientConfig.builder()
-                .controllerURI("tls://<controller-hostname-or-ip>:9090")
-                .trustStore(Constants.TRUSTSTORE_PATH)
+                .controllerURI("tls://<DNS-NAME-OR-IP>:9090")
+                .trustStore("/etc/secrets/ca-cert")
                 .credentials(new DefaultCredentials("changeit", "marketinganaylticsapp"))
                 .build();
 
   ```
 
-#### Hostname Verification
+#### Server Hostname Verification
 
 Hostname verification during TLS communications verifies that the DNS name to which the client connects matches the hostname specified in either of the following fields in the server's certificate:
 
@@ -373,21 +385,22 @@ If the server certificates have a hostname assigned, you have used IP addresses 
 the client nodes, you might need to add mappings of
 IP addresses and DNS/Host names in the client-side operating system hosts file.
 
-Alternatively, you may disable hostname verification by invoking `validateHostName(false)` of the ClientConfig builder. However, we strongly recommended avoiding doing that, especially for production environments.
+Alternatively, you may disable hostname verification by invoking `validateHostName(false)` of the ClientConfig builder. It is strongly recommended to avoid disabling hostname verification for production clusters.
 
 ### Having the TLS and Auth parameters take effect
 
-If you are enabling TLS and Auth in an existing Pravega cluster, having the security parameters take effect simply requires
-restarting the servicesm after making the configuration changes. Any running client applications will need to be restarted as well, after making client-side changes as described earlier.
+To ensure TLS and auth parameters take effect, all the services on the server-side need to be restarted.
+Existing client applications will need to be restarted as well, after they are reconfigured for TLS and auth.
 
-For fresh deployments, just starting the cluster after configuring TLS and Auth, should be enough.
+For fresh deployments, just starting the cluster after setting the security configuration parameters, should be enough.
 
 ## Conclusion
 
-In this document, we saw how to enable security in a Pravega cluster running in distributed mode. Specifically, we discussed how to:
-* Generate a CA (if needed),
-* Generate server certificates and keys for Pravega services,
-* Sign the generated certificates using the generated CA,
-* Enable and configure TLS and auth on the server Side,
-* Setup the `ClientConfig` on the client side for communicating with a Pravega, cluster running with TLS and auth enabled, and
-* Have TLS and auth take effect.
+This document explained about how to enable security in a Pravega cluster running in distributed mode. Specifically, how to perform the following actions were discussed:
+
+* Generating a CA (if needed)
+* Generating server certificates and keys for Pravega services
+* Signing the generated certificates using the generated CA
+* Enabling and configuring TLS and auth on the server Side
+* Setting up the `ClientConfig` on the client side for communicating with a Pravega cluster running with TLS and auth enabled
+* Having TLS and auth take effect
