@@ -392,7 +392,7 @@ Alternatively, you may disable hostname verification by invoking `validateHostNa
 To ensure TLS and auth parameters take effect, all the services on the server-side need to be restarted.
 Existing client applications will need to be restarted as well, after they are reconfigured for TLS and auth.
 
-For fresh deployments, just starting the cluster after setting the security configuration parameters, should be enough.
+For fresh deployments, starting the cluster and the clients after configuring TLS and auth, will automatically ensure they take effect.
 
 ## Conclusion
 
