@@ -34,10 +34,10 @@ class OpStatsLoggerImpl implements OpStatsLogger {
 
     //region Constructor
 
-    OpStatsLoggerImpl(MeterRegistry metricRegistry, String baseName, String statName, String... tags) {
+    OpStatsLoggerImpl(MeterRegistry metricRegistry, String statName, String... tags) {
         this.meterRegistry = Preconditions.checkNotNull(metricRegistry, "metrics");
-        this.successName = baseName + "." + statName;
-        this.failName = baseName + "." + failMetricName(statName);
+        this.successName = statName;
+        this.failName = failMetricName(statName);
         //This will publish additional percentile metrics
         this.success = Timer.builder(successName).tags(tags).publishPercentiles(OpStatsData.PERCENTILE_ARRAY)
                 .register(this.meterRegistry);

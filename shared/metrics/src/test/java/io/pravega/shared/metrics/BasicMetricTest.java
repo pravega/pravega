@@ -41,24 +41,24 @@ public class BasicMetricTest {
         Gauge gauge = statsLogger.registerGauge("testGauge", () -> 13, "containerId", "2");
         Meter meter = statsLogger.createMeter("testMeter", "containerId", "3");
 
-        assertNotNull(MetricRegistryUtils.getTimer("pravega.testStatsLogger.testOpStatsLogger").getId());
-        assertNotNull(MetricRegistryUtils.getCounter("pravega.testStatsLogger.testCounter", "containerId", "1").getId());
-        assertNotNull(MetricRegistryUtils.getGauge("pravega.testStatsLogger.testGauge", "containerId", "2").getId());
-        assertNotNull(MetricRegistryUtils.getMeter("pravega.testStatsLogger.testMeter", "containerId", "3").getId());
+        assertNotNull(MetricRegistryUtils.getTimer("testOpStatsLogger").getId());
+        assertNotNull(MetricRegistryUtils.getCounter("testCounter", "containerId", "1").getId());
+        assertNotNull(MetricRegistryUtils.getGauge("testGauge", "containerId", "2").getId());
+        assertNotNull(MetricRegistryUtils.getMeter("testMeter", "containerId", "3").getId());
 
-        assertNull(MetricRegistryUtils.getCounter("pravega.testStatsLogger.testOpStatsLogger"));
-        assertNull(MetricRegistryUtils.getMeter("pravega.testStatsLogger.testOpStatsLogger"));
-        assertNull(MetricRegistryUtils.getGauge("pravega.testStatsLogger.testOpStatsLogger"));
+        assertNull(MetricRegistryUtils.getCounter("testOpStatsLogger"));
+        assertNull(MetricRegistryUtils.getMeter("testOpStatsLogger"));
+        assertNull(MetricRegistryUtils.getGauge("testOpStatsLogger"));
 
         opStatsLogger.close();
         counter.close();
         gauge.close();
         meter.close();
 
-        assertNull(MetricRegistryUtils.getTimer("pravega.testStatsLogger.testOpStatsLogger"));
-        assertNull(MetricRegistryUtils.getCounter("pravega.testStatsLogger.testCounter", "containerId", "1"));
-        assertNull(MetricRegistryUtils.getGauge("pravega.testStatsLogger.testGauge", "containerId", "2"));
-        assertNull(MetricRegistryUtils.getMeter("pravega.testStatsLogger.testMeter", "containerId", "3"));
+        assertNull(MetricRegistryUtils.getTimer("testOpStatsLogger"));
+        assertNull(MetricRegistryUtils.getCounter("testCounter", "containerId", "1"));
+        assertNull(MetricRegistryUtils.getGauge("testGauge", "containerId", "2"));
+        assertNull(MetricRegistryUtils.getMeter("testMeter", "containerId", "3"));
     }
 
     @Test (expected = Exception.class)
@@ -85,10 +85,10 @@ public class BasicMetricTest {
     public void testCounterClear() {
         Counter testCounter = statsLogger.createCounter("testCounter", "key", "value");
         testCounter.add(13);
-        assertTrue(13 == MetricRegistryUtils.getCounter("pravega.testStatsLogger.testCounter", "key", "value").count());
+        assertTrue(13 == MetricRegistryUtils.getCounter("testCounter", "key", "value").count());
         testCounter.clear();
         testCounter.inc();
-        assertTrue(1 == MetricRegistryUtils.getCounter("pravega.testStatsLogger.testCounter", "key", "value").count());
+        assertTrue(1 == MetricRegistryUtils.getCounter("testCounter", "key", "value").count());
     }
 
     @Test
@@ -96,8 +96,8 @@ public class BasicMetricTest {
         Counter counter = statsLogger.createCounter("counterWithCommonTag", "key", "value");
         counter.add(117);
         assertNotNull(counter.getId().getTag(MetricsTags.TAG_HOST));
-        assertTrue(117 == MetricRegistryUtils.getCounter("pravega.testStatsLogger.counterWithCommonTag", "key", "value", MetricsTags.TAG_HOST, counter.getId().getTag(MetricsTags.TAG_HOST)).count());
-        assertTrue(117 == MetricRegistryUtils.getCounter("pravega.testStatsLogger.counterWithCommonTag", "key", "value").count());
-        assertNull(MetricRegistryUtils.getCounter("pravega.testStatsLogger.counterWithCommonTag", "key", "value", MetricsTags.TAG_HOST, "non-exist"));
+        assertTrue(117 == MetricRegistryUtils.getCounter("counterWithCommonTag", "key", "value", MetricsTags.TAG_HOST, counter.getId().getTag(MetricsTags.TAG_HOST)).count());
+        assertTrue(117 == MetricRegistryUtils.getCounter("counterWithCommonTag", "key", "value").count());
+        assertNull(MetricRegistryUtils.getCounter("counterWithCommonTag", "key", "value", MetricsTags.TAG_HOST, "non-exist"));
     }
 }
