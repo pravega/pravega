@@ -54,6 +54,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
@@ -141,13 +142,19 @@ public abstract class RequestSweeperTest {
         doAnswer(x -> {
             log.info("shivesh:: write event called, completing future");
             signalQueue.take().complete(x.getArgument(0));
-            return waitQueue.take();
-        }).when(requestEventWriter).writeEvent(any(), any());
+            CompletableFuture<Void> taken = waitQueue.take();
+            log.info("shivesh:: completed future.. taken from wait queue");
+            return taken;
+        }).when(requestEventWriter).writeEvent(anyString(), any());
         
-        CompletableFuture.completedFuture(null)
-                         .thenComposeAsync(v -> streamMetadataTasks.manualScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2),
-                                 System.currentTimeMillis(), null), executor);
+        streamMetadataTasks.manualScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), 
+                System.currentTimeMillis(), null);
+
+        log.info("shivesh:: submitted manual scale.. got a future back.. now waiting on the signal future that will be completed in writeEvent");
+
         signal1.join();
+
+        log.info("shivesh:: manual scale request future is completed");
         // since we dont complete writeEventFuture, manual scale will not complete and index is not removed
         // verify that index has the entry.
         HostIndex hostIndex = getHostIndex();
