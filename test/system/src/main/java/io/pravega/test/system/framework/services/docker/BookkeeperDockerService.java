@@ -30,6 +30,7 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
+import static com.spotify.docker.client.messages.swarm.RestartPolicy.RESTART_POLICY_ANY;
 
 @Slf4j
 public class BookkeeperDockerService extends DockerBasedService {
@@ -81,7 +82,7 @@ public class BookkeeperDockerService extends DockerBasedService {
         stringList.add(env4);
 
         final TaskSpec taskSpec = TaskSpec
-                .builder().restartPolicy(RestartPolicy.builder().maxAttempts(0).condition("none").build())
+                .builder().restartPolicy(RestartPolicy.builder().maxAttempts(1).condition(RESTART_POLICY_ANY).build())
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
                         .labels(labels)
