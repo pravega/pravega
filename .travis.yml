@@ -23,7 +23,7 @@ jobs:
     - stage: build
       if: type IN (push, pull_request)
       install: ./gradlew assemble
-      script: while [ $? = 0 ] ; do ./gradlew :controller:cleanTest :controller:test --tests io.pravega.controller.server.eventProcessor.* ; done
+      script: ./gradlew :controller:cleanTest :controller:test --tests io.pravega.controller.server.eventProcessor.*
       after_success:
            - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
       after_failure:
