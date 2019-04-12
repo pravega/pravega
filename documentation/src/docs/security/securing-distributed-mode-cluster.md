@@ -55,7 +55,9 @@ Depending on the deployment option used, it might be easier to use one or the ot
 are deploying a Pravega cluster in Kubernetes, you might find approach 2 simpler and easier to manage. In a cluster deployed manually on hardware machines, it might be more convenient to use approach 1 in many cases.
 The specifics of enabling TLS will also differ depending on the deployment option used.
 
-Here, we describe the steps applicable for approach 1 in manual deployments. For approach 2, refer to the platform vendor's documentation.
+Here, we describe the steps applicable for approach 1 in manual deployments. For approach 2, refer to the platform
+vendors' documentation, such as [this](https://cloud.google.com/kubernetes-engine/docs/concepts/ingress) one from
+Google Kubernetes Engine.
 
 At a high level, setting up TLS can be divided into three distinct stages:
 
