@@ -54,6 +54,6 @@ public class EventStreamReaderMock<T> implements EventStreamReader<T> {
     }
 
     @Override
-    public void close(Position position) {
+    public void closeAt(Position position) {
     }
 }

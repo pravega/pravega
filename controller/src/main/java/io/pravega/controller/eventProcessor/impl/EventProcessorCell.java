@@ -144,7 +144,7 @@ class EventProcessorCell<T extends ControllerEvent> {
                 // First close the reader, which implicitly notifies reader position to the reader group
                 log.info("Closing reader for {}", objectId);
                 try {
-                    reader.close(getCheckpoint());
+                    reader.closeAt(getCheckpoint());
                 } catch (Exception e) {
                     log.error("Exception while closing EventProcessorCell reader from checkpointStore: ", e);
                 }

@@ -284,11 +284,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     @Override
     public void close() {
-        close(getPosition());
+        closeAt(getPosition());
     }
 
     @Override
-    public void close(Position position) {
+    public void closeAt(Position position) {
         synchronized (readers) {
             if (!closed) {
                 log.info("Closing reader {} at position {}.", this, position);
