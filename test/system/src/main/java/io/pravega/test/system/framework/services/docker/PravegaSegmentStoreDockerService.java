@@ -91,7 +91,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
         //set env
         String env1 = "PRAVEGA_SEGMENTSTORE_OPTS=" + hostSystemProperties;
-        String env2 = "JAVA_OPTS=-Xmx900m";
+        String env2 = "JAVA_OPTS=-Xmx2000m";
         List<String> envList = new ArrayList<>();
         envList.add(env1);
         envList.add(env2);

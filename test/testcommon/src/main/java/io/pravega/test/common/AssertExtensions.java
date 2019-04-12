@@ -27,11 +27,32 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.junit.Assert;
 
+import static org.junit.Assert.assertEquals;
+
 /**
  * Additional Assert Methods that are useful during testing.
  */
 public class AssertExtensions {
 
+    /**
+     * Invokes `eval` in a loop over and over (with a small sleep) and asserts that the value eventually reaches `expected`.
+     * @param <T> The type of the value to compare.
+     * @param eval The function to test
+     * @param expected the expected return value.
+     * @param timeout the timeout after which an assertion error should be thrown.
+     * @throws Exception If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     */
+    public static <T> void assertEventuallyEquals(T expected, Callable<T> eval, long timeout) throws Exception {
+        long endTime = System.currentTimeMillis() + timeout;
+        while (endTime > System.currentTimeMillis()) {
+            if (expected == eval.call()) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        assertEquals(expected, eval.call());
+    }
+    
     /**
      * Asserts that an exception of the Type provided is thrown.
      *
