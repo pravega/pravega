@@ -24,11 +24,14 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.server.reading.AsyncReadResultHandler;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
+import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 
 /**
@@ -51,17 +54,21 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     private final EntrySerializer serializer;
     @Getter(AccessLevel.PROTECTED)
     private EntrySerializer.Header header;
+    private final long keyVersion;
 
     //endregion
 
-    //region Constructor
+    //region Constructor and Static Methods
 
     /**
      * Creates a new instance of the AsyncTableEntryReader class.
      *
+     * @param keyVersion The version of the item that is located at this position.
+     * @param serializer The {@link EntrySerializer} to use.
      * @param timer Timer for the whole operation.
      */
-    private AsyncTableEntryReader(@NonNull EntrySerializer serializer, @NonNull TimeoutTimer timer) {
+    private AsyncTableEntryReader(long keyVersion, @NonNull EntrySerializer serializer, @NonNull TimeoutTimer timer) {
+        this.keyVersion = keyVersion;
         this.serializer = serializer;
         this.timer = timer;
         this.readData = new EnhancedByteArrayOutputStream();
@@ -99,6 +106,25 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
         return new KeyReader(keyVersion, serializer, timer);
     }
 
+    /**
+     * Reads a single {@link TableEntry} from the given InputStream. The {@link TableEntry} itself is not constructed,
+     * rather all of its components are returned individually.
+     *
+     * @param input         An InputStream to read from.
+     * @param segmentOffset The Segment Offset that the first byte of the InputStream maps to. This wll be used as a Version,
+     *                      unless the deserialized segment's Header contains an explicit version.
+     * @param serializer    The {@link EntrySerializer} to use for deserializing entries.
+     * @return A {@link DeserializedEntry} that contains all the components of the {@link TableEntry}.
+     * @throws IOException If an Exception occurred while reading from the given InputStream.
+     */
+    static DeserializedEntry readEntryComponents(InputStream input, long segmentOffset, EntrySerializer serializer) throws IOException {
+        val h = serializer.readHeader(input);
+        long version = getKeyVersion(h, segmentOffset);
+        byte[] key = StreamHelpers.readAll(input, h.getKeyLength());
+        byte[] value = h.isDeletion() ? null : (h.getValueLength() == 0 ? new byte[0] : StreamHelpers.readAll(input, h.getValueLength()));
+        return new DeserializedEntry(h, version, key, value);
+    }
+
     //endregion
 
     //region Internal Operations
@@ -117,6 +143,14 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      */
     protected void complete(ResultT result) {
         this.result.complete(result);
+    }
+
+    private static long getKeyVersion(EntrySerializer.Header header, long segmentOffset) {
+        return header.getEntryVersion() == TableKey.NO_VERSION ? segmentOffset : header.getEntryVersion();
+    }
+
+    protected long getKeyVersion() {
+        return getKeyVersion(this.header, this.keyVersion);
     }
 
     //endregion
@@ -187,11 +221,8 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      * AsyncTableEntryReader implementation that reads a Key from a ReadResult.
      */
     private static class KeyReader extends AsyncTableEntryReader<TableKey> {
-        private final long keyVersion;
-
         KeyReader(long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
-            super(serializer, timer);
-            this.keyVersion = keyVersion;
+            super(keyVersion, serializer, timer);
         }
 
         @Override
@@ -205,7 +236,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
                 if (header.isDeletion()) {
                     complete(TableKey.notExists(keyData));
                 } else {
-                    complete(TableKey.versioned(keyData, this.keyVersion));
+                    complete(TableKey.versioned(keyData, getKeyVersion()));
                 }
 
                 return true; // We are done.
@@ -224,13 +255,11 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
      */
     private static class EntryReader extends AsyncTableEntryReader<TableEntry> {
         private final ArrayView soughtKey;
-        private final long keyVersion;
         private boolean keyValidated;
 
         private EntryReader(ArrayView soughtKey, long keyVersion, EntrySerializer serializer, TimeoutTimer timer) {
-            super(serializer, timer);
+            super(keyVersion, serializer, timer);
             this.soughtKey = soughtKey;
-            this.keyVersion = keyVersion;
             this.keyValidated = soughtKey == null;
         }
 
@@ -285,7 +314,7 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
                 valueData = readData.subSegment(header.getValueOffset(), header.getValueLength());
             }
 
-            complete(TableEntry.versioned(getKeyData(this.soughtKey, readData, header), valueData, this.keyVersion));
+            complete(TableEntry.versioned(getKeyData(this.soughtKey, readData, header), valueData, getKeyVersion()));
             return true; // Now we are truly done.
         }
 
@@ -299,4 +328,29 @@ abstract class AsyncTableEntryReader<ResultT> implements AsyncReadResultHandler 
     }
 
     //endregion
+
+    @Getter
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    static class DeserializedEntry {
+        /**
+         * The Entry's Header.
+         */
+        private final EntrySerializer.Header header;
+
+        /**
+         * The computed Entry's Version. If explicitly defined in the Header, this mirrors it, otherwise this is the
+         * offset at which this Entry resides in the Segment.
+         */
+        private final long version;
+
+        /**
+         * Key Data.
+         */
+        private final byte[] key;
+
+        /**
+         * Value data. Null if a deletion.
+         */
+        private final byte[] value;
+    }
 }

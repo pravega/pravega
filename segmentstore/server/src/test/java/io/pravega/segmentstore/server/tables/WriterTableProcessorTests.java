@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.ByteArraySegment;
@@ -30,6 +31,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +64,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     private static final int UPDATE_COUNT = 10000;
     private static final int UPDATE_BATCH_SIZE = 689;
     private static final double REMOVE_FRACTION = 0.3; // 30% of generated operations are removes.
+    private static final int MAX_COMPACT_LENGTH = (MAX_KEY_LENGTH + MAX_VALUE_LENGTH) * UPDATE_BATCH_SIZE;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis() * 4, TimeUnit.MILLISECONDS);
@@ -143,6 +146,15 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         testFlushWithHasher(KeyHashers.COLLISION_HASHER);
     }
 
+
+    /**
+     * Tests the {@link WriterTableProcessor#flush} method using a non-collision-prone KeyHasher and forcing compactions.
+     */
+    @Test
+    public void testFlushCompactions() throws Exception {
+        testFlushWithHasher(KeyHashers.DEFAULT_HASHER, 99);
+    }
+
     /**
      * Tests the ability to reconcile the {@link TableAttributes#INDEX_OFFSET} value when that changes behind the scenes.
      */
@@ -212,14 +224,19 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     }
 
     private void testFlushWithHasher(KeyHasher hasher) throws Exception {
+        testFlushWithHasher(hasher, 0);
+    }
+
+    private void testFlushWithHasher(KeyHasher hasher, int minSegmentUtilization) throws Exception {
         // Generate a set of operations, each containing one or more entries. Each entry is an update or a remove.
         // Towards the beginning we have more updates than removes, then removes will prevail.
         @Cleanup
         val context = new TestContext(hasher);
+        context.setMinUtilization(minSegmentUtilization);
         val batches = generateAndPopulateEntries(context);
         val allKeys = new HashMap<HashedArray, UUID>(); // All keys, whether added or removed.
 
-        int i = 0;
+        TestBatchData lastBatch = null;
         for (val batch : batches) {
             for (val op : batch.operations) {
                 context.processor.add(op);
@@ -244,6 +261,70 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             // Verify correctness.
             batch.expectedEntries.keySet().forEach(k -> allKeys.put(k, context.keyHasher.hash(k)));
             checkIndex(batch.expectedEntries, allKeys, context);
+            lastBatch = batch;
+        }
+
+        if (minSegmentUtilization > 0) {
+            // We expect some compactions to happen. If this is the case, then we want to index all the moved entries
+            // so that we may check compaction worked well.
+            context.setMinUtilization(0); // disable compaction - we want to do a proper verification now.
+            long compactionOffset = context.indexReader.getCompactionOffset(context.metadata);
+            AssertExtensions.assertGreaterThan("Expected at least one compaction.", 0, compactionOffset);
+
+            // We need to simulate adding the compacted/copied entries to the index so that the WriterTableProcessor may
+            // index them. As such, we add a new simulated append so that those entries can be indexed and the segment
+            // truncated.
+            long lIdx = context.indexReader.getLastIndexedOffset(context.metadata);
+            context.processor.add(generateSimulatedAppend(lIdx, (int) (context.metadata.getLength() - lIdx), context));
+            context.processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
+            long truncationOffset = context.metadata.getStartOffset();
+            Assert.assertEquals("Expected Segment's Start Offset to be the same as its COMPACTION_OFFSET.",
+                    compactionOffset, truncationOffset);
+            assert lastBatch != null;
+            checkRelocatedIndex(lastBatch.expectedEntries, allKeys, context);
+        } else {
+            // No compaction was expected, however every test in this suite writes some garbage at the beginning of the
+            // segment and instructs the indexer to begin from there. We want to verify that the initial data is truncated
+            // away due to its irrelevance.
+            Assert.assertEquals("Expected Segment's Start Offset to be the initial COMPACTED_OFFSET if no " +
+                    "compaction took place.", INITIAL_LAST_INDEXED_OFFSET, context.metadata.getStartOffset());
+        }
+    }
+
+    /**
+     * Same outcome as {@link #checkIndex}, but does the verification by actually reading the Table Entries from the
+     * segment. This method is slower than {@link #checkIndex} so it should only be used when needing access to the actual,
+     * serialized Table Entry (such as in compaction testing).
+     */
+    private void checkRelocatedIndex(HashMap<HashedArray, TableEntry> existingEntries, HashMap<HashedArray, UUID> allKeys, TestContext context) throws Exception {
+        // Get all the buckets associated with the given keys.
+        val timer = new TimeoutTimer(TIMEOUT);
+        val bucketsByHash = context.indexReader.locateBuckets(context.segmentMock, allKeys.values(), timer)
+                                               .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        for (val e : allKeys.entrySet()) {
+            val key = e.getKey();
+            val expectedEntry = existingEntries.get(key);
+            val bucket = bucketsByHash.get(e.getValue());
+            Assert.assertNotNull("Test error: no bucket found.", bucket);
+            if (expectedEntry != null) {
+                // This key should exist.
+                val actualEntry = TableBucketReader.entry(context.segmentMock, context.indexReader::getBackpointerOffset, executorService())
+                                                   .find(key, bucket.getSegmentOffset(), timer)
+                                                   .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                Assert.assertEquals("Unexpected entry.", expectedEntry, actualEntry);
+            } else {
+                // This key should not exist.
+                if (bucket.exists()) {
+                    val actualEntry = TableBucketReader.entry(context.segmentMock, context.indexReader::getBackpointerOffset, executorService())
+                                                       .find(key, bucket.getSegmentOffset(), timer)
+                                                       .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    if (actualEntry != null) {
+                        System.out.println(bucket.getHash());
+                    }
+                    Assert.assertNull(actualEntry);
+                }
+            }
         }
     }
 
@@ -368,6 +449,12 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         return append;
     }
 
+    private CachedStreamSegmentAppendOperation generateSimulatedAppend(long offset, int length, TestContext context) {
+        val op = new StreamSegmentAppendOperation(context.metadata.getId(), offset, new byte[length], null);
+        op.setSequenceNumber(context.nextSequenceNumber());
+        return new CachedStreamSegmentAppendOperation(op);
+    }
+
     @RequiredArgsConstructor
     private class TestBatchData {
         final HashMap<HashedArray, TableEntry> expectedEntries;
@@ -414,13 +501,22 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             return this.sequenceNumber.incrementAndGet();
         }
 
+        void setMinUtilization(int value) {
+            Preconditions.checkArgument(value >= 0 && value <= 100);
+            this.segmentMock.updateAttributes(
+                    Collections.singleton(new AttributeUpdate(TableAttributes.MIN_UTILIZATION, AttributeUpdateType.Replace, value)), TIMEOUT).join();
+        }
+
         private void initializeSegment() {
             // Populate table-related attributes.
             this.segmentMock.updateAttributes(TableAttributes.DEFAULT_VALUES);
 
-            // Pre-populate the INDEX_OFFSET.
-            this.segmentMock.updateAttributes(
-                    Collections.singleton(new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET)), TIMEOUT).join();
+            // Pre-populate the INDEX_OFFSET. We write some garbage at the beginning and want to make sure that the indexer
+            // can begin from the appropriate index offset.
+            this.segmentMock.updateAttributes(Arrays.asList(
+                    new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET),
+                    new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET)),
+                    TIMEOUT).join();
             this.segmentMock.append(new byte[(int) INITIAL_LAST_INDEXED_OFFSET], null, TIMEOUT).join();
         }
 
@@ -453,6 +549,11 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                 Assert.assertEquals("Unexpected value for lastIndexedOffset.",
                         indexReader.getLastIndexedOffset(segmentMock.getInfo()), lastIndexedOffset);
                 this.notifyCount.incrementAndGet();
+            }
+
+            @Override
+            public int getMaxCompactionSize() {
+                return MAX_COMPACT_LENGTH;
             }
 
             @Override

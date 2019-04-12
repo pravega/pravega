@@ -43,24 +43,26 @@ public class EntrySerializerTests {
 
         int offset = 0;
         for (val e : entries) {
-            val headerStream = s.readHeader(new ByteArrayInputStream(serialization, offset, serialization.length - offset));
-            val headerArray = s.readHeader(new ByteArraySegment(serialization, offset, serialization.length - offset));
-            Assert.assertEquals("Unexpected key length (stream).", e.getKey().getKey().getLength(), headerStream.getKeyLength());
-            Assert.assertEquals("Unexpected key length (array).", e.getKey().getKey().getLength(), headerArray.getKeyLength());
+            offset += checkEntry(e, serialization, offset, s, false);
+        }
 
-            Assert.assertEquals("Unexpected value length (stream).", e.getValue().getLength(), headerStream.getValueLength());
-            Assert.assertEquals("Unexpected value length (array).", e.getValue().getLength(), headerArray.getValueLength());
-            Assert.assertFalse("Unexpected value from isDeletion().", headerStream.isDeletion() || headerArray.isDeletion());
+        Assert.assertEquals("Did not read the entire serialization.", serialization.length, offset);
+    }
 
-            AssertExtensions.assertArrayEquals("Unexpected serialized key.",
-                    serialization, offset + headerStream.getKeyOffset(),
-                    e.getKey().getKey().array(), e.getKey().getKey().arrayOffset(), headerStream.getKeyLength());
+    /**
+     * Tests the ability to serialize updates with explicit versions.
+     */
+    @Test
+    public void testUpdateWithExplicitVersion() throws Exception {
+        val entries = generateEntries();
+        val s = new EntrySerializer();
+        val length = entries.stream().map(s::getUpdateLength).mapToInt(i -> i).sum();
+        byte[] serialization = new byte[length];
+        s.serializeUpdateWithExplicitVersion(entries, serialization);
 
-            AssertExtensions.assertArrayEquals("Unexpected serialized value.",
-                    serialization, offset + headerStream.getValueOffset(),
-                    e.getValue().array(), e.getValue().arrayOffset(), headerStream.getValueLength());
-
-            offset += headerArray.getTotalLength();
+        int offset = 0;
+        for (val e : entries) {
+            offset += checkEntry(e, serialization, offset, s, true);
         }
 
         Assert.assertEquals("Did not read the entire serialization.", serialization.length, offset);
@@ -120,8 +122,35 @@ public class EntrySerializerTests {
                     byte[] value = new byte[generatedEmpty.get() ? rnd.nextInt(MAX_VALUE_SIZE) : 0];
                     generatedEmpty.set(true);
                     rnd.nextBytes(value);
-                    return TableEntry.unversioned(key.getKey(), new ByteArraySegment(value));
+                    return TableEntry.versioned(key.getKey(), new ByteArraySegment(value), Math.max(0, rnd.nextLong()));
                 })
                 .collect(Collectors.toList());
+    }
+
+    private int checkEntry(TableEntry e, byte[] serialization, int offset, EntrySerializer s, boolean explicitVersion) throws Exception {
+        val headerStream = s.readHeader(new ByteArrayInputStream(serialization, offset, serialization.length - offset));
+        val headerArray = s.readHeader(new ByteArraySegment(serialization, offset, serialization.length - offset));
+        Assert.assertEquals("Mismatch getEntryVersion", headerStream.getEntryVersion(), headerArray.getEntryVersion());
+        if (explicitVersion) {
+            Assert.assertEquals("Unexpected explicit version serialized.", e.getKey().getVersion(), headerStream.getEntryVersion());
+        } else {
+            Assert.assertEquals("Not expecting an explicit version to be serialized.", TableKey.NO_VERSION, headerStream.getEntryVersion());
+        }
+        Assert.assertEquals("Unexpected key length (stream).", e.getKey().getKey().getLength(), headerStream.getKeyLength());
+        Assert.assertEquals("Unexpected key length (array).", e.getKey().getKey().getLength(), headerArray.getKeyLength());
+
+        Assert.assertEquals("Unexpected value length (stream).", e.getValue().getLength(), headerStream.getValueLength());
+        Assert.assertEquals("Unexpected value length (array).", e.getValue().getLength(), headerArray.getValueLength());
+        Assert.assertFalse("Unexpected value from isDeletion().", headerStream.isDeletion() || headerArray.isDeletion());
+
+        AssertExtensions.assertArrayEquals("Unexpected serialized key.",
+                serialization, offset + headerStream.getKeyOffset(),
+                e.getKey().getKey().array(), e.getKey().getKey().arrayOffset(), headerStream.getKeyLength());
+
+        AssertExtensions.assertArrayEquals("Unexpected serialized value.",
+                serialization, offset + headerStream.getValueOffset(),
+                e.getValue().array(), e.getValue().arrayOffset(), headerStream.getValueLength());
+
+        return headerArray.getTotalLength();
     }
 }
