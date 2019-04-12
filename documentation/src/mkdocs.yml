@@ -68,7 +68,8 @@ pages:
       - 'Client Auth Interface': 'auth/client-auth.md'
       - 'Pravega Security Authorization/Authentication': 'security/pravega-security-authorization-authentication.md'
       - 'Pravega Security Configurations': 'security/pravega-security-configurations.md'
-      - 'pravega Security Encryption': 'security/pravega-security-encryption.md'
+      - 'Pravega Security Encryption': 'security/pravega-security-encryption.md'
+      - 'Securing Pravega in Distributed Mode': 'security/securing-distributed-mode-cluster.md'
   - Contributing to Pravega:
       - 'Coding guildelines': 'contributing.md'
       - 'Pravega Roadmap': 'roadmap.md'
