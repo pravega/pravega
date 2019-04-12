@@ -276,7 +276,6 @@ class ZKStream extends PersistentStreamBase {
         return getId().thenCompose(id -> {
             String path = String.format(historyTimeSeriesChunkPathFormat, chunkNumber);
             if (ignoreCached) {
-                store.invalidateCache(path, id);
                 return store.getData(path, HistoryTimeSeries::fromBytes);
             }
             return store.getCachedData(path, id, HistoryTimeSeries::fromBytes);
@@ -313,7 +312,6 @@ class ZKStream extends PersistentStreamBase {
 
             CompletableFuture<VersionedMetadata<Integer>> future;
             if (ignoreCached) {
-                store.invalidateCache(currentEpochRecordPath, id);
                 future = store.getData(currentEpochRecordPath, x -> BitConverter.readInt(x, 0));
             } else {
                 future = store.getCachedData(currentEpochRecordPath, id, x -> BitConverter.readInt(x, 0));
@@ -588,7 +586,6 @@ class ZKStream extends PersistentStreamBase {
     CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationData(boolean ignoreCached) {
         return getId().thenCompose(id -> {
             if (ignoreCached) {
-                store.invalidateCache(truncationPath, id);
                 return store.getData(truncationPath, StreamTruncationRecord::fromBytes);
             }
 
@@ -609,7 +606,6 @@ class ZKStream extends PersistentStreamBase {
     CompletableFuture<VersionedMetadata<StreamConfigurationRecord>> getConfigurationData(boolean ignoreCached) {
         return getId().thenCompose(id -> {
             if (ignoreCached) {
-                store.invalidateCache(configurationPath, id);
                 return store.getData(configurationPath, StreamConfigurationRecord::fromBytes);
             }
 
@@ -630,7 +626,6 @@ class ZKStream extends PersistentStreamBase {
     CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached) {
         return getId().thenCompose(id -> {
             if (ignoreCached) {
-                store.invalidateCache(statePath, id);
                 return store.getData(statePath, StateRecord::fromBytes);
             }
 
