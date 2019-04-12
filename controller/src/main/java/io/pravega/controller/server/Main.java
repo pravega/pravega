@@ -145,10 +145,10 @@ public class Main {
             controllerServiceMain.stopAsync();
             controllerServiceMain.awaitTerminated();
         } finally {
-            if (Config.DUMP_STACK_ON_SHUTDOWN) {
-                Thread.getAllStackTraces().forEach((key, value) ->
-                        log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
-            }
+            //if (Config.DUMP_STACK_ON_SHUTDOWN) {
+            Thread.getAllStackTraces().forEach((key, value) ->
+                    log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
+            //}
         }
     }
 }
