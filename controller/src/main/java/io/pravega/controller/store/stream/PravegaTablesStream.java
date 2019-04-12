@@ -336,9 +336,8 @@ class PravegaTablesStream extends PersistentStreamBase {
                     if (ignoreCached) {
                         storeHelper.invalidateCache(getScope(), metadataTable, key);
                         return storeHelper.getEntry(getScope(), metadataTable, key, HistoryTimeSeries::fromBytes);
-                    } else {
-                        return storeHelper.getCachedData(getScope(), metadataTable, key, HistoryTimeSeries::fromBytes);
                     }
+                    return storeHelper.getCachedData(getScope(), metadataTable, key, HistoryTimeSeries::fromBytes);
                 });
     }
 
@@ -802,9 +801,9 @@ class PravegaTablesStream extends PersistentStreamBase {
                     if (ignoreCached) {
                         storeHelper.invalidateCache(getScope(), metadataTable, TRUNCATION_KEY);
                         return storeHelper.getEntry(getScope(), metadataTable, TRUNCATION_KEY, StreamTruncationRecord::fromBytes);
-                    } else {
-                        return storeHelper.getCachedData(getScope(), metadataTable, TRUNCATION_KEY, StreamTruncationRecord::fromBytes);
                     }
+
+                    return storeHelper.getCachedData(getScope(), metadataTable, TRUNCATION_KEY, StreamTruncationRecord::fromBytes);
                 });
     }
 
@@ -826,9 +825,9 @@ class PravegaTablesStream extends PersistentStreamBase {
                     if (ignoreCached) {
                         storeHelper.invalidateCache(getScope(), metadataTable, CONFIGURATION_KEY);
                         return storeHelper.getEntry(getScope(), metadataTable, CONFIGURATION_KEY, StreamConfigurationRecord::fromBytes);
-                    } else {
-                        return storeHelper.getCachedData(getScope(), metadataTable, CONFIGURATION_KEY, StreamConfigurationRecord::fromBytes);
                     }
+
+                    return storeHelper.getCachedData(getScope(), metadataTable, CONFIGURATION_KEY, StreamConfigurationRecord::fromBytes);
                 });
     }
 
@@ -847,23 +846,17 @@ class PravegaTablesStream extends PersistentStreamBase {
     @Override
     CompletableFuture<VersionedMetadata<StateRecord>> getStateData(boolean ignoreCached) {
         return getMetadataTable()
-                .thenCompose(metadataTable ->
-                        storeHelper.getCachedData(getScope(), metadataTable, STATE_KEY, StateRecord::fromBytes).thenApply(x -> {
-                            log.info("shivesh:: before cache:: state Data = {}, version = {}, metadataTable = {}/{}", x.getObject().getState(), x.getVersion().asLongVersion().getLongValue(), getScope(), metadataTable);
-                            return metadataTable;
-                        }))
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
                         log.info("shivesh:: ignoreCached true: invalidating cache {}/{}", getScope(), metadataTable);
                         storeHelper.invalidateCache(getScope(), metadataTable, STATE_KEY);
                         return storeHelper.getEntry(getScope(), metadataTable, STATE_KEY, StateRecord::fromBytes);
-                    } else {
-                        return storeHelper.getCachedData(getScope(), metadataTable, STATE_KEY, StateRecord::fromBytes)
-                                          .thenApply(x -> {
-                                              log.info("shivesh:: after cache:: state Data = {}, version = {}.. metadatatable = {}/{}", x.getObject().getState(), x.getVersion().asLongVersion().getLongValue(), getScope(), metadataTable);
-                                              return x;
-                                          });
                     }
+                    return storeHelper.getCachedData(getScope(), metadataTable, STATE_KEY, StateRecord::fromBytes)
+                                      .thenApply(x -> {
+                                          log.info("shivesh:: after cache:: state Data = {}, version = {}.. metadatatable = {}/{}", x.getObject().getState(), x.getVersion().asLongVersion().getLongValue(), getScope(), metadataTable);
+                                          return x;
+                                      });
                 });
     }
 

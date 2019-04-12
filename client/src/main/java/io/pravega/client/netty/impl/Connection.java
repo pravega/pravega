@@ -9,7 +9,9 @@
  */
 package io.pravega.client.netty.impl;
 
+import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import lombok.Data;
 
@@ -21,10 +23,16 @@ import lombok.Data;
 public class Connection {
     private final PravegaNodeUri uri;
     private final CompletableFuture<SessionHandler> sessionHandler;
+    
     /**
-     * This represents the number of sessions on a given network connection.
+     * Returns the number of open sessions on this connection, if the connection has been established.       
      */
-    private final int sessionCount;
+    public Optional<Integer> getSessionCount() {
+        if (!Futures.isSuccessful(sessionHandler)) {
+            return Optional.empty();
+        }
+        return Optional.of(sessionHandler.join().getNumOpenSession());
+    }
 }
 
 

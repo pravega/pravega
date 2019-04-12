@@ -611,9 +611,9 @@ class ZKStream extends PersistentStreamBase {
             if (ignoreCached) {
                 store.invalidateCache(configurationPath, id);
                 return store.getData(configurationPath, StreamConfigurationRecord::fromBytes);
-            } else {
-                return store.getCachedData(configurationPath, id, StreamConfigurationRecord::fromBytes);
             }
+
+            return store.getCachedData(configurationPath, id, StreamConfigurationRecord::fromBytes);
         });
     }
 
