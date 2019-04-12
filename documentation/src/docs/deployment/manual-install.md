@@ -155,6 +155,10 @@ After making the configuration changes, the segment store can be run using the f
 ```
 bin/pravega-segmentstore
 ```
-## Running Pravega Controller and Segment Store with security enabled
-Here are the details for configurations for [Pravega Controller](../security/pravega-security-configurations.md#pravega-controller) and [Pravega Segment Store](../security/pravega-security-configurations.md#pravega-segment-store).
-These parameters can be changed to represent required security configurations.
+## Running a Pravega Cluster with Security enabled
+
+Steps for securing a distributed mode cluster can be found [here](../security/securing-distributed-mode-cluster.md).
+
+For detailed information about security configuration parameters for [Controller](../security/pravega-security-configurations.md#pravega-controller))
+and [Segment Store](../security/pravega-security-configurations.md#pravega-segment-store),
+see [this]((../security/pravega-security-configurations.md) document.

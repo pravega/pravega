@@ -17,21 +17,21 @@ import lombok.Data;
 
 /**
  * This class represents a Connection that is established with a Segment Store instance and its
- * attributes. (e.g: SessionCount, WriterCount)
+ * attributes. (e.g: FlowCount, WriterCount)
  */
 @Data
 public class Connection {
     private final PravegaNodeUri uri;
-    private final CompletableFuture<SessionHandler> sessionHandler;
+    private final CompletableFuture<FlowHandler> flowHandler;
     
     /**
-     * Returns the number of open sessions on this connection, if the connection has been established.       
+     * Returns the number of open flows on this connection, if the connection has been established.
      */
-    public Optional<Integer> getSessionCount() {
-        if (!Futures.isSuccessful(sessionHandler)) {
+    public Optional<Integer> getFlowCount() {
+        if (!Futures.isSuccessful(flowHandler)) {
             return Optional.empty();
         }
-        return Optional.of(sessionHandler.join().getNumOpenSession());
+        return Optional.of(flowHandler.join().getOpenFlowCount());
     }
 }
 
