@@ -9,6 +9,17 @@ You may obtain a copy of the License at
 -->
 # Setting Up Security for a Distributed Mode Cluster
 
+   * [Setting up SSL/TLS](#setting-up-ssltls)
+       - [Stage 1: Setting up a Certificate Authority (CA)](#stage-1-setting-up-a-certificate-authority-ca)
+       - [Stage 2: Obtaining Server Certificates and Keys](#stage-2-obtaining-server-certificates-and-keys)
+       - [Stage 3: Deploying Certificates and Enabling TLS in Pravega](#stage-3-deploying-certificates-and-enabling-tls-in-pravega)
+   * [Enabling TLS and Auth in Pravega](#enabling-tls-and-auth-in-pravega)
+       - [Configuring TLS and Auth Parameters for the Services](#configuring-tls-and-auth-parameters-for-the-services)
+       - [Configuring TLS and Credentials on the Client Side](#configuring-tls-and-credentials-on-the-client-side)
+            * [Server Hostname Verification](#server-hostname-verification)
+   * [Having the TLS and Auth parameters Take Effect](#having-the-tls-and-auth-parameters-take-effect)
+   * [Conclusion](#conclusion)
+
 In the [distributed mode](../deployment/deployment.md#pravega-modes) of running a Pravega cluster, each service runs
 separately on one or more processes, usually spread across multiple machines. The deployment options of this mode
 include:
@@ -192,7 +203,7 @@ The steps are:
    * First, convert the server's keystore in `.jks` format into `.p12` format.
 
      ```bash
-     keytool -importkeystore
+     $ keytool -importkeystore
              -srckeystore controller01.jks \
              -destkeystore controller01.p12 \
              -srcstoretype jks -deststoretype pkcs12 \
@@ -203,7 +214,7 @@ The steps are:
    to protect it using operating system's technical controls as well as procedural controls.
 
      ```bash
-     openssl pkcs12 -in controller01.p12 -out controller01.key.pem -passin pass:1111_aaaa -nodes
+     $ openssl pkcs12 -in controller01.p12 -out controller01.key.pem -passin pass:1111_aaaa -nodes
      ```
 
 Step 5 concludes this stage, and the stage is now set for installing the certificates and other PKI material in Pravega.
@@ -218,7 +229,7 @@ service, but you may share the same file for services collocated on the same hos
 | Server keystore in `JKS` format | `controller01.server.jks` file | The keystore file to be used by the service. |
 
 
-### Deploying certificates and enabling TLS in Pravega
+### Stage 3: Deploying Certificates and Enabling TLS in Pravega
 
 We'll discuss this in the [next](#enabling-tls-and-auth-in-pravega) section, together with other security configuration and setup.
 
@@ -266,7 +277,7 @@ Controller services can be configured in three different ways:
    ```
 2. By specifying configuration values via corresponding environment variables. For example,
 
-   ```
+   ```bash
    # TLS_ENABLED environment variable corresponds to Controller configuration parameter
    # "controller.auth.tlsEnabled".
    $ export TLS_ENABLED: "true"
