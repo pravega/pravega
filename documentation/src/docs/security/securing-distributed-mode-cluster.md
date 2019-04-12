@@ -71,7 +71,7 @@ As the steps in this section use either OpenSSL or Java Keytool, install
 OpenSSL and Java Development Kit (JDK) on the hosts that will be used to  generate
 TLS certificates, keys, keystores are truststores.
 
-NOTE:
+**Note:**
 
 * The examples shown in this section use command line arguments to pass all inputs to the command. To pass
 sensitive command arguments via prompts instead, just exclude the corresponding option. For example,
@@ -141,7 +141,7 @@ This stage is about performing the following steps for each service.
 4. Preparing a keystore containing the signed server certificate and the CA's certificate
 5. Exporting the server certificate's private key
 
-NOTE:
+**Note:**
 
 For services running on the same host, the same certificate can be used, if those services are accessed using the same hostname/IP address. Also, wildcard certificates can be used to share certificates across hosts. However, it is strongly recommended that separate certificates be used for each service.
 
