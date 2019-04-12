@@ -62,13 +62,13 @@ NOTE:
 * The examples shown in this section use command line arguments to pass all inputs to the command. To pass
 sensitive command arguments via prompts instead, just exclude the corresponding option. For example,
 
-  ```
-  # Inputs passed as command line arguments
+  ```bash
+  # Inputs are passed as command line arguments.
   $ keytool -keystore server01.keystore.jks -alias server01 -validity <validity> -genkey \
               -storepass <keystore-password> -keypass <key-password> \
               -dname <distinguished-name> -ext SAN=DNS:<hostname>,
 
-  # Passwords and other arguments entered interactively on the prompt
+  # Passwords and other arguments are entered interactively on the prompt in this case.
   $ keytool -keystore server01.keystore.jks -alias server01 -genkey
   ```
 * A weak password `changeit` is used everywhere, for easier reading. Be sure to replace it with a strong and separate
@@ -100,7 +100,7 @@ Later, we'll use the CA certificate/key bundle to sign server certificates used 
    This truststore will be used by external and internal clients. External clients are client applications connected
    to a Pravega cluster. Services running on server nodes play the role of internal clients when accessing other services.
 
-   ```
+   ```bash
    $ keytool -keystore client.truststore.jks -noprompt -alias CARoot -import -file ca-cert \
         -storepass changeit
 
@@ -145,7 +145,7 @@ The steps are:
         -ext san=dns:controller01.pravega.io,ip:...\
         -storepass changeit
 
-   # Optionally, verify the contents of the generated file:
+   # Optionally, verify the contents of the generated file
    $ keytool -list -v -keystore controller01.jks -storepass changeit
    ```
 
@@ -155,9 +155,9 @@ The steps are:
 
    A CSR is typically generated on the same server/node on which the service is planned to be installed. In some other environments, CSRs are generated in a central server and the resulting certificates are distributed to the services that need them.  
 
-   ```
+   ```bash
    $ keytool -keystore controller01.jks -alias controller01 -certreq -file controller01.csr \
-       -storepass changeit
+             -storepass changeit
 
    # Optionally, inspect the contents of the CSR file. The CSR is created in Base-64 encoded `PEM` format.
    $ openssl req -in controller01.csr -noout -text
@@ -169,14 +169,14 @@ The steps are:
    a signed certificate. To use the custom CA generated using the steps mentioned [earlier](#stage-1-setting-up-a-certificate-authority-ca) or an internal CA
    certificate/key bundle, use the following command, to generate a CA-signed server certificate in `PEM` format:
 
-   ```
+   ```bash
    $ openssl x509 -req -CA ca-cert -CAkey ca-key -in controller01.csr -out controller01.pem \
         -days 3650 -CAcreateserial -passin pass:changeit
    ```
 
 4. Prepare a keystore containing the signed server certificate and the CA's certificate.
 
-   ```
+   ```bash
    # Import the CA certificate into a new keystore file.
    $ keytool -keystore controller01.server.jks -alias CARoot -noprompt \
            -import -file ca-cert -storepass changeit
@@ -191,17 +191,18 @@ The steps are:
    This is a two step process.
    * First, convert the server's keystore in `.jks` format into `.p12` format.
 
+     ```bash
+     keytool -importkeystore
+             -srckeystore controller01.jks \
+             -destkeystore controller01.p12 \
+             -srcstoretype jks -deststoretype pkcs12 \
+             -srcstorepass changeit -deststorepass changeit
      ```
-     keytool -importkeystore -srckeystore controller01.jks  \
-                           -destkeystore controller01.p12 \
-                           -srcstoretype jks -deststoretype pkcs12 \
-                           -srcstorepass changeit -deststorepass changeit
-    ```
    * Then, export the private key of the server into a `PEM` file. Note that the generated `PEM` file is not protected
    by a password. The key itself is password-protected, as we are using the `-nodes` flag. So, be sure
    to protect it using operating system's technical controls as well as procedural controls.
 
-     ```
+     ```bash
      openssl pkcs12 -in controller01.p12 -out controller01.key.pem -passin pass:1111_aaaa -nodes
      ```
 
@@ -229,7 +230,7 @@ Enabling TLS and auth in Pravega involves the following steps:
 2. Configuring TLS and credentials on the client Side
 3. Having the TLS and auth parameters take effect
 
-Each of the above tasks are discussed in the following sub-sections.
+These steps are discussed in the following sub-sections.
 
 ### Configuring TLS and Auth Parameters for the Services
 
@@ -315,7 +316,7 @@ The following table lists the Controller's TLS and auth parameters and represent
 
  [1]: This and other `.password` files are text files containing the password for the corresponding store.
 
- [2]: The assumption is that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `controller.zk.*` properties.
+ [2]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `controller.zk.*` properties.
 
  [3]: This configuration property is required when using the default Password Auth Handler only.
 
@@ -337,7 +338,7 @@ Segment store supports configuration via a properties file (`config.properties`)
  | `autoScale.tokenSigningKey` | a-secret-value <sup>1</sup>|
  | `autoScale.validateHostName` | true |
 
-[1]: The assumption is that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `pravegaservice.zk.*` properties.
+[1]: It is assumed here that Zookeeper TLS is disabled. You may enable it and specify the corresponding client-side TLS configuration properties via the `pravegaservice.zk.*` properties.
 
 [2]: The secret value you use here must match the same value used for other Controller and Segment Store services.
 
@@ -350,16 +351,17 @@ For TLS, establish trust for the servers' certificates on the client side using 
 
   1. Supply the client library with the certificate of the trusted CA that has signed the servers' certificates.
 
-  ```
-  ClientConfig clientConfig = ClientConfig.builder()
+     ```
+     ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI("tls://<DNS-NAME-OR-IP>:9090")
                 .trustStore("/etc/secrets/ca-cert")
                 ...
                 .build();
-  ```
+     ```
 
   2. Install the CA's certificate in the Java system key store.
-  3. Create a custom truststore with the CA's certificate and supply it to the Pravega client application via system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
+  3. Create a custom truststore with the CA's certificate and supply it to the Pravega client application,
+   via JVM system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
 
 For auth, client-side configuration depends on the `AuthHandler` implementation used. If your server is configured to
 use the default `PasswordAuthHandler`, you may supply the credentials as shown below.
@@ -370,7 +372,6 @@ use the default `PasswordAuthHandler`, you may supply the credentials as shown b
                 .trustStore("/etc/secrets/ca-cert")
                 .credentials(new DefaultCredentials("changeit", "marketinganaylticsapp"))
                 .build();
-
   ```
 
 #### Server Hostname Verification
@@ -386,7 +387,7 @@ IP addresses and DNS/Host names in the client-side operating system hosts file.
 
 Alternatively, you may disable hostname verification by invoking `validateHostName(false)` of the ClientConfig builder. It is strongly recommended to avoid disabling hostname verification for production clusters.
 
-### Having the TLS and Auth parameters take effect
+### Having the TLS and Auth parameters Take Effect
 
 To ensure TLS and auth parameters take effect, all the services on the server-side need to be restarted.
 Existing client applications will need to be restarted as well, after they are reconfigured for TLS and auth.
