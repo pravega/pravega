@@ -10,15 +10,15 @@ You may obtain a copy of the License at
 # Setting Up Security for a Distributed Mode Cluster
 
    * [Introduction](#introduction)
-   * [Setting up SSL/TLS](#setting-up-ssltls)
-       - [Stage 1: Setting up a Certificate Authority (CA)](#stage-1-setting-up-a-certificate-authority-ca)
+   * [Setting Up SSL/TLS](#setting-up-ssltls)
+       - [Stage 1: Setting Up a Certificate Authority (CA)](#stage-1-setting-up-a-certificate-authority-ca)
        - [Stage 2: Obtaining Server Certificates and Keys](#stage-2-obtaining-server-certificates-and-keys)
        - [Stage 3: Enabling TLS and Deploying Certificates](#stage-3-enabling-tls-and-deploying-certificates)
    * [Enabling TLS and Auth in Pravega](#enabling-tls-and-auth-in-pravega)
-       - [Configuring TLS and Auth Parameters for the Services](#configuring-tls-and-auth-parameters-for-the-services)
-       - [Configuring TLS and Credentials on the Client Side](#configuring-tls-and-credentials-on-the-client-side)
+       - [Configuring TLS and Auth on Server Side](#configuring-tls-and-auth-on-server-side)
+       - [Configuring TLS and Credentials on Client Side](#configuring-tls-and-credentials-on-client-side)
             * [Server Hostname Verification](#server-hostname-verification)
-   * [Having the TLS and Auth parameters Take Effect](#having-the-tls-and-auth-parameters-take-effect)
+       - [Having TLS and Auth Take Effect](#having-tls-and-auth-take-effect)
    * [Conclusion](#conclusion)
 
 ## Introduction
@@ -29,7 +29,7 @@ include:
 
 1. A manual deployment in hardware or virtual machines
 2. Containerized deployments of these types:
-    *   A Kubernetes native application deployed using the Pravega Operator
+    * A Kubernetes native application deployed using the Pravega Operator
     * A Docker Compose application deployment
     * A Docker Swarm based distributed deployment
 
@@ -44,7 +44,7 @@ provides step-by-step instructions on how to enable and configure security manua
 Depending on the deployment option used and your environment, you might need to modify the steps and commands to
 suit your specific needs and policies.
 
-## Setting up SSL/TLS
+## Setting Up SSL/TLS
 
 There are broadly two ways of using TLS for client-server communications:
 
@@ -88,7 +88,7 @@ sensitive command arguments via prompts instead, just exclude the corresponding 
 * A weak password `changeit` is used everywhere, for easier reading. Be sure to replace it with a strong and separate
 password for each file.
 
-### Stage 1: Setting up a Certificate Authority (CA)
+### Stage 1: Setting Up a Certificate Authority (CA)
 
 If you are going to use an existing public or internal CA service or certificate and key bundle, you may skip this part altogether, and go to [Obtaining Server Certificates and keys](#stage-2-obtaining-server-certificates-and-keys).
 
@@ -240,13 +240,13 @@ We'll discuss this in the [next](#enabling-tls-and-auth-in-pravega) section, tog
 
 Enabling TLS and auth in Pravega involves the following steps:
 
-1. Configuring TLS and auth Parameters for the services
-2. Configuring TLS and credentials on the client Side
-3. Having the TLS and auth parameters take effect
+1. Configuring TLS and auth on server side
+2. Configuring TLS and credentials on client Side
+3. Having TLS and auth take effect
 
 These steps are discussed in the following sub-sections.
 
-### Configuring TLS and Auth Parameters for the Services
+### Configuring TLS and Auth on Server Side
 
 This step is about using the certificates, keys, keystores and truststores generated earlier to configure
 TLS and Auth for the services on the server side.
@@ -356,7 +356,7 @@ Segment store supports configuration via a properties file (`config.properties`)
 
 [2]: The secret value you use here must match the same value used for other Controller and Segment Store services.
 
-### Configuring TLS and Credentials on the Client Side
+### Configuring TLS and Credentials on Client Side
 
 After enabling and configuring TLS and auth on the server-side services, its time to update the clients,
 so that the they can establish TLS connections with the servers and are allowed access.
@@ -401,7 +401,7 @@ IP addresses and DNS/Host names in the client-side operating system hosts file.
 
 Alternatively, you may disable hostname verification by invoking `validateHostName(false)` of the ClientConfig builder. It is strongly recommended to avoid disabling hostname verification for production clusters.
 
-### Having the TLS and Auth parameters Take Effect
+### Having TLS and Auth Take Effect
 
 To ensure TLS and auth parameters take effect, all the services on the server-side need to be restarted.
 Existing client applications will need to be restarted as well, after they are reconfigured for TLS and auth.
