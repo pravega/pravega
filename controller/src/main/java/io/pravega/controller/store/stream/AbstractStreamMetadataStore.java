@@ -455,9 +455,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         CompletableFuture<Void> future = withCompletion(getStream(scope, name, context).scaleOldSegmentsSealed(sealedSegmentSizes, record), executor);
 
         future.thenCompose(result -> CompletableFuture.allOf(
-                getActiveSegments(scope, name, null, executor).thenAccept(list ->
+                getActiveSegments(scope, name, context, executor).thenAccept(list ->
                         StreamMetrics.reportActiveSegments(scope, name, list.size())),
-                findNumSplitsMerges(scope, name, executor).thenAccept(simpleEntry ->
+                findNumSplitsMerges(scope, name, context, executor).thenAccept(simpleEntry ->
                         StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue()))
         ));
 
@@ -806,8 +806,8 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         return result;
     }
 
-    private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, Executor executor) {
-        return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, null, executor).thenApply(scaleMetadataList -> {
+    private CompletableFuture<SimpleEntry<Long, Long>> findNumSplitsMerges(String scopeName, String streamName, OperationContext context, Executor executor) {
+        return getScaleMetadata(scopeName, streamName, 0, Long.MAX_VALUE, context, executor).thenApply(scaleMetadataList -> {
             AtomicLong totalNumSplits = new AtomicLong(0L);
             AtomicLong totalNumMerges = new AtomicLong(0L);
             scaleMetadataList.forEach(x -> {

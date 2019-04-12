@@ -9,6 +9,9 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -16,12 +19,17 @@ import com.google.common.collect.Lists;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
@@ -249,4 +257,42 @@ public class RecordHelperTest {
         long generalized = RecordHelper.generalizedSegmentId(StreamSegmentNameUtils.computeSegmentId(100, 200), txnId);
         assertEquals(StreamSegmentNameUtils.computeSegmentId(100, 100), generalized);
     }
+
+    @Test
+    public void shiveshTest() {
+        LinkedBlockingQueue<CompletableFuture<Void>> waits = new LinkedBlockingQueue<>();
+        LinkedBlockingQueue<CompletableFuture<Void>> signals = new LinkedBlockingQueue<>();
+        CompletableFuture<Void> signal1 = new CompletableFuture<>();
+        CompletableFuture<Void> wait1 = new CompletableFuture<>();
+        waits.offer(wait1);
+        signals.offer(signal1);
+        AtomicInteger count = new AtomicInteger();
+        LoadingCache<String, CompletableFuture<String>> cache =
+                CacheBuilder.newBuilder()
+                            .maximumSize(10)
+                            .expireAfterAccess(2, TimeUnit.MINUTES)
+                            .build(new CacheLoader<String, CompletableFuture<String>>() {
+                                @ParametersAreNonnullByDefault
+                                @Override
+                                public CompletableFuture<String> load(final String key) {
+                                    System.err.println("shivesh:: loading called");
+                                    try {
+                                        signals.poll().complete(null);
+                                        waits.poll().join();
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                    }
+                                    return CompletableFuture.completedFuture(Integer.toString(count.incrementAndGet()));
+                                }
+                            });
+        CompletableFuture.runAsync(() -> cache.getUnchecked("my1"));
+
+        signal1.join();
+        cache.invalidate("my1");
+        wait1.complete(null);
+
+        CompletableFuture<String> future = cache.getUnchecked("my1");
+        System.err.println("value found = " + future.join());
+    }
+
 }

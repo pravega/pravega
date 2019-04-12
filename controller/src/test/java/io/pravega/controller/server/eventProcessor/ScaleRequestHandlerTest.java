@@ -293,7 +293,7 @@ public abstract class ScaleRequestHandlerTest {
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
-        State state = streamStore.getState(scope, stream, false, null, executor).join();
+        State state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
         EpochRecord epochOne = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
@@ -370,7 +370,7 @@ public abstract class ScaleRequestHandlerTest {
                 false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
-        State state = streamStore.getState(scope, stream, false, null, executor).join();
+        State state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
@@ -387,7 +387,7 @@ public abstract class ScaleRequestHandlerTest {
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
                 false, System.currentTimeMillis(), System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
-        state = streamStore.getState(scope, stream, false, null, executor).join();
+        state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
     }
 
@@ -428,7 +428,7 @@ public abstract class ScaleRequestHandlerTest {
                 false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
-        State state = streamStore.getState(scope, stream, false, null, executor).join();
+        State state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
@@ -445,7 +445,7 @@ public abstract class ScaleRequestHandlerTest {
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
                 true, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
-        state = streamStore.getState(scope, stream, false, null, executor).join();
+        state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
         EpochRecord epoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(4, epoch.getEpoch());

@@ -9,6 +9,9 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -24,6 +27,7 @@ import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.junit.Test;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -31,6 +35,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
