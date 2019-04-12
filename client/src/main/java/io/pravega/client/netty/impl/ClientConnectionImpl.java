@@ -30,17 +30,17 @@ public class ClientConnectionImpl implements ClientConnection {
     @Getter
     private final String connectionName;
     @Getter
-    private final int session;
+    private final int flowId;
     @VisibleForTesting
     @Getter
-    private final SessionHandler nettyHandler;
+    private final FlowHandler nettyHandler;
     private final AppendBatchSizeTracker batchSizeTracker;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public ClientConnectionImpl(String connectionName,  int session, AppendBatchSizeTracker batchSizeTracker,
-                                SessionHandler nettyHandler) {
+    public ClientConnectionImpl(String connectionName, int flowId, AppendBatchSizeTracker batchSizeTracker,
+                                FlowHandler nettyHandler) {
         this.connectionName = connectionName;
-        this.session = session;
+        this.flowId = flowId;
         this.batchSizeTracker = batchSizeTracker;
         this.nettyHandler = nettyHandler;
     }
@@ -110,14 +110,14 @@ public class ClientConnectionImpl implements ClientConnection {
     @Override
     public void close() {
         if (!closed.getAndSet(true)) {
-            nettyHandler.closeSession(this);
+            nettyHandler.closeFlow(this);
         }
     }
 
     private void checkClientConnectionClosed() throws ConnectionFailedException {
         if (closed.get()) {
-            log.error("ClientConnection to {} with session id {} is already closed", connectionName, session);
-            throw new ConnectionFailedException("Client connection already closed for session " + session);
+            log.error("ClientConnection to {} with flow id {} is already closed", connectionName, flowId);
+            throw new ConnectionFailedException("Client connection already closed for flow " + flowId);
         }
     }
 

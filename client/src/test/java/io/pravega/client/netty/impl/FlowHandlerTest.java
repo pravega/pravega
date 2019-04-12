@@ -58,7 +58,7 @@ public class FlowHandlerTest {
     public Timeout globalTimeout = Timeout.seconds(15);
 
     private Flow flow;
-    private SessionHandler sessionHandler;
+    private FlowHandler flowHandler;
     private ClientConnection clientConnection;
     @Mock
     private ReplyProcessor processor;
@@ -93,15 +93,15 @@ public class FlowHandlerTest {
         when(ch.eventLoop()).thenReturn(loop);
         when(ch.writeAndFlush(any(Object.class))).thenReturn(completedFuture);
 
-        sessionHandler = new SessionHandler("testConnection", tracker);
-        clientConnection = sessionHandler.createSession(flow, processor);
+        flowHandler = new FlowHandler("testConnection", tracker);
+        clientConnection = flowHandler.createFlow(flow, processor);
     }
 
     @Test
     public void sendNormal() throws Exception {
         // channelRegistered is invoked before send is invoked.
         // No exceptions are expected here.
-        sessionHandler.channelRegistered(ctx);
+        flowHandler.channelRegistered(ctx);
         clientConnection.send(appendCmd);
     }
 
@@ -115,36 +115,36 @@ public class FlowHandlerTest {
     @Test(expected = ConnectionFailedException.class)
     public void sendErrorUnRegistered() throws Exception {
         //any send after channelUnregistered should throw a ConnectionFailedException.
-        sessionHandler.channelRegistered(ctx);
-        sessionHandler.channelUnregistered(ctx);
+        flowHandler.channelRegistered(ctx);
+        flowHandler.channelUnregistered(ctx);
         clientConnection.send(appendCmd);
     }
 
     @Test
     public void completeWhenRegisteredNormal() throws Exception {
-        sessionHandler.channelRegistered(ctx);
+        flowHandler.channelRegistered(ctx);
         CompletableFuture<Void> testFuture = new CompletableFuture<>();
-        sessionHandler.completeWhenRegistered(testFuture);
+        flowHandler.completeWhenRegistered(testFuture);
         Assert.assertTrue(Futures.isSuccessful(testFuture));
     }
 
     @Test
     public void completeWhenRegisteredDelayed() throws Exception {
         CompletableFuture<Void> testFuture = new CompletableFuture<>();
-        sessionHandler.completeWhenRegistered(testFuture);
-        sessionHandler.channelRegistered(ctx);
+        flowHandler.completeWhenRegistered(testFuture);
+        flowHandler.channelRegistered(ctx);
         Assert.assertTrue(Futures.isSuccessful(testFuture));
     }
 
     @Test
     public void completeWhenRegisteredDelayedMultiple() throws Exception {
         CompletableFuture<Void> testFuture = new CompletableFuture<>();
-        sessionHandler.completeWhenRegistered(testFuture);
+        flowHandler.completeWhenRegistered(testFuture);
 
         CompletableFuture<Void> testFuture1 = new CompletableFuture<>();
-        sessionHandler.completeWhenRegistered(testFuture1);
+        flowHandler.completeWhenRegistered(testFuture1);
 
-        sessionHandler.channelRegistered(ctx);
+        flowHandler.channelRegistered(ctx);
 
         Assert.assertTrue(Futures.isSuccessful(testFuture));
         testFuture1.get(); //wait until additional future is complete.
@@ -154,49 +154,49 @@ public class FlowHandlerTest {
     @Test(expected = IllegalArgumentException.class)
     public void createDuplicateSession() throws Exception {
         Flow flow = new Flow(11, 0);
-        ClientConnection connection1 = sessionHandler.createSession(flow, processor);
-        sessionHandler.channelRegistered(ctx);
+        ClientConnection connection1 = flowHandler.createFlow(flow, processor);
+        flowHandler.channelRegistered(ctx);
         connection1.send(appendCmd);
         // Creating a flow with the same flow id.
-        sessionHandler.createSession(flow, processor);
+        flowHandler.createFlow(flow, processor);
     }
 
     @Test
     public void testCloseSession() throws Exception {
-        sessionHandler.channelRegistered(ctx);
+        flowHandler.channelRegistered(ctx);
         clientConnection.send(appendCmd);
-        sessionHandler.closeSession(clientConnection);
-        assertEquals(0, sessionHandler.getSessionIdReplyProcessorMap().size());
+        flowHandler.closeFlow(clientConnection);
+        assertEquals(0, flowHandler.getFlowIdReplyProcessorMap().size());
     }
 
     @Test
     public void testCloseSessionHandler() throws Exception {
-        sessionHandler.channelRegistered(ctx);
+        flowHandler.channelRegistered(ctx);
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, e -> fail("Exception while invoking sendAsync"));
-        sessionHandler.close();
+        flowHandler.close();
         // verify that the Channel.close is invoked.
         Mockito.verify(ch, times(1)).close();
-        assertThrows(ObjectClosedException.class, () -> sessionHandler.createSession(flow, processor));
-        assertThrows(ObjectClosedException.class, () -> sessionHandler.createConnectionWithSessionDisabled(processor));
+        assertThrows(ObjectClosedException.class, () -> flowHandler.createFlow(flow, processor));
+        assertThrows(ObjectClosedException.class, () -> flowHandler.createConnectionWithFlowDisabled(processor));
     }
 
     @Test
     public void testCreateConnectionWithSessionDisabled() throws Exception {
-        sessionHandler = new SessionHandler("testConnection1", tracker);
-        sessionHandler.channelRegistered(ctx);
-        ClientConnection connection = sessionHandler.createConnectionWithSessionDisabled(processor);
+        flowHandler = new FlowHandler("testConnection1", tracker);
+        flowHandler.channelRegistered(ctx);
+        ClientConnection connection = flowHandler.createConnectionWithFlowDisabled(processor);
         connection.send(appendCmd);
-        assertThrows(IllegalStateException.class, () -> sessionHandler.createSession(flow, processor));
+        assertThrows(IllegalStateException.class, () -> flowHandler.createFlow(flow, processor));
     }
 
     @Test
     public void testChannelUnregistered() throws Exception {
-        sessionHandler.channelRegistered(ctx);
+        flowHandler.channelRegistered(ctx);
         clientConnection.send(appendCmd);
         //simulate a connection dropped
-        sessionHandler.channelUnregistered(ctx);
-        assertFalse(sessionHandler.isConnectionEstablished());
+        flowHandler.channelUnregistered(ctx);
+        assertFalse(flowHandler.isConnectionEstablished());
         assertThrows(ConnectionFailedException.class, () -> clientConnection.send(appendCmd));
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, Assert::assertNotNull);
@@ -207,8 +207,8 @@ public class FlowHandlerTest {
     public void testChannelReadWithHello() throws Exception {
         WireCommands.Hello helloCmd = new WireCommands.Hello(8, 4);
         InOrder order = inOrder(processor);
-        sessionHandler.channelRegistered(ctx);
-        sessionHandler.channelRead(ctx, helloCmd);
+        flowHandler.channelRegistered(ctx);
+        flowHandler.channelRead(ctx, helloCmd);
         order.verify(processor, times(1)).hello(helloCmd);
 
     }
@@ -217,8 +217,8 @@ public class FlowHandlerTest {
     public void testChannelReadDataAppended() throws Exception {
         WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1);
         InOrder order = inOrder(processor);
-        sessionHandler.channelRegistered(ctx);
-        sessionHandler.channelRead(ctx, dataAppendedCmd);
+        flowHandler.channelRegistered(ctx);
+        flowHandler.channelRead(ctx, dataAppendedCmd);
         order.verify(processor, times(1)).process(dataAppendedCmd);
     }
 }

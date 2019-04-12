@@ -70,10 +70,10 @@ public class ConnectionPoolingTest {
     private final long offset = 1234L;
     private final int length = 1024;
     private final String data = "data";
-    private Function<Long, WireCommands.ReadSegment> readRequestGenerator = session ->
-            new WireCommands.ReadSegment(seg, offset, length, "", session);
-    private Function<Long, WireCommands.SegmentRead> readResponseGenerator = session ->
-            new WireCommands.SegmentRead(seg, offset, true, false, ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8)), session);
+    private Function<Long, WireCommands.ReadSegment> readRequestGenerator = id ->
+            new WireCommands.ReadSegment(seg, offset, length, "", id);
+    private Function<Long, WireCommands.SegmentRead> readResponseGenerator = id ->
+            new WireCommands.SegmentRead(seg, offset, true, false, ByteBuffer.wrap(data.getBytes(StandardCharsets.UTF_8)), id);
 
     private class EchoServerHandler extends ChannelInboundHandlerAdapter {
 
