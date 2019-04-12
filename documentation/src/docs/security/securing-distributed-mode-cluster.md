@@ -9,16 +9,19 @@ You may obtain a copy of the License at
 -->
 # Setting Up Security for a Distributed Mode Cluster
 
+   * [Introduction](#introduction)
    * [Setting up SSL/TLS](#setting-up-ssltls)
        - [Stage 1: Setting up a Certificate Authority (CA)](#stage-1-setting-up-a-certificate-authority-ca)
        - [Stage 2: Obtaining Server Certificates and Keys](#stage-2-obtaining-server-certificates-and-keys)
-       - [Stage 3: Deploying Certificates and Enabling TLS in Pravega](#stage-3-deploying-certificates-and-enabling-tls-in-pravega)
+       - [Stage 3: Enabling TLS and Deploying Certificates](#stage-3-enabling-tls-and-deploying-certificates)
    * [Enabling TLS and Auth in Pravega](#enabling-tls-and-auth-in-pravega)
        - [Configuring TLS and Auth Parameters for the Services](#configuring-tls-and-auth-parameters-for-the-services)
        - [Configuring TLS and Credentials on the Client Side](#configuring-tls-and-credentials-on-the-client-side)
             * [Server Hostname Verification](#server-hostname-verification)
    * [Having the TLS and Auth parameters Take Effect](#having-the-tls-and-auth-parameters-take-effect)
    * [Conclusion](#conclusion)
+
+## Introduction
 
 In the [distributed mode](../deployment/deployment.md#pravega-modes) of running a Pravega cluster, each service runs
 separately on one or more processes, usually spread across multiple machines. The deployment options of this mode
@@ -58,7 +61,7 @@ At a high level, setting up TLS can be divided into three distinct stages:
 
 1. Setting up a Certificate Authority (CA)
 2. Obtaining server certificates and keys
-3. Deploying certificates and enabling TLS in Pravega
+3. Enabling TLS and Deploying certificates
 
 They are described in detail in the following sub-sections.
 
@@ -229,7 +232,7 @@ service, but you may share the same file for services collocated on the same hos
 | Server keystore in `JKS` format | `controller01.server.jks` file | The keystore file to be used by the service. |
 
 
-### Stage 3: Deploying Certificates and Enabling TLS in Pravega
+### Stage 3: Enabling TLS and Deploying Certificates
 
 We'll discuss this in the [next](#enabling-tls-and-auth-in-pravega) section, together with other security configuration and setup.
 
