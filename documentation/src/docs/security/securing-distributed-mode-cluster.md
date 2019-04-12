@@ -231,7 +231,7 @@ Enabling TLS and auth in Pravega involves the following steps:
 
 Each of the above tasks are discussed in the following sub-sections.
 
-### Configuring TLS and Auth Parameters for for the Services
+### Configuring TLS and Auth Parameters for the Services
 
 This step is about using the certificates, keys, keystores and truststores generated earlier to configure
 TLS and Auth for the services on the server side.
