@@ -271,7 +271,7 @@ public class ControllerMetricsTest {
      *
      * @throws InterruptedException
      */
-    @Test(timeout = 150000)
+    @Test(timeout = 20000)
     public void mergesSplitsAndSegmentCountMetricsTest() throws Exception {
         final String scope = "mergesSplitsAndSegmentCountMetricsTestScope";
         final String streamName = "mergesSplitsAndSegmentCountMetricsTestStream";
