@@ -14,7 +14,6 @@ import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.Unpooled;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -89,14 +88,6 @@ public class WireCommandsTest {
             out.writeLong(eventNumber);
             out.writeLong(expectedOffset);
             event.writeFields(out);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            UUID writerId = new UUID(in.readLong(), in.readLong());
-            long eventNumber = in.readLong();
-            long expectedOffset = in.readLong();
-            Event event = Event.readFrom(in, length - Long.BYTES * 4);
-            return new ConditionalAppendV7(writerId, eventNumber, expectedOffset, event);
         }
 
         @Override
