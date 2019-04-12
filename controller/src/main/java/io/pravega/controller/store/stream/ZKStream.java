@@ -277,6 +277,7 @@ class ZKStream extends PersistentStreamBase {
             String path = String.format(historyTimeSeriesChunkPathFormat, chunkNumber);
             if (ignoreCached) {
                 store.invalidateCache(path, id);
+                return store.getData(path, HistoryTimeSeries::fromBytes);
             }
             return store.getCachedData(path, id, HistoryTimeSeries::fromBytes);
         });
@@ -309,12 +310,16 @@ class ZKStream extends PersistentStreamBase {
     @Override
     CompletableFuture<VersionedMetadata<EpochRecord>> getCurrentEpochRecordData(boolean ignoreCached) {
         return getId().thenCompose(id -> {
+
+            CompletableFuture<VersionedMetadata<Integer>> future;
             if (ignoreCached) {
                 store.invalidateCache(currentEpochRecordPath, id);
+                future = store.getData(currentEpochRecordPath, x -> BitConverter.readInt(x, 0));
+            } else {
+                future = store.getCachedData(currentEpochRecordPath, id, x -> BitConverter.readInt(x, 0));
             }
-            return store.getCachedData(currentEpochRecordPath, id, x -> BitConverter.readInt(x, 0))
-                    .thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
-                            .thenApply(epochRecord -> new VersionedMetadata<>(epochRecord, versionedEpochNumber.getVersion())));
+            return future.thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
+                    .thenApply(epochRecord -> new VersionedMetadata<>(epochRecord, versionedEpochNumber.getVersion())));
         });
     }
 
@@ -584,6 +589,7 @@ class ZKStream extends PersistentStreamBase {
         return getId().thenCompose(id -> {
             if (ignoreCached) {
                 store.invalidateCache(truncationPath, id);
+                return store.getData(truncationPath, StreamTruncationRecord::fromBytes);
             }
 
             return store.getCachedData(truncationPath, id, StreamTruncationRecord::fromBytes);
@@ -604,6 +610,7 @@ class ZKStream extends PersistentStreamBase {
         return getId().thenCompose(id -> {
             if (ignoreCached) {
                 store.invalidateCache(configurationPath, id);
+                return store.getData(configurationPath, StreamConfigurationRecord::fromBytes);
             }
 
             return store.getCachedData(configurationPath, id, StreamConfigurationRecord::fromBytes);
@@ -624,6 +631,7 @@ class ZKStream extends PersistentStreamBase {
         return getId().thenCompose(id -> {
             if (ignoreCached) {
                 store.invalidateCache(statePath, id);
+                return store.getData(statePath, StateRecord::fromBytes);
             }
 
             return store.getCachedData(statePath, id, StateRecord::fromBytes);
