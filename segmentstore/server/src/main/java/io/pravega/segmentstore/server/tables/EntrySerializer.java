@@ -36,9 +36,13 @@ import lombok.val;
  * requires us to read the whole thing before retrieving anything.
  */
 class EntrySerializer {
-    static final int HEADER_LENGTH = 1 + Integer.BYTES * 2; // Version, Key Length, Value Length.
+    static final int HEADER_LENGTH = 1 + Integer.BYTES * 2 + Long.BYTES; // Serialization Version, Key Length, Value Length, Entry Version.
     static final int MAX_KEY_LENGTH = 8 * 1024; // 8KB
     static final int MAX_SERIALIZATION_LENGTH = 1024 * 1024; // 1MB
+    private static final int VERSION_POSITION = 0;
+    private static final int KEY_POSITION = VERSION_POSITION + 1;
+    private static final int VALUE_POSITION = KEY_POSITION + Integer.BYTES;
+    private static final int ENTRY_VERSION_POSITION = VALUE_POSITION + Integer.BYTES;
     private static final byte CURRENT_SERIALIZATION_VERSION = 0;
     private static final int NO_VALUE = -1;
 
@@ -55,7 +59,8 @@ class EntrySerializer {
     }
 
     /**
-     * Serializes the given {@link TableEntry} collection into the given byte array.
+     * Serializes the given {@link TableEntry} collection into the given byte array, without explicitly recording the
+     * versions for each entry.
      *
      * @param entries A Collection of {@link TableEntry} to serialize.
      * @param target  The byte array to serialize into.
@@ -63,7 +68,7 @@ class EntrySerializer {
     void serializeUpdate(@NonNull Collection<TableEntry> entries, byte[] target) {
         int offset = 0;
         for (TableEntry e : entries) {
-            offset = serializeUpdate(e, target, offset);
+            offset = serializeUpdate(e, target, offset, TableKey.NO_VERSION);
         }
     }
 
@@ -73,9 +78,10 @@ class EntrySerializer {
      * @param entry        The {@link TableEntry} to serialize.
      * @param target       The byte array to serialize to.
      * @param targetOffset The first offset within the byte array to serialize at.
+     * @param version      The version to serialize. This will be encoded in the {@link Header}.
      * @return The first offset in the given byte array after the serialization.
      */
-    private int serializeUpdate(@NonNull TableEntry entry, byte[] target, int targetOffset) {
+    private int serializeUpdate(@NonNull TableEntry entry, byte[] target, int targetOffset, long version) {
         val key = entry.getKey().getKey();
         val value = entry.getValue();
         Preconditions.checkArgument(key.getLength() <= MAX_KEY_LENGTH, "Key too large.");
@@ -84,10 +90,7 @@ class EntrySerializer {
         Preconditions.checkElementIndex(targetOffset + serializationLength - 1, target.length, "serialization does not fit in target buffer");
 
         // Serialize Header.
-        target[targetOffset] = CURRENT_SERIALIZATION_VERSION;
-        targetOffset++;
-        targetOffset += BitConverter.writeInt(target, targetOffset, key.getLength());
-        targetOffset += BitConverter.writeInt(target, targetOffset, value.getLength());
+        targetOffset = writeHeader(target, targetOffset, key.getLength(), value.getLength(), version);
 
         // Key
         System.arraycopy(key.array(), key.arrayOffset(), target, targetOffset, key.getLength());
@@ -98,6 +101,21 @@ class EntrySerializer {
         targetOffset += value.getLength();
 
         return targetOffset;
+    }
+
+    /**
+     * Serializes the given {@link TableEntry} collection into the given byte array, explicitly recording the versions
+     * for each entry ({@link TableKey#getVersion()}). This should be used for {@link TableEntry} instances that were
+     * previously read from the Table Segment as only in that case does the version accurately reflect the entry's version.
+     *
+     * @param entries A Collection of {@link TableEntry} to serialize.
+     * @param target  The byte array to serialize into.
+     */
+    void serializeUpdateWithExplicitVersion(@NonNull Collection<TableEntry> entries, byte[] target) {
+        int offset = 0;
+        for (TableEntry e : entries) {
+            offset = serializeUpdate(e, target, offset, e.getKey().getVersion());
+        }
     }
 
     //endregion
@@ -141,11 +159,8 @@ class EntrySerializer {
         int serializationLength = getRemovalLength(tableKey);
         Preconditions.checkElementIndex(targetOffset + serializationLength - 1, target.length, "serialization does not fit in target buffer");
 
-        // Serialize Header.
-        target[targetOffset] = CURRENT_SERIALIZATION_VERSION;
-        targetOffset++;
-        targetOffset += BitConverter.writeInt(target, targetOffset, key.getLength());
-        targetOffset += BitConverter.writeInt(target, targetOffset, NO_VALUE);
+        // Serialize Header. Not caring about explicit versions since we do not reinsert removals upon compaction.
+        targetOffset = writeHeader(target, targetOffset, key.getLength(), NO_VALUE, TableKey.NO_VERSION);
 
         // Key
         System.arraycopy(key.array(), key.arrayOffset(), target, targetOffset, key.getLength());
@@ -164,11 +179,12 @@ class EntrySerializer {
      * @throws SerializationException If an invalid header was detected.
      */
     Header readHeader(@NonNull ArrayView input) throws SerializationException {
-        byte version = input.get(0);
-        int keyLength = BitConverter.readInt(input, 1);
-        int valueLength = BitConverter.readInt(input, 1 + Integer.BYTES);
+        byte version = input.get(VERSION_POSITION);
+        int keyLength = BitConverter.readInt(input, KEY_POSITION);
+        int valueLength = BitConverter.readInt(input, VALUE_POSITION);
+        long entryVersion = BitConverter.readLong(input, ENTRY_VERSION_POSITION);
         validateHeader(keyLength, valueLength);
-        return new Header(version, keyLength, valueLength);
+        return new Header(version, keyLength, valueLength, entryVersion);
     }
 
     /**
@@ -182,8 +198,18 @@ class EntrySerializer {
         byte version = (byte) input.read();
         int keyLength = BitConverter.readInt(input);
         int valueLength = BitConverter.readInt(input);
+        long entryVersion = BitConverter.readLong(input);
         validateHeader(keyLength, valueLength);
-        return new Header(version, keyLength, valueLength);
+        return new Header(version, keyLength, valueLength, entryVersion);
+    }
+
+    private int writeHeader(byte[] target, int targetOffset, int keyLength, int valueLength, long entryVersion) {
+        target[targetOffset] = CURRENT_SERIALIZATION_VERSION;
+        targetOffset++;
+        targetOffset += BitConverter.writeInt(target, targetOffset, keyLength);
+        targetOffset += BitConverter.writeInt(target, targetOffset, valueLength);
+        targetOffset += BitConverter.writeLong(target, targetOffset, entryVersion);
+        return targetOffset;
     }
 
     private void validateHeader(int keyLength, int valueLength) throws SerializationException {
@@ -195,12 +221,15 @@ class EntrySerializer {
     /**
      * Defines a serialized Entry's Header.
      */
-    @Getter
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     static class Header {
-        private final byte version;
+        private final byte serializationVersion;
+        @Getter
         private final int keyLength;
+        @Getter
         private final int valueLength;
+        @Getter
+        private final long entryVersion;
 
         int getKeyOffset() {
             return HEADER_LENGTH;
@@ -221,7 +250,7 @@ class EntrySerializer {
 
         @Override
         public String toString() {
-            return String.format("Length: Key=%s, Value=%s, Total=%s", this.keyLength, this.valueLength, getTotalLength());
+            return String.format("Length: {K=%s, V=%s}, EntryVersion: %s", this.keyLength, this.valueLength, this.entryVersion);
         }
     }
 

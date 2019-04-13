@@ -333,7 +333,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getMetadataTable()
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
-                        storeHelper.invalidateCache(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, key);
+                        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, key, HistoryTimeSeries::fromBytes);
                     }
                     return storeHelper.getCachedData(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, key, HistoryTimeSeries::fromBytes);
                 });
@@ -383,11 +383,13 @@ class PravegaTablesStream extends PersistentStreamBase {
     CompletableFuture<VersionedMetadata<EpochRecord>> getCurrentEpochRecordData(boolean ignoreCached) {
         return getMetadataTable()
                 .thenCompose(metadataTable -> {
+                    CompletableFuture<VersionedMetadata<Integer>> future;
                     if (ignoreCached) {
-                        storeHelper.invalidateCache(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, CURRENT_EPOCH_KEY);
+                        future = storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, CURRENT_EPOCH_KEY, x -> BitConverter.readInt(x, 0));
+                    } else {
+                        future = storeHelper.getCachedData(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, CURRENT_EPOCH_KEY, x -> BitConverter.readInt(x, 0));
                     }
-                    return storeHelper.getCachedData(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, CURRENT_EPOCH_KEY, x -> BitConverter.readInt(x, 0))
-                                      .thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
+                    return future.thenCompose(versionedEpochNumber -> getEpochRecord(versionedEpochNumber.getObject())
                                               .thenApply(epochRecord -> new VersionedMetadata<>(epochRecord, versionedEpochNumber.getVersion())));
                 });
     }
@@ -756,7 +758,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                                   String key = String.format(COMPLETED_TRANSACTIONS_KEY_FORMAT, getScope(), getName(), txId.toString());
 
                                   return storeHelper.expectingDataNotFound(
-                                          storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, table, key, CompletedTxnRecord::fromBytes), null);
+                                          storeHelper.getCachedData(NameUtils.INTERNAL_SCOPE_NAME, table, key, CompletedTxnRecord::fromBytes), null);
                               }).collect(Collectors.toList()));
                           })
                           .thenCompose(result -> {
@@ -792,7 +794,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getMetadataTable()
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
-                        storeHelper.invalidateCache(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, TRUNCATION_KEY);
+                        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, TRUNCATION_KEY, StreamTruncationRecord::fromBytes);
                     }
 
                     return storeHelper.getCachedData(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, TRUNCATION_KEY, StreamTruncationRecord::fromBytes);
@@ -815,7 +817,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getMetadataTable()
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
-                        storeHelper.invalidateCache(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, CONFIGURATION_KEY);
+                        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, CONFIGURATION_KEY, StreamConfigurationRecord::fromBytes);
                     }
 
                     return storeHelper.getCachedData(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, CONFIGURATION_KEY, StreamConfigurationRecord::fromBytes);
@@ -838,7 +840,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         return getMetadataTable()
                 .thenCompose(metadataTable -> {
                     if (ignoreCached) {
-                        storeHelper.invalidateCache(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, STATE_KEY);
+                        return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, STATE_KEY, StateRecord::fromBytes);
                     }
 
                     return storeHelper.getCachedData(NameUtils.INTERNAL_SCOPE_NAME, metadataTable, STATE_KEY, StateRecord::fromBytes);

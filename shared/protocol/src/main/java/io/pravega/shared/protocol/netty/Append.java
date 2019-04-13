@@ -22,24 +22,24 @@ public class Append implements Request, Comparable<Append> {
     final int eventCount;
     final ByteBuf data;
     final Long expectedLength;
-    final long sessionId;
+    final long flowId;
 
-    public Append(String segment, UUID writerId, long eventNumber, Event event, long sessionId) {
-        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), null, sessionId);
+    public Append(String segment, UUID writerId, long eventNumber, Event event, long flowId) {
+        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), null, flowId);
     }
     
-    public Append(String segment, UUID writerId, long eventNumber, Event event, long expectedLength, long sessionId) {
-        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), expectedLength, sessionId);
+    public Append(String segment, UUID writerId, long eventNumber, Event event, long expectedLength, long flowId) {
+        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), expectedLength, flowId);
     }
     
-    public Append(String segment, UUID writerId, long eventNumber, int eventCount, ByteBuf data, Long expectedLength, long sessionId) {
+    public Append(String segment, UUID writerId, long eventNumber, int eventCount, ByteBuf data, Long expectedLength, long flowId) {
         this.segment = segment;
         this.writerId = writerId;
         this.eventNumber = eventNumber;
         this.eventCount = eventCount;
         this.data = data;
         this.expectedLength = expectedLength;
-        this.sessionId = sessionId;
+        this.flowId = flowId;
     }
     
     public int getDataLength() {
@@ -62,6 +62,6 @@ public class Append implements Request, Comparable<Append> {
 
     @Override
     public long getRequestId() {
-        return sessionId;
+        return flowId;
     }
 }

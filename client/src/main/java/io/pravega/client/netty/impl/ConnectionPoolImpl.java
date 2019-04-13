@@ -72,8 +72,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private static final Comparator<Connection> COMPARATOR = new Comparator<Connection>() {
         @Override
         public int compare(Connection c1, Connection c2) {
-            int v1 = c1.getSessionCount().orElse(Integer.MAX_VALUE);
-            int v2 = c2.getSessionCount().orElse(Integer.MAX_VALUE);
+            int v1 = c1.getFlowCount().orElse(Integer.MAX_VALUE);
+            int v2 = c2.getFlowCount().orElse(Integer.MAX_VALUE);
             return Integer.compare(v1, v2);
         }
     }; 
@@ -105,12 +105,12 @@ public class ConnectionPoolImpl implements ConnectionPool {
         // remove connections for which the underlying network connection is disconnected.
         List<Connection> prunedConnectionList = connectionList.stream().filter(connection -> {
             // Filter out Connection objects which have been completed exceptionally or have been disconnected.
-            CompletableFuture<SessionHandler> r = connection.getSessionHandler();
+            CompletableFuture<FlowHandler> r = connection.getFlowHandler();
             return !r.isDone() || (Futures.isSuccessful(r) && r.join().isConnectionEstablished());
         }).collect(Collectors.toList());
         log.debug("List of connections to {} that can be used: {}", location, prunedConnectionList);
 
-        // Choose the connection with the least number of sessions.
+        // Choose the connection with the least number of flows.
         Optional<Connection> suggestedConnection = prunedConnectionList.stream().min(COMPARATOR);
 
         final Connection connection;
@@ -118,16 +118,16 @@ public class ConnectionPoolImpl implements ConnectionPool {
             log.debug("Reusing connection: {}", suggestedConnection.get());
             Connection oldConnection = suggestedConnection.get();
             prunedConnectionList.remove(oldConnection);
-            connection = new Connection(oldConnection.getUri(), oldConnection.getSessionHandler());
+            connection = new Connection(oldConnection.getUri(), oldConnection.getFlowHandler());
         } else {
             // create a new connection.
             log.debug("Creating a new connection to {}", location);
-            CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
-            connection = new Connection(location, sessionHandlerFuture);
+            CompletableFuture<FlowHandler> flowHandlerFuture = establishConnection(location);
+            connection = new Connection(location, flowHandlerFuture);
         }
         prunedConnectionList.add(connection);
         connectionMap.put(location, prunedConnectionList);
-        return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createSession(flow, rp));
+        return connection.getFlowHandler().thenApply(flowHandler -> flowHandler.createFlow(flow, rp));
     }
 
     @Override
@@ -137,13 +137,13 @@ public class ConnectionPoolImpl implements ConnectionPool {
         Exceptions.checkNotClosed(closed.get(), this);
 
         // create a new connection.
-        CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
-        Connection connection = new Connection(location, sessionHandlerFuture);
-        return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createConnectionWithSessionDisabled(rp));
+        CompletableFuture<FlowHandler> flowHandlerFuture = establishConnection(location);
+        Connection connection = new Connection(location, flowHandlerFuture);
+        return connection.getFlowHandler().thenApply(flowHandler -> flowHandler.createConnectionWithFlowDisabled(rp));
     }
 
     private boolean isUnused(Connection connection) {
-        return connection.getSessionCount().isPresent() && connection.getSessionCount().get() == 0;
+        return connection.getFlowCount().isPresent() && connection.getFlowCount().get() == 0;
     }
 
     /**
@@ -155,7 +155,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
             for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext();) {
                 Connection connection = iterator.next();
                 if (isUnused(connection)) {
-                    connection.getSessionHandler().join().close();
+                    connection.getFlowHandler().join().close();
                     iterator.remove();
                 }
             }
@@ -178,16 +178,16 @@ public class ConnectionPoolImpl implements ConnectionPool {
     /**
      * Establish a new connection to the Pravega Node.
      * @param location The Pravega Node Uri
-     * @return A future, which completes once the connection has been established, returning a SessionHandler that can be used to create
-     * sessions on the connection.
+     * @return A future, which completes once the connection has been established, returning a FlowHandler that can be used to create
+     * flows on the connection.
      */
-    private CompletableFuture<SessionHandler> establishConnection(PravegaNodeUri location) {
+    private CompletableFuture<FlowHandler> establishConnection(PravegaNodeUri location) {
         final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        final SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
+        final FlowHandler handler = new FlowHandler(location.getEndpoint(), batchSizeTracker);
         final Bootstrap b = getNettyBootstrap().handler(getChannelInitializer(location, batchSizeTracker, handler));
 
         // Initiate Connection.
-        final CompletableFuture<SessionHandler> connectionComplete = new CompletableFuture<>();
+        final CompletableFuture<FlowHandler> connectionComplete = new CompletableFuture<>();
         try {
             b.connect(location.getEndpoint(), location.getPort()).addListener((ChannelFutureListener) future -> {
                 if (future.isSuccess()) {
@@ -208,7 +208,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         final CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //to track channel registration.
         handler.completeWhenRegistered(channelRegisteredFuture);
 
-        return connectionComplete.thenCombine(channelRegisteredFuture, (sessionHandler, v) -> sessionHandler);
+        return connectionComplete.thenCombine(channelRegisteredFuture, (flowHandler, v) -> flowHandler);
     }
 
     /**
@@ -227,7 +227,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      */
     private ChannelInitializer<SocketChannel> getChannelInitializer(final PravegaNodeUri location,
                                                                     final AppendBatchSizeTracker batchSizeTracker,
-                                                                    final SessionHandler handler) {
+                                                                    final FlowHandler handler) {
         final SslContext sslCtx = getSslContext();
 
         return new ChannelInitializer<SocketChannel>() {
