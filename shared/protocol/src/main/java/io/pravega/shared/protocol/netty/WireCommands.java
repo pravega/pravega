@@ -623,19 +623,7 @@ public final class WireCommands {
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
             Event event = readEvent(in, length);
-            int numberOfBytesRead = Long.BYTES * 4 + TYPE_PLUS_LENGTH_SIZE + event.data.capacity();
-
-            final long requestId;
-            if (in.available() >= Long.BYTES) {
-                requestId = in.readLong();
-                numberOfBytesRead += Long.BYTES;
-            } else {
-                requestId = -1L;
-            }
-            // All the available bytes should be read.
-            if (numberOfBytesRead != length) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + numberOfBytesRead);
-            }
+            long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
             return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId);
         }
 
