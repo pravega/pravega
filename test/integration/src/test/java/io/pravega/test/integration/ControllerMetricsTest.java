@@ -209,8 +209,9 @@ public class ControllerMetricsTest {
         //Put assertion on different lines so it can tell more information in case of failure.
         Timer latencyValues1 = MetricRegistryUtils.getTimer(getTimerMetricName(CREATE_STREAM_LATENCY));
         Assert.assertNotNull(latencyValues1);
-        Assert.assertTrue("Iterations " + iterations + ", Count " + latencyValues1.count(),  //also system streams created so count() is larger
-                iterations <= latencyValues1.count());
+        AssertExtensions.assertGreaterThanOrEqual("Number of iterations and latency count do not match.",
+                iterations, latencyValues1.count());
+
         Timer latencyValues2 = MetricRegistryUtils.getTimer(getTimerMetricName(SEAL_STREAM_LATENCY));
         Assert.assertNotNull(latencyValues2);
         Assert.assertEquals(iterations, latencyValues2.count());
