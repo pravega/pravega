@@ -38,13 +38,13 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
  * Then there are per scopes table called `scope`/streamsInScope.
  * Each such scope table is protected against recreation of scope by attaching a unique id to the scope when it is created. 
  */
-public class PravegaTableScope implements Scope {
+public class PravegaTablesScope implements Scope {
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table" + SEPARATOR + "%s" + SEPARATOR + "streamsInScope" + SEPARATOR + "%s";
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
     private final AtomicReference<UUID> idRef;
 
-    PravegaTableScope(final String scopeName, PravegaTablesStoreHelper storeHelper) {
+    PravegaTablesScope(final String scopeName, PravegaTablesStoreHelper storeHelper) {
         this.scopeName = scopeName;
         this.storeHelper = storeHelper;
         this.idRef = new AtomicReference<>(null);

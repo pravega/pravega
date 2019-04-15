@@ -106,7 +106,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Override
     PravegaTablesStream newStream(final String scope, final String name) {
         return new PravegaTablesStream(scope, name, storeHelper, orderer, completedTxnGC::getLatestBatch,
-                () -> ((PravegaTableScope) getScope(scope)).getStreamsInScopeTableName(), executor);
+                () -> ((PravegaTablesScope) getScope(scope)).getStreamsInScopeTableName(), executor);
     }
 
     @Override
@@ -129,7 +129,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                                 final OperationContext context,
                                                                 final Executor executor) {
         return withCompletion(
-                ((PravegaTableScope) getScope(scope))
+                ((PravegaTablesScope) getScope(scope))
                         .addStreamToScope(name)
                         .thenCompose(id -> super.createStream(scope, name, configuration, createTimestamp, context, executor)), 
                 executor);
@@ -141,7 +141,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                 final OperationContext context,
                                                 final Executor executor) {
         return withCompletion(super.deleteStream(scope, name, context, executor)
-                    .thenCompose(status -> ((PravegaTableScope) getScope(scope)).removeStreamFromScope(name).thenApply(v -> status)),
+                    .thenCompose(status -> ((PravegaTablesScope) getScope(scope)).removeStreamFromScope(name).thenApply(v -> status)),
                 executor);
     }
 
@@ -156,8 +156,8 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     }
 
     @Override
-    PravegaTableScope newScope(final String scopeName) {
-        return new PravegaTableScope(scopeName, storeHelper);
+    PravegaTablesScope newScope(final String scopeName) {
+        return new PravegaTablesScope(scopeName, storeHelper);
     }
 
     @Override
@@ -179,7 +179,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     @Override
     public CompletableFuture<Boolean> checkStreamExists(final String scopeName,
                                                         final String streamName) {
-        return withCompletion(((PravegaTableScope) getScope(scopeName)).checkStreamExistsInScope(streamName), executor);
+        return withCompletion(((PravegaTablesScope) getScope(scopeName)).checkStreamExistsInScope(streamName), executor);
     }
 
     @Override
