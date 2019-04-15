@@ -208,23 +208,24 @@ public class ControllerMetricsTest {
         //Put assertion on different lines so it can tell more information in case of failure.
         Timer latencyValues1 = MetricRegistryUtils.getTimer(CREATE_STREAM_LATENCY);
         Assert.assertNotNull(latencyValues1);
-        Assert.assertTrue(iterations <= latencyValues1.count());  //also system streams created so count() is bigger
+        AssertExtensions.assertGreaterThanOrEqual("Number of iterations and latency count do not match.",
+                iterations, latencyValues1.count());
 
         Timer latencyValues2 = MetricRegistryUtils.getTimer(SEAL_STREAM_LATENCY);
         Assert.assertNotNull(latencyValues2);
-        Assert.assertTrue(iterations == latencyValues2.count());
+        Assert.assertEquals(iterations, latencyValues2.count());
 
         Timer latencyValues3 = MetricRegistryUtils.getTimer(DELETE_STREAM_LATENCY);
         Assert.assertNotNull(latencyValues3);
-        Assert.assertTrue(iterations == latencyValues3.count());
+        Assert.assertEquals(iterations, latencyValues3.count());
 
         Timer latencyValues4 = MetricRegistryUtils.getTimer(UPDATE_STREAM_LATENCY);
         Assert.assertNotNull(latencyValues4);
-        Assert.assertTrue(iterations * iterations == latencyValues4.count());
+        Assert.assertEquals(iterations * iterations, latencyValues4.count());
 
         Timer latencyValues5 = MetricRegistryUtils.getTimer(TRUNCATE_STREAM_LATENCY);
         Assert.assertNotNull(latencyValues5);
-        Assert.assertTrue(iterations * iterations == latencyValues5.count());
+        Assert.assertEquals(iterations * iterations, latencyValues5.count());
     }
 
     /**

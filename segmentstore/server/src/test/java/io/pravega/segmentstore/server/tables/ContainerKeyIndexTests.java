@@ -29,6 +29,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -296,15 +297,15 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Update the keys in the segment (via their buckets).
         val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
-        val bucketUpdates = buckets.entrySet().stream()
+        Collection<BucketUpdate> bucketUpdates = buckets.entrySet().stream()
                 .map(e -> {
-                    BucketUpdate bu = new BucketUpdate(e.getValue());
+                    val builder = BucketUpdate.forBucket(e.getValue());
                     val ko = keysWithOffsets.get(e.getKey());
                     if (ko != null) {
-                        bu.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, false));
+                        builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
                     }
 
-                    return bu;
+                    return builder.build();
                 })
                 .collect(Collectors.toList());
 
@@ -317,6 +318,81 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // Second lookup should be from the cache (for previous hits) and the rest from the index.
         val result2 = context.index.getBucketOffsets(context.segment, hashes, context.timer).join();
         checkKeyOffsets(hashes, keysWithOffsets, result2);
+    }
+
+    /**
+     * Tests the {@link ContainerKeyIndex#getBucketOffsetDirect} method.
+     */
+    @Test
+    public void testGetBucketOffsetDirect() {
+        final long updateBatchLength = 100000;
+        final long noCacheOffset = updateBatchLength;
+        final long lowerCacheOffset = noCacheOffset + updateBatchLength;
+        final long higherCacheOffset = lowerCacheOffset + updateBatchLength;
+        @Cleanup
+        val context = new TestContext();
+
+        // Setup the segment with initial attributes.
+        val iw = new IndexWriter(HASHER, executorService());
+        context.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
+
+        // Generate keys.
+        // First 1/3 of the keys do not exist in the cache.
+        // Second 1/3 of the keys exist in the cache, but have an offset lower than in the Index.
+        // Last 1/3 of the keys exist in the cache and have an offset higher than in the Index.
+        val keys = generateUnversionedKeys(BATCH_SIZE, context);
+        val keysWithOffsets = new HashMap<UUID, KeyWithOffset>();
+        val noCacheKeys = new ArrayList<TableKey>();
+        val lowerCacheOffsetKeys = new ArrayList<TableKey>();
+        val higherCacheOffsetKeys = new ArrayList<TableKey>();
+        for (int i = 0; i < keys.size(); i++) {
+            val k = keys.get(i);
+            val hash = HASHER.hash(k.getKey());
+            if (i < keys.size() / 3) {
+                // Does not exist in the cache.
+                noCacheKeys.add(k);
+                keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), noCacheOffset));
+            } else if (i < keys.size() * 2 / 3) {
+                // Exists in the cache, but with a lower offset than in the index.
+                lowerCacheOffsetKeys.add(k);
+                keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), lowerCacheOffset));
+            } else {
+                // Exists in the cache with a higher offset than in the index.
+                higherCacheOffsetKeys.add(k);
+                keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), higherCacheOffset));
+            }
+        }
+
+        // Update everything in the underlying index.
+        val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
+        Collection<BucketUpdate> bucketUpdates = buckets.entrySet().stream()
+                                   .map(e -> {
+                                       val builder = BucketUpdate.forBucket(e.getValue());
+                                       val ko = keysWithOffsets.get(e.getKey());
+                                       builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
+                                       return builder.build();
+                                   })
+                                   .collect(Collectors.toList());
+        iw.updateBuckets(context.segment, bucketUpdates, 0L, 1L, 0, TIMEOUT).join();
+
+        // Update cache, and immediately clear out the tail section as we want to simulate a case where the values are already
+        // thought to be indexed already.
+        context.index.update(context.segment, toUpdateBatch(lowerCacheOffsetKeys),
+                () -> CompletableFuture.completedFuture(lowerCacheOffset - updateBatchLength), context.timer).join();
+        context.index.update(context.segment, toUpdateBatch(higherCacheOffsetKeys),
+                () -> CompletableFuture.completedFuture(higherCacheOffset + BATCH_SIZE), context.timer).join();
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), higherCacheOffset + updateBatchLength);
+
+        // Check results. The expected offsets should already be stored in keysWithOffsets.
+        for (val k : keys) {
+            val hash = HASHER.hash(k.getKey());
+            val actualOffset = context.index.getBucketOffsetDirect(context.segment, hash, context.timer).join();
+            val expectedOffset = keysWithOffsets.get(hash).offset;
+            Assert.assertEquals("Unexpected result from getBucketOffsetDirect.", expectedOffset, (long) actualOffset);
+
+            val cachedOffset = context.index.getBucketOffsets(context.segment, Collections.singleton(hash), context.timer).join().get(hash);
+            Assert.assertEquals("Unexpected result from getBucketOffsets.", expectedOffset, (long) cachedOffset);
+        }
     }
 
     /**
@@ -346,12 +422,12 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Update the keys in the segment (via their buckets).
         val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
-        val bucketUpdates = buckets.entrySet().stream()
+        Collection<BucketUpdate> bucketUpdates = buckets.entrySet().stream()
                                    .map(e -> {
-                                       BucketUpdate bu = new BucketUpdate(e.getValue());
+                                       val builder = BucketUpdate.forBucket(e.getValue());
                                        val ko = keysWithOffsets.get(e.getKey());
-                                       bu.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, false));
-                                       return bu;
+                                       builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
+                                       return builder.build();
                                    })
                                    .collect(Collectors.toList());
 

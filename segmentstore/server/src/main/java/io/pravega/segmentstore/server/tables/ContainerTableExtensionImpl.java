@@ -20,6 +20,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
@@ -57,6 +58,12 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
     private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
+    /**
+     * The default value to supply to a {@link WriterTableProcessor} to indicate how big compactions need to be.
+     * We need to return a value that is large enough to encompass the largest possible Table Entry (otherwise
+     * compaction will stall), but not too big, as that will introduce larger indexing pauses when compaction is running.
+     */
+    private static final int DEFAULT_MAX_COMPACTION_SIZE = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
     private final KeyHasher hasher;
@@ -220,13 +227,34 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         val bucketReader = TableBucketReader.entry(segment, this.keyIndex::getBackpointerOffset, this.executor);
         int resultSize = builder.getHashes().size();
         for (int i = 0; i < resultSize; i++) {
-            long offset = bucketOffsets.get(builder.getHashes().get(i));
+            UUID keyHash = builder.getHashes().get(i);
+            long offset = bucketOffsets.get(keyHash);
             if (offset == TableKey.NOT_EXISTS) {
                 // Bucket does not exist, hence neither does the key.
                 builder.includeResult(CompletableFuture.completedFuture(null));
             } else {
                 // Find the sought entry in the segment, based on its key.
-                builder.includeResult(bucketReader.find(builder.getKeys().get(i), offset, timer));
+                // We first attempt an optimistic read, which involves fewer steps, and only invalidate the cache and read
+                // directly from the index if unable to find anything and there is a chance the sought key actually exists.
+                // Encountering a truncated Segment offset indicates that the Segment may have recently been compacted and
+                // we are using a stale cache value.
+                ArrayView key = builder.getKeys().get(i);
+                builder.includeResult(Futures
+                        .exceptionallyExpecting(bucketReader.find(key, offset, timer), ex -> ex instanceof StreamSegmentTruncatedException, null)
+                        .thenComposeAsync(entry -> {
+                            if (entry != null) {
+                                // We found an entry; need to figure out if it was a deletion or not.
+                                return CompletableFuture.completedFuture(maybeDeleted(entry));
+                            } else {
+                                // We have a valid TableBucket but were unable to locate the key using the cache, either
+                                // because the cache points to a truncated offset or because we are unable to determine
+                                // if the TableBucket has been rearranged due to a compaction. The rearrangement is a rare
+                                // occurrence and can only happen if more than one Key is mapped to a bucket (collision).
+                                return this.keyIndex.getBucketOffsetDirect(segment, keyHash, timer)
+                                                    .thenComposeAsync(newOffset -> bucketReader.find(key, newOffset, timer), this.executor)
+                                                    .thenApply(this::maybeDeleted);
+                            }
+                        }, this.executor));
             }
         }
 
@@ -246,6 +274,17 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //endregion
 
     //region Helpers
+
+    /**
+     * When overridden in a derived class, this will indicate how much to compact at each step. By default this returns
+     * {@link #DEFAULT_MAX_COMPACTION_SIZE}.
+     *
+     * @return The maximum length to compact at each step.
+     */
+    @VisibleForTesting
+    protected int getMaxCompactionSize() {
+        return DEFAULT_MAX_COMPACTION_SIZE;
+    }
 
     private <T> TableKeyBatch batch(Collection<T> toBatch, Function<T, TableKey> getKey, Function<T, Integer> getLength, TableKeyBatch batch) {
         for (T item : toBatch) {
@@ -309,6 +348,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
                                     .build(), this.executor);
     }
 
+    private TableEntry maybeDeleted(TableEntry e) {
+        return e == null || e.getValue() == null ? null : e;
+    }
+
     //endregion
 
     //region TableWriterConnector
@@ -336,6 +379,11 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         @Override
         public void notifyIndexOffsetChanged(long lastIndexedOffset) {
             ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), lastIndexedOffset);
+        }
+
+        @Override
+        public int getMaxCompactionSize() {
+            return ContainerTableExtensionImpl.this.getMaxCompactionSize();
         }
 
         @Override
