@@ -170,8 +170,12 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         }
         channel.set(null);
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
+            try {
             rp.connectionDropped();
             log.debug("Connection dropped for flow id {}", flowId);
+            } catch (Exception e) {
+                log.error("Exception while invoking reply processor for flow id " + flowId, e);
+            }
         });
         super.channelUnregistered(ctx);
     }
@@ -182,7 +186,11 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         log.debug(connectionName + " processing reply {} with flow {}", cmd, Flow.from(cmd.getRequestId()));
 
         if (cmd instanceof WireCommands.Hello) {
-            flowIdReplyProcessorMap.forEach((flowId, rp) -> rp.hello((WireCommands.Hello) cmd));
+            try {
+                flowIdReplyProcessorMap.forEach((flowId, rp) -> rp.hello((WireCommands.Hello) cmd));
+            } catch (Exception e) {
+                log.error("Exception while invoking reply processor for hello", e);
+            }
             return;
         }
 
@@ -202,8 +210,12 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
-            rp.processingFailure(new ConnectionFailedException(cause));
-            log.debug("Exception observed for flow id {}", flowId);
+            try {
+                rp.processingFailure(new ConnectionFailedException(cause));
+                log.debug("Exception observed for flow id {}", flowId);
+            } catch (Exception e) {
+                log.error("Exception while invoking reply processor.exceptionCaught for flow id " + flowId, e);
+            }
         });
     }
 
