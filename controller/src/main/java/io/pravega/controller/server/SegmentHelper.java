@@ -58,7 +58,10 @@ import org.slf4j.LoggerFactory;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionWrapper;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.*;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamName;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
 public class SegmentHelper implements AutoCloseable {
 
@@ -620,7 +623,7 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to create a table segment.
      *
-     * @param tableName              Stream name.
+     * @param tableName           Qualified table name.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
@@ -683,7 +686,7 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to delete a table segment.
      *
-     * @param tableName              Stream name.
+     * @param tableName           Qualified table name.
      * @param mustBeEmpty         Flag to check if the table segment should be empty before deletion.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
@@ -755,7 +758,7 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to update table entries.
      *
-     * @param tableName              Stream name.
+     * @param tableName           Qualified table name.
      * @param entries             List of {@link TableEntry}s to be updated.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
@@ -844,7 +847,7 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to remove table keys.
      *
-     * @param tableName              Stream name.
+     * @param tableName           Qualified table name.
      * @param keys                List of {@link TableKey}s to be removed. Only if all the elements in the list has version as
      *                            {@link KeyVersion#NO_VERSION} then an unconditional update/removal is performed. Else an atomic conditional
      *                            update (removal) is performed.
@@ -932,7 +935,7 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to read table entries.
      *
-     * @param tableName              Stream name.
+     * @param tableName           Qualified table name.
      * @param keys                List of {@link TableKey}s to be read. {@link TableKey#getVersion()} is not used
      *                            during this operation and the latest version is read.
      * @param delegationToken     The token to be presented to the segmentstore.
@@ -1010,7 +1013,7 @@ public class SegmentHelper implements AutoCloseable {
 
     /**
      * The method sends a WireCommand to iterate over table keys.
-     * @param tableName Stream name.
+     * @param tableName Qualified table name.
      * @param suggestedKeyCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
      * @param state Last known state of the iterator.
      * @param delegationToken The token to be presented to the segmentstore.
@@ -1083,7 +1086,7 @@ public class SegmentHelper implements AutoCloseable {
 
     /**
      * The method sends a WireCommand to iterate over table entries.
-     * @param tableName Stream name.
+     * @param tableName Qualified table name.
      * @param suggestedEntryCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
      * @param state Last known state of the iterator.
      * @param delegationToken The token to be presented to the segmentstore.

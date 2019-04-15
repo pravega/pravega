@@ -109,7 +109,6 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to invalidate cached value in the cache for the specified table.
-
      * @param table table name
      * @param key key to invalidate
      */
@@ -119,7 +118,6 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to create a new Table. If the table already exists, segment helper responds with success. 
-
      * @param tableName table name
      * @return CompletableFuture which when completed will indicate successful creation of table.  
      */
@@ -141,7 +139,6 @@ public class PravegaTablesStoreHelper {
      * Method to delete a table. The callers can supply a `mustBeEmpty` flag and the table is deleted only if it is empty.
      * Note: the mustBeEmpty flag is passed to segment store via segment helper and it is responsibility of segment store
      * table implementation to delete a table only if it is empty. 
-
      * @param tableName tableName
      * @param mustBeEmpty flag to indicate to table store to delete table only if it is empty. 
      * @return CompletableFuture which when completed will indicate that the table was deleted successfully. 
@@ -189,7 +186,6 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to add new entry to table if it does not exist. 
-
      * @param tableName tableName
      * @param key Key to add
      * @param value value to add
@@ -209,7 +205,6 @@ public class PravegaTablesStoreHelper {
      * if all entries existed or one of the entries existed. 
      * Callers should use this only if they are guaranteed to never create the requested entries outside of the requested batch. 
      * 
-
      * @param tableName table name
      * @param toAdd map of keys and values to add. 
      * @return CompletableFuture which when completed successfully will indicate that all entries have been added successfully.  
@@ -239,7 +234,6 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to update a single entry. 
-
      * @param tableName tablename
      * @param key key
      * @param value value
@@ -265,7 +259,6 @@ public class PravegaTablesStoreHelper {
     /**
      * Method to retrieve the value for a given key from a table. This method takes a deserialization function and deserializes
      * the received byte[] using the supplied function. 
-
      * @param tableName tableName
      * @param key key
      * @param fromBytes deserialization function
@@ -304,7 +297,6 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to remove entry from the store. 
-
      * @param tableName tableName
      * @param key key
      * @return CompletableFuture which when completed will indicate successful deletion of entry from the table. 
@@ -325,7 +317,6 @@ public class PravegaTablesStoreHelper {
      * If table store throws dataNotFound for a subset of entries, there is no way for this method to disambiguate. 
      * So it is the responsibility of the caller to use this api if they are guaranteed to always attempt to 
      * remove same batch entries. 
-
      * @param tableName table name
      * @param keys keys to delete
      * @return CompletableFuture which when completed will have entries removed from the table.  
@@ -342,7 +333,6 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to get paginated list of keys with a continuation token.  
-
      * @param tableName tableName
      * @param continuationToken previous continuationToken
      * @param limit limit on number of keys to retrieve 
@@ -365,7 +355,6 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to get paginated list of entries with a continuation token.  
-
      * @param tableName tableName
      * @param continuationToken previous continuationToken
      * @param limit limit on number of entries to retrieve 
@@ -398,7 +387,6 @@ public class PravegaTablesStoreHelper {
      * This function makes calls into segment store and includes entries that satisfy the supplied
      * predicate. It makes repeated paginated calls into segment store until it has either collected deseried number
      * of entries or it has exhausted all entries in the store. 
-
      * @param table table
      * @param fromStringKey function to deserialize key from String. 
      * @param fromBytesValue function to deserialize value from byte array
@@ -445,7 +433,6 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to retrieve all keys in the table. It returns an asyncIterator which can be used to iterate over the returned keys. 
-
      * @param tableName table name
      * @return AsyncIterator that can be used to iterate over keys in the table.  
      */
@@ -460,7 +447,6 @@ public class PravegaTablesStoreHelper {
 
     /**
      * Method to retrieve all entries in the table. It returns an asyncIterator which can be used to iterate over the returned entries. 
-
      * @param tableName table name
      * @param fromBytes deserialization function to deserialize returned value. 
      * @param <T> Type of value  

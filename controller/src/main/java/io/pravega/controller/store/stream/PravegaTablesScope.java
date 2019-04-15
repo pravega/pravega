@@ -90,9 +90,7 @@ public class PravegaTablesScope implements Scope {
     CompletableFuture<UUID> getId() {
         UUID id = idRef.get();
         if (Objects.isNull(id)) {
-            return storeHelper.getEntry(
-                    SCOPES_TABLE, 
-                    scopeName, x -> BitConverter.readUUID(x, 0))
+            return storeHelper.getEntry(SCOPES_TABLE, scopeName, x -> BitConverter.readUUID(x, 0))
                               .thenCompose(entry -> {
                                   UUID uuid = entry.getObject();
                                   idRef.compareAndSet(null, uuid);
