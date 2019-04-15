@@ -59,7 +59,6 @@ import org.slf4j.LoggerFactory;
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionWrapper;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
