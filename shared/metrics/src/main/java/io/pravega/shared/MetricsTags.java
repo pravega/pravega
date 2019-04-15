@@ -95,7 +95,7 @@ public final class MetricsTags {
             tags[5] = qualifiedSegmentName.substring(LENGTH_OF_TABLE_SEGMENT_PREFIX);
             tags[7] = "0";
             return tags;
-        };
+        }
 
         String segmentBaseName = getSegmentBaseName(qualifiedSegmentName);
         String[] tokens = segmentBaseName.split("[/]");
