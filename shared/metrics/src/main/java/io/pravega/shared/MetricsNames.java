@@ -17,7 +17,7 @@ package io.pravega.shared;
  * "Metrics Prefix + Component Origin + Sub-Component (or Abstraction) + Metric Base Name":
  *
  *     Metric Prefix: "pravega" by default, configurable.
- *     Component Origin: indicate which component generates the metric, such as "segmentstore", "controller".
+ *     Component Origin: indicates which component generates the metric, such as "segmentstore", "controller".
  *     Sub-Component (or Abstraction): 2nd level component or abstraction, such as "cache", "transaction", "storage".
  *     Metric Base Name: such as "read_latency_ms", "create_count".
  *
@@ -34,6 +34,16 @@ package io.pravega.shared;
  * - controller.retention: metrics related to data retention, per stream (e.g., frequency, size of truncated data)
  * - controller.hosts: metrics related to Pravega servers in the cluster (e.g., number of servers, failures)
  * - controller.container: metrics related to container lifecycle (e.g., failovers)
+ *
+ * We have two types of metrics:
+ * - Global metric: Values are directly associated to the metric name that appears in this file. They are convenient if
+ *   we want to report metric values that apply to the whole Pravega cluster (e.g., number of bytes written, operations).
+ *   For instance, STORAGE_READ_BYTES can be classified as a global metric.
+ *
+ * - Object-based metric: Sometimes, we may want to report metrics based on specific objects, such as Streams or Segments.
+ *   This kind of metrics use as a base name the metric name in this file and are "dynamically" created based on the
+ *   objects to be measured. For instance, in CONTAINER_APPEND_COUNT we actually report multiple metrics, one per each
+ *   containerId measured, with different container tag (e.g. ["containerId", "3"]).
  *
  * There are cases in which we may want both a global and object-based versions for the same metric. For example,
  * regarding SEGMENT_READ_BYTES we publish the global version of it by adding "_global" suffix to the base name
