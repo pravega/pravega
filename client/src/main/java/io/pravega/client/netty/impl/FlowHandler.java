@@ -173,8 +173,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             try {
             rp.connectionDropped();
             log.debug("Connection dropped for flow id {}", flowId);
-            } catch (Exception e) {
-                log.error("Exception while invoking reply processor for flow id " + flowId, e);
+            } catch (Throwable e) {
+                log.error("=> Exception while invoking reply processor for flow id " + flowId, e);
             }
         });
         super.channelUnregistered(ctx);
@@ -189,7 +189,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             try {
                 flowIdReplyProcessorMap.forEach((flowId, rp) -> rp.hello((WireCommands.Hello) cmd));
             } catch (Exception e) {
-                log.error("Exception while invoking reply processor for hello", e);
+                log.error("=> Exception while invoking reply processor for hello", e);
             }
             return;
         }
@@ -203,6 +203,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                 processor.process(cmd);
             } catch (Exception e) {
                 processor.processingFailure(e);
+            } catch (Throwable t) {
+                log.error("=> Throwable encountered", t);
             }
         });
     }
@@ -211,10 +213,10 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
             try {
+                log.debug("Exception observed for flow id {}", flowId, cause);
                 rp.processingFailure(new ConnectionFailedException(cause));
-                log.debug("Exception observed for flow id {}", flowId);
-            } catch (Exception e) {
-                log.error("Exception while invoking reply processor.exceptionCaught for flow id " + flowId, e);
+            } catch (Throwable e) {
+                log.error("=> Exception while invoking reply processor.exceptionCaught for flow id " + flowId, e);
             }
         });
     }

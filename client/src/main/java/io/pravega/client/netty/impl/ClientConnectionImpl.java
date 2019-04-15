@@ -62,11 +62,12 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void sendAsync(WireCommand cmd, CompletedCallback callback) {
+        Channel channel = null;
         try {
             checkClientConnectionClosed();
             nettyHandler.setRecentMessage();
 
-            Channel channel = nettyHandler.getChannel();
+            channel = nettyHandler.getChannel();
             channel.writeAndFlush(cmd)
                    .addListener((Future<? super Void> f) -> {
                        if (f.isSuccess()) {
@@ -79,6 +80,8 @@ public class ClientConnectionImpl implements ClientConnection {
             callback.complete(cfe);
         } catch (RuntimeException e) {
             callback.complete(new ConnectionFailedException(e));
+        } catch (Throwable t) {
+            log.error("=> Unknown exception while performing sendAsync. Cmd: " + cmd + " Channel: " + channel, t );
         }
     }
 
