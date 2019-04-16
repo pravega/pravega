@@ -319,7 +319,7 @@ public final class StreamSegmentNameUtils {
      * @param tokens tokens used for composing table segment name
      * @return Fully qualified table segment name composed of supplied tokens.
      */
-    public static String getQualifiedTableName(String scope, String ... tokens) {
+    public static String getQualifiedTableName(String scope, String... tokens) {
         Preconditions.checkArgument(tokens != null && tokens.length > 0);
         StringBuilder sb = new StringBuilder();
         sb.append(String.format("%s/%s", scope, TABLES));
@@ -339,11 +339,11 @@ public final class StreamSegmentNameUtils {
      * @return tokens capturing different components of table segment name. First element in the list represents scope 
      */
     public static List<String> extractTableSegmentTokens(String qualifiedName) {
-        Preconditions.checkArgument(isTableSegment(qualifiedName));
+        Preconditions.checkNotNull(qualifiedName);
         List<String> retVal = new LinkedList<>();
         String[] tokens = qualifiedName.split("[/]");
         Preconditions.checkArgument(tokens.length > 2);
-        
+        Preconditions.checkArgument(tokens[1].equals(TABLES));
         // add scope
         retVal.add(tokens[0]);
         for (int i = 2; i < tokens.length; i++) {
@@ -360,7 +360,10 @@ public final class StreamSegmentNameUtils {
      */
     public static boolean isTableSegment(String qualifiedName) {
         Preconditions.checkNotNull(qualifiedName);
-        return qualifiedName.contains(TABLES);
+        String[] tokens = qualifiedName.split("[/]");
+        Preconditions.checkArgument(tokens.length > 2);
+
+        return tokens[1].equals(TABLES);
     }
     // endregion
 }

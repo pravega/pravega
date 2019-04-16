@@ -36,7 +36,7 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTable
 /**
  * Pravega Tables based scope metadata.
  * At top level, there is a common scopes table at _system. This has a list of all scopes in the cluster. 
- * Then there are per scopes table called `scope`/streamsInScope.
+ * Then there are per scopes table called _system/_tables/`scope`/streamsInScope-`id`. 
  * Each such scope table is protected against recreation of scope by attaching a unique id to the scope when it is created. 
  */
 public class PravegaTablesScope implements Scope {

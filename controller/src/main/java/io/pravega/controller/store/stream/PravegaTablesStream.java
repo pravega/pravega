@@ -63,8 +63,8 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTable
  * This creates two top level tables per stream - metadataTable, epochsWithTransactionsTable. 
  * All metadata records are stored in metadata table. 
  * EpochsWithTransactions is a top level table for storing epochs where any transaction was created. 
- *
- * This class is coded for transaction ids that follow the scheme that msb 32 bits represent epoch
+ * This class is coded for transaction ids that follow the scheme that msb 32 bits represent epoch.
+ * Each stream table is protected against recreation of stream by attaching a unique id to the stream when it is created. 
  */
 class PravegaTablesStream extends PersistentStreamBase {
     private static final String METADATA_TABLE = "metadata" + SEPARATOR + "%s";
