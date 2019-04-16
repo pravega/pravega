@@ -72,8 +72,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private static final Comparator<Connection> COMPARATOR = new Comparator<Connection>() {
         @Override
         public int compare(Connection c1, Connection c2) {
-            int v1 = c1.getSessionCount().orElse(Integer.MAX_VALUE);
-            int v2 = c2.getSessionCount().orElse(Integer.MAX_VALUE);
+            int v1 = Futures.isSuccessful(c1.getConnected()) ? c1.getSessionCount() : Integer.MAX_VALUE;
+            int v2 = Futures.isSuccessful(c2.getConnected()) ? c2.getSessionCount() : Integer.MAX_VALUE;
             return Integer.compare(v1, v2);
         }
     }; 
@@ -105,8 +105,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         // remove connections for which the underlying network connection is disconnected.
         List<Connection> prunedConnectionList = connectionList.stream().filter(connection -> {
             // Filter out Connection objects which have been completed exceptionally or have been disconnected.
-            CompletableFuture<SessionHandler> r = connection.getSessionHandler();
-            return !r.isDone() || (Futures.isSuccessful(r) && r.join().isConnectionEstablished());
+            return !connection.getConnected().isDone() || (Futures.isSuccessful(connection.getConnected()) && connection.getSessionHandler().isConnectionEstablished());
         }).collect(Collectors.toList());
         log.debug("List of connections to {} that can be used: {}", location, prunedConnectionList);
 
@@ -115,19 +114,20 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
         final Connection connection;
         if (suggestedConnection.isPresent() && (prunedConnectionList.size() >= clientConfig.getMaxConnectionsPerSegmentStore() || isUnused(suggestedConnection.get()))) {
-            log.debug("Reusing connection: {}", suggestedConnection.get());
-            Connection oldConnection = suggestedConnection.get();
-            prunedConnectionList.remove(oldConnection);
-            connection = new Connection(oldConnection.getUri(), oldConnection.getSessionHandler());
+            log.info("Reusing connection: {}", suggestedConnection.get());
+            connection = suggestedConnection.get();
         } else {
             // create a new connection.
-            log.debug("Creating a new connection to {}", location);
-            CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
-            connection = new Connection(location, sessionHandlerFuture);
+            log.info("Creating a new connection to {}", location);
+            final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
+            final SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
+            CompletableFuture<Void> establishedFuture = establishConnection(location, handler);
+            connection = new Connection(location, handler, establishedFuture);
+            prunedConnectionList.add(connection);
         }
-        prunedConnectionList.add(connection);
+        ClientConnection result = connection.getSessionHandler().createSession(flow, rp);
         connectionMap.put(location, prunedConnectionList);
-        return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createSession(flow, rp));
+        return connection.getConnected().thenApply(v -> result);
     }
 
     @Override
@@ -137,25 +137,29 @@ public class ConnectionPoolImpl implements ConnectionPool {
         Exceptions.checkNotClosed(closed.get(), this);
 
         // create a new connection.
-        CompletableFuture<SessionHandler> sessionHandlerFuture = establishConnection(location);
-        Connection connection = new Connection(location, sessionHandlerFuture);
-        return connection.getSessionHandler().thenApply(sessionHandler -> sessionHandler.createConnectionWithSessionDisabled(rp));
+        final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
+        final SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
+        CompletableFuture<Void> connectedFuture = establishConnection(location, handler);
+        Connection connection = new Connection(location, handler, connectedFuture);
+        ClientConnection result = connection.getSessionHandler().createConnectionWithSessionDisabled(rp);
+        return connectedFuture.thenApply(v -> result);
     }
 
     private boolean isUnused(Connection connection) {
-        return connection.getSessionCount().isPresent() && connection.getSessionCount().get() == 0;
+        return Futures.isSuccessful(connection.getConnected()) && connection.getSessionCount() == 0;
     }
 
     /**
      * Used only for testing.
      */
     @VisibleForTesting
+    @Synchronized
     public void pruneUnusedConnections() {
         for (List<Connection> connections : connectionMap.values()) {
             for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext();) {
                 Connection connection = iterator.next();
                 if (isUnused(connection)) {
-                    connection.getSessionHandler().join().close();
+                    connection.getSessionHandler().close();
                     iterator.remove();
                 }
             }
@@ -178,16 +182,14 @@ public class ConnectionPoolImpl implements ConnectionPool {
     /**
      * Establish a new connection to the Pravega Node.
      * @param location The Pravega Node Uri
+     * @param handler The session handler for the connection
      * @return A future, which completes once the connection has been established, returning a SessionHandler that can be used to create
      * sessions on the connection.
      */
-    private CompletableFuture<SessionHandler> establishConnection(PravegaNodeUri location) {
-        final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        final SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
-        final Bootstrap b = getNettyBootstrap().handler(getChannelInitializer(location, batchSizeTracker, handler));
-
+    private CompletableFuture<Void> establishConnection(PravegaNodeUri location, SessionHandler handler) {  
+        final Bootstrap b = getNettyBootstrap().handler(getChannelInitializer(location, handler));
         // Initiate Connection.
-        final CompletableFuture<SessionHandler> connectionComplete = new CompletableFuture<>();
+        final CompletableFuture<Void> connectionComplete = new CompletableFuture<>();
         try {
             b.connect(location.getEndpoint(), location.getPort()).addListener((ChannelFutureListener) future -> {
                 if (future.isSuccess()) {
@@ -196,7 +198,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
                     log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
                               ch.id(), ch.localAddress(), ch.remoteAddress());
                     channelGroup.add(ch); // Once a channel is closed the channel group implementation removes it.
-                    connectionComplete.complete(handler);
+                    connectionComplete.complete(null);
                 } else {
                     connectionComplete.completeExceptionally(new ConnectionFailedException(future.cause()));
                 }
@@ -208,7 +210,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
         final CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //to track channel registration.
         handler.completeWhenRegistered(channelRegisteredFuture);
 
-        return connectionComplete.thenCombine(channelRegisteredFuture, (sessionHandler, v) -> sessionHandler);
+        return CompletableFuture.allOf(connectionComplete, channelRegisteredFuture);
     }
 
     /**
@@ -226,7 +228,6 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * Create a Channel Initializer which is to to setup {@link ChannelPipeline}.
      */
     private ChannelInitializer<SocketChannel> getChannelInitializer(final PravegaNodeUri location,
-                                                                    final AppendBatchSizeTracker batchSizeTracker,
                                                                     final SessionHandler handler) {
         final SslContext sslCtx = getSslContext();
 
@@ -247,7 +248,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
                 }
                 p.addLast(
                         new ExceptionLoggingHandler(location.getEndpoint()),
-                        new CommandEncoder(batchSizeTracker),
+                        new CommandEncoder(handler.getBatchSizeTracker()),
                         new LengthFieldBasedFrameDecoder(WireCommands.MAX_WIRECOMMAND_SIZE, 4, 4),
                         new CommandDecoder(),
                         handler);
