@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.BitConverter;
-import io.pravega.shared.NameUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -30,21 +29,23 @@ import java.util.concurrent.atomic.AtomicReference;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.DATA_NOT_FOUND_PREDICATE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SCOPES_TABLE;
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.SEPARATOR;
+import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTableName;
 
 @Slf4j
 /**
  * Pravega Tables based scope metadata.
  * At top level, there is a common scopes table at _system. This has a list of all scopes in the cluster. 
- * Then there are per scopes table called `scope`/streamsInScope.
+ * Then there are per scopes table called _system/_tables/`scope`/streamsInScope-`id`. 
  * Each such scope table is protected against recreation of scope by attaching a unique id to the scope when it is created. 
  */
-public class PravegaTableScope implements Scope {
-    private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "Table" + SEPARATOR + "streamsInScope" + SEPARATOR + "%s";
+public class PravegaTablesScope implements Scope {
+    private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope" + SEPARATOR + "%s";
     private final String scopeName;
     private final PravegaTablesStoreHelper storeHelper;
     private final AtomicReference<UUID> idRef;
 
-    PravegaTableScope(final String scopeName, PravegaTablesStoreHelper storeHelper) {
+    PravegaTablesScope(final String scopeName, PravegaTablesStoreHelper storeHelper) {
         this.scopeName = scopeName;
         this.storeHelper = storeHelper;
         this.idRef = new AtomicReference<>(null);
@@ -63,16 +64,16 @@ public class PravegaTableScope implements Scope {
         // We then retrive id from the store (in case someone concurrently created the entry or entry already existed.
         // This unique id is used to create scope specific table with unique id 
         return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntry(
-                NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId()),
+                SCOPES_TABLE, scopeName, newId()),
                 DATA_NOT_FOUND_PREDICATE,
-                () -> storeHelper.createTable(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE)
+                () -> storeHelper.createTable(SCOPES_TABLE)
                                  .thenCompose(v -> {
-                                     log.debug("table created {}/{}", NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE);
-                                     return storeHelper.addNewEntryIfAbsent(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, newId());
+                                     log.debug("table created {}", SCOPES_TABLE);
+                                     return storeHelper.addNewEntryIfAbsent(SCOPES_TABLE, scopeName, newId());
                                  }))
                       .thenCompose(v -> getStreamsInScopeTableName())
-                      .thenCompose(tableName -> storeHelper.createTable(scopeName, tableName)
-                                                           .thenAccept(v -> log.debug("table created {}/{}", scopeName, tableName)));
+                      .thenCompose(tableName -> storeHelper.createTable(tableName)
+                                                           .thenAccept(v -> log.debug("table created {}", tableName)));
     }
 
     private byte[] newId() {
@@ -82,15 +83,14 @@ public class PravegaTableScope implements Scope {
     }
 
     CompletableFuture<String> getStreamsInScopeTableName() {
-        return getId().thenApply(id -> {
-            return String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, id.toString());
-        });
+        return getId().thenApply(id -> 
+                getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, id.toString())));
     }
 
     CompletableFuture<UUID> getId() {
         UUID id = idRef.get();
         if (Objects.isNull(id)) {
-            return storeHelper.getEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName, x -> BitConverter.readUUID(x, 0))
+            return storeHelper.getEntry(SCOPES_TABLE, scopeName, x -> BitConverter.readUUID(x, 0))
                               .thenCompose(entry -> {
                                   UUID uuid = entry.getObject();
                                   idRef.compareAndSet(null, uuid);
@@ -104,9 +104,9 @@ public class PravegaTableScope implements Scope {
     @Override
     public CompletableFuture<Void> deleteScope() {
         return getStreamsInScopeTableName()
-                .thenCompose(tableName -> storeHelper.deleteTable(scopeName, tableName, true)
-                                                     .thenAccept(v -> log.debug("table deleted {}/{}", scopeName, tableName)))
-                .thenCompose(deleted -> storeHelper.removeEntry(NameUtils.INTERNAL_SCOPE_NAME, SCOPES_TABLE, scopeName));
+                .thenCompose(tableName -> storeHelper.deleteTable(tableName, true)
+                                                     .thenAccept(v -> log.debug("table deleted {}", tableName)))
+                .thenCompose(deleted -> storeHelper.removeEntry(SCOPES_TABLE, scopeName));
     }
 
     @Override
@@ -115,7 +115,7 @@ public class PravegaTableScope implements Scope {
         AtomicReference<String> token = new AtomicReference<>(continuationToken);
         AtomicBoolean canContinue = new AtomicBoolean(true);
         return getStreamsInScopeTableName()
-                .thenCompose(entry -> storeHelper.getKeysPaginated(scopeName, entry,
+                .thenCompose(streamsInScopeTable -> storeHelper.getKeysPaginated(streamsInScopeTable,
                         Unpooled.wrappedBuffer(Base64.getDecoder().decode(token.get())), limit)
                                                  .thenApply(result -> {
                                                      if (result.getValue().isEmpty()) {
@@ -132,7 +132,7 @@ public class PravegaTableScope implements Scope {
     public CompletableFuture<List<String>> listStreamsInScope() {
         List<String> result = new ArrayList<>();
         return getStreamsInScopeTableName()
-                .thenCompose(tableName -> storeHelper.getAllKeys(scopeName, tableName).collectRemaining(result::add)
+                .thenCompose(tableName -> storeHelper.getAllKeys(tableName).collectRemaining(result::add)
                                                      .thenApply(v -> result));
     }
 
@@ -143,19 +143,17 @@ public class PravegaTableScope implements Scope {
 
     CompletableFuture<Void> addStreamToScope(String stream) {
         return getStreamsInScopeTableName()
-                .thenCompose(tableName -> {
-                    return Futures.toVoid(storeHelper.addNewEntryIfAbsent(scopeName, tableName, stream, newId()));
-                });
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.addNewEntryIfAbsent(tableName, stream, newId())));
     }
 
     CompletableFuture<Void> removeStreamFromScope(String stream) {
         return getStreamsInScopeTableName()
-                .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(scopeName, tableName, stream)));
+                .thenCompose(tableName -> Futures.toVoid(storeHelper.removeEntry(tableName, stream)));
     }
 
     CompletableFuture<Boolean> checkStreamExistsInScope(String stream) {
         return getStreamsInScopeTableName()
                 .thenCompose(tableName -> storeHelper.expectingDataNotFound(
-                        storeHelper.getEntry(scopeName, tableName, stream, x -> x).thenApply(v -> true), false));
+                        storeHelper.getEntry(tableName, stream, x -> x).thenApply(v -> true), false));
     }
 }

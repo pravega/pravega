@@ -125,34 +125,31 @@ public class SegmentHelperMock {
 
         // region create table
         doAnswer(x -> {
-            String scope = x.getArgument(0);
-            String tableName = x.getArgument(1);
+            String tableName = x.getArgument(0);
             return CompletableFuture.runAsync(() -> {
                 synchronized (lock) {
-                    mapOfTables.putIfAbsent(scope + "/" + tableName, new HashMap<>());
-                    mapOfTablesPosition.put(scope + "/" + tableName, new HashMap<>());
+                    mapOfTables.putIfAbsent(tableName, new HashMap<>());
+                    mapOfTablesPosition.put(tableName, new HashMap<>());
                 }
             }, executor);
-        }).when(helper).createTableSegment(anyString(), anyString(), anyString(), anyLong());
+        }).when(helper).createTableSegment(anyString(), anyString(), anyLong());
         // endregion
         
         // region delete table
         doAnswer(x -> {
-            String scope = x.getArgument(0);
-            String tableName = x.getArgument(1);
-            Boolean mustBeEmpty = x.getArgument(2);
-            String key = scope + "/" + tableName;
+            String tableName = x.getArgument(0);
+            Boolean mustBeEmpty = x.getArgument(1);
             final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
-                    if (!mapOfTables.containsKey(key)) {
+                    if (!mapOfTables.containsKey(tableName)) {
                         throw new WireCommandFailedException(type,
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
                     }
-                    boolean empty = Optional.ofNullable(mapOfTables.get(key)).orElse(Collections.emptyMap()).isEmpty();
+                    boolean empty = Optional.ofNullable(mapOfTables.get(tableName)).orElse(Collections.emptyMap()).isEmpty();
                     if (!mustBeEmpty || empty) {
-                        mapOfTables.remove(key);
-                        mapOfTablesPosition.remove(key);
+                        mapOfTables.remove(tableName);
+                        mapOfTablesPosition.remove(tableName);
                         return true;
                     } else {
                         throw new WireCommandFailedException(type,
@@ -160,21 +157,18 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).deleteTableSegment(anyString(), anyString(), anyBoolean(), anyString(), anyLong());
+        }).when(helper).deleteTableSegment(anyString(), anyBoolean(), anyString(), anyLong());
         // endregion
         
         // region update keys
         doAnswer(x -> {
             final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
-
-            String scope = x.getArgument(0);
-            String tableName = x.getArgument(1);
-            List<TableEntry<byte[], byte[]>> entries = x.getArgument(2);
-            String tableScopedName = scope + "/" + tableName;
+            String tableName = x.getArgument(0);
+            List<TableEntry<byte[], byte[]>> entries = x.getArgument(1);
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
-                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
-                    Map<ByteBuffer, Long> tablePos = mapOfTablesPosition.get(tableScopedName);
+                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableName);
+                    Map<ByteBuffer, Long> tablePos = mapOfTablesPosition.get(tableName);
                     if (table == null) {
                         throw new WireCommandFailedException(type,
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
@@ -213,21 +207,18 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).updateTableEntries(anyString(), anyString(), any(), anyString(), anyLong());
+        }).when(helper).updateTableEntries(anyString(), any(), anyString(), anyLong());
         // endregion
     
         // region remove keys    
         doAnswer(x -> {
             final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
-
-            String scope = x.getArgument(0);
-            String tableName = x.getArgument(1);
-            List<TableKey<byte[]>> entries = x.getArgument(2);
-            String tableScopedName = scope + "/" + tableName;
+            String tableName = x.getArgument(0);
+            List<TableKey<byte[]>> entries = x.getArgument(1);
             return CompletableFuture.runAsync(() -> {
                 synchronized (lock) {
-                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
-                    Map<ByteBuffer, Long> tablePos = mapOfTablesPosition.get(tableScopedName);
+                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableName);
+                    Map<ByteBuffer, Long> tablePos = mapOfTablesPosition.get(tableName);
                     if (table == null) {
                         throw new WireCommandFailedException(type,
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
@@ -249,20 +240,17 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).removeTableKeys(anyString(), anyString(), any(), anyString(), anyLong());
+        }).when(helper).removeTableKeys(anyString(), any(), anyString(), anyLong());
         // endregion
 
         // region read keys    
         doAnswer(x -> {
             final WireCommandType type = WireCommandType.READ_TABLE;
-
-            String scope = x.getArgument(0);
-            String tableName = x.getArgument(1);
-            List<TableKey<byte[]>> entries = x.getArgument(2);
-            String tableScopedName = scope + "/" + tableName;
+            String tableName = x.getArgument(0);
+            List<TableKey<byte[]>> entries = x.getArgument(1);
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
-                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
+                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableName);
                     if (table == null) {
                         throw new WireCommandFailedException(type,
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
@@ -287,21 +275,19 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).readTable(anyString(), anyString(), any(), anyString(), anyLong());
+        }).when(helper).readTable(anyString(), any(), anyString(), anyLong());
         // endregion
         
         // region readTableKeys
         doAnswer(x -> {
-            String scope = x.getArgument(0);
-            String tableName = x.getArgument(1);
-            int limit = x.getArgument(2);
-            IteratorState state = x.getArgument(3);
-            String tableScopedName = scope + "/" + tableName;
+            String tableName = x.getArgument(0);
+            int limit = x.getArgument(1);
+            IteratorState state = x.getArgument(2);
             final WireCommandType type = WireCommandType.READ_TABLE;
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
-                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
-                    Map<ByteBuffer, Long> tablePos = mapOfTablesPosition.get(tableScopedName);
+                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableName);
+                    Map<ByteBuffer, Long> tablePos = mapOfTablesPosition.get(tableName);
                     if (table == null) {
                         throw new WireCommandFailedException(type,
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
@@ -328,21 +314,19 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).readTableKeys(anyString(), anyString(), anyInt(), any(), anyString(), anyLong());
+        }).when(helper).readTableKeys(anyString(), anyInt(), any(), anyString(), anyLong());
         // endregion        
         
         // region readTableEntries
         doAnswer(x -> {
-            String scope = x.getArgument(0);
-            String tableName = x.getArgument(1);
-            int limit = x.getArgument(2);
-            IteratorState state = x.getArgument(3);
-            String tableScopedName = scope + "/" + tableName;
+            String tableName = x.getArgument(0);
+            int limit = x.getArgument(1);
+            IteratorState state = x.getArgument(2);
             final WireCommandType type = WireCommandType.READ_TABLE;
             return CompletableFuture.supplyAsync(() -> {
                 synchronized (lock) {
-                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableScopedName);
-                    Map<ByteBuffer, Long> tablePos = mapOfTablesPosition.get(tableScopedName);
+                    Map<ByteBuffer, TableEntry<byte[], byte[]>> table = mapOfTables.get(tableName);
+                    Map<ByteBuffer, Long> tablePos = mapOfTablesPosition.get(tableName);
                     if (table == null) {
                         throw new WireCommandFailedException(type,
                                 WireCommandFailedException.Reason.SegmentDoesNotExist);
@@ -369,7 +353,7 @@ public class SegmentHelperMock {
                     }
                 }
             }, executor);
-        }).when(helper).readTableEntries(anyString(), anyString(), anyInt(), any(), anyString(), anyLong());
+        }).when(helper).readTableEntries(anyString(), anyInt(), any(), anyString(), anyLong());
         // endregion
         return helper;
     }

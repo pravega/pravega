@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import io.pravega.common.cluster.Host;
 import io.pravega.controller.store.host.ZKHostStore;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -106,6 +107,10 @@ public class HostStoreTest {
         Assert.assertEquals(containerCount, hostStore.getContainerCount());
         Host hostObj = hostStore.getHostForSegment("dummyScope", "dummyStream",
                 (int) Math.floor(containerCount * Math.random()));
+        Assert.assertEquals(controllerPort, hostObj.getPort());
+        Assert.assertEquals(host, hostObj.getIpAddr());
+
+        hostObj = hostStore.getHostForTableSegment(StreamSegmentNameUtils.getQualifiedTableName("scope", "stream", "table", "id"));
         Assert.assertEquals(controllerPort, hostObj.getPort());
         Assert.assertEquals(host, hostObj.getIpAddr());
     }

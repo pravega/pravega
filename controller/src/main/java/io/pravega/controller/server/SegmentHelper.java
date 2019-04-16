@@ -59,7 +59,6 @@ import org.slf4j.LoggerFactory;
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionWrapper;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedStreamSegmentName;
-import static io.pravega.shared.segment.StreamSegmentNameUtils.getScopedStreamName;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getSegmentNumber;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getTransactionNameFromId;
 
@@ -84,9 +83,8 @@ public class SegmentHelper implements AutoCloseable {
         return Controller.NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build();
     }
 
-    public Controller.NodeUri getTableUri(final String scope,
-                                            final String stream) {
-        final Host host = hostStore.getHostForTableSegment(scope, stream);
+    public Controller.NodeUri getTableUri(final String tableName) {
+        final Host host = hostStore.getHostForTableSegment(tableName);
         return Controller.NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build();
     }
 
@@ -624,53 +622,50 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to create a table segment.
      *
-     * @param scope               Stream scope.
-     * @param stream              Stream name.
+     * @param tableName           Qualified table name.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
      * @return A CompletableFuture that, when completed normally, will indicate the table segment creation completed
      * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
      * can be retried then the future will be failed with {@link WireCommandFailedException}.
      */
-    public CompletableFuture<Boolean> createTableSegment(final String scope,
-                                                         final String stream,
+    public CompletableFuture<Boolean> createTableSegment(final String tableName,
                                                          String delegationToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final String qualifiedStreamSegmentName = getScopedStreamName(scope, stream);
-        final Controller.NodeUri uri = getTableUri(scope, stream);
+        final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
         final FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {
-                log.warn(requestId, "CreateTableSegment {} Connection dropped", qualifiedStreamSegmentName);
+                log.warn(requestId, "CreateTableSegment {} Connection dropped", tableName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn(requestId, "CreateTableSegment {} wrong host", qualifiedStreamSegmentName);
+                log.warn(requestId, "CreateTableSegment {} wrong host", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void segmentAlreadyExists(WireCommands.SegmentAlreadyExists segmentAlreadyExists) {
-                log.info(requestId, "CreateTableSegment {} segmentAlreadyExists", qualifiedStreamSegmentName);
+                log.info(requestId, "CreateTableSegment {} segmentAlreadyExists", tableName);
                 result.complete(true);
             }
 
             @Override
             public void segmentCreated(WireCommands.SegmentCreated segmentCreated) {
-                log.info(requestId, "CreateTableSegment {} SegmentCreated", qualifiedStreamSegmentName);
+                log.info(requestId, "CreateTableSegment {} SegmentCreated", tableName);
                 result.complete(true);
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error(requestId, "CreateTableSegment {} threw exception", qualifiedStreamSegmentName, error);
+                log.error(requestId, "CreateTableSegment {} threw exception", tableName, error);
                 handleError(error, result, type);
             }
 
@@ -682,7 +677,7 @@ public class SegmentHelper implements AutoCloseable {
             }
         };
 
-        WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, qualifiedStreamSegmentName, delegationToken);
+        WireCommands.CreateTableSegment request = new WireCommands.CreateTableSegment(requestId, tableName, delegationToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -690,8 +685,7 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to delete a table segment.
      *
-     * @param scope               Stream scope.
-     * @param stream              Stream name.
+     * @param tableName           Qualified table name.
      * @param mustBeEmpty         Flag to check if the table segment should be empty before deletion.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
@@ -699,14 +693,12 @@ public class SegmentHelper implements AutoCloseable {
      * successfully. If the operation failed, the future will be failed with the causing exception. If the exception
      * can be retried then the future will be failed with {@link WireCommandFailedException}.
      */
-    public CompletableFuture<Boolean> deleteTableSegment(final String scope,
-                                                         final String stream,
+    public CompletableFuture<Boolean> deleteTableSegment(final String tableName,
                                                          final boolean mustBeEmpty,
                                                          String delegationToken,
                                                          final long clientRequestId) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getTableUri(scope, stream);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.DELETE_TABLE_SEGMENT;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -714,38 +706,38 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void connectionDropped() {
-                log.warn(requestId, "deleteTableSegment {} Connection dropped.", qualifiedName);
+                log.warn(requestId, "deleteTableSegment {} Connection dropped.", tableName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn(requestId, "deleteTableSegment {} wrong host.", qualifiedName);
+                log.warn(requestId, "deleteTableSegment {} wrong host.", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.info(requestId, "deleteTableSegment {} NoSuchSegment.", qualifiedName);
+                log.info(requestId, "deleteTableSegment {} NoSuchSegment.", tableName);
                 result.complete(true);
             }
 
             @Override
             public void segmentDeleted(WireCommands.SegmentDeleted segmentDeleted) {
-                log.info(requestId, "deleteTableSegment {} SegmentDeleted.", qualifiedName);
+                log.info(requestId, "deleteTableSegment {} SegmentDeleted.", tableName);
                 result.complete(true);
             }
 
             @Override
             public void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty) {
-                log.warn(requestId, "deleteTableSegment {} TableSegmentNotEmpty.", qualifiedName);
+                log.warn(requestId, "deleteTableSegment {} TableSegmentNotEmpty.", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableSegmentNotEmpty));
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error(requestId, "deleteTableSegment {} failed.", qualifiedName, error);
+                log.error(requestId, "deleteTableSegment {} failed.", tableName, error);
                 handleError(error, result, type);
             }
 
@@ -757,7 +749,7 @@ public class SegmentHelper implements AutoCloseable {
             }
         };
 
-        WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, qualifiedName, mustBeEmpty, delegationToken);
+        WireCommands.DeleteTableSegment request = new WireCommands.DeleteTableSegment(requestId, tableName, mustBeEmpty, delegationToken);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result;
     }
@@ -765,8 +757,7 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to update table entries.
      *
-     * @param scope               Stream scope.
-     * @param stream              Stream name.
+     * @param tableName           Qualified table name.
      * @param entries             List of {@link TableEntry}s to be updated.
      * @param delegationToken     The token to be presented to the segmentstore.
      * @param clientRequestId     Request id.
@@ -774,14 +765,12 @@ public class SegmentHelper implements AutoCloseable {
      * If the operation failed, the future will be failed with the causing exception. If the exception can be retried
      * then the future will be failed with {@link WireCommandFailedException}.
      */
-    public CompletableFuture<List<KeyVersion>> updateTableEntries(final String scope,
-                                                                  final String stream,
+    public CompletableFuture<List<KeyVersion>> updateTableEntries(final String tableName,
                                                                   final List<TableEntry<byte[], byte[]>> entries,
                                                                   String delegationToken,
                                                                   final long clientRequestId) {
         final CompletableFuture<List<KeyVersion>> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getTableUri(scope, stream);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -789,43 +778,43 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void connectionDropped() {
-                log.warn(requestId, "updateTableEntries {} Connection dropped", qualifiedName);
+                log.warn(requestId, "updateTableEntries {} Connection dropped", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn(requestId, "updateTableEntries {} wrong host", qualifiedName);
+                log.warn(requestId, "updateTableEntries {} wrong host", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.warn(requestId, "updateTableEntries {} NoSuchSegment", qualifiedName);
+                log.warn(requestId, "updateTableEntries {} NoSuchSegment", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
             }
 
             @Override
             public void tableEntriesUpdated(WireCommands.TableEntriesUpdated tableEntriesUpdated) {
-                log.info(requestId, "updateTableEntries request for {} tableSegment completed.", qualifiedName);
+                log.info(requestId, "updateTableEntries request for {} tableSegment completed.", tableName);
                 result.complete(tableEntriesUpdated.getUpdatedVersions().stream().map(KeyVersionImpl::new).collect(Collectors.toList()));
             }
 
             @Override
             public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-                log.warn(requestId, "updateTableEntries request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
+                log.warn(requestId, "updateTableEntries request for {} tableSegment failed with TableKeyDoesNotExist.", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyDoesNotExist));
             }
 
             @Override
             public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
-                log.warn(requestId, "updateTableEntries request for {} tableSegment failed with TableKeyBadVersion.", qualifiedName);
+                log.warn(requestId, "updateTableEntries request for {} tableSegment failed with TableKeyBadVersion.", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyBadVersion));
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error(requestId, "updateTableEntries {} failed", qualifiedName, error);
+                log.error(requestId, "updateTableEntries {} failed", tableName, error);
                 handleError(error, result, type);
             }
 
@@ -847,7 +836,7 @@ public class SegmentHelper implements AutoCloseable {
             return new AbstractMap.SimpleImmutableEntry<>(key, value);
         }).collect(Collectors.toList());
 
-        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, qualifiedName, delegationToken,
+        WireCommands.UpdateTableEntries request = new WireCommands.UpdateTableEntries(requestId, tableName, delegationToken,
                                                                                       new WireCommands.TableEntries(wireCommandEntries));
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result
@@ -857,8 +846,7 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to remove table keys.
      *
-     * @param scope               Stream scope.
-     * @param stream              Stream name.
+     * @param tableName           Qualified table name.
      * @param keys                List of {@link TableKey}s to be removed. Only if all the elements in the list has version as
      *                            {@link KeyVersion#NO_VERSION} then an unconditional update/removal is performed. Else an atomic conditional
      *                            update (removal) is performed.
@@ -868,14 +856,12 @@ public class SegmentHelper implements AutoCloseable {
      * If the operation failed, the future will be failed with the causing exception. If the exception can be
      * retried then the future will be failed with {@link WireCommandFailedException}.
      */
-    public CompletableFuture<Void> removeTableKeys(final String scope,
-                                                   final String stream,
+    public CompletableFuture<Void> removeTableKeys(final String tableName,
                                                    final List<TableKey<byte[]>> keys,
                                                    String delegationToken,
                                                    final long clientRequestId) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getTableUri(scope, stream);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -883,44 +869,44 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void connectionDropped() {
-                log.warn(requestId, "removeTableKeys {} Connection dropped", qualifiedName);
+                log.warn(requestId, "removeTableKeys {} Connection dropped", tableName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn(requestId, "removeTableKeys {} Wrong host", qualifiedName);
+                log.warn(requestId, "removeTableKeys {} Wrong host", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.warn(requestId, "removeTableKeys {} NoSuchSegment", qualifiedName);
+                log.warn(requestId, "removeTableKeys {} NoSuchSegment", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
             }
 
             @Override
             public void tableKeysRemoved(WireCommands.TableKeysRemoved tableKeysRemoved) {
-                log.info(requestId, "removeTableKeys {} completed.", qualifiedName);
+                log.info(requestId, "removeTableKeys {} completed.", tableName);
                 result.complete(null);
             }
 
             @Override
             public void tableKeyDoesNotExist(WireCommands.TableKeyDoesNotExist tableKeyDoesNotExist) {
-                log.info(requestId, "removeTableKeys request for {} tableSegment failed with TableKeyDoesNotExist.", qualifiedName);
+                log.info(requestId, "removeTableKeys request for {} tableSegment failed with TableKeyDoesNotExist.", tableName);
                 result.complete(null);
             }
 
             @Override
             public void tableKeyBadVersion(WireCommands.TableKeyBadVersion tableKeyBadVersion) {
-                log.warn(requestId, "removeTableKeys request for {} tableSegment failed with TableKeyBadVersion.", qualifiedName);
+                log.warn(requestId, "removeTableKeys request for {} tableSegment failed with TableKeyBadVersion.", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.TableKeyBadVersion));
             }
 
             @Override
             public void processingFailure(Exception error) {
-                log.error(requestId, "removeTableKeys {} failed", qualifiedName, error);
+                log.error(requestId, "removeTableKeys {} failed", tableName, error);
                 handleError(error, result, type);
             }
 
@@ -939,7 +925,7 @@ public class SegmentHelper implements AutoCloseable {
             return key;
         }).collect(Collectors.toList());
 
-        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, qualifiedName, delegationToken, keyList);
+        WireCommands.RemoveTableKeys request = new WireCommands.RemoveTableKeys(requestId, tableName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result
                 .whenComplete((r, e) -> release(buffersToRelease));
@@ -948,8 +934,7 @@ public class SegmentHelper implements AutoCloseable {
     /**
      * This method sends a WireCommand to read table entries.
      *
-     * @param scope               Stream scope.
-     * @param stream              Stream name.
+     * @param tableName           Qualified table name.
      * @param keys                List of {@link TableKey}s to be read. {@link TableKey#getVersion()} is not used
      *                            during this operation and the latest version is read.
      * @param delegationToken     The token to be presented to the segmentstore.
@@ -958,14 +943,12 @@ public class SegmentHelper implements AutoCloseable {
      * a value corresponding to the latest version. The version will be set to {@link KeyVersion#NOT_EXISTS} if the
      * key does not exist. If the operation failed, the future will be failed with the causing exception.
      */
-    public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String scope,
-                                                                         final String stream,
+    public CompletableFuture<List<TableEntry<byte[], byte[]>>> readTable(final String tableName,
                                                                          final List<TableKey<byte[]>> keys,
                                                                          String delegationToken,
                                                                          final long clientRequestId) {
         final CompletableFuture<List<TableEntry<byte[], byte[]>>> result = new CompletableFuture<>();
-        final Controller.NodeUri uri = getTableUri(scope, stream);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
 
@@ -973,26 +956,26 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void connectionDropped() {
-                log.warn(requestId, "readTable {} Connection dropped", qualifiedName);
+                log.warn(requestId, "readTable {} Connection dropped", tableName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn(requestId, "readTable {} wrong host", qualifiedName);
+                log.warn(requestId, "readTable {} wrong host", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.warn(requestId, "readTable {} NoSuchSegment", qualifiedName);
+                log.warn(requestId, "readTable {} NoSuchSegment", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
             }
 
             @Override
             public void tableRead(WireCommands.TableRead tableRead) {
-                log.debug(requestId, "readTable {} successful.", qualifiedName);
+                log.debug(requestId, "readTable {} successful.", tableName);
                 List<TableEntry<byte[], byte[]>> tableEntries = tableRead.getEntries().getEntries().stream()
                                                                          .map(e -> new TableEntryImpl<>(convertFromWireCommand(e.getKey()), getArray(e.getValue().getData())))
                                                                          .collect(Collectors.toList());
@@ -1001,7 +984,7 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void processingFailure(Exception error) {
-                log.error(requestId, "readTable {} failed", qualifiedName, error);
+                log.error(requestId, "readTable {} failed", tableName, error);
                 handleError(error, result, type);
             }
 
@@ -1021,7 +1004,7 @@ public class SegmentHelper implements AutoCloseable {
             return new WireCommands.TableKey(buffer, WireCommands.TableKey.NO_VERSION);
         }).collect(Collectors.toList());
 
-        WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, qualifiedName, delegationToken, keyList);
+        WireCommands.ReadTable request = new WireCommands.ReadTable(requestId, tableName, delegationToken, keyList);
         sendRequestAsync(request, replyProcessor, result, ModelHelper.encode(uri));
         return result
                 .whenComplete((r, e) -> release(buffersToRelease));
@@ -1029,23 +1012,20 @@ public class SegmentHelper implements AutoCloseable {
 
     /**
      * The method sends a WireCommand to iterate over table keys.
-     * @param scope Stream scope.
-     * @param stream Stream name.
+     * @param tableName Qualified table name.
      * @param suggestedKeyCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
      * @param state Last known state of the iterator.
      * @param delegationToken The token to be presented to the segmentstore.
      * @param clientRequestId Request id.
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
-    public CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> readTableKeys(final String scope,
-                                                                                    final String stream,
+    public CompletableFuture<TableSegment.IteratorItem<TableKey<byte[]>>> readTableKeys(final String tableName,
                                                                                     final int suggestedKeyCount,
                                                                                     final IteratorState state,
                                                                                     final String delegationToken,
                                                                                     final long clientRequestId) {
 
-        final Controller.NodeUri uri = getTableUri(scope, stream);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
@@ -1055,26 +1035,26 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void connectionDropped() {
-                log.warn(requestId, "readTableKeys {} Connection dropped", qualifiedName);
+                log.warn(requestId, "readTableKeys {} Connection dropped", tableName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn(requestId, "readTableKeys {} wrong host", qualifiedName);
+                log.warn(requestId, "readTableKeys {} wrong host", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.warn(requestId, "readTableKeys {} NoSuchSegment", qualifiedName);
+                log.warn(requestId, "readTableKeys {} NoSuchSegment", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
             }
 
             @Override
             public void tableKeysRead(WireCommands.TableKeysRead tableKeysRead) {
-                log.info(requestId, "readTableKeys {} successful.", qualifiedName);
+                log.info(requestId, "readTableKeys {} successful.", tableName);
                 final IteratorState state = IteratorState.fromBytes(tableKeysRead.getContinuationToken());
                 final List<TableKey<byte[]>> keys =
                         tableKeysRead.getKeys().stream().map(k -> new TableKeyImpl<>(getArray(k.getData()),
@@ -1084,7 +1064,7 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void processingFailure(Exception error) {
-                log.error(requestId, "readTableKeys {} failed", qualifiedName, error);
+                log.error(requestId, "readTableKeys {} failed", tableName, error);
                 handleError(error, result, type);
             }
 
@@ -1096,7 +1076,7 @@ public class SegmentHelper implements AutoCloseable {
             }
         };
 
-        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, qualifiedName, delegationToken, suggestedKeyCount,
+        WireCommands.ReadTableKeys cmd = new WireCommands.ReadTableKeys(requestId, tableName, delegationToken, suggestedKeyCount,
                                                                         token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
@@ -1105,23 +1085,20 @@ public class SegmentHelper implements AutoCloseable {
 
     /**
      * The method sends a WireCommand to iterate over table entries.
-     * @param scope Stream scope.
-     * @param stream Stream name.
+     * @param tableName Qualified table name.
      * @param suggestedEntryCount Suggested number of {@link TableKey}s to be returned by the SegmentStore.
      * @param state Last known state of the iterator.
      * @param delegationToken The token to be presented to the segmentstore.
      * @param clientRequestId Request id.
      * @return A CompletableFuture that will return the next set of {@link TableKey}s returned from the SegmentStore.
      */
-    public CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> readTableEntries(final String scope,
-                                                                               final String stream,
+    public CompletableFuture<TableSegment.IteratorItem<TableEntry<byte[], byte[]>>> readTableEntries(final String tableName,
                                                                                final int suggestedEntryCount,
                                                                                final IteratorState state,
                                                                                final String delegationToken,
                                                                                final long clientRequestId) {
 
-        final Controller.NodeUri uri = getTableUri(scope, stream);
-        final String qualifiedName = getScopedStreamName(scope, stream);
+        final Controller.NodeUri uri = getTableUri(tableName);
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
         final long requestId = (clientRequestId == RequestTag.NON_EXISTENT_ID) ? idGenerator.get() : clientRequestId;
         final IteratorState token = (state == null) ? IteratorState.EMPTY : state;
@@ -1131,26 +1108,26 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void connectionDropped() {
-                log.warn(requestId, "readTableEntries {} Connection dropped", qualifiedName);
+                log.warn(requestId, "readTableEntries {} Connection dropped", tableName);
                 result.completeExceptionally(
                         new WireCommandFailedException(type, WireCommandFailedException.Reason.ConnectionDropped));
             }
 
             @Override
             public void wrongHost(WireCommands.WrongHost wrongHost) {
-                log.warn(requestId, "readTableEntries {} wrong host", qualifiedName);
+                log.warn(requestId, "readTableEntries {} wrong host", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.UnknownHost));
             }
 
             @Override
             public void noSuchSegment(WireCommands.NoSuchSegment noSuchSegment) {
-                log.warn(requestId, "readTableEntries {} NoSuchSegment", qualifiedName);
+                log.warn(requestId, "readTableEntries {} NoSuchSegment", tableName);
                 result.completeExceptionally(new WireCommandFailedException(type, WireCommandFailedException.Reason.SegmentDoesNotExist));
             }
 
             @Override
             public void tableEntriesRead(WireCommands.TableEntriesRead tableEntriesRead) {
-                log.debug(requestId, "readTableEntries {} successful.", qualifiedName);
+                log.debug(requestId, "readTableEntries {} successful.", tableName);
                 final IteratorState state = IteratorState.fromBytes(tableEntriesRead.getContinuationToken());
                 final List<TableEntry<byte[], byte[]>> entries =
                         tableEntriesRead.getEntries().getEntries().stream()
@@ -1165,7 +1142,7 @@ public class SegmentHelper implements AutoCloseable {
 
             @Override
             public void processingFailure(Exception error) {
-                log.error(requestId, "readTableEntries {} failed", qualifiedName, error);
+                log.error(requestId, "readTableEntries {} failed", tableName, error);
                 handleError(error, result, type);
             }
 
@@ -1177,7 +1154,7 @@ public class SegmentHelper implements AutoCloseable {
             }
         };
 
-        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, qualifiedName, delegationToken,
+        WireCommands.ReadTableEntries cmd = new WireCommands.ReadTableEntries(requestId, tableName, delegationToken,
                                                                         suggestedEntryCount, token.toBytes());
         sendRequestAsync(cmd, replyProcessor, result, ModelHelper.encode(uri));
         return result;
