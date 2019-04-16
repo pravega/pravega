@@ -9,6 +9,7 @@
  */
 package io.pravega.test.system.framework;
 
+import io.pravega.test.system.framework.services.PravegaProperties;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
@@ -68,7 +69,7 @@ public class Utils {
         }
     }
 
-    public static Service createBookkeeperService(final URI zkUri) {
+    public static Service createBookkeeperService(final URI zkUri, PravegaProperties props) {
         String serviceId = "bookkeeper";
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
@@ -77,11 +78,21 @@ public class Utils {
                 return new BookkeeperDockerService(serviceId, zkUri);
             case KUBERNETES:
             default:
-                return new BookkeeperK8sService(serviceId, zkUri);
+                return new BookkeeperK8sService(serviceId, zkUri, props);
         }
+
+    }
+
+    public static Service createBookkeeperService(final URI zkUri) {
+        return createBookkeeperService(zkUri, PravegaProperties.builder().build());
     }
 
     public static Service createPravegaControllerService(final URI zkUri, String serviceName) {
+        return createPravegaControllerService(zkUri, serviceName, PravegaProperties.builder().build());
+
+    }
+
+    public static Service createPravegaControllerService(final URI zkUri, String serviceName, PravegaProperties props) {
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
                 return new PravegaControllerService(serviceName, zkUri);
@@ -89,16 +100,24 @@ public class Utils {
                 return new PravegaControllerDockerService(serviceName, zkUri);
             case KUBERNETES:
             default:
-                return new PravegaControllerK8sService(serviceName, zkUri);
+                return new PravegaControllerK8sService(serviceName, zkUri, props);
         }
 
     }
 
     public static Service createPravegaControllerService(final URI zkUri) {
-        return createPravegaControllerService(zkUri, "controller");
+        return createPravegaControllerService(zkUri, "controller", PravegaProperties.builder().build());
+    }
+
+    public static Service createPravegaControllerService(final URI zkUri, PravegaProperties props) {
+        return createPravegaControllerService(zkUri, "controller", props);
     }
 
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
+        return createPravegaSegmentStoreService(zkUri, contUri, PravegaProperties.builder().build());
+    }
+
+    public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri, PravegaProperties props) {
         URI hdfsUri = null;
         if (DOCKER_BASED) {
             Service hdfsService = new HDFSDockerService("hdfs");
@@ -116,7 +135,7 @@ public class Utils {
                 return  new PravegaSegmentStoreDockerService(serviceId, zkUri, hdfsUri, contUri);
             case KUBERNETES:
             default:
-                return new PravegaSegmentStoreK8sService(serviceId, zkUri);
+                return new PravegaSegmentStoreK8sService(serviceId, zkUri, props);
         }
     }
 
@@ -138,12 +157,10 @@ public class Utils {
     public static boolean isDockerExecEnabled() {
         String dockerConfig = getConfig("execType", "LOCAL");
         return dockerConfig.trim().equalsIgnoreCase("docker") ?  true : false;
-
     }
 
     public static boolean isAwsExecution() {
         String dockerConfig = getConfig("awsExec", "false");
         return dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
-
     }
 }

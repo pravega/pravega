@@ -11,6 +11,7 @@ package io.pravega.test.system.framework.services.kubernetes;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
+import io.pravega.test.system.framework.services.PravegaProperties;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -26,15 +27,17 @@ import static io.pravega.test.system.framework.TestFrameworkException.Type.Reque
 public class PravegaControllerK8sService extends AbstractService {
 
     private final URI zkUri;
+    private final PravegaProperties properties;
 
-    public PravegaControllerK8sService(final String id, final URI zkUri) {
+    public PravegaControllerK8sService(final String id, final URI zkUri, PravegaProperties properties) {
         super(id);
         this.zkUri = zkUri;
+        this.properties = properties;
     }
 
     @Override
     public void start(boolean wait) {
-        Futures.getAndHandleExceptions(deployPravegaUsingOperator(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, DEFAULT_BOOKIE_COUNT),
+        Futures.getAndHandleExceptions(deployPravegaUsingOperator(zkUri, DEFAULT_CONTROLLER_COUNT, DEFAULT_SEGMENTSTORE_COUNT, DEFAULT_BOOKIE_COUNT, properties),
                                        t -> new TestFrameworkException(RequestFailed, "Failed to deploy pravega operator/pravega services", t));
         if (wait) {
             Futures.getAndHandleExceptions(k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, DEFAULT_CONTROLLER_COUNT),
@@ -97,7 +100,7 @@ public class PravegaControllerK8sService extends AbstractService {
                            log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentControllerCount != newInstanceCount) {
-                               return deployPravegaUsingOperator(zkUri, newInstanceCount, currentSegmentStoreCount, currentBookkeeperCount)
+                               return deployPravegaUsingOperator(zkUri, newInstanceCount, currentSegmentStoreCount, currentBookkeeperCount, properties)
                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
                            } else {
                                return CompletableFuture.completedFuture(null);

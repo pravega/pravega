@@ -38,6 +38,7 @@ import io.kubernetes.client.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.models.V1beta1SubjectBuilder;
 import io.pravega.test.system.framework.kubernetes.ClientFactory;
 import io.pravega.test.system.framework.kubernetes.K8sClient;
+import io.pravega.test.system.framework.services.PravegaProperties;
 import io.pravega.test.system.framework.services.Service;
 
 import java.net.URI;
@@ -97,7 +98,7 @@ public abstract class AbstractService implements Service {
         return id;
     }
 
-    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount) {
+    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, PravegaProperties props) {
         return k8sClient.createCRD(getPravegaCRD())
                         .thenCompose(v -> k8sClient.createRole(NAMESPACE, getPravegaOperatorRole()))
                         .thenCompose(v -> k8sClient.createRoleBinding(NAMESPACE, getPravegaOperatorRoleBinding()))
@@ -111,44 +112,32 @@ public abstract class AbstractService implements Service {
                                                                                 getPravegaDeployment(zkUri.getAuthority(),
                                                                                                    controllerCount,
                                                                                                    segmentStoreCount,
-                                                                                                   bookieCount)));
+                                                                                                   bookieCount, props)));
     }
 
-    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount) {
+    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, PravegaProperties props) {
 
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
         // use the latest version of bookkeeper.
         final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image",
-                                                                                             getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, PRAVEGA_BOOKKEEPER_VERSION))
+                                                                                         getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, PRAVEGA_BOOKKEEPER_VERSION))
                                                                                         .put("replicas", bookieCount)
                                                                                         .put("storage", ImmutableMap.builder()
-                                                                                                                    .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
-                                                                                                                    .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
-                                                                                                                    .build())
+                                                                                        .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
+                                                                                        .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
+                                                                                        .build())
                                                                                         .put("autoRecovery", true)
                                                                                         .build();
 
         // generate Pravega Spec.
         final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
-        final ImmutableMap<String, String> options = ImmutableMap.<String, String>builder()
-                // Segment store properties.
-                .put("autoScale.muteInSeconds", "120")
-                .put("autoScale.cooldownInSeconds", "120")
-                .put("autoScale.cacheExpiryInSeconds", "120")
-                .put("autoScale.cacheCleanUpInSeconds", "120")
-                .put("curator-default-session-timeout", "10000")
-                .put("bookkeeper.bkAckQuorumSize", "3")
-                // Controller properties.
-                .put("controller.transaction.maxLeaseValue", "60000")
-                .put("controller.retention.frequencyMinutes", "2")
-                .put("log.level", "DEBUG")
-                .build();
+
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                                                                                       .put("segmentStoreReplicas", segmentStoreCount)
                                                                                       .put("debugLogging", true)
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
-                                                                                      .put("options", options)
+                                                                                      .put("options", props)
                                                                                       .put("image",
                                                                                            getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME, PRAVEGA_VERSION))
                                                                                       .put("tier2", tier2Spec())

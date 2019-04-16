@@ -11,6 +11,7 @@ package io.pravega.test.system;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.Utils;
+import io.pravega.test.system.framework.services.PravegaProperties;
 import io.pravega.test.system.framework.services.Service;
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,6 +51,15 @@ abstract class AbstractSystemTest {
 
     static void startBookkeeperInstances(final URI zkUri) {
         Service bkService = Utils.createBookkeeperService(zkUri);
+        startBkService(bkService);
+    }
+
+    static void startBookkeeperInstances(final URI zkUri, PravegaProperties props) {
+        Service bkService = Utils.createBookkeeperService(zkUri, props);
+        startBkService(bkService);
+    }
+
+    private static void startBkService(Service bkService) {
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -57,8 +67,17 @@ abstract class AbstractSystemTest {
         log.debug("Bookkeeper service details: {}", bkUris);
     }
 
+    static URI ensureControllerRunning(final URI zkUri, PravegaProperties props) {
+        Service conService = Utils.createPravegaControllerService(zkUri, props);
+        return startControllerService(conService);
+    }
+
     static URI ensureControllerRunning(final URI zkUri) {
         Service conService = Utils.createPravegaControllerService(zkUri);
+        return startControllerService(conService);
+    }
+
+    private static URI startControllerService(Service conService) {
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -68,8 +87,17 @@ abstract class AbstractSystemTest {
         return conUris.get(0);
     }
 
+    static List<URI> ensureSegmentStoreRunning(final URI zkUri, final URI controllerURI, PravegaProperties props) {
+        Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI, props);
+        return startSegmentStoreService(segService);
+    }
+
     static List<URI> ensureSegmentStoreRunning(final URI zkUri, final URI controllerURI) {
         Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI);
+        return startSegmentStoreService(segService);
+    }
+
+    private static List<URI> startSegmentStoreService(Service segService) {
         if (!segService.isRunning()) {
             segService.start(true);
         }
