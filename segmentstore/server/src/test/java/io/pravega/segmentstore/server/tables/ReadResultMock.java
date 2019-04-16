@@ -9,11 +9,13 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
+import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import lombok.Getter;
@@ -29,7 +31,7 @@ class ReadResultMock implements ReadResult {
 
     @Getter
     private final long streamSegmentStartOffset;
-    private final ByteArraySegment data;
+    private final ArrayView data;
     private final int maxResultLength;
     private final int entryLength;
     private int consumedLength;
@@ -69,16 +71,36 @@ class ReadResultMock implements ReadResult {
         return new Entry(relativeOffset, length);
     }
 
+    /**
+     * When implemented in a derived class, this will return the Segment's Start Offset (where it is truncated at).
+     *
+     * @return The Segment's Start Offset.
+     */
+    protected long getSegmentStartOffset() {
+        return 0;
+    }
+
     //endregion
 
     //region ReadResultEntry
 
-    @RequiredArgsConstructor
     @Getter
     private class Entry implements ReadResultEntry {
         private final int relativeOffset;
         private final int requestedReadLength;
+        private final ReadResultEntryType type;
         private final CompletableFuture<ReadResultEntryContents> content = new CompletableFuture<>();
+
+        Entry(int relativeOffset, int requestedReadLength) {
+            this.relativeOffset = relativeOffset;
+            this.requestedReadLength = requestedReadLength;
+            if (getStreamSegmentOffset() < ReadResultMock.this.getSegmentStartOffset()) {
+                this.type = ReadResultEntryType.Truncated;
+                this.content.completeExceptionally(new StreamSegmentTruncatedException(ReadResultMock.this.getSegmentStartOffset()));
+            } else {
+                this.type = this.requestedReadLength == 0 ? ReadResultEntryType.EndOfStreamSegment : ReadResultEntryType.Cache;
+            }
+        }
 
         @Override
         public long getStreamSegmentOffset() {
@@ -86,15 +108,14 @@ class ReadResultMock implements ReadResult {
         }
 
         @Override
-        public ReadResultEntryType getType() {
-            return this.requestedReadLength == 0 ? ReadResultEntryType.EndOfStreamSegment : ReadResultEntryType.Cache;
-        }
-
-        @Override
         public void requestContent(Duration timeout) {
-            this.content.complete(new ReadResultEntryContents(
-                    data.getReader(this.relativeOffset, this.requestedReadLength),
-                    this.requestedReadLength));
+            if (this.type == ReadResultEntryType.Truncated) {
+                this.content.completeExceptionally(new StreamSegmentTruncatedException(getStreamSegmentStartOffset()));
+            } else {
+                this.content.complete(new ReadResultEntryContents(
+                        data.getReader(this.relativeOffset, this.requestedReadLength),
+                        this.requestedReadLength));
+            }
         }
 
         @Override

@@ -136,7 +136,7 @@ public class SegmentContainerMonitorTest {
             }
 
             @Override
-            public Host getHostForTableSegment(String scope, String table) {
+            public Host getHostForTableSegment(String table) {
                 return null;
             }
         }

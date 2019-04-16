@@ -80,4 +80,36 @@ public class MetricsTagsTest {
         assertEquals("0", tags[7]);
     }
 
+    @Test
+    public void testTableSegmentTags() {
+        String[] tags = segmentTags("_system/_tables/commonTables");
+        assertEquals(MetricsTags.TAG_SCOPE, tags[0]);
+        assertEquals("_system", tags[1]);
+        assertEquals(MetricsTags.TAG_STREAM, tags[2]);
+        assertEquals("_tables", tags[3]);
+        assertEquals(MetricsTags.TAG_SEGMENT, tags[4]);
+        assertEquals("commonTables", tags[5]);
+        assertEquals(MetricsTags.TAG_EPOCH, tags[6]);
+        assertEquals("0", tags[7]);
+
+        tags = segmentTags("_system/_tables/scope/tablesInScope");
+        assertEquals(MetricsTags.TAG_SCOPE, tags[0]);
+        assertEquals("_system", tags[1]);
+        assertEquals(MetricsTags.TAG_STREAM, tags[2]);
+        assertEquals("_tables", tags[3]);
+        assertEquals(MetricsTags.TAG_SEGMENT, tags[4]);
+        assertEquals("scope/tablesInScope", tags[5]);
+        assertEquals(MetricsTags.TAG_EPOCH, tags[6]);
+        assertEquals("0", tags[7]);
+
+        tags = segmentTags("scope/_tables/scope/stream/tablesInStream");
+        assertEquals(MetricsTags.TAG_SCOPE, tags[0]);
+        assertEquals("scope", tags[1]);
+        assertEquals(MetricsTags.TAG_STREAM, tags[2]);
+        assertEquals("_tables", tags[3]);
+        assertEquals(MetricsTags.TAG_SEGMENT, tags[4]);
+        assertEquals("scope/stream/tablesInStream", tags[5]);
+        assertEquals(MetricsTags.TAG_EPOCH, tags[6]);
+        assertEquals("0", tags[7]);
+    }
 }

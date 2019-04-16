@@ -72,8 +72,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private static final Comparator<Connection> COMPARATOR = new Comparator<Connection>() {
         @Override
         public int compare(Connection c1, Connection c2) {
-            int v1 = Futures.isSuccessful(c1.getConnected()) ? c1.getSessionCount() : Integer.MAX_VALUE;
-            int v2 = Futures.isSuccessful(c2.getConnected()) ? c2.getSessionCount() : Integer.MAX_VALUE;
+            int v1 = Futures.isSuccessful(c1.getConnected()) ? c1.getFlowCount() : Integer.MAX_VALUE;
+            int v2 = Futures.isSuccessful(c2.getConnected()) ? c2.getFlowCount() : Integer.MAX_VALUE;
             return Integer.compare(v1, v2);
         }
     }; 
@@ -105,11 +105,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
         // remove connections for which the underlying network connection is disconnected.
         List<Connection> prunedConnectionList = connectionList.stream().filter(connection -> {
             // Filter out Connection objects which have been completed exceptionally or have been disconnected.
-            return !connection.getConnected().isDone() || (Futures.isSuccessful(connection.getConnected()) && connection.getSessionHandler().isConnectionEstablished());
+            return !connection.getConnected().isDone() || (Futures.isSuccessful(connection.getConnected()) && connection.getFlowHandler().isConnectionEstablished());
         }).collect(Collectors.toList());
         log.debug("List of connections to {} that can be used: {}", location, prunedConnectionList);
 
-        // Choose the connection with the least number of sessions.
+        // Choose the connection with the least number of flows.
         Optional<Connection> suggestedConnection = prunedConnectionList.stream().min(COMPARATOR);
 
         final Connection connection;
@@ -120,12 +120,12 @@ public class ConnectionPoolImpl implements ConnectionPool {
             // create a new connection.
             log.info("Creating a new connection to {}", location);
             final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-            final SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
+            final FlowHandler handler = new FlowHandler(location.getEndpoint(), batchSizeTracker);
             CompletableFuture<Void> establishedFuture = establishConnection(location, handler);
             connection = new Connection(location, handler, establishedFuture);
             prunedConnectionList.add(connection);
         }
-        ClientConnection result = connection.getSessionHandler().createSession(flow, rp);
+        ClientConnection result = connection.getFlowHandler().createFlow(flow, rp);
         connectionMap.put(location, prunedConnectionList);
         return connection.getConnected().thenApply(v -> result);
     }
@@ -138,15 +138,15 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
         // create a new connection.
         final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        final SessionHandler handler = new SessionHandler(location.getEndpoint(), batchSizeTracker);
+        final FlowHandler handler = new FlowHandler(location.getEndpoint(), batchSizeTracker);
         CompletableFuture<Void> connectedFuture = establishConnection(location, handler);
         Connection connection = new Connection(location, handler, connectedFuture);
-        ClientConnection result = connection.getSessionHandler().createConnectionWithSessionDisabled(rp);
+        ClientConnection result = connection.getFlowHandler().createConnectionWithFlowDisabled(rp);
         return connectedFuture.thenApply(v -> result);
     }
 
     private boolean isUnused(Connection connection) {
-        return Futures.isSuccessful(connection.getConnected()) && connection.getSessionCount() == 0;
+        return Futures.isSuccessful(connection.getConnected()) && connection.getFlowCount() == 0;
     }
 
     /**
@@ -159,7 +159,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
             for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext();) {
                 Connection connection = iterator.next();
                 if (isUnused(connection)) {
-                    connection.getSessionHandler().close();
+                    connection.getFlowHandler().close();
                     iterator.remove();
                 }
             }
@@ -182,11 +182,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
     /**
      * Establish a new connection to the Pravega Node.
      * @param location The Pravega Node Uri
-     * @param handler The session handler for the connection
-     * @return A future, which completes once the connection has been established, returning a SessionHandler that can be used to create
+     * @param handler The flow handler for the connection
+     * @return A future, which completes once the connection has been established, returning a FlowHandler that can be used to create
      * sessions on the connection.
      */
-    private CompletableFuture<Void> establishConnection(PravegaNodeUri location, SessionHandler handler) {  
+    private CompletableFuture<Void> establishConnection(PravegaNodeUri location, FlowHandler handler) {  
         final Bootstrap b = getNettyBootstrap().handler(getChannelInitializer(location, handler));
         // Initiate Connection.
         final CompletableFuture<Void> connectionComplete = new CompletableFuture<>();
@@ -228,7 +228,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * Create a Channel Initializer which is to to setup {@link ChannelPipeline}.
      */
     private ChannelInitializer<SocketChannel> getChannelInitializer(final PravegaNodeUri location,
-                                                                    final SessionHandler handler) {
+                                                                    final FlowHandler handler) {
         final SslContext sslCtx = getSslContext();
 
         return new ChannelInitializer<SocketChannel>() {

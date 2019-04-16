@@ -24,22 +24,19 @@ import static io.pravega.shared.metrics.NullStatsLogger.NULLCOUNTER;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLGAUGE;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLMETER;
 import static io.pravega.shared.metrics.NullStatsLogger.NULLOPSTATSLOGGER;
-import static io.pravega.shared.MetricsNames.joinWithDot;
 
 @Slf4j
 public class StatsLoggerImpl implements StatsLogger {
-    private final String basename;
     private final MeterRegistry metrics;
 
-    StatsLoggerImpl(MeterRegistry metrics, String basename) {
+    StatsLoggerImpl(MeterRegistry metrics) {
         this.metrics = Preconditions.checkNotNull(metrics, "metrics");
-        this.basename = basename;
     }
 
     @Override
     public OpStatsLogger createStats(String statName, String... tags) {
         try {
-            return new OpStatsLoggerImpl(metrics, basename, statName, tags);
+            return new OpStatsLoggerImpl(metrics, statName, tags);
         } catch (Exception e) {
             log.warn("createStats failure: {}", statName, e);
             return NULLOPSTATSLOGGER;
@@ -78,13 +75,7 @@ public class StatsLoggerImpl implements StatsLogger {
 
     @Override
     public StatsLogger createScopeLogger(String scope) {
-        String scopeName;
-        if (0 == basename.length()) {
-            scopeName = scope;
-        } else {
-            scopeName = joinWithDot(basename, scope);
-        }
-        return new StatsLoggerImpl(metrics, scopeName);
+        return new StatsLoggerImpl(metrics);
     }
 
     private class CounterImpl implements Counter {
@@ -97,7 +88,7 @@ public class StatsLoggerImpl implements StatsLogger {
 
         CounterImpl(String statName, String... tagPairs) {
             this.tags = io.micrometer.core.instrument.Tags.of(tagPairs);
-            this.name = joinWithDot(basename, statName);
+            this.name = statName;
             this.counter = metrics.counter(name, this.tags);
             this.id = counter.getId();
         }
@@ -134,11 +125,10 @@ public class StatsLoggerImpl implements StatsLogger {
         private final Id id;
 
         GaugeImpl(String statName, Supplier<T> value, String... tagPairs) {
-            String name = joinWithDot(basename, statName);
             io.micrometer.core.instrument.Tags tags = io.micrometer.core.instrument.Tags.of(tagPairs);
-            this.id = new Id(name, tags, null, null, io.micrometer.core.instrument.Meter.Type.GAUGE);
+            this.id = new Id(statName, tags, null, null, io.micrometer.core.instrument.Meter.Type.GAUGE);
             metrics.remove(this.id);
-            metrics.gauge(name, tags, value, obj -> obj.get().doubleValue());
+            metrics.gauge(statName, tags, value, obj -> obj.get().doubleValue());
         }
 
         @Override
@@ -155,7 +145,7 @@ public class StatsLoggerImpl implements StatsLogger {
 
         MeterImpl(String statName, String... tagPairs) {
             this.summary = io.micrometer.core.instrument.DistributionSummary
-                    .builder(joinWithDot(basename, statName))
+                    .builder(statName)
                     .tags(tagPairs)
                     .register(metrics);
             this.id = summary == null ? null : summary.getId();

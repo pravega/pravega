@@ -1207,7 +1207,7 @@ public abstract class StreamMetadataTasksTest {
 
         VersionedMetadata<StreamConfigurationRecord> configurationRecord = streamStorePartialMock.getConfigurationRecord(SCOPE, test, null, executor).join();
         assertTrue(configurationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeUpdateConfiguration(SCOPE, test, configurationRecord, null, executor);
+        streamStorePartialMock.completeUpdateConfiguration(SCOPE, test, configurationRecord, null, executor).join();
 
         assertFalse(streamMetadataTasks.isUpdated(SCOPE, test, configuration2, null).get());
 
@@ -1251,7 +1251,7 @@ public abstract class StreamMetadataTasksTest {
 
         VersionedMetadata<StreamTruncationRecord> truncationRecord = streamStorePartialMock.getTruncationRecord(SCOPE, test, null, executor).join();
         assertTrue(truncationRecord.getObject().isUpdating());
-        streamStorePartialMock.completeTruncation(SCOPE, test, truncationRecord, null, executor);
+        streamStorePartialMock.completeTruncation(SCOPE, test, truncationRecord, null, executor).join();
 
         assertFalse(streamMetadataTasks.isTruncated(SCOPE, test, map, null).get());
 

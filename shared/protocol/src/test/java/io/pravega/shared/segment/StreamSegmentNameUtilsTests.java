@@ -117,4 +117,21 @@ public class StreamSegmentNameUtilsTests {
                 () -> StreamSegmentNameUtils.getMetadataSegmentName(-1),
                 ex -> ex instanceof IllegalArgumentException);
     }
+    
+    @Test
+    public void testTableSegmentName() {
+        String name = StreamSegmentNameUtils.getQualifiedTableName("scope", "tok1", "tok2", "tok3");
+        assertEquals("scope/_tables/tok1/tok2/tok3", name);
+        assertTrue(StreamSegmentNameUtils.isTableSegment(name));
+        List<String> tokens = StreamSegmentNameUtils.extractTableSegmentTokens(name);
+        
+        assertEquals(4, tokens.size());
+        assertEquals("scope", tokens.get(0));
+        assertEquals("tok1", tokens.get(1));
+        assertEquals("tok2", tokens.get(2));
+        assertEquals("tok3", tokens.get(3));
+
+        AssertExtensions.assertThrows("No tokens supplied", () -> StreamSegmentNameUtils.getQualifiedTableName("scope"), 
+                e -> e instanceof IllegalArgumentException);
+    }
 }
