@@ -93,12 +93,12 @@ class StatsProviderImpl implements StatsProvider {
     @Override
     public StatsLogger createStatsLogger(String name) {
         init();
-        return new StatsLoggerImpl(getMetrics(), "pravega." + name);
+        return new StatsLoggerImpl(getMetrics());
     }
 
     @Override
     public DynamicLogger createDynamicLogger() {
         init();
-        return new DynamicLoggerImpl(conf, metrics, new StatsLoggerImpl(getMetrics(), "pravega"));
+        return new DynamicLoggerImpl(conf, metrics, new StatsLoggerImpl(getMetrics()));
     }
 }
