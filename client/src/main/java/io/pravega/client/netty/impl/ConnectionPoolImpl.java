@@ -184,7 +184,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * @param location The Pravega Node Uri
      * @param handler The flow handler for the connection
      * @return A future, which completes once the connection has been established, returning a FlowHandler that can be used to create
-     * sessions on the connection.
+     * flows on the connection.
      */
     private CompletableFuture<Void> establishConnection(PravegaNodeUri location, FlowHandler handler) {  
         final Bootstrap b = getNettyBootstrap().handler(getChannelInitializer(location, handler));
