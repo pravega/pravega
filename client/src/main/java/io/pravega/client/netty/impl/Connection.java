@@ -28,7 +28,7 @@ public class Connection {
     private final CompletableFuture<Void> connected;
     
     /**
-     * Returns the number of open flows on this connection     
+     * Returns the number of open flows on this connection. 
      */
     public int getFlowCount() {
         return flowHandler.getOpenFlowCount();
