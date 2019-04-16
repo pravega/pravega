@@ -37,10 +37,8 @@ public final class MetricsTags {
     private static final int TRANSACTION_ID_LENGTH = 2 * TRANSACTION_PART_LENGTH;
 
     // For table segment name parsing, will depend on StreamSegmentNameUtils.
-    private static final String INTERNAL_SCOPE_NAME = "_system";
-    private static final String TABLE_SEGMENT_STREAM = "tables";
-    private static final String TABLE_SEGMENT_PREFIX = INTERNAL_SCOPE_NAME + "/" + TABLE_SEGMENT_STREAM + "/";
-    private static final int LENGTH_OF_TABLE_SEGMENT_PREFIX = TABLE_SEGMENT_PREFIX.length();
+    private static final String TABLES = "_tables";
+    private static final String TABLE_SEGMENT_DELIMITER = "/" + TABLES + "/";
 
     /**
      * Generate a container tag (string array) on the input containerId to be associated with a metric.
@@ -89,10 +87,11 @@ public final class MetricsTags {
     public static String[] segmentTags(String qualifiedSegmentName) {
         Preconditions.checkNotNull(qualifiedSegmentName);
         String[] tags = {TAG_SCOPE, null, TAG_STREAM, null, TAG_SEGMENT, null, TAG_EPOCH, null};
-        if (qualifiedSegmentName.indexOf(TABLE_SEGMENT_PREFIX) == 0) {
-            tags[1] = INTERNAL_SCOPE_NAME;
-            tags[3] = TABLE_SEGMENT_STREAM;
-            tags[5] = qualifiedSegmentName.substring(LENGTH_OF_TABLE_SEGMENT_PREFIX);
+        if (qualifiedSegmentName.contains(TABLE_SEGMENT_DELIMITER)) {
+            String[] tokens = qualifiedSegmentName.split(TABLE_SEGMENT_DELIMITER);
+            tags[1] = tokens[0];
+            tags[3] = TABLES;
+            tags[5] = tokens[1];
             tags[7] = "0";
             return tags;
         }
