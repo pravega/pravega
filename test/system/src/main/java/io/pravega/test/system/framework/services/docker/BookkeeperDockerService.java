@@ -65,8 +65,6 @@ public class BookkeeperDockerService extends DockerBasedService {
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.service.name", serviceName);
 
-        Mount mount1 = Mount.builder().type("volume").source("index-volume").target("/bk/index")
-                .build();
         Mount mount2 = Mount.builder().type("volume").source("bookkeeper-logs")
                 .target("/opt/dl_all/distributedlog-service/logs/")
                 .build();
@@ -76,10 +74,12 @@ public class BookkeeperDockerService extends DockerBasedService {
         String env2 = "ZK=" + zk;
         String env3 = "bookiePort=" + String.valueOf(BK_PORT);
         String env4 = "DLOG_EXTRA_OPTS=-Xms512m";
+        String env5 = "BK_useHostNameAsBookieID=false";
         stringList.add(env1);
         stringList.add(env2);
         stringList.add(env3);
         stringList.add(env4);
+        stringList.add(env5);
 
         final TaskSpec taskSpec = TaskSpec
                 .builder().restartPolicy(RestartPolicy.builder().maxAttempts(1).condition(RESTART_POLICY_ANY).build())
@@ -88,7 +88,7 @@ public class BookkeeperDockerService extends DockerBasedService {
                         .labels(labels)
                         .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
-                        .mounts(Arrays.asList(mount1, mount2))
+                        .mounts(Arrays.asList(mount2))
                         .env(stringList).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()

@@ -12,7 +12,6 @@ package io.pravega.shared;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
-import static io.pravega.shared.MetricsNames.joinWithDot;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -80,10 +79,5 @@ public class MetricsNamesTest {
     @Test  (expected = IllegalArgumentException.class)
     public void testMetricKeyWithDoubleNull() {
         MetricsNames.MetricKey keys = MetricsNames.metricKey("metric", null, null);
-    }
-
-    @Test
-    public void testNameMethod() {
-        assertEquals("A.B", joinWithDot("A", "B"));
     }
 }

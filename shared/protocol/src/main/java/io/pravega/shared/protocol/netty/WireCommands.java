@@ -480,20 +480,6 @@ public final class WireCommands {
             data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
         }
 
-        public static Event readFrom(DataInput in, int length) throws IOException {
-            int typeCode = in.readInt();
-            if (typeCode != WireCommandType.EVENT.getCode()) {
-                throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
-            }
-            int eventLength = in.readInt();
-            if (eventLength != length - TYPE_PLUS_LENGTH_SIZE) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
-            }
-            byte[] msg = new byte[eventLength];
-            in.readFully(msg);
-            return new Event(wrappedBuffer(msg));            
-        }
-        
         public ByteBuf getAsByteBuf() {
             ByteBuf header = Unpooled.buffer(TYPE_PLUS_LENGTH_SIZE, TYPE_PLUS_LENGTH_SIZE);
             header.writeInt(type.getCode());
@@ -636,9 +622,23 @@ public final class WireCommands {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
-            Event event = Event.readFrom(in, length - 8 * 5);
-            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            Event event = readEvent(in, length);
+            long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
             return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId);
+        }
+
+        private static Event readEvent(ByteBufInputStream in, int length) throws IOException {
+            int typeCode = in.readInt();
+            if (typeCode != WireCommandType.EVENT.getCode()) {
+                throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
+            }
+            int eventLength = in.readInt();
+            if (eventLength > length - TYPE_PLUS_LENGTH_SIZE) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
+            }
+            byte[] msg = new byte[eventLength];
+            in.readFully(msg);
+            return new Event(wrappedBuffer(msg));
         }
 
         @Override

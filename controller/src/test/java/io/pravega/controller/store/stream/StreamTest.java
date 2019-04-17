@@ -72,7 +72,7 @@ public class StreamTest {
     public void testPravegaTablesCreateStream() throws ExecutionException, InterruptedException {
         PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(
                 SegmentHelperMock.getSegmentHelperMockForTables(executor), AuthHelper.getDisabledAuthHelper(), executor);
-        PravegaTableScope scope = new PravegaTableScope("test", storeHelper);
+        PravegaTablesScope scope = new PravegaTablesScope("test", storeHelper);
         scope.createScope().join();
         scope.addStreamToScope("test").join();
         
@@ -180,7 +180,7 @@ public class StreamTest {
 
             testConcurrentGetSuccessorScale(store, (x, y) -> {
                 PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
-                PravegaTableScope scope = new PravegaTableScope(x, storeHelper);
+                PravegaTablesScope scope = new PravegaTablesScope(x, storeHelper);
                 Futures.exceptionallyExpecting(scope.createScope(), e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, null).join();
                 scope.addStreamToScope(y).join();
                 return new PravegaTablesStream(x, y, storeHelper, orderer, () -> 0, scope::getStreamsInScopeTableName, executor);
