@@ -153,9 +153,9 @@ This is an example from `io.pravega.segmentstore.server.SegmentStoreMetrics`. Th
 With Micrometer, each meter registry is responsible for both storage and exporting of metrics objects.
 In order to have a unified interface, Micrometer provides the `CompositeMeterRegistry` for the application to interact with, `CompositeMeterRegistry` will forward metric operations to all the concrete registries bounded to it.
 
-Note that `CompositeMeterRegistry` has no storage associated, hence in case no registry is bound to it, it will become an `NO-OP` interface only and Pravega will throw errors in such a case.
+Note that when metrics service `start()`, initially only a global registry (of type `CompositeMeterRegistry`) is provided, which will bind concrete registries (e.g. statsD, Influxdb) based on the configurations. If no registry is switched on in `config`, metrics service throws error to prevent the global registry runs into no-op mode.
 
-For performing unit testing in an easier way, Micrometer also provides `SimpleMeterRegistry`, which has memory only storage but no exporting is allowed; call `startWithoutExporting()` of `StatsProvider` to use this feature in test codes.
+Mainly for testing purpose, metrics service can also `startWithoutExporting()`, where a `SimpleMeterRegistry` is bound to the global registry. `SimpleMeterRegistry` holds memory only storage but does not export metrics, makes it is ideal for test to verify metrics objects.
 
 Currently Pravega supports the following:
 - StatsD registry in `Telegraf` flavor.
@@ -240,9 +240,9 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 - Segment Store Read/Write latency of storage operations ([Histograms](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
    ```
-    segmentstore.segment.create_latency_ms
-    segmentstore.segment.read_latency_ms
-    segmentstore.segment.write_latency_ms
+    pravega_segmentstore.segment.create_latency_ms
+    pravega_segmentstore.segment.read_latency_ms
+    pravega_segmentstore.segment.write_latency_ms
 
   ```
 
@@ -250,68 +250,68 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
    ```
       // Global counters
-      segmentstore.segment.read_bytes_global
-      segmentstore.segment.write_bytes_global
-      segmentstore.segment.write_events_global
+      pravega_segmentstore.segment.read_bytes_global
+      pravega_segmentstore.segment.write_bytes_global
+      pravega_segmentstore.segment.write_events_global
 
       // Per segment counters - all with tags {"scope", $scope, "stream", $stream, "segment", $segment, "epoch", $epoch}
 
-      segmentstore.segment.write_bytes
-      segmentstore.segment.read_bytes
-      segmentstore.segment.write_events
+      pravega_segmentstore.segment.write_bytes
+      pravega_segmentstore.segment.read_bytes
+      pravega_segmentstore.segment.write_events
   ```
 
 - Segment Store cache Read/Write latency Metrics ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
   ```
-    segmentstore.cache.insert_latency_ms
-    segmentstore.cache.get_latency
+    pravega_segmentstore.cache.insert_latency_ms
+    pravega_segmentstore.cache.get_latency
   ```
 
 - Segment Store cache Read/Write Metrics ([Counters](https://micrometer.io/docs/concepts#_counters)):
 
   ```
-    segmentstore.cache.write_bytes
-    segmentstore.cache.read_bytes
+    pravega_segmentstore.cache.write_bytes
+    pravega_segmentstore.cache.read_bytes
   ```
 
 - Segment Store cache size ([Gauge](https://micrometer.io/docs/concepts#_gauges)) and generation spread ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)) Metrics:
 
   ```
-    segmentstore.cache.size_bytes
-    segmentstore.cache.gen
+    pravega_segmentstore.cache.size_bytes
+    pravega_segmentstore.cache.gen
   ```
 
 - Tier 1 Storage `DurableDataLog` Read/Write latency and queuing Metrics ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
   ```
-    segmentstore.bookkeeper.total_write_latency_ms
-    segmentstore.bookkeeper.write_latency_ms
-    segmentstore.bookkeeper.write_queue_size
-    segmentstore.bookkeeper.write_queue_fill
+    pravega_segmentstore.bookkeeper.total_write_latency_ms
+    pravega_segmentstore.bookkeeper.write_latency_ms
+    pravega_segmentstore.bookkeeper.write_queue_size
+    pravega_segmentstore.bookkeeper.write_queue_fill
   ```
 
 - Tier 1 Storage `DurableDataLog` Read/Write ([Counter](https://micrometer.io/docs/concepts#_counters)) and per-container ledger count Metrics ([Gauge](https://micrometer.io/docs/concepts#_gauges)):
 
   ```
-    segmentstore.bookkeeper.write_bytes
-    segmentstore.bookkeeper.bookkeeper_ledger_count - with tag {"container", $containerId}
+    pravega_segmentstore.bookkeeper.write_bytes
+    pravega_segmentstore.bookkeeper.bookkeeper_ledger_count - with tag {"container", $containerId}
 
   ```
 
 - Tier 2 Storage Read/Write latency Metrics ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
   ```
-    segmentstore.storage.read_latency_ms
-    segmentstore.storage.write_latency_ms
+    pravega_segmentstore.storage.read_latency_ms
+    pravega_segmentstore.storage.write_latency_ms
   ```
 
 - Tier 2 Storage Read/Write data and file creation Metrics ([Counters](https://micrometer.io/docs/concepts#_counters)):
 
   ```
-    segmentstore.storage.read_bytes
-    segmentstore.storage.write_bytes
-    segmentstore.storage.create_count
+    pravega_segmentstore.storage.read_bytes
+    pravega_segmentstore.storage.write_bytes
+    pravega_segmentstore.storage.create_count
   ```
 
 - Segment Store container-specific operation Metrics:
@@ -380,26 +380,26 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     controller.stream.create_failed_global
     controller.stream.create_failed - with tags {"scope", $scope, "stream", $stream}
 
-    controller.stream.sealed.Counter
-    controller.stream.seal_failed_global.Counter
+    controller.stream.sealed
+    controller.stream.seal_failed_global
     controller.stream.seal_failed - with tags {"scope", $scope, "stream", $stream}
 
 
-    controller.stream.deleted.Counter
-    controller.stream.delete_failed_global.Counter
+    controller.stream.deleted
+    controller.stream.delete_failed_global
     controller.stream.delete_failed - with tags {"scope", $scope, "stream", $stream}
 
 
-    controller.stream.updated_global.Counter
+    controller.stream.updated_global
     controller.stream.updated - with tags {"scope", $scope, "stream", $stream}
 
-    controller.stream.update_failed_global.Counter
+    controller.stream.update_failed_global
     controller.stream.update_failed - with tags {"scope", $scope, "stream", $stream}
 
 
-    controller.stream.truncated_global.Counter
+    controller.stream.truncated_global
     controller.stream.truncated - with tags {"scope", $scope, "stream", $stream}
-    controller.stream.truncate_failed_global.Counter
+    controller.stream.truncate_failed_global
     controller.stream.truncate_failed - with tags {"scope", $scope, "stream", $stream}
 
   ```
@@ -416,9 +416,9 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
   ```
     controller.transactions.opened
     controller.transactions.timedout
-    controller.segments.count.$scope
-    controller.segment.splits.$scope
-    controller.segment.merges.$scope
+    controller.segments.count
+    controller.segment.splits
+    controller.segment.merges
   ```
 
 - Controller Transaction operation latency Metrics:
@@ -450,7 +450,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
   ```
     controller.hosts.count
     controller.hosts.failures_global
-    controller.hosts.failures.$host - with tags {"host", $host}
+    controller.hosts.failures - with tags {"host", $host}
 
   ```
 
@@ -458,12 +458,12 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
   ```
     controller.hosts.container_count
     controller.container.failovers_global
-    controller.container.failovers.$containerId - with tags {"container", $containerId}
+    controller.container.failovers - with tags {"container", $containerId}
 
   ```
 - Controller Zookeeper session expiration ([Counter](https://micrometer.io/docs/concepts#_counters)) metrics:
   ```
-  controller.zookeeper.session_expiration.Counter	controller.zookeeper.session_expiration
+  controller.zookeeper.session_expiration	controller.zookeeper.session_expiration
   ```
 
 # Resources
