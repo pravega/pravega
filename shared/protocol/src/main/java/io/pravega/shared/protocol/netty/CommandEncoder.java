@@ -95,7 +95,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 bytesLeftInBlock = currentBlockSize;
                 segmentBeingAppendedTo = append.segment;
                 writerIdPerformingAppends = append.writerId;
-                writeMessage(new AppendBlock(append.getRequestId(), session.id), out);
+                writeMessage(new AppendBlock(session.id), out);
                 if (ctx != null) {
                     ctx.executor().schedule(new BlockTimeouter(ctx.channel(), currentBlockSize),
                                             blockSizeSupplier.getBatchTimeout(),
