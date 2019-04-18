@@ -21,7 +21,11 @@ You may obtain a copy of the License at
    - [Example for Dynamic Meter](#example-for-dynamic-meter)
 * [Metric Registries and Configurations](#metric-registries-and-configurations)
 * [Creating Own Metrics](#creating-own-metrics)
+* [Metrics Naming Conventions](#metrics-naming-conventions)
 * [Available Metrics and Their Names](#available-metrics-and-their-names)
+   - [Metrics in JVM](#metrics-in-jvm)
+   - [Metrics in Segment Store Service](#metrics-in-segment-store-service)
+   - [Metrics in Controller Service](#metrics-in-controller-service)
 * [Resources](#resources)
 
 In the Pravega Metrics Framework, we use [Micrometer Metrics](https://micrometer.io/docs) as the underlying library, and provide our own API to make it easier to use.
@@ -221,13 +225,18 @@ All metric names are in the following format:
 ```
 Metrics Prefix + Component Origin + Sub-Component (or Abstraction) + Metric Base Name
 ```
- **Metric Prefix**: `pravega` by default, configurable.
- **Component Origin**: Indicates which component generates the metric, such as `segmentstore`, `controller`.
- **Sub-Component (or Abstraction)**: Indicates the second level component or abstraction, such as `cache`, `transaction`, `storage`.
- **Metric Base Name**: Indicates the `read_latency_ms`, `create_count`.
- For example:
+1. **Metric Prefix**: By default `pravega` is configurable.
+
+2. **Component Origin**: Indicates which component generates the metric, such as `segmentstore`, `controller`.
+
+3. **Sub-Component (or Abstraction)**: Indicates the second level component or abstraction, such as `cache`, `transaction`, `storage`.
+
+4. **Metric Base Name**: Indicates the `read_latency_ms`, `create_count`.
+
+For example:
  ```
     pravega.segmentstore.segment.create_latency_ms
+
   ```
 Following are some common combinations of component and sub-components (or abstractions) being used:
 
@@ -246,7 +255,7 @@ Following are some common combinations of component and sub-components (or abstr
 
 Following are the two types of metrics:
 
-1.**Global Metric**: Values are directly associated to the metric name that appears in this file. These can be used when we want to report metric values that applies to the whole Pravega cluster (e.g., number of bytes written, operations).
+1. **Global Metric**: Values are directly associated to the metric name that appears in this file. These can be used when we want to report metric values that applies to the whole Pravega cluster (e.g., number of bytes written, operations).
 For instance, `STORAGE_READ_BYTES` can be classified as a Global metric.
 
 2. **Object-based Metric**: Sometimes, we need to report metrics only based on specific objects, such as Streams or Segments. This kind of metrics use metric name as a base name in the file and are "dynamically" created based on the objects to be measured.
@@ -254,16 +263,14 @@ For instance, in `CONTAINER_APPEND_COUNT` we actually report multiple metrics, o
 `containerId` measured, with different container tag (e.g. `["containerId", "3"]`).
 
 There are cases in which we may want both a _Global_ and _Object-based_ versions for the same metric. For example, regarding `SEGMENT_READ_BYTES` we publish the Global version of it by adding `_global` suffix to the base name
- ```
+```
   segmentstore.segment.read_bytes_global
- ```
-to track the globally total number of bytes read, as well as the per-segment version of it by using the same base name and also supplying additional Segment tags
+```
+to track the globally total number of bytes read, as well as the per-segment version of it by using the same base name and also supplying additional Segment tags to report in a finer granularity the events read per Segment.
+
 ```
 segmentstore.segment.read_bytes, ["scope", "...", "stream", "...", "segment", "...", "epoch", "..."])
 ```
-to report in a finer granularity the events read per Segment.
-
-
 
 # Available Metrics and Their Names
 
