@@ -27,8 +27,8 @@ public interface ExceptionHandler {
      * and Restarts it otherwise.
      */
     ExceptionHandler DEFAULT_EXCEPTION_HANDLER = (Throwable y) -> {
-        if (y instanceof EventProcessorInitException || y instanceof EventProcessorReinitException ||
-                y instanceof EventProcessorExecutionException) {
+        if (y instanceof EventProcessorInitException ||
+                y instanceof EventProcessorReinitException) {
             return ExceptionHandler.Directive.Stop;
         } else {
             return ExceptionHandler.Directive.Restart;
