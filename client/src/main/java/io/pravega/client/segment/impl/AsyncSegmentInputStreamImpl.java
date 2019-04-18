@@ -181,8 +181,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
             return getConnection()
                     .whenComplete((connection, ex) -> {
                         if (ex != null) {
-                            log.warn("Exception while establishing connection with Pravega " +
-                                    "node", ex);
+                            log.warn("Exception while establishing connection with Pravega node", ex);
                             closeConnection(new ConnectionFailedException(ex));
                         }
                     }).thenCompose(c -> sendRequestOverConnection(request, c));
