@@ -155,7 +155,7 @@ In order to have a unified interface, Micrometer provides the `CompositeMeterReg
 
 Note that when metrics service `start()`, initially only a global registry (of type `CompositeMeterRegistry`) is provided, which will bind concrete registries (e.g. statsD, Influxdb) based on the configurations. If no registry is switched on in `config`, metrics service throws error to prevent the global registry runs into no-op mode.
 
-Mainly for testing purpose, metrics service can also `startWithoutExporting()`, where a `SimpleMeterRegistry` is bound to the global registry. `SimpleMeterRegistry` holds memory only storage but does not export metrics, makes it is ideal for test to verify metrics objects.
+Mainly for testing purpose, metrics service can also `startWithoutExporting()`, where a `SimpleMeterRegistry` is bound to the global registry. `SimpleMeterRegistry` holds memory only storage but does not export metrics, makes it ideal for tests to verify metrics objects.
 
 Currently Pravega supports the following:
 - StatsD registry in `Telegraf` flavor.
@@ -214,6 +214,55 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
     }
 
    ```
+# Metrics Naming Conventions
+
+All metric names are in the following format:
+
+```
+Metrics Prefix + Component Origin + Sub-Component (or Abstraction) + Metric Base Name
+```
+ **Metric Prefix**: `pravega` by default, configurable.
+ **Component Origin**: Indicates which component generates the metric, such as `segmentstore`, `controller`.
+ **Sub-Component (or Abstraction)**: Indicates the second level component or abstraction, such as `cache`, `transaction`, `storage`.
+ **Metric Base Name**: Indicates the `read_latency_ms`, `create_count`.
+ For example:
+ ```
+    pravega.segmentstore.segment.create_latency_ms
+  ```
+Following are some common combinations of component and sub-components (or abstractions) being used:
+
+- `segmentstore.segment`: Metrics for individual Segments
+- `segmentstore.storage`: Metrics related to long-term storage (Tier 2)
+- `segmentstore.bookkeeper`: Metrics related to Bookkeeper (Tier 1)
+- `segmentstore.container`: Metrics for Segment Containers
+- `segmentstore.thread_pool`: Metrics for Segment Store thread pool
+- `segmentstore.cache`: Cache-related metrics (RocksDB)
+- `controller.stream`: Metrics for operations on Streams (e.g., number of streams created)
+- `controller.segments`: Metrics about Segments, per Stream (e.g., count, splits, merges)
+- `controller.transactions`: Metrics related to Transactions (e.g., created, committed, aborted)
+- `controller.retention`: Metrics related to data retention, per Stream (e.g., frequency, size of truncated data)
+- `controller.hosts`: Metrics related to Pravega servers in the cluster (e.g., number of servers, failures)
+- `controller.container`: Metrics related to Container lifecycle (e.g., failovers)
+
+Following are the two types of metrics:
+
+1.**Global Metric**: Values are directly associated to the metric name that appears in this file. These can be used when we want to report metric values that applies to the whole Pravega cluster (e.g., number of bytes written, operations).
+For instance, `STORAGE_READ_BYTES` can be classified as a Global metric.
+
+2. **Object-based Metric**: Sometimes, we need to report metrics only based on specific objects, such as Streams or Segments. This kind of metrics use metric name as a base name in the file and are "dynamically" created based on the objects to be measured.
+For instance, in `CONTAINER_APPEND_COUNT` we actually report multiple metrics, one per each
+`containerId` measured, with different container tag (e.g. `["containerId", "3"]`).
+
+There are cases in which we may want both a _Global_ and _Object-based_ versions for the same metric. For example, regarding `SEGMENT_READ_BYTES` we publish the Global version of it by adding `_global` suffix to the base name
+ ```
+  segmentstore.segment.read_bytes_global
+ ```
+to track the globally total number of bytes read, as well as the per-segment version of it by using the same base name and also supplying additional Segment tags
+```
+segmentstore.segment.read_bytes, ["scope", "...", "stream", "...", "segment", "...", "epoch", "..."])
+```
+to report in a finer granularity the events read per Segment.
+
 
 
 # Available Metrics and Their Names
@@ -240,9 +289,9 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 - Segment Store Read/Write latency of storage operations ([Histograms](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
    ```
-    pravega_segmentstore.segment.create_latency_ms
-    pravega_segmentstore.segment.read_latency_ms
-    pravega_segmentstore.segment.write_latency_ms
+      segmentstore.segment.create_latency_ms
+      segmentstore.segment.read_latency_ms
+      segmentstore.segment.write_latency_ms
 
   ```
 
@@ -250,68 +299,68 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
 
    ```
       // Global counters
-      pravega_segmentstore.segment.read_bytes_global
-      pravega_segmentstore.segment.write_bytes_global
-      pravega_segmentstore.segment.write_events_global
+         segmentstore.segment.read_bytes_global
+         segmentstore.segment.write_bytes_global
+         segmentstore.segment.write_events_global
 
       // Per segment counters - all with tags {"scope", $scope, "stream", $stream, "segment", $segment, "epoch", $epoch}
 
-      pravega_segmentstore.segment.write_bytes
-      pravega_segmentstore.segment.read_bytes
-      pravega_segmentstore.segment.write_events
+        segmentstore.segment.write_bytes
+        segmentstore.segment.read_bytes
+        segmentstore.segment.write_events
   ```
 
 - Segment Store cache Read/Write latency Metrics ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
   ```
-    pravega_segmentstore.cache.insert_latency_ms
-    pravega_segmentstore.cache.get_latency
+    segmentstore.cache.insert_latency_ms
+    segmentstore.cache.get_latency
   ```
 
 - Segment Store cache Read/Write Metrics ([Counters](https://micrometer.io/docs/concepts#_counters)):
 
   ```
-    pravega_segmentstore.cache.write_bytes
-    pravega_segmentstore.cache.read_bytes
+    segmentstore.cache.write_bytes
+    segmentstore.cache.read_bytes
   ```
 
 - Segment Store cache size ([Gauge](https://micrometer.io/docs/concepts#_gauges)) and generation spread ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)) Metrics:
 
   ```
-    pravega_segmentstore.cache.size_bytes
-    pravega_segmentstore.cache.gen
+    segmentstore.cache.size_bytes
+    segmentstore.cache.gen
   ```
 
 - Tier 1 Storage `DurableDataLog` Read/Write latency and queuing Metrics ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
   ```
-    pravega_segmentstore.bookkeeper.total_write_latency_ms
-    pravega_segmentstore.bookkeeper.write_latency_ms
-    pravega_segmentstore.bookkeeper.write_queue_size
-    pravega_segmentstore.bookkeeper.write_queue_fill
+    segmentstore.bookkeeper.total_write_latency_ms
+    segmentstore.bookkeeper.write_latency_ms
+    segmentstore.bookkeeper.write_queue_size
+    segmentstore.bookkeeper.write_queue_fill
   ```
 
 - Tier 1 Storage `DurableDataLog` Read/Write ([Counter](https://micrometer.io/docs/concepts#_counters)) and per-container ledger count Metrics ([Gauge](https://micrometer.io/docs/concepts#_gauges)):
 
   ```
-    pravega_segmentstore.bookkeeper.write_bytes
-    pravega_segmentstore.bookkeeper.bookkeeper_ledger_count - with tag {"container", $containerId}
+    segmentstore.bookkeeper.write_bytes
+    segmentstore.bookkeeper.bookkeeper_ledger_count - with tag {"container", $containerId}
 
   ```
 
 - Tier 2 Storage Read/Write latency Metrics ([Histogram](https://micrometer.io/docs/concepts#_histograms_and_percentiles)):
 
   ```
-    pravega_segmentstore.storage.read_latency_ms
-    pravega_segmentstore.storage.write_latency_ms
+    segmentstore.storage.read_latency_ms
+    segmentstore.storage.write_latency_ms
   ```
 
 - Tier 2 Storage Read/Write data and file creation Metrics ([Counters](https://micrometer.io/docs/concepts#_counters)):
 
   ```
-    pravega_segmentstore.storage.read_bytes
-    pravega_segmentstore.storage.write_bytes
-    pravega_segmentstore.storage.create_count
+    segmentstore.storage.read_bytes
+    segmentstore.storage.write_bytes
+    segmentstore.storage.create_count
   ```
 
 - Segment Store container-specific operation Metrics:
@@ -463,7 +512,7 @@ The reporter could be configured using the `MetricsConfig`. Please refer to the 
   ```
 - Controller Zookeeper session expiration ([Counter](https://micrometer.io/docs/concepts#_counters)) metrics:
   ```
-  controller.zookeeper.session_expiration	controller.zookeeper.session_expiration
+  controller.zookeeper.session_expiration
   ```
 
 # Resources
