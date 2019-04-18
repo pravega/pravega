@@ -235,8 +235,7 @@ Metrics Prefix + Component Origin + Sub-Component (or Abstraction) + Metric Base
 
 For example:
  ```
-    pravega.segmentstore.segment.create_latency_ms
-
+     pravega.segmentstore.segment.create_latency_ms
   ```
 Following are some common combinations of component and sub-components (or abstractions) being used:
 
