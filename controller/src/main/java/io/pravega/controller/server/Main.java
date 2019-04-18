@@ -141,17 +141,14 @@ public class Main {
                 memoryMXBean.getNonHeapMemoryUsage());
 
         log.info("Controller service shutting down");
-        Thread.getAllStackTraces().forEach((key, value) ->
-                log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
         try {
             controllerServiceMain.stopAsync();
-            log.info("Awaiting shutting down of ControllerServiceMain");
             controllerServiceMain.awaitTerminated();
         } finally {
-            //if (Config.DUMP_STACK_ON_SHUTDOWN) {
-            Thread.getAllStackTraces().forEach((key, value) ->
-                    log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
-            //}
+            if (Config.DUMP_STACK_ON_SHUTDOWN) {
+                Thread.getAllStackTraces().forEach((key, value) ->
+                        log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
+            }
         }
     }
 }
