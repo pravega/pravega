@@ -70,8 +70,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int HIGH_WATER_MARK = 128 * 10 * 1024;
-    private static final int LOW_WATER_MARK = 64 * 10 * 1024;
+    private static final int HIGH_WATER_MARK = 640 * 1024; // 640KB
+    private static final int LOW_WATER_MARK = 320 * 1024;  // 320KB
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore store;
     private final ServerConnection connection;
