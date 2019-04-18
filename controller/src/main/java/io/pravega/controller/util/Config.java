@@ -128,7 +128,7 @@ public final class Config {
     private static final Property<Integer> PROPERTY_MIN_REBALANCE_INTERVAL_SECONDS = Property.named("minRebalanceIntervalSeconds", 10);
     private static final Property<Boolean> PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
     private static final Property<Boolean> PROPERTY_REQUEST_TRACING_ENABLED = Property.named("requestTracingEnabled", true);
-    private static final Property<Boolean> PROPERTY_DUMP_STACK_ON_SHUTDOWN = Property.named("dumpStackOnShutdown", true);
+    private static final Property<Boolean> PROPERTY_DUMP_STACK_ON_SHUTDOWN = Property.named("dumpStackOnShutdown", false);
     private static final Property<Boolean> PROPERTY_USE_PRAVEGA_TABLES = Property.named("usePravegaTables", true);
     private static final Property<Integer> PROPERTY_SERVICE_PORT = Property.named("service.port", 9090);
     private static final Property<Integer> PROPERTY_TASK_POOL_SIZE = Property.named("service.asyncTaskPoolSize", 80);
