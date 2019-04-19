@@ -91,12 +91,8 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
         // Depending on an exception message for determining whether the given exception represents auth failure'
         // is leaking abstractions, but we have no other choice here because auth failures are thrown as the gRPC's
         // overly general StatusRuntimeException.
-        if (innermostException instanceof StatusRuntimeException &&
-             innermostException.getMessage().toUpperCase().contains("UNAUTHENTICATED")) {
-            return true;
-        } else {
-            return false;
-        }
+        return innermostException instanceof StatusRuntimeException &&
+             innermostException.getMessage().toUpperCase().contains("UNAUTHENTICATED");
     }
 
     @After
