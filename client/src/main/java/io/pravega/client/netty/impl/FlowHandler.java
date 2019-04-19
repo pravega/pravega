@@ -216,7 +216,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
             try {
-                log.debug("Exception observed for flow id {}", flowId, cause);
+                log.debug("Exception observed for flow id {} due to {}", flowId, cause.getMessage());
                 rp.processingFailure(new ConnectionFailedException(cause));
             } catch (Exception e) {
                 // Suppressing exception which prevents all ReplyProcessor.processingFailure from being invoked.
