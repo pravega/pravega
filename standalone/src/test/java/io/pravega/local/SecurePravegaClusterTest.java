@@ -50,7 +50,7 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
         return ClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
 
-                 // TLS-related
+                // TLS-related
                 .trustStore("../config/cert.pem")
                 .validateHostName(false)
 
