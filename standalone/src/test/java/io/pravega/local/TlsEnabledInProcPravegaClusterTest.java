@@ -15,13 +15,13 @@ import java.net.URI;
 
 import io.pravega.client.admin.StreamManager;
 import io.pravega.common.util.RetriesExhaustedException;
+import javax.net.ssl.SSLHandshakeException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import sun.security.provider.certpath.SunCertPathBuilderException;
 
 /**
  * Tests for TLS enabled standalone cluster. It inherits the test methods defined in the parent class.
@@ -79,18 +79,11 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
         try {
             streamManager.createScope(scopeName());
         } catch (RetriesExhaustedException e) {
-            e.printStackTrace();
-            if (!hasTlsExceptionAsRootCause(e)) {
+            if (ExceptionUtils.indexOfThrowable(e, SSLHandshakeException.class) == -1) {
                 throw e;
             }
-
         }
     }
-
-    private boolean hasTlsExceptionAsRootCause(Throwable e) {
-        return (ExceptionUtils.getRootCause(e) instanceof SunCertPathBuilderException);
-    }
-
 
     @After
     @Override
