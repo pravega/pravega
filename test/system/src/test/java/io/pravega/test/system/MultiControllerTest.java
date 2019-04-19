@@ -128,15 +128,16 @@ public class MultiControllerTest extends AbstractSystemTest {
             controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
         }
 
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect.get());
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()),
+                () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), clientConfig),
                 throwable -> throwable instanceof RetriesExhaustedException);
 
         if (!DOCKER_BASED) {
             log.info("Test pravega:// with no controller instances running");
             AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                    () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()),
+                    () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), clientConfig),
                     throwable -> throwable instanceof RetriesExhaustedException);
         }
 
@@ -156,12 +157,12 @@ public class MultiControllerTest extends AbstractSystemTest {
     }
 
     private boolean createScopeWithSimpleRetry(String scopeName, URI controllerURI) throws ExecutionException, InterruptedException {
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
         // Need to retry since there is a delay for the mesos DNS name to resolve correctly.
         @Cleanup
         final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(ClientConfig.builder()
-                        .controllerURI(controllerURI)
-                        .build())
+                .clientConfig(clientConfig)
                 .build(), executorService);
 
         CompletableFuture<Boolean> retryResult = Retry.withExpBackoff(500, 2, 10, 5000)
@@ -172,12 +173,10 @@ public class MultiControllerTest extends AbstractSystemTest {
         return retryResult.get();
     }
 
-    private boolean createScope(String scopeName, URI controllerURI) throws ExecutionException, InterruptedException {
+    private boolean createScope(String scopeName, ClientConfig clientConfig) throws ExecutionException, InterruptedException {
         @Cleanup
         final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(ClientConfig.builder()
-                        .controllerURI(controllerURI)
-                        .build())
+                .clientConfig(clientConfig)
                 .build(), executorService);
         return controllerClient.createScope(scopeName).get();
     }

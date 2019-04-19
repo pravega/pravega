@@ -10,7 +10,6 @@
 package io.pravega.test.system;
 
 import io.pravega.client.ByteStreamClientFactory;
-import io.pravega.client.ClientConfig;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.byteStream.ByteStreamReader;
@@ -94,7 +93,8 @@ public class ByteClientTest extends AbstractSystemTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
-        streamManager = StreamManager.create(controllerURI);
+
+        streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
@@ -115,11 +115,12 @@ public class ByteClientTest extends AbstractSystemTest {
      */
     @Test
     public void byteClientTest() throws IOException {
+        log.info("byteClientTest:: with security enabled: {}", Utils.AUTH_ENABLED);
+
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(Utils.buildClientConfig(controllerURI));
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(ClientConfig.builder()
-                        .controllerURI(controllerURI).build()).build(),
+                                                                           .clientConfig(Utils.buildClientConfig(controllerURI)).build(),
                 connectionFactory.getInternalExecutor());
         @Cleanup
         ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);

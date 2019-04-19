@@ -457,7 +457,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         }
                     });
         } catch (Exception e) {
-            log.error("Controller api failed with authenticator error");
+            log.error("Controller api failed with authenticator error", e);
             logAndUntrackRequestTag(requestTag);
             streamObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Authentication failed")
