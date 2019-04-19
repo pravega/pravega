@@ -10,19 +10,15 @@
 package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Test;
 
 /**
- * Unit tests for secure standalone cluster.
+ * Integration tests for TLS and auth enabled in-process standalone cluster. It inherits the test methods defined
+ * in the parent class.
  */
 @Slf4j
 public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
@@ -34,29 +30,33 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
         super.setUp();
     }
 
-    /**
-     * Create the test stream.
-     *
-     * @throws Exception on any errors.
-     */
-    @Test
-    public void failingCreateTestStream()
-            throws Exception {
-        Assert.assertNotNull("Pravega not initialized", localPravega);
-        String scope = "Scope";
-        String streamName = "Stream";
-        int numSegments = 10;
+    @Override
+    String scopeName() {
+        return "TlsAndAuthTestScope";
+    }
 
-        ClientConfig clientConfig = ClientConfig.builder()
-                                                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                                                .validateHostName(false)
-                                                .build();
-        @Cleanup
-        StreamManager streamManager = StreamManager.create(clientConfig);
+    @Override
+    String streamName() {
+        return "TlsAndAuthTestStream";
+    }
 
-        AssertExtensions.assertThrows(RuntimeException.class,
-                () -> streamManager.createScope(scope));
+    @Override
+    String eventMessage() {
+        return "Test message on the encrypted channel with auth credentials";
+    }
+
+    @Override
+    ClientConfig prepareValidClientConfig() {
+        return ClientConfig.builder()
+                .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
+
+                 // TLS-related
+                .trustStore("../config/cert.pem")
+                .validateHostName(false)
+
+                // Auth-related
+                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                .build();
     }
 
     @After
