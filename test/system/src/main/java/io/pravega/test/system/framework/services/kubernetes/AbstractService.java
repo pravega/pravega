@@ -139,6 +139,7 @@ public abstract class AbstractService implements Service {
                 .put("autoScale.cacheCleanUpInSeconds", "120")
                 .put("curator-default-session-timeout", "10000")
                 .put("bookkeeper.bkAckQuorumSize", "3")
+                .put("hdfs.replaceDataNodesOnFailure", "false")
                 // Controller properties.
                 .put("controller.transaction.maxLeaseValue", "60000")
                 .put("controller.retention.frequencyMinutes", "2")
