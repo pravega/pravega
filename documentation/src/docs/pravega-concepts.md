@@ -20,7 +20,7 @@ You may obtain a copy of the License at
       - [Elastic Streams Auto Scaling](#elastic-streams-auto-scaling)
       - [Events Stream Segments and Auto scaling](#events-stream-segments-and-auto-scaling)
       - [Stream Segments and Reader Groups](#stream-segments-and-reader-groups)
-      - [Ordering Guarantees](#ordering-guarantees)]
+      - [Ordering Guarantees](#ordering-guarantees)
       - [Reader Group Checkpoints](#reader-group-checkpoints)
    * [Transactions](#transactions)
    * [State Synchronizers](#state-synchronizers)
