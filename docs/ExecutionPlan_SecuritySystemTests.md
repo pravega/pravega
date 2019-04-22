@@ -2,7 +2,7 @@
 
 ## Objective
 The objective of running system tests with Security(Auth+TLS) enabled, is to very that all Pravega functionality continues to function as expected in a distributed cluster when Security features are enabled.
-This is not for testing working of specific security features like access control, encryption etc... as this should get covered under Security Unit Tests. However, a few basic security specific verifications can be added like scope creation failing when authenication fails.
+This is not for testing working of specific security features like access control, encryption etc... as that should get covered under Security Unit Tests. However, a few basic security specific verifications could be added like scope creation failing when authenication fails.
 
 ## Cluster Setup for System Tests (with Security)
 The default cluster setup, for system tests has security disabled. (security related system properties are not set)
