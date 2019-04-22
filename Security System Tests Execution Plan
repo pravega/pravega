@@ -1,0 +1,8 @@
+# Running System Tests with Security Enabled
+
+
+The objective of running system tests with Security(Auth+TLS) enabled is to very that all Pravega functionality continues to function the same way as expected in an environment where auth is disabled.
+This also aims to cover testing of a few security specific test scenarios, as listed here,but will not cover each and every test path for Pravega Security testing. This should be covered by Security Unit Tests.
+
+The following approaches have been considered for running System Tests with & without Security:
+Approach 1
