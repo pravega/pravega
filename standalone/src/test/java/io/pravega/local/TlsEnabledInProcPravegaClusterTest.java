@@ -11,10 +11,9 @@ package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
 
-import java.net.URI;
-
 import io.pravega.client.admin.StreamManager;
-import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.test.common.AssertExtensions;
+import java.net.URI;
 import javax.net.ssl.SSLHandshakeException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +68,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
      */
     @Test(timeout = 300000)
     public void testCreateStreamFailsWithInvalidClientConfig() {
+        // Truststore for the TLS connection is missing.
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
                 .build();
@@ -76,13 +76,13 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
 
-        try {
-            streamManager.createScope(scopeName());
-        } catch (RetriesExhaustedException e) {
-            if (ExceptionUtils.indexOfThrowable(e, SSLHandshakeException.class) == -1) {
-                throw e;
-            }
-        }
+        AssertExtensions.assertThrows("TLS exception did not occur.",
+                () -> streamManager.createScope(scopeName()),
+                e -> hasTlsException(e));
+    }
+
+    private boolean hasTlsException(Throwable e) {
+        return ExceptionUtils.indexOfThrowable(e, SSLHandshakeException.class) != -1;
     }
 
     @After

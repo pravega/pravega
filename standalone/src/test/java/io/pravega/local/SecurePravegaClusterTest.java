@@ -17,7 +17,7 @@ import org.junit.After;
 import org.junit.Before;
 
 /**
- * Integration tests for TLS and auth enabled in-process standalone cluster. It inherits the test methods defined
+ * This class holds tests for TLS and auth enabled in-process standalone cluster. It inherits the test methods defined
  * in the parent class.
  */
 @Slf4j

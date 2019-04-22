@@ -42,7 +42,8 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Unit tests for standalone
+ * This class contains tests for in-process standalone cluster. It also configures and runs standalone mode cluster
+ * with appropriate configuration for itself as well as for sub-classes.
  */
 @Slf4j
 public class InProcPravegaClusterTest {

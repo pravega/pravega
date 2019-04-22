@@ -12,9 +12,8 @@ package io.pravega.local;
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
-
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -24,8 +23,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * Integration tests for auth enabled in-process standalone cluster. It inherits the test methods defined in the
- * parent class.
+ * This class contains tests for auth enabled in-process standalone cluster. It inherits the test methods defined
+ * in the parent class.
  */
 @Slf4j
 public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest {
@@ -76,21 +75,17 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
         @Cleanup
         StreamManager streamManager = StreamManager.create(clientConfig);
 
-        try {
-            streamManager.createScope(scopeName());
-        } catch (RetriesExhaustedException e) {
-            if (!hasAuthExceptionAsRootCause(e)) {
-                throw e;
-            }
-        }
+        AssertExtensions.assertThrows("Auth exception did not occur.",
+                () -> streamManager.createScope(scopeName()),
+                e -> hasAuthExceptionAsRootCause(e));
     }
 
     private boolean hasAuthExceptionAsRootCause(Throwable e) {
         Throwable innermostException = ExceptionUtils.getRootCause(e);
 
-        // Depending on an exception message for determining whether the given exception represents auth failure'
-        // is leaking abstractions, but we have no other choice here because auth failures are thrown as the gRPC's
-        // overly general StatusRuntimeException.
+        // Depending on an exception message for determining whether the given exception represents auth failure
+        // is not a good thing to do, but we have no other choice here because auth failures are represented as the
+        // overly general io.grpc.StatusRuntimeException.
         return innermostException instanceof StatusRuntimeException &&
              innermostException.getMessage().toUpperCase().contains("UNAUTHENTICATED");
     }
