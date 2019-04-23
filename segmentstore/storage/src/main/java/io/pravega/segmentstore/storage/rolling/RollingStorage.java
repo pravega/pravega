@@ -139,10 +139,11 @@ public class RollingStorage implements SyncStorage {
                     offset, bufferOffset, length, buffer.length));
         }
 
-        if (h.isReadOnly() && !h.isSealed() && offset + length > h.length()) {
-            // We have a non-sealed read-only handle. It's possible that the SegmentChunks may have been modified since
-            // the last time we refreshed it, and we received a request for a read beyond our last known offset. Reload
-            // the handle before attempting the read.
+        if (!h.isSealed() && offset + length > h.length()) {
+            // We have a non-sealed handle (read-only or read-write). It's possible that the SegmentChunks may have been
+            // modified since the last time we refreshed it, and we received a request for a read beyond our last known offset.
+            // This could happen if the Segment was modified using a different handle or a previous write did succeed but was
+            // reported as having failed. Reload the handle before attempting the read so that we have the most up-to-date info.
             val newHandle = (RollingSegmentHandle) openRead(handle.getSegmentName());
             h.refresh(newHandle);
             log.debug("Handle refreshed: {}.", h);
@@ -250,7 +251,7 @@ public class RollingStorage implements SyncStorage {
         // If the header file already exists, then it's OK if it's empty (probably a remnant from a previously failed
         // attempt); in that case we ignore it and let the creation proceed.
         SegmentHandle headerHandle = null;
-        RollingSegmentHandle retValue  = null;
+        RollingSegmentHandle retValue;
         try {
             try {
                 headerHandle = this.baseStorage.create(headerName);
