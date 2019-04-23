@@ -42,6 +42,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    @Getter
     private final AppendBatchSizeTracker batchSizeTracker;
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
     @VisibleForTesting
