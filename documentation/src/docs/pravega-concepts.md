@@ -161,7 +161,7 @@ determines how a Stream handles the varying changes in its load. Pravega has thr
 
 3.  **Event-based**: Similar to the data-based scaling policy, but it uses number of Events instead of bytes.
 
-### Events, Stream Segments and AutoScaling
+### Events, Stream Segments and Auto Scaling
 
 
 As mentioned earlier in this section, that an Event is written into one of the Stream Segments. By considering Auto Scaling, Stream Segments performs bucketing of Events based on Routing Key and time. It is obvious that, at any given time, Events published to a Stream with a given value of Routing Key will appear in the same Stream Segment.
