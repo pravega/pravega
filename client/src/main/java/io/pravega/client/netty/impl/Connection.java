@@ -9,29 +9,29 @@
  */
 package io.pravega.client.netty.impl;
 
-import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import lombok.Data;
 
 /**
  * This class represents a Connection that is established with a Segment Store instance and its
- * attributes. (e.g: SessionCount, WriterCount)
+ * attributes. (e.g: FlowCount, WriterCount)
  */
 @Data
 public class Connection {
     private final PravegaNodeUri uri;
-    private final CompletableFuture<SessionHandler> sessionHandler;
+    private final FlowHandler flowHandler;
     
     /**
-     * Returns the number of open sessions on this connection, if the connection has been established.       
+     * A future that completes when the connection is first established.
      */
-    public Optional<Integer> getSessionCount() {
-        if (!Futures.isSuccessful(sessionHandler)) {
-            return Optional.empty();
-        }
-        return Optional.of(sessionHandler.join().getNumOpenSession());
+    private final CompletableFuture<Void> connected;
+    
+    /**
+     * Returns the number of open flows on this connection. 
+     */
+    public int getFlowCount() {
+        return flowHandler.getOpenFlowCount();
     }
 }
 

@@ -34,22 +34,23 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class SessionHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
+public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
 
-    private static final int SESSION_DISABLED = -1;
+    private static final int FLOW_DISABLED = -1;
     private final String connectionName;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    @Getter
     private final AppendBatchSizeTracker batchSizeTracker;
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
-    private final ConcurrentHashMap<Integer, ReplyProcessor> sessionIdReplyProcessorMap = new ConcurrentHashMap<>();
-    private final AtomicBoolean disableSession = new AtomicBoolean(false);
+    private final ConcurrentHashMap<Integer, ReplyProcessor> flowIdReplyProcessorMap = new ConcurrentHashMap<>();
+    private final AtomicBoolean disableFlow = new AtomicBoolean(false);
 
-    public SessionHandler(String connectionName, AppendBatchSizeTracker batchSizeTracker) {
+    public FlowHandler(String connectionName, AppendBatchSizeTracker batchSizeTracker) {
         this.connectionName = connectionName;
         this.batchSizeTracker = batchSizeTracker;
     }
@@ -60,46 +61,46 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
      * @param rp ReplyProcessor for the specified flow.
      * @return Client Connection object.
      */
-    public ClientConnection createSession(final Flow flow, final ReplyProcessor rp) {
+    public ClientConnection createFlow(final Flow flow, final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkState(!disableSession.get(), "Ensure sessions are enabled.");
-        log.info("Creating Flow {} for Endpoint {}. The current Channel is {}.", flow.getFlowId(), connectionName, channel.get());
-        if (sessionIdReplyProcessorMap.put(flow.getFlowId(), rp) != null) {
-            throw new IllegalArgumentException("Multiple sessions cannot be created with the same Flow id " + flow.getFlowId());
+        Preconditions.checkState(!disableFlow.get(), "Ensure flows are enabled.");
+        log.info("Creating Flow {} for endpoint {}. The current Channel is {}.", flow.getFlowId(), connectionName, channel.get());
+        if (flowIdReplyProcessorMap.put(flow.getFlowId(), rp) != null) {
+            throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flow.getFlowId());
         }
         return new ClientConnectionImpl(connectionName, flow.getFlowId(), batchSizeTracker, this);
     }
 
     /**
-     * Create a {@link ClientConnection} where sessions are disabled. This implies that there is only one session on the underlying
+     * Create a {@link ClientConnection} where flows are disabled. This implies that there is only one flow on the underlying
      * network connection.
      * @param rp  The ReplyProcessor.
      * @return Client Connection object.
      */
-    public ClientConnection createConnectionWithSessionDisabled(final ReplyProcessor rp) {
+    public ClientConnection createConnectionWithFlowDisabled(final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
-        Preconditions.checkState(!disableSession.getAndSet(true), "Sessions are disabled, incorrect usage pattern.");
-        log.info("Creating a new connection with session disabled for Endpoint {}. The current Channel is {}.", connectionName, channel.get());
-        sessionIdReplyProcessorMap.put(SESSION_DISABLED, rp);
-        return new ClientConnectionImpl(connectionName, SESSION_DISABLED, batchSizeTracker, this);
+        Preconditions.checkState(!disableFlow.getAndSet(true), "Flows are disabled, incorrect usage pattern.");
+        log.info("Creating a new connection with flow disabled for endpoint {}. The current Channel is {}.", connectionName, channel.get());
+        flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
+        return new ClientConnectionImpl(connectionName, FLOW_DISABLED, batchSizeTracker, this);
     }
 
     /**
-     * Close a session. This is invoked when the ClientConnection is closed.
+     * Close a flow. This is invoked when the ClientConnection is closed.
      * @param clientConnection Client Connection.
      */
-    public void closeSession(ClientConnection clientConnection) {
+    public void closeFlow(ClientConnection clientConnection) {
         final ClientConnectionImpl clientConnectionImpl = (ClientConnectionImpl) clientConnection;
-        int session = clientConnectionImpl.getSession();
-        log.info("Closing Flow: {} for Endpoint: {}", session, clientConnectionImpl.getConnectionName());
-        sessionIdReplyProcessorMap.remove(session);
+        int flow = clientConnectionImpl.getFlowId();
+        log.info("Closing Flow {} for endpoint {}", flow, clientConnectionImpl.getConnectionName());
+        flowIdReplyProcessorMap.remove(flow);
     }
 
     /**
-     * Returns the number of open sessions.
+     * Returns the number of open flows.
      */
-    public int getNumOpenSession() {
-        return sessionIdReplyProcessorMap.size();
+    public int getOpenFlowCount() {
+        return flowIdReplyProcessorMap.size();
     }
     
     /**
@@ -145,7 +146,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         super.channelRegistered(ctx);
         Channel ch = ctx.channel();
         channel.set(ch);
-        log.info("Connection established with Endpoint: {} on ChannelId: {}.", connectionName, ch);
+        log.info("Connection established with endpoint {} on ChannelId {}", connectionName, ch);
         ch.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
@@ -156,7 +157,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     }
 
     /**
-     * Invoke all the {@link ReplyProcessor#connectionDropped()} for all the registered sessions once the
+     * Invoke all the {@link ReplyProcessor#connectionDropped()} for all the registered flows once the
      * connection is disconnected.
      *
      * @see io.netty.channel.ChannelInboundHandler#channelUnregistered(ChannelHandlerContext)
@@ -169,9 +170,9 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
             future.cancel(false);
         }
         channel.set(null);
-        sessionIdReplyProcessorMap.forEach((sessionId, rp) -> {
+        flowIdReplyProcessorMap.forEach((flowId, rp) -> {
             rp.connectionDropped();
-            log.debug("Connection dropped for session id : {}", sessionId);
+            log.debug("Connection dropped for flow id {}", flowId);
         });
         super.channelUnregistered(ctx);
     }
@@ -179,10 +180,10 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Reply cmd = (Reply) msg;
-        log.debug(connectionName + " processing reply: {} with session {}.", cmd, Flow.from(cmd.getRequestId()));
+        log.debug(connectionName + " processing reply {} with flow {}", cmd, Flow.from(cmd.getRequestId()));
 
         if (cmd instanceof WireCommands.Hello) {
-            sessionIdReplyProcessorMap.forEach((sessionId, rp) -> rp.hello((WireCommands.Hello) cmd));
+            flowIdReplyProcessorMap.forEach((flowId, rp) -> rp.hello((WireCommands.Hello) cmd));
             return;
         }
 
@@ -201,9 +202,9 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        sessionIdReplyProcessorMap.forEach((sessionId, rp) -> {
+        flowIdReplyProcessorMap.forEach((flowId, rp) -> {
             rp.processingFailure(new ConnectionFailedException(cause));
-            log.debug("Exception observed for session id : {}", sessionId);
+            log.debug("Exception observed for flow id {}", flowId);
         });
     }
 
@@ -212,10 +213,10 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
         if (closed.compareAndSet(false, true)) {
             Channel ch = channel.get();
             if (ch != null) {
-                log.debug("Closing channel:{} ", ch);
-                final int openSessionCount = sessionIdReplyProcessorMap.size();
-                if (openSessionCount != 0) {
-                    log.warn("{} sessions are not closed", openSessionCount);
+                log.debug("Closing channel {} ", ch);
+                final int openFlowCount = flowIdReplyProcessorMap.size();
+                if (openFlowCount != 0) {
+                    log.warn("{} flows are not closed", openFlowCount);
                 }
                 ch.close();
             }
@@ -230,17 +231,17 @@ public class SessionHandler extends ChannelInboundHandlerAdapter implements Auto
                     Futures.getAndHandleExceptions(getChannel().writeAndFlush(new WireCommands.KeepAlive()), ConnectionFailedException::new);
                 }
             } catch (Exception e) {
-                log.warn("Keep alive failed, killing connection {} due to {} ", connectionName, e.getMessage());
+                log.warn("Keep alive failed, killing connection {} due to {}", connectionName, e.getMessage());
                 close();
             }
         }
     }
 
     private Optional<ReplyProcessor> getReplyProcessor(Reply cmd) {
-        int sessionId = disableSession.get() ? SESSION_DISABLED : Flow.from(cmd.getRequestId()).getFlowId();
-        final ReplyProcessor processor = sessionIdReplyProcessorMap.get(sessionId);
+        int flowId = disableFlow.get() ? FLOW_DISABLED : Flow.from(cmd.getRequestId()).getFlowId();
+        final ReplyProcessor processor = flowIdReplyProcessorMap.get(flowId);
         if (processor == null) {
-            log.warn("No ReplyProcessor found for the provided sessionId {}. Ignoring response", sessionId);
+            log.warn("No ReplyProcessor found for the provided flowId {}. Ignoring response", flowId);
         }
         return Optional.ofNullable(processor);
     }

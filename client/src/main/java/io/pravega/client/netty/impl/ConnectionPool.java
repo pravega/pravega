@@ -30,7 +30,7 @@ public interface ConnectionPool extends AutoCloseable {
     CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp);
 
     /**
-     * This is used to create a {@link ClientConnection} where sessions are disabled. This implies that only one ClientConnection
+     * This is used to create a {@link ClientConnection} where flows are disabled. This implies that only one ClientConnection
      * can exist on the underlying connection.
      *
      * @param uri The Pravega Node Uri.

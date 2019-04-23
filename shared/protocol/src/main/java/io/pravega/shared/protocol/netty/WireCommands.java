@@ -480,20 +480,6 @@ public final class WireCommands {
             data.getBytes(data.readerIndex(), (OutputStream) out, data.readableBytes());
         }
 
-        public static Event readFrom(DataInput in, int length) throws IOException {
-            int typeCode = in.readInt();
-            if (typeCode != WireCommandType.EVENT.getCode()) {
-                throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
-            }
-            int eventLength = in.readInt();
-            if (eventLength != length - TYPE_PLUS_LENGTH_SIZE) {
-                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
-            }
-            byte[] msg = new byte[eventLength];
-            in.readFully(msg);
-            return new Event(wrappedBuffer(msg));            
-        }
-        
         public ByteBuf getAsByteBuf() {
             ByteBuf header = Unpooled.buffer(TYPE_PLUS_LENGTH_SIZE, TYPE_PLUS_LENGTH_SIZE);
             header.writeInt(type.getCode());
@@ -538,34 +524,29 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.APPEND_BLOCK;
         final UUID writerId;
         final ByteBuf data;
-        final long requestId;
 
-        AppendBlock(long requestId, UUID writerId) {
+        AppendBlock(UUID writerId) {
             this.writerId = writerId;
             this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
-            this.requestId = requestId;
         }
 
-        AppendBlock(long requestId, UUID writerId, ByteBuf data) {
+        AppendBlock(UUID writerId, ByteBuf data) {
             this.writerId = writerId;
             this.data = data;
-            this.requestId = requestId;
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(writerId.getMostSignificantBits());
             out.writeLong(writerId.getLeastSignificantBits());
-            out.writeLong(requestId);
             // Data not written, as it should be null.
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            byte[] data = new byte[length - Long.BYTES * 3];
-            long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
+            byte[] data = new byte[length - Long.BYTES * 2];
             in.readFully(data);
-            return new AppendBlock(requestId, writerId, wrappedBuffer(data));
+            return new AppendBlock(writerId, wrappedBuffer(data));
         }
     }
 
@@ -636,9 +617,23 @@ public final class WireCommands {
             UUID writerId = new UUID(in.readLong(), in.readLong());
             long eventNumber = in.readLong();
             long expectedOffset = in.readLong();
-            Event event = Event.readFrom(in, length - 8 * 5);
-            long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            Event event = readEvent(in, length);
+            long requestId = (in.available() >= Long.BYTES) ? in.readLong() : -1L;
             return new ConditionalAppend(writerId, eventNumber, expectedOffset, event, requestId);
+        }
+
+        private static Event readEvent(ByteBufInputStream in, int length) throws IOException {
+            int typeCode = in.readInt();
+            if (typeCode != WireCommandType.EVENT.getCode()) {
+                throw new InvalidMessageException("Was expecting EVENT but found: " + typeCode);
+            }
+            int eventLength = in.readInt();
+            if (eventLength > length - TYPE_PLUS_LENGTH_SIZE) {
+                throw new InvalidMessageException("Was expecting length: " + length + " but found: " + eventLength);
+            }
+            byte[] msg = new byte[eventLength];
+            in.readFully(msg);
+            return new Event(wrappedBuffer(msg));
         }
 
         @Override

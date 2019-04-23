@@ -16,6 +16,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleImmutableEntry;
@@ -28,8 +29,10 @@ import lombok.Data;
 import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class WireCommandsTest {
 
@@ -65,7 +68,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAppendBlock() throws IOException {
-        testCommand(new WireCommands.AppendBlock(l, uuid));
+        testCommand(new WireCommands.AppendBlock(uuid));
     }
 
     @Test
@@ -73,9 +76,64 @@ public class WireCommandsTest {
         testCommand(new WireCommands.AppendBlockEnd(uuid, i, buf, i, i, l));
     }
 
+    @Data
+    private static final class ConditionalAppendV7 implements WireCommand, Request {
+        final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
+        final UUID writerId;
+        final long eventNumber;
+        final long expectedOffset;
+        final Event event;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(expectedOffset);
+            event.writeFields(out);
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {
+            //Unreachable. This should be handled in AppendDecoder.
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Test
     public void testConditionalAppend() throws IOException {
         testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l));
+
+        // Test that we are able to decode a message with a previous version.
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        ConditionalAppendV7 commandV7 = new ConditionalAppendV7(uuid, l, l, new Event(buf));
+        commandV7.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1));
+    }
+
+    @Test
+    public void testInvalidConditionalAppend() throws IOException {
+        WireCommands.ConditionalAppend cmd = new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l);
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        cmd.writeFields(new DataOutputStream(bout));
+        byte[] bytes = bout.toByteArray();
+
+        // Invalid length scenario.
+        assertThrows("Read with invalid buffer length.",
+                     () -> WireCommands.ConditionalAppend.readFrom(new ByteBufInputStream(wrappedBuffer(bytes)), 4),
+                     t -> t instanceof InvalidMessageException);
+        // Invalid buffer data.
+        assertThrows("Read with invalid data.",
+                     () -> WireCommands.ConditionalAppend.readFrom(new ByteBufInputStream(buf), buf.capacity()),
+                     t -> t instanceof EOFException);
+        assertThrows("Unsupported operation",
+                     () -> cmd.process(mock(RequestProcessor.class)),
+                     t -> t instanceof UnsupportedOperationException);
     }
 
     @Test
