@@ -9,9 +9,7 @@
  */
 package io.pravega.client.netty.impl;
 
-import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import lombok.Data;
 
@@ -22,16 +20,18 @@ import lombok.Data;
 @Data
 public class Connection {
     private final PravegaNodeUri uri;
-    private final CompletableFuture<FlowHandler> flowHandler;
+    private final FlowHandler flowHandler;
     
     /**
-     * Returns the number of open flows on this connection, if the connection has been established.
+     * A future that completes when the connection is first established.
      */
-    public Optional<Integer> getFlowCount() {
-        if (!Futures.isSuccessful(flowHandler)) {
-            return Optional.empty();
-        }
-        return Optional.of(flowHandler.join().getOpenFlowCount());
+    private final CompletableFuture<Void> connected;
+    
+    /**
+     * Returns the number of open flows on this connection. 
+     */
+    public int getFlowCount() {
+        return flowHandler.getOpenFlowCount();
     }
 }
 
