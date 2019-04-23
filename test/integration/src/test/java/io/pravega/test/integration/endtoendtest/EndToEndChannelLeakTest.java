@@ -312,7 +312,6 @@ public class EndToEndChannelLeakTest {
         writer.writeEvent("0", "zero").get();
         channelCount += 1;
         assertChannelCount(channelCount, connectionPool);
-        
 
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, new JavaSerializer<>(),
@@ -498,7 +497,6 @@ public class EndToEndChannelLeakTest {
         readerGroup.close();
         expectedChannelCount -= 4;
         assertChannelCount(expectedChannelCount, connectionPool);
-        
         
         reader1.close();
         reader2.close();
