@@ -1,17 +1,17 @@
 # Running System Tests with Security Enabled
 
 ## Objective
-The objective of running system tests with Security(Auth+TLS) enabled, is to very that all Pravega functionality functions as expected in a distributed cluster with Security enabled.
+The objective of running system tests with Security(Auth+TLS) enabled, is to very that all Pravega functionality works as expected in a distributed cluster with security enabled.
 This is not for testing working of specific security features like access control, encryption etc... as that should get covered under Unit Tests. However, a few basic security specific verifications could be added like scope creation failing when authenication fails.
-[Role of Security System Tests](https://asdwiki.isus.emc.com:8443/pages/viewpage.action?spaceKey=~shardr&title=Pravega+Security+System+Test+Cases)
+For details see: [Role of Security System Tests](https://asdwiki.isus.emc.com:8443/pages/viewpage.action?spaceKey=~shardr&title=Pravega+Security+System+Test+Cases)
 
 ## Cluster Setup for System Tests
 The default cluster setup, for system tests has security disabled. (security related system properties are not set)
-For running tests with Security enabled, compponents like the controller, segment store, Zk and Bookeeper need to be started with authentication and TLS enabled, by setting appropriate system properties at startup. As such, Security System Tests cannot be run on the same cluster as regular system tests.
+For running tests with security enabled, the controller & segment store and in some cases Zk and Bookeeper need to be started with authentication and TLS enabled, by setting appropriate system properties at startup. As such, Security System Tests cannot be run on the same cluster as regular system tests.
 Also, Pravega Client in the test case needs to be created with the appropriate authentication and TLS parameters.
 
 ## Running tests with Security enabled.
-To enable security on a set of components, certain system properties need to be set on the pravega operator and the components need to be started with those properties set. All system properties to be set for a Pravega cluster will be encapsulated in a 'PravegaProperties' Object and set on the Operator to create a cluster with security features enabled/disabled.
+To enable security on a set of components, certain system properties need to be set on the pravega operator and the operator starts these with those properties set. All system properties to be set for a Pravega cluster need to be encapsulated in a 'PravegaProperties' Object and set on the Operator to create a cluster with security enabled/disabled.
 
 ## Approaches Evaluated
 
