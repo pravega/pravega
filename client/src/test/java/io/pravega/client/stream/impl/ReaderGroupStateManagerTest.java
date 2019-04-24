@@ -218,7 +218,7 @@ public class ReaderGroupStateManagerTest {
         newSegments = readerState.acquireNewSegmentsIfNeeded(0);
         assertTrue(newSegments.isEmpty());
     }
-    
+      
     @Test(timeout = 10000)
     public void testAddReader() throws ReaderNotInReaderGroupException {
         String scope = "scope";
@@ -248,6 +248,41 @@ public class ReaderGroupStateManagerTest {
         assertEquals(1, newSegments.size());
         assertTrue(newSegments.containsKey(new Segment(scope, stream, 0)));
         assertEquals(1, newSegments.get(new Segment(scope, stream, 0)).longValue());
+    }
+    
+    @Test(timeout = 10000)
+    public void testReachEnd() throws ReaderNotInReaderGroupException {
+        String scope = "scope";
+        String stream = "stream";
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+        
+        @Cleanup
+        StateSynchronizer<ReaderGroupState> stateSynchronizer = createState(stream, clientFactory, SynchronizerConfig.builder().build());
+        Map<Segment, Long> segments = new HashMap<>();
+        Segment segment = new Segment(scope, stream, 0);
+        segments.put(segment, 1L);
+        StreamCutImpl start = new StreamCutImpl(Stream.of(scope, stream), ImmutableMap.of(segment, 0L));
+        StreamCutImpl end = new StreamCutImpl(Stream.of(scope, stream), ImmutableMap.of(segment, 100L));
+        ReaderGroupConfig config = ReaderGroupConfig.builder().stream(Stream.of(scope, stream), start, end).build();
+        stateSynchronizer.initialize(new ReaderGroupState.ReaderGroupStateInit(config, segments,
+                                                                               ReaderGroupImpl.getEndSegmentsForStreams(config)));
+        ReaderGroupStateManager readerState = new ReaderGroupStateManager("testReader",
+                stateSynchronizer,
+                controller,
+                null);
+        readerState.initializeReader(0);
+        Segment toRelease = readerState.findSegmentToReleaseIfRequired();
+        assertNull(toRelease);
+        Map<Segment, Long> newSegments = readerState.acquireNewSegmentsIfNeeded(0);
+        assertFalse(newSegments.isEmpty());
+        assertEquals(1, newSegments.size());
+        assertTrue(newSegments.containsKey(segment));
+        assertTrue(readerState.handleEndOfSegment(segment));
     }
     
     @Test(timeout = 10000)
