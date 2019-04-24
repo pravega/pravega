@@ -57,8 +57,10 @@ $> git clone https://github.com/OlegPS/charts.git
   $> kubectl get pod --all-namespaces
   
   $ $> helm init --service-account tiller --wait --upgrade (first time )
-  OR
-  $> helm init –upgrade
+  
+  OR just
+  
+  $> helm init 
   
   $> kubectl create serviceaccount --namespace kube-system tiller
   
@@ -68,7 +70,7 @@ $> git clone https://github.com/OlegPS/charts.git
   
   $> cd  <location of charts git clone>/charts/stable/nfs-server-provisioner
   
-  $> helm install --set nfs.server=10.249.249.220  --set nfs.path=/ifs --set storageClass.name=nfs --set nfs.mountOptions='{nolock,sec=sys,vers=4.0}' <path to charts/stable/nfs-server-provisioner>
+  $> helm install --set nfs.server=10.249.249.220  --set nfs.path=/ifs --set storageClass.name=nfs --set nfs.mountOptions='{nolock,sec=sys,vers=4.0}' ./charts/stable/nfs-client-provisioner
   
   $> helm list
   
