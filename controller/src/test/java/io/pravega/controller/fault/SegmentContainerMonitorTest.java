@@ -146,18 +146,13 @@ public class SegmentContainerMonitorTest {
         monitor.startAsync().awaitRunning();
 
         assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);
-
-        assertEquals(0, hostStore.getHostContainersMap().size());
-        if (latches != null) {
-            latches.get(0).join();
-        }
-
+        
         //Rebalance should be triggered for the very first attempt. Verify that no hosts are added to the store.
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
-        assertEquals(0, hostStore.getHostContainersMap().size());
         if (latches != null) {
             latches.get(1).join();
         }
+        assertEquals(0, hostStore.getHostContainersMap().size());
 
         //New host added.
         cluster.registerHost(new Host("localhost1", 1, null));
