@@ -254,7 +254,7 @@ Following are some common combinations of component and sub-components (or abstr
 
 Following are the two types of metrics:
 
-1. **Global Metric**: Values are directly associated to the metric name that appears in this file. These can be used when we want to report metric values that applies to the whole Pravega cluster (e.g., number of bytes written, operations).
+1. **Global Metric**: `_global` metrics are reporting global values per component (Segment Store or Controller) instance, and further aggregation logic is needed if looking for Pravega cluster globals.
 For instance, `STORAGE_READ_BYTES` can be classified as a Global metric.
 
 2. **Object-based Metric**: Sometimes, we need to report metrics only based on specific objects, such as Streams or Segments. This kind of metrics use metric name as a base name in the file and are "dynamically" created based on the objects to be measured.
