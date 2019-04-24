@@ -5,7 +5,7 @@
 
 	a. To create a new test cluster:
 	
-        `!cc --pks --pks-env=nightshift2`
+	`!cc --pks --pks-env=nightshift2`
 
 	b. To destroy a cluster 
 	
@@ -15,18 +15,21 @@
 	
 	`!cl`
 
-## Install necessary  tools
-2. On your local VM install jarvis, pks and kubectl:
+## Install necessary tools
+2. On your local VM install the following:
+
 a. Install Jarvis:
-`
-$> curl -k https://asd-nautilus-jenkins.isus.emc.com/jenkins/job/nautilus-platform-master/lastStableBuild/artifact/go/go-cli/build/linux-jarvis > /usr/local/bin/jarvis
-$> chmod +x /usr/local/bin/jarvis
-`
+
+`$> curl -k https://asd-nautilus-jenkins.isus.emc.com/jenkins/job/nautilus-platform-master/lastStableBuild/artifact/go/go-cli/build/linux-jarvis > /usr/local/bin/jarvis`
+
+`$> chmod +x /usr/local/bin/jarvis`
+
 
 b. Install PKS
 Download PKS CLI (Linux) from [here] (https://network.pivotal.io/products/pivotal-container-service/)
 
 c. Install kubectl
+
 https://kubernetes.io/docs/tasks/tools/install-kubectl/
 
 d. Install helm
