@@ -146,7 +146,7 @@ public class SegmentContainerMonitorTest {
         monitor.startAsync().awaitRunning();
 
         assertEquals(hostStore.getContainerCount(), Config.HOST_STORE_CONTAINER_COUNT);
-        
+
         //Rebalance should be triggered for the very first attempt. Verify that no hosts are added to the store.
         assertTrue(sync.tryAcquire(10, TimeUnit.SECONDS));
         if (latches != null) {
