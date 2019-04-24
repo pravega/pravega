@@ -44,7 +44,6 @@ e. Clone the charts repo in some folder:
 $> git clone https://github.com/OlegPS/charts.git
 ```
 
-
 ## Setup Cluster for system tests
 
 ```$>jarvis save <cluster-name>```
@@ -60,19 +59,23 @@ $> git clone https://github.com/OlegPS/charts.git
   $ $> helm init --service-account tiller --wait --upgrade (first time )
   OR
   $> helm init –upgrade
+  
   $> kubectl create serviceaccount --namespace kube-system tiller
+  
   $> kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
 
   $> kubectl patch deploy --namespace kube-system tiller-deploy -p '{\"spec\":{\"template\":{\"spec\":{\"serviceAccount\":\"tiller\"}}}}'
   
-  $> cd charts/stable/nfs-server-provisioner
+  $> cd  <location of charts git clone>/charts/stable/nfs-server-provisioner
   
   $> helm install --set nfs.server=10.249.249.220  --set nfs.path=/ifs --set storageClass.name=nfs --set nfs.mountOptions='{nolock,sec=sys,vers=4.0}' <path to charts/stable/nfs-server-provisioner>
   
   $> helm list
+  
   $> kubectl create -f ./stable/nfs-client-provisioner/pvc.yaml
+  
   $> kubectl get pvc
-  $kubectl get storageclass
+  $> kubectl get storageclass
   ```
   
   
