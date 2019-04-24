@@ -24,31 +24,55 @@ a. Install Jarvis:
 
 `$> chmod +x /usr/local/bin/jarvis`
 
-
 b. Install PKS
-Download PKS CLI (Linux) from [here] (https://network.pivotal.io/products/pivotal-container-service/)
+Download PKS CLI (Linux) from [here](https://network.pivotal.io/products/pivotal-container-service/)
 
 c. Install kubectl
 
-https://kubernetes.io/docs/tasks/tools/install-kubectl/
+Setup kubectl as documented [here](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 
 d. Install helm
-
-   `$> wget https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.tar.gz`
+```
+   $> wget https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.tar.gz
    
-    `$> tar -zxvf helm-v2.10.0-linux-amd64.tar.gz`
+    $> tar -zxvf helm-v2.10.0-linux-amd64.tar.gz
     
-    `$> cp linux-amd64/helm /usr/sbin`
-    
+    $> cp linux-amd64/helm /usr/sbin
+```
+e. Clone the charts repo in some folder:
+```
+$> git clone https://github.com/OlegPS/charts.git
+```
+
+
 ## Setup Cluster for system tests
 
-`$>jarvis save <cluster-name>`
+```$>jarvis save <cluster-name>```
 
-  After adding all necessary entries into /etc/hosts, again: 
+ After adding all necessary entries into /etc/hosts, again: 
+  ```
+  $>jarvis save <cluster-name>
+
+  $>kubectl config use-context <cluster-name>
+
+  $> kubectl get pod --all-namespaces
   
-`$>jarvis save <cluster-name>`
+  $ $> helm init --service-account tiller --wait --upgrade (first time )
+  OR
+  $> helm init –upgrade
+  $> kubectl create serviceaccount --namespace kube-system tiller
+  $> kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
 
-`$>kubectl config use-context <cluster-name>`
-
-`$> kubectl get pod --all-namespaces`
-
+  $> kubectl patch deploy --namespace kube-system tiller-deploy -p '{\"spec\":{\"template\":{\"spec\":{\"serviceAccount\":\"tiller\"}}}}'
+  
+  $> cd charts/stable/nfs-server-provisioner
+  
+  $> helm install --set nfs.server=10.249.249.220  --set nfs.path=/ifs --set storageClass.name=nfs --set nfs.mountOptions='{nolock,sec=sys,vers=4.0}' <path to charts/stable/nfs-server-provisioner>
+  
+  $> helm list
+  $> kubectl create -f ./stable/nfs-client-provisioner/pvc.yaml
+  $> kubectl get pvc
+  $kubectl get storageclass
+  ```
+  
+  
