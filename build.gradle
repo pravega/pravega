@@ -542,6 +542,10 @@ project('controller') {
         test.resources.srcDirs += "$rootDir/config"
     }
 
+    compileJava {
+        options.compilerArgs.remove("-Werror")
+    }
+
     apply plugin: 'application'
     applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"

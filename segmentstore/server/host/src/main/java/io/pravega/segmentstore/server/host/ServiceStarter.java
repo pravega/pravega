@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
@@ -31,15 +32,18 @@ import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import java.util.concurrent.atomic.AtomicReference;
+
+import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.utils.ZookeeperFactory;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooKeeper;
 
 import static org.apache.zookeeper.client.ZKClientConfig.SECURE_CLIENT;
 import static org.apache.zookeeper.client.ZKClientConfig.ZOOKEEPER_CLIENT_CNXN_SOCKET;
-import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_LOCATION;
-import static org.apache.zookeeper.common.ZKConfig.SSL_TRUSTSTORE_PASSWD;
 
 /**
  * Starts the Pravega Service.
@@ -110,10 +114,10 @@ public final class ServiceStarter {
         log.info(builderConfig.getConfig(AutoScalerConfig::builder).toString());
 
         this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
-                                                      this.serviceConfig.getListeningPort(), service, tableStoreService,
-                                                      autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
-                                                      tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
-                                                      this.serviceConfig.isReplyWithStackTraceOnError());
+                this.serviceConfig.getListeningPort(), service, tableStoreService,
+                autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
+                tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
+                this.serviceConfig.isReplyWithStackTraceOnError());
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -193,13 +197,15 @@ public final class ServiceStarter {
         if (this.serviceConfig.isSecureZK()) {
             System.setProperty(SECURE_CLIENT, Boolean.toString(this.serviceConfig.isSecureZK()));
             System.setProperty(ZOOKEEPER_CLIENT_CNXN_SOCKET, "org.apache.zookeeper.ClientCnxnSocketNetty");
-            System.setProperty(SSL_TRUSTSTORE_LOCATION, this.serviceConfig.getZkTrustStore());
-            System.setProperty(SSL_TRUSTSTORE_PASSWD, JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
+            // TODO: Check if security parameter should be entirely passed via properties.
+            System.setProperty("zookeeper.ssl.trustStore.location", this.serviceConfig.getZkTrustStore());
+            System.setProperty("zookeeper.ssl.trustStore.password", JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
         }
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString(this.serviceConfig.getZkURL())
                 .namespace("pravega/" + this.serviceConfig.getClusterName())
+                .zookeeperFactory(new ZKClientFactory())
                 .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
                 .sessionTimeoutMs(this.serviceConfig.getZkSessionTimeoutMs())
                 .build();
@@ -257,4 +263,31 @@ public final class ServiceStarter {
     }
 
     //endregion
+
+    /**
+     * This custom factory is used to ensure that Zookeeper clients in Curator are always created using the hostname, so
+     * it can be resolved to a new IP in the case of a Zookeeper instance restart.
+     */
+    static class ZKClientFactory implements ZookeeperFactory {
+        private ZooKeeper client;
+        private String connectString;
+        private int sessionTimeout;
+        private boolean canBeReadOnly;
+
+        @Override
+        @Synchronized
+        public ZooKeeper newZooKeeper(String connectString, int sessionTimeout, Watcher watcher, boolean canBeReadOnly) throws Exception {
+            Exceptions.checkNotNullOrEmpty(connectString, "connectString");
+            Preconditions.checkArgument(sessionTimeout > 0, "sessionTimeout should be a positive integer");
+            if (client == null) {
+                this.connectString = connectString;
+                this.sessionTimeout = sessionTimeout;
+                this.canBeReadOnly = canBeReadOnly;
+            }
+            log.info("Creating new Zookeeper client with arguments: {}, {}, {}.", this.connectString, this.sessionTimeout,
+                    this.canBeReadOnly);
+            this.client = new ZooKeeper(this.connectString, this.sessionTimeout, watcher, this.canBeReadOnly);
+            return this.client;
+        }
+    }
 }
