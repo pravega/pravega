@@ -102,6 +102,7 @@ allprojects {
             force "com.google.guava:guava:" + guavaVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
+            force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
             dependencySubstitution {
                 substitute module("javax.ws.rs:jsr311-api") with module("javax.ws.rs:javax.ws.rs-api:" + javaxwsrsApiVersion)
             }
