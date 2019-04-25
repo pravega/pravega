@@ -707,6 +707,11 @@ public class StreamTransactionMetadataTasksTest {
         public void close() {
 
         }
+
+        @Override
+        public void noteTime(long timestamp) {
+    
+        }
     }
 
     private <T extends ControllerEvent> void createEventProcessor(final String readerGroupName,
