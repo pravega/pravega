@@ -59,7 +59,7 @@ public class ConnectionFactoryImplTest {
         final SslContext sslCtx;
         if (ssl) {
             try {
-                sslCtx = SslContextBuilder.forServer(new File("../config/cert.pem"), new File("../config/key.pem")).build();
+                sslCtx = SslContextBuilder.forServer(new File("../config/server-cert.crt"), new File("../config/server-key.key")).build();
             } catch (SSLException e) {
                 throw new RuntimeException(e);
             }
@@ -113,7 +113,7 @@ public class ConnectionFactoryImplTest {
         @Cleanup
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                               .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
-                                                                              .trustStore("../config/cert.pem")
+                                                                              .trustStore("../config/ca-cert.crt")
                                                                               .build());
         @Cleanup
         ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
