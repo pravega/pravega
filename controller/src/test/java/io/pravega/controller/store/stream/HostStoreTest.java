@@ -63,43 +63,38 @@ public class HostStoreTest {
     }
 
     @Test(timeout = 10000L)
-    public void zkHostStoreTests() {
-        try {
-            @Cleanup
-            TestingServer zkTestServer = new TestingServerStarter().start();
+    public void zkHostStoreTests() throws Exception {
+        @Cleanup
+        TestingServer zkTestServer = new TestingServerStarter().start();
 
-            ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkTestServer.getConnectString())
-                    .initialSleepInterval(2000)
-                    .maxRetries(1)
-                    .sessionTimeoutMs(10 * 1000)
-                    .namespace("hostStoreTest/" + UUID.randomUUID())
-                    .build();
-            StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkTestServer.getConnectString())
+                .initialSleepInterval(2000)
+                .maxRetries(1)
+                .sessionTimeoutMs(10 * 1000)
+                .namespace("hostStoreTest/" + UUID.randomUUID())
+                .build();
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
 
-            @Cleanup
-            StoreClient storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
+        @Cleanup
+        StoreClient storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
 
-            HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
-                    .hostMonitorEnabled(true)
-                    .hostMonitorMinRebalanceInterval(10)
-                    .containerCount(containerCount)
-                    .build();
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
+                .hostMonitorEnabled(true)
+                .hostMonitorMinRebalanceInterval(10)
+                .containerCount(containerCount)
+                .build();
 
-            // Create ZK based host store.
-            HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
+        // Create ZK based host store.
+        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
 
-            CompletableFuture<Void> latch = new CompletableFuture<>();
-            ((ZKHostStore) hostStore).addListener(() -> {
-                latch.complete(null);
-            });
-            // Update host store map.
-            hostStore.updateHostContainersMap(HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount));
-            latch.join();
-            validateStore(hostStore);
-        } catch (Exception e) {
-            log.error("Unexpected error", e);
-            Assert.fail();
-        }
+        CompletableFuture<Void> latch = new CompletableFuture<>();
+        ((ZKHostStore) hostStore).addListener(() -> {
+            latch.complete(null);
+        });
+        // Update host store map.
+        hostStore.updateHostContainersMap(HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount));
+        latch.join();
+        validateStore(hostStore);
     }
 
     private void validateStore(HostControllerStore hostStore) {

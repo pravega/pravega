@@ -9,22 +9,20 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.test.common.TestingServerStarter;
-import io.pravega.test.integration.demo.ControllerWrapper;
-import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
-import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.store.ServiceBuilder;
+import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
+import io.pravega.test.common.TestingServerStarter;
+import io.pravega.test.integration.demo.ControllerWrapper;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -110,22 +108,16 @@ public class ControllerBootstrapTest {
         CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
         // Ensure that create stream succeeds.
-        try {
-            Boolean status = streamStatus.join();
-            Assert.assertEquals(true, status);
-        } catch (CompletionException ce) {
-            Assert.fail();
-        }
+
+        Boolean status = streamStatus.join();
+        Assert.assertEquals(true, status);
+
 
         // Now create transaction should succeed.
         CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
 
-        try {
-            TxnSegments id = txIdFuture.join();
-            Assert.assertNotNull(id);
-        } catch (CompletionException ce) {
-            Assert.fail();
-        }
+        TxnSegments id = txIdFuture.join();
+        Assert.assertNotNull(id);
 
         controllerWrapper.awaitRunning();
     }
