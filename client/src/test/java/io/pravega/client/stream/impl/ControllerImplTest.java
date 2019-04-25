@@ -730,7 +730,7 @@ public class ControllerImplTest {
                                           .addService(testServerImpl);
         if (testSecure) {
          serverBuilder = serverBuilder.useTransportSecurity(new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
-                 new File(SecurityConfigDefaults.TLS_CA_PRIVATE_KEY_PATH));
+                 new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
         }
         testGRPCServer = serverBuilder
                 .build()
