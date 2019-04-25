@@ -55,7 +55,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
     ClientConfig prepareValidClientConfig() {
         return ClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                .trustStore("../config/cert.pem")
+                .trustStore("../config/ca-cert.crt")
                 .validateHostName(false)
                 .build();
     }

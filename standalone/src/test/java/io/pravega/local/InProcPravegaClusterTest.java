@@ -81,11 +81,11 @@ public class InProcPravegaClusterTest {
                     .passwd("1111_aaaa");
         }
         if (tlsEnabled) {
-            emulatorBuilder.certFile("../config/cert.pem")
-                    .keyFile("../config/key.pem")
-                    .jksKeyFile("../config/standalone.keystore.jks")
-                    .jksTrustFile("../config/standalone.truststore.jks")
-                    .keyPasswordFile("../config/standalone.keystore.jks.passwd");
+            emulatorBuilder.certFile("../config/server-cert.crt")
+                    .keyFile("../config/server-key.key")
+                    .jksKeyFile("../config/server.keystore.jks")
+                    .jksTrustFile("../config/client.truststore.jks")
+                    .keyPasswordFile("../config/server.keystore.jks.passwd");
         }
 
         localPravega = emulatorBuilder.build();

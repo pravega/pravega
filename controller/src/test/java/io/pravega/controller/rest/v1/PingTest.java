@@ -112,7 +112,7 @@ public abstract class PingTest {
         @Override
         protected Client createJerseyClient() throws Exception {
             SslConfigurator sslConfig = SslConfigurator.newInstance()
-                                                       .trustStoreFile(getResourcePath("standalone.truststore.jks"));
+                                                       .trustStoreFile(getResourcePath("client.truststore.jks"));
 
             SSLContext sslContext = sslConfig.createSSLContext();
             return ClientBuilder.newBuilder().sslContext(sslContext)
@@ -124,8 +124,8 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
-                                       .keyFilePath(getResourcePath("standalone.keystore.jks"))
-                                       .keyFilePasswordPath(getResourcePath("standalone.keystore.jks.passwd"))
+                                       .keyFilePath(getResourcePath("server.keystore.jks"))
+                                       .keyFilePasswordPath(getResourcePath("server.keystore.jks.passwd"))
                                        .build();
         }
 
@@ -140,7 +140,7 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
-                                       .keyFilePath(getResourcePath("standalone.keystore.jks"))
+                                       .keyFilePath(getResourcePath("server.keystore.jks"))
                                        .keyFilePasswordPath("Wrong_Path")
                                        .build();
         }
