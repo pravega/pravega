@@ -11,6 +11,7 @@ package io.pravega.controller.rest.v1;
 
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.common.SecurityConfigDefaults;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rest.RESTServerConfig;
@@ -111,8 +112,8 @@ public abstract class PingTest {
 
         @Override
         protected Client createJerseyClient() throws Exception {
-            SslConfigurator sslConfig = SslConfigurator.newInstance()
-                                                       .trustStoreFile(getResourcePath("client.truststore.jks"));
+            SslConfigurator sslConfig = SslConfigurator.newInstance().trustStoreFile(
+                    getResourcePath(SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH));
 
             SSLContext sslContext = sslConfig.createSSLContext();
             return ClientBuilder.newBuilder().sslContext(sslContext)
@@ -124,8 +125,8 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
-                                       .keyFilePath(getResourcePath("server.keystore.jks"))
-                                       .keyFilePasswordPath(getResourcePath("server.keystore.jks.passwd"))
+                                       .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_PATH))
+                                       .keyFilePasswordPath(getResourcePath(SecurityConfigDefaults.TLS_PASSWORD_PATH))
                                        .build();
         }
 
@@ -140,7 +141,7 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
-                                       .keyFilePath(getResourcePath("server.keystore.jks"))
+                                       .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_PATH))
                                        .keyFilePasswordPath("Wrong_Path")
                                        .build();
         }

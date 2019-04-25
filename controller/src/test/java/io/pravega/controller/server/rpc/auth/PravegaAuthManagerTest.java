@@ -18,6 +18,7 @@ import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.Credentials;
 import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.common.SecurityConfigDefaults;
 import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
@@ -83,8 +84,9 @@ public class PravegaAuthManagerTest {
 
         PravegaAuthManager manager = new PravegaAuthManager(config);
         int port = TestUtils.getAvailableListenPort();
-        ServerBuilder<?> server = ServerBuilder.forPort(port).useTransportSecurity(new File("../config/cert.pem"),
-                new File("../config/key.pem"));
+        ServerBuilder<?> server = ServerBuilder.forPort(port).useTransportSecurity(
+                new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
+                new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
 
         server.addService(serviceImpl);
         manager.registerInterceptors(server);

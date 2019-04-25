@@ -12,6 +12,8 @@ package io.pravega.local;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import java.net.URI;
+
+import io.pravega.common.SecurityConfigDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
@@ -51,11 +53,12 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
 
                 // TLS-related
-                .trustStore("../config/ca-cert.crt")
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                 .validateHostName(false)
 
                 // Auth-related
-                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                .credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
+                        SecurityConfigDefaults.AUTH_ADMIN_USERNAME))
                 .build();
     }
 

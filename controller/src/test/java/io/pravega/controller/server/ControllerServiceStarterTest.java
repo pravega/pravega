@@ -13,6 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.common.SecurityConfigDefaults;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
@@ -83,9 +84,12 @@ public abstract class ControllerServiceStarterTest {
         }
 
         final String testScope = "testScope";
-        StreamManager streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(uri)
-                                                                        .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                                                                        .trustStore("../config/cert.pem").build());
+        StreamManager streamManager = new StreamManagerImpl(
+                ClientConfig.builder().controllerURI(uri)
+                                      .credentials(new DefaultCredentials(
+                                              SecurityConfigDefaults.AUTH_ADMIN_PASSWORD, SecurityConfigDefaults.AUTH_ADMIN_USERNAME))
+                                      .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                            .build());
 
         streamManager.createScope(testScope);
         streamManager.deleteScope(testScope);
@@ -124,9 +128,9 @@ public abstract class ControllerServiceStarterTest {
                                                                   .port(grpcPort)
                                                                   .authorizationEnabled(enableAuth)
                                                                   .tlsEnabled(enableAuth)
-                                                                  .tlsCertFile("../config/cert.pem")
-                                                                  .tlsKeyFile("../config/key.pem")
-                                                                  .userPasswordFile("../config/passwd")
+                                                                  .tlsCertFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
+                                                                  .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
+                                                                  .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
                                                                   .build()))
                 .restServerConfig(Optional.empty())
                 .build();

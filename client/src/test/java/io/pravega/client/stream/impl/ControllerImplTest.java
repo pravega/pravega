@@ -24,6 +24,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
+import io.pravega.common.SecurityConfigDefaults;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -728,8 +729,8 @@ public class ControllerImplTest {
         serverBuilder = NettyServerBuilder.forPort(serverPort)
                                           .addService(testServerImpl);
         if (testSecure) {
-         serverBuilder = serverBuilder.useTransportSecurity(new File("../config/server-cert.crt"),
-                 new File("../config/server-key.key"));
+         serverBuilder = serverBuilder.useTransportSecurity(new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
+                 new File(SecurityConfigDefaults.TLS_CA_PRIVATE_KEY_PATH));
         }
         testGRPCServer = serverBuilder
                 .build()
@@ -739,7 +740,7 @@ public class ControllerImplTest {
                 .clientConfig(
                         ClientConfig.builder().controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                     .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                                    .trustStore("../config/ca-cert.crt")
+                                    .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                     .build())
                 .retryAttempts(1).build(), executor);
     }
@@ -757,14 +758,15 @@ public class ControllerImplTest {
         NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort)
                                                          .keepAliveTime(10, TimeUnit.SECONDS);
         if (testSecure) {
-            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/server-cert.crt")).build());
+            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
+                    new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
         } else {
             builder = builder.usePlaintext();
         }
         @Cleanup
         final ControllerImpl controller = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
-                                                                        .trustStore("../config/ca-cert.crt")
+                                                                        .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
                                     .retryAttempts(1).build(),
@@ -782,7 +784,9 @@ public class ControllerImplTest {
                                                                  .permitKeepAliveTime(5, TimeUnit.SECONDS);
 
         if (testSecure) {
-           testServerBuilder = testServerBuilder.useTransportSecurity(new File("../config/server-cert.crt"), new File("../config/server-key.key"));
+           testServerBuilder = testServerBuilder.useTransportSecurity(
+                   new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
+                   new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
         }
 
         Server testServer = testServerBuilder.build()
@@ -791,14 +795,15 @@ public class ControllerImplTest {
         builder = NettyChannelBuilder.forAddress("localhost", serverPort2)
                            .keepAliveTime(10, TimeUnit.SECONDS);
         if (testSecure) {
-            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/ca-cert.crt")).build());
+            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
+                    new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
         } else {
             builder = builder.usePlaintext();
         }
         @Cleanup
         final ControllerImpl controller1 = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
-                                                                        .trustStore("../config/ca-cert.crt")
+                                                                        .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
                                     .retryAttempts(1).build(), this.executor);
@@ -817,7 +822,7 @@ public class ControllerImplTest {
         final ControllerImpl controller1 = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                          .trustStore("../config/ca-cert.crt").build())
+                                          .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH).build())
                 .retryAttempts(3).build(), this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller1.createStream("scope1", "streamretryfailure", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
@@ -839,7 +844,7 @@ public class ControllerImplTest {
         final ControllerImpl controller2 = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                          .trustStore("../config/ca-cert.crt").build())
+                                          .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH).build())
                 .retryAttempts(4).build(), this.executor);
         createStreamStatus = controller2.createStream("scope1", "streamretrysuccess", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
