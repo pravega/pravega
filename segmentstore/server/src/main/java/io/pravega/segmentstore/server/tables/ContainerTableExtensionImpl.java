@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
@@ -20,6 +21,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -63,7 +65,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * We need to return a value that is large enough to encompass the largest possible Table Entry (otherwise
      * compaction will stall), but not too big, as that will introduce larger indexing pauses when compaction is running.
      */
-    private static final int DEFAULT_MAX_COMPACTION_SIZE = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
+    private static final int DEFAULT_MAX_COMPACTION_SIZE = 4 * EntrySerializer.MAX_SERIALIZATION_LENGTH; // Approx 4MB.
+    /**
+     * The default Segment Attributes to set for every new Table Segment. These values will override the corresponding
+     * defaults from {@link TableAttributes#DEFAULT_VALUES}.
+     */
+    private static final Map<UUID, Long> DEFAULT_ATTRIBUTES = ImmutableMap.of(TableAttributes.MIN_UTILIZATION, 75L,
+            Attributes.ROLLOVER_SIZE, 4L * DEFAULT_MAX_COMPACTION_SIZE);
     private final SegmentContainer segmentContainer;
     private final ScheduledExecutorService executor;
     private final KeyHasher hasher;
@@ -141,11 +149,17 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<Void> createSegment(@NonNull String segmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        val attributes = TableAttributes.DEFAULT_VALUES
+
+        // Fetch defaults for all attributes, but check our own DEFAULT_ATTRIBUTES for any meaningful overrides.
+        // NOTE: At the moment, all TableSegments are internal to Pravega and are used for metadata storage. As such, all
+        // these defaults make sense for such use cases. If TableSegments are exposed to the end-user, then this method
+        // will need to accept external configuration that defines at least MIN_UTILIZATION.
+        val attributeUpdates = TableAttributes.DEFAULT_VALUES
                 .entrySet().stream()
-                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
+                .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))
+                //.map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
-        return this.segmentContainer.createStreamSegment(segmentName, attributes, timeout);
+        return this.segmentContainer.createStreamSegment(segmentName, attributeUpdates, timeout);
     }
 
     @Override
