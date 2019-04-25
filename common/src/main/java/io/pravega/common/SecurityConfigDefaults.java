@@ -20,9 +20,15 @@ public class SecurityConfigDefaults {
 
     public static final String TLS_SERVER_KEYSTORE_PATH = "../config/server.keystore.jks";
 
+    public static final String TLS_SERVER_KEYSTORE_NAME = "server.keystore.jks";
+
     public static final String TLS_CLIENT_TRUSTSTORE_PATH = "../config/client.truststore.jks";
 
+    public static final String TLS_CLIENT_TRUSTSTORE_NAME = "client.truststore.jks";
+
     public static final String TLS_PASSWORD_PATH = "../config/server.keystore.jks.passwd";
+
+    public static final String TLS_PASSWORD_FILE_NAME = "server.keystore.jks.passwd";
 
     public static final String TLS_CA_CERT_PATH = "../config/ca-cert.crt";
 
@@ -33,5 +39,6 @@ public class SecurityConfigDefaults {
     public static final String AUTH_ADMIN_USERNAME = "admin";
 
     public static final String AUTH_ADMIN_PASSWORD = "1111_aaaa";
+
 
 }

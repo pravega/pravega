@@ -113,7 +113,7 @@ public abstract class PingTest {
         @Override
         protected Client createJerseyClient() throws Exception {
             SslConfigurator sslConfig = SslConfigurator.newInstance().trustStoreFile(
-                    getResourcePath(SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH));
+                    getResourcePath(SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_NAME));
 
             SSLContext sslContext = sslConfig.createSSLContext();
             return ClientBuilder.newBuilder().sslContext(sslContext)
@@ -125,8 +125,8 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
-                                       .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_PATH))
-                                       .keyFilePasswordPath(getResourcePath(SecurityConfigDefaults.TLS_PASSWORD_PATH))
+                                       .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
+                                       .keyFilePasswordPath(getResourcePath(SecurityConfigDefaults.TLS_PASSWORD_FILE_NAME))
                                        .build();
         }
 
@@ -141,7 +141,7 @@ public abstract class PingTest {
         RESTServerConfig getServerConfig() throws Exception {
             return RESTServerConfigImpl.builder().host("localhost").port(TestUtils.getAvailableListenPort())
                                        .tlsEnabled(true)
-                                       .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_PATH))
+                                       .keyFilePath(getResourcePath(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_NAME))
                                        .keyFilePasswordPath("Wrong_Path")
                                        .build();
         }
