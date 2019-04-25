@@ -83,7 +83,7 @@ public class ZKHostStore implements HostControllerStore {
             ZKUtils.createPathIfNotExists(zkClient, zkPath, HostContainerMap.EMPTY.toBytes());
             hostContainerMapNode.getListenable().addListener(this::updateMap);
             hostContainerMapNode.start(true);
-
+            updateMap();
             zkInit = true;
         }
     }
