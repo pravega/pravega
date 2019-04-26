@@ -28,6 +28,7 @@ import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TxnResource;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
 import io.pravega.controller.timeout.TimeoutService;
@@ -443,8 +444,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         //         and fencing other processes from tracking this txn's timeout.
         // Step 4. Add this txn to timeout service and start managing timeout for this txn.
         return streamMetadataStore.getTransactionData(scope, stream, txnId, ctx, executor).thenComposeAsync(txnData -> {
-            if (!txnData.getStatus().equals(TxnStatus.OPEN)) { // transaction is not open, dont ping it
-                return CompletableFuture.completedFuture(createStatus(Status.OK));
+            final TxnStatus txnStatus = txnData.getStatus();
+            if (!txnStatus.equals(TxnStatus.OPEN)) { // transaction is not open, dont ping it
+                return CompletableFuture.completedFuture(getPingTxnStatus(txnStatus));
             }
             // Step 1. Sanity check for lease value.
             if (lease > timeoutService.getMaxLeaseValue()) {
@@ -498,6 +500,18 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                 }, executor);
             }
         }, executor);
+    }
+
+    private PingTxnStatus getPingTxnStatus(final TxnStatus txnStatus) {
+        final PingTxnStatus status;
+        if (txnStatus.equals(TxnStatus.COMMITTED) || txnStatus.equals(TxnStatus.COMMITTING)) {
+            status = createStatus(Status.COMMITTED);
+        } else if (txnStatus.equals(TxnStatus.ABORTED) || txnStatus.equals(TxnStatus.ABORTING)) {
+            status = createStatus(Status.ABORTED);
+        } else {
+            status = createStatus(Status.OK);
+        }
+        return status;
     }
 
     /**

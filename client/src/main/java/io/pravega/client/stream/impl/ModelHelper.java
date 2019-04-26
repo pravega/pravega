@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -35,6 +36,9 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import lombok.SneakyThrows;
+
+import static io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status.OK;
 
 /**
  * Provides translation (encode/decode) between the Model classes and its gRPC representation.
@@ -168,6 +172,34 @@ public final class ModelHelper {
             case UNRECOGNIZED:
             default:
                 throw new IllegalStateException("Unknown status: " + state);
+        }
+        return result;
+    }
+
+    /**
+     * Returns the status of Ping Transaction.
+     *
+     * @param status     PingTxnStatus object instance.
+     * @param logString Description text to be logged when ping transaction status is invalid.
+     * @return Transaction.PingStatus
+     */
+    @SneakyThrows
+    public static final Transaction.PingStatus encode(final Controller.PingTxnStatus.Status status, final String logString) {
+        Preconditions.checkNotNull(status, "status");
+        Exceptions.checkNotNullOrEmpty(logString, "logString");
+        Transaction.PingStatus result;
+        switch (status) {
+            case OK:
+                result = Transaction.PingStatus.OPEN;
+                break;
+            case COMMITTED:
+                result = Transaction.PingStatus.COMMITTED;
+                break;
+            case ABORTED:
+                result = Transaction.PingStatus.ABORTED;
+                break;
+            default:
+                throw new PingFailedException("Ping transaction for " + logString + "failed with status " + status);
         }
         return result;
     }

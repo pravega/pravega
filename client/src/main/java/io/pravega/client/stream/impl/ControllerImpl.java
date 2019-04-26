@@ -24,7 +24,6 @@ import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
-import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -859,28 +858,25 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+    public CompletableFuture<Transaction.PingStatus> pingTransaction(final Stream stream, final UUID txId, final long lease) {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "pingTransaction", stream, txId, lease);
 
         final CompletableFuture<PingTxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<PingTxnStatus> callback = new RPCAsyncCallback<>(traceId, "pingTransaction");
-            client.pingTransaction(PingTxnRequest.newBuilder().setStreamInfo(
-                    ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                            .setTxnId(ModelHelper.decode(txId))
-                            .setLease(lease).build(),
-                    callback);
+            client.pingTransaction(PingTxnRequest.newBuilder()
+                                                 .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                                 .setTxnId(ModelHelper.decode(txId))
+                                                 .setLease(lease).build(), callback);
             return callback.getFuture();
         }, this.executor);
-        return Futures.toVoidExpecting(result,
-                                             PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
-                                             PingFailedException::new)
-                      .whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn("pingTransaction failed: ", e);
-                    }
-                    LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
-                });
+        return result.thenApply(status -> ModelHelper.encode(status.getStatus(), stream + " " + txId))
+                     .whenComplete((s, e) -> {
+                         if (e != null) {
+                             log.warn("Ping Transaction failed:", e);
+                         }
+                         LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
+                     });
     }
 
     @Override
