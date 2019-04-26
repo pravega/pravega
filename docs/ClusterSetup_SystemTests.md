@@ -120,27 +120,37 @@ Create a bash script with the following entries:
 ## Check test logs on jenkins cluster (husk/miek)
   
  1. Add this DNS record to your hosts file
+ 
 `10.249.250.202 api-nightshift.ecs.lab.emc.com`
 
  2. Login to Nightshift
+ 
 `pks login -a api-nightshift.ecs.lab.emc.com -u labadmin -p ChangeMe --skip-ssl-validation`
 
  3. Check pks clusters has cluster you want to check:
+ 
     `pks clusters`
  
  4. Point to your cluster of interest:
+ 
     `pks get-credentials <cluster-name>`
+    
     `kubectl config use-context <cluster-name>`
+    
     
  5. Confirm it works:
     `kubectl get po`
+    
     `kubectl get pravegaclusters`
+    
     `kubectl get pravegaclusters pravega -o yaml`
  
  6. To check logs:
  
  To write log for component/test to a file:
+ 
     `kubectl logs -f <podname> &> filename`
     
  To check directly
+ 
     `kubectl logs <podname> | less`
