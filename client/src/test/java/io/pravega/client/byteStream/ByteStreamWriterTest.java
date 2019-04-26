@@ -20,8 +20,6 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -30,8 +28,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertEquals;
 
@@ -48,18 +44,8 @@ public class ByteStreamWriterTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = Mockito.mock(ClientConnection.class);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                CreateSegment request = (CreateSegment) invocation.getArgument(0);
-                connectionFactory.getProcessor(endpoint)
-                                 .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
-                return null;
-            }
-        }).when(connection).sendAsync(Mockito.any(CreateSegment.class),
-                                      Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(endpoint, connection);
-        controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
         controller.createScope(SCOPE);
         controller.createStream(SCOPE, STREAM, StreamConfiguration.builder()
                                                    .scalingPolicy(ScalingPolicy.fixed(1))

@@ -536,13 +536,9 @@ public class ReaderGroupState implements Revisioned {
                 while (iter.hasNext()) {
                     Entry<Segment, Long> entry = iter.next();
                     Segment segment = entry.getKey();
-                    Long offset;
-                    if (ownedSegments == null || ownedSegments.isEmpty()) {
+                    Long offset = ownedSegments.get(segment);
+                    if (offset == null) {
                         offset = entry.getValue();
-                    } else {
-                        offset = ownedSegments.get(segment);
-                        Preconditions.checkState(offset != null,
-                                "No offset in lastPosition for assigned segment: " + segment);
                     }
                     finalPositions.put(segment, offset);
                     state.unassignedSegments.put(segment, offset);
