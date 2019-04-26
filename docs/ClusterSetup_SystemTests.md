@@ -33,7 +33,7 @@ Setup kubectl as documented [here](https://kubernetes.io/docs/tasks/tools/instal
 
 d. Install helm
 ```
-   $> wget https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.tar.gz
+    $> wget https://storage.googleapis.com/kubernetes-helm/helm-v2.10.0-linux-amd64.tar.gz
    
     $> tar -zxvf helm-v2.10.0-linux-amd64.tar.gz
     
@@ -46,13 +46,13 @@ $> git clone https://github.com/OlegPS/charts.git
 
 ## Setup Cluster for system tests
 
-```$>jarvis save <cluster-name>```
+```$> jarvis save <cluster-name>```
 
  After adding all necessary entries into /etc/hosts, again: 
   ```
-  $>jarvis save <cluster-name>
+  $> jarvis save <cluster-name>
 
-  $>kubectl config use-context <cluster-name>
+  $> kubectl config use-context <cluster-name>
 
   $> kubectl get pod --all-namespaces
   
@@ -79,5 +79,25 @@ $> git clone https://github.com/OlegPS/charts.git
   $> kubectl get pvc
   $> kubectl get storageclass
   ```
+  Now the cluster is setup and you can run system tests using :
+   ```./gradlew --info startK8SystemTests -DimageVersion=<image version #> -DimagePrefix=nautilus -DdockerRegistryUrl=devops-repo.isus.emc.com:8116```
+   
+  # Steps for checking test logs on jenkins cluster
   
-  
+ 1. Add this DNS record to your hosts file
+`10.249.250.202 api-nightshift.ecs.lab.emc.com`
+
+ 2. Login to Nightshift
+`pks login -a api-nightshift.ecs.lab.emc.com -u labadmin -p ChangeMe --skip-ssl-validation`
+
+ 3. Check pks clusters has cluster you want to check:
+    `pks clusters`
+ 
+ 4. Point to your cluster of interest:
+    `pks get-credentials <cluster-name>`
+    `kubectl config use-context <cluster-name>`
+    
+ 5. Confirm it works:
+    `kubectl get po`
+    `kubectl get pravegaclusters`
+    `kubectl get pravegaclusters pravega -o yaml`
