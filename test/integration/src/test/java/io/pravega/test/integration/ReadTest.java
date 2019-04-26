@@ -183,7 +183,7 @@ public class ReadTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        Controller controller = new MockController(endpoint, port, clientCF, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
@@ -227,7 +227,7 @@ public class ReadTest {
         PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        Controller controller = new MockController(endpoint, port, clientCF, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
         
@@ -271,7 +271,7 @@ public class ReadTest {
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).disableAutomaticCheckpoints().build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig);
