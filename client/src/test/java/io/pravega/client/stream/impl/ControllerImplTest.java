@@ -1154,7 +1154,7 @@ public class ControllerImplTest {
     @Test
     public void testPingTransaction() throws Exception {
 
-        Predicate<Throwable> isPingFailedException = t -> Exceptions.unwrap(t)instanceof PingFailedException;
+        Predicate<Throwable> isPingFailedException = t -> t instanceof PingFailedException;
 
         CompletableFuture<Transaction.PingStatus> transaction;
         transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream1"), UUID.randomUUID(), 0);
@@ -1169,19 +1169,20 @@ public class ControllerImplTest {
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, isPingFailedException);
 
         // controller returns error with status DISCONNECTED
-        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream3"), UUID.randomUUID(), 0);
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream4"), UUID.randomUUID(), 0);
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction,  isPingFailedException);
 
         // controller returns error with status COMMITTED
-        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream4"), UUID.randomUUID(), 0);
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream5"), UUID.randomUUID(), 0);
         assertEquals(transaction.get(), Transaction.PingStatus.COMMITTED);
 
         // controller returns error with status ABORTED
-        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream5"), UUID.randomUUID(), 0);
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream6"), UUID.randomUUID(), 0);
         assertEquals(transaction.get(), Transaction.PingStatus.ABORTED);
 
-        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream6"), UUID.randomUUID(), 0);
-        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, isPingFailedException);
+        // controller fails with internal exception causing the controller client to retry.
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream7"), UUID.randomUUID(), 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, t -> t instanceof RetriesExhaustedException);
     }
 
     @Test

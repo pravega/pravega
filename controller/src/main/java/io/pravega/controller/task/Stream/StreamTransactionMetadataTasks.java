@@ -28,7 +28,6 @@ import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TxnResource;
-import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status;
 import io.pravega.controller.timeout.TimeoutService;

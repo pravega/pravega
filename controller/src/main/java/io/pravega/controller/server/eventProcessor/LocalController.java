@@ -11,7 +11,6 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -31,7 +30,6 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
-import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
