@@ -29,8 +29,12 @@ import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Host store tests.
@@ -85,17 +89,24 @@ public class HostStoreTest {
                     .containerCount(containerCount)
                     .build();
 
+            // Update host store map.
+            Map<Host, Set<Integer>> hostContainerMap = HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount);
+
             // Create ZK based host store.
             HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
-
             CompletableFuture<Void> latch = new CompletableFuture<>();
             ((ZKHostStore) hostStore).addListener(() -> {
                 latch.complete(null);
             });
-            // Update host store map.
-            hostStore.updateHostContainersMap(HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount));
+            hostStore.updateHostContainersMap(hostContainerMap);
             latch.join();
             validateStore(hostStore);
+
+            // verify that a new hostStore is initialized with map set by previous host store.
+            HostControllerStore hostStore2 = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
+
+            Map<Host, Set<Integer>> map = hostStore2.getHostContainersMap();
+            assertEquals(hostContainerMap, map);
         } catch (Exception e) {
             log.error("Unexpected error", e);
             Assert.fail();
