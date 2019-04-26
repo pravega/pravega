@@ -289,7 +289,7 @@ public class ReaderGroupStateManager {
             log.debug("Update group state for reader {}", readerId);
             sync.fetchUpdates();
             long groupRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
-            fetchStateTimer.reset(Duration.ofMillis(groupRefresquorumhTimeMillis));
+            fetchStateTimer.reset(Duration.ofMillis(groupRefreshTimeMillis));
             compactIfNeeded();
         }
     }
