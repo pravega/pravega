@@ -119,6 +119,7 @@ message PingTxnStatus {
         DISCONNECTED = 4;
         COMMITTED = 5;
         ABORTED = 6;
+        UNKNOWN = 7;
     }
     Status status = 1;
 }

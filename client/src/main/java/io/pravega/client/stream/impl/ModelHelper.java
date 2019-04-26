@@ -38,8 +38,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 
-import static io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus.Status.OK;
-
 /**
  * Provides translation (encode/decode) between the Model classes and its gRPC representation.
  */

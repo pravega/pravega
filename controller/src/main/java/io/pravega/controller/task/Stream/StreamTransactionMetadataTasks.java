@@ -504,11 +504,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     private PingTxnStatus getPingTxnStatus(final TxnStatus txnStatus) {
         final PingTxnStatus status;
         if (txnStatus.equals(TxnStatus.COMMITTED) || txnStatus.equals(TxnStatus.COMMITTING)) {
-            status = createStatus(Status.COMMITTED);
+            status = createStatus(PingTxnStatus.Status.COMMITTED);
         } else if (txnStatus.equals(TxnStatus.ABORTED) || txnStatus.equals(TxnStatus.ABORTING)) {
-            status = createStatus(Status.ABORTED);
+            status = createStatus(PingTxnStatus.Status.ABORTED);
         } else {
-            status = createStatus(Status.OK);
+            status = createStatus(PingTxnStatus.Status.UNKNOWN);
         }
         return status;
     }
