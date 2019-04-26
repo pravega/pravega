@@ -136,3 +136,11 @@ Create a bash script with the following entries:
     `kubectl get po`
     `kubectl get pravegaclusters`
     `kubectl get pravegaclusters pravega -o yaml`
+ 
+ 6. To check logs:
+ 
+ To write log for component/test to a file:
+    `kubectl logs -f <podname> &> filename`
+    
+ To check directly
+    `kubectl logs <podname> | less`
