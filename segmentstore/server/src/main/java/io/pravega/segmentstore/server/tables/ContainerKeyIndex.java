@@ -156,31 +156,33 @@ class ContainerKeyIndex implements AutoCloseable {
      * @return A CompletableFuture that, when completed, will indicate if the Table Segment is empty or not.
      */
     private CompletableFuture<Boolean> isTableSegmentEmpty(DirectSegmentAccess segment, TimeoutTimer timer) {
-        // Get the number of indexed Table Buckets.
-        SegmentProperties sp = segment.getInfo();
-        long indexedBucketCount = this.indexReader.getBucketCount(sp);
-
         // Get a snapshot of the Tail Index and identify all bucket removals.
         val tailHashes = this.cache.getTailHashes(segment.getSegmentId());
         val tailRemovals = tailHashes.entrySet().stream()
                                      .filter(e -> e.getValue().isRemoval())
                                      .map(Map.Entry::getKey)
                                      .collect(Collectors.toList());
-        int tailAdditionCount = tailHashes.size() - tailRemovals.size();
-        if (tailRemovals.isEmpty()) {
-            // Tail Index has no removals. No need for any additional checks as we can safely infer if a table is empty
-            // using only the indexed bucket count and number of additions in the tail index.
-            return CompletableFuture.completedFuture(indexedBucketCount + tailAdditionCount <= 0);
+        if (tailHashes.size() > tailRemovals.size()) {
+            // Tail Index has at least one update, which implies the Table Segment is not empty.
+            return CompletableFuture.completedFuture(false);
         } else {
-            // Tail Index has at least one removal. We need to check which of these removals point to a real Table Bucket.
-            // It is possible that we received an unconditional remove for a Table Bucket that does not exist or a Table
-            // Bucket has been created and immediately deleted (before being included in the main Index). In order to
-            // determine if the table is empty, we need to figure out the exact count of removed buckets.
-            return this.indexReader.locateBuckets(segment, tailRemovals, timer)
-                                   .thenApply(buckets -> {
-                                       long removedCount = buckets.values().stream().filter(TableBucket::exists).count();
-                                       return indexedBucketCount - removedCount + tailAdditionCount <= 0;
-                                   });
+            // Get the number of indexed Table Buckets.
+            SegmentProperties sp = segment.getInfo();
+            long indexedBucketCount = this.indexReader.getBucketCount(sp);
+            if (tailRemovals.isEmpty()) {
+                // No removals in the Tail index, so we can derive our response from the total number of indexed buckets.
+                return CompletableFuture.completedFuture(indexedBucketCount <= 0);
+            } else {
+                // Tail Index has at least one removal. We need to check which of these removals point to a real Table Bucket.
+                // It is possible that we received an unconditional remove for a Table Bucket that does not exist or a Table
+                // Bucket has been created and immediately deleted (before being included in the main Index). In order to
+                // determine if the table is empty, we need to figure out the exact count of removed buckets.
+                return this.indexReader.locateBuckets(segment, tailRemovals, timer)
+                                       .thenApply(buckets -> {
+                                           long removedCount = buckets.values().stream().filter(TableBucket::exists).count();
+                                           return indexedBucketCount <= removedCount;
+                                       });
+            }
         }
     }
 
