@@ -22,9 +22,7 @@
 
 a. Install Jarvis:
 
-`$> curl -k https://asd-nautilus-jenkins.isus.emc.com/jenkins/job/nautilus-platform-master/lastStableBuild/artifact/go/go-cli/build/linux-jarvis > /usr/local/bin/jarvis`
 
-`$> chmod +x /usr/local/bin/jarvis`
 
 b. Install PKS
 
