@@ -105,7 +105,7 @@ public class AsyncSegmentInputStreamTest {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
 
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         ClientConnection c = mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, c);
         MockConnectionFactoryImpl mockedCF = spy(connectionFactory);
