@@ -206,7 +206,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             try {
                 processor.process(cmd);
             } catch (Exception e) {
-                log.error("Encountered exception invoking ReplyProcessor.process for reply " + cmd, e);
+                log.error("ReplyProcessor.process failed for reply {} due to {}", cmd, e.getMessage());
                 processor.processingFailure(e);
             }
         });
