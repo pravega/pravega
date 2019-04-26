@@ -136,13 +136,9 @@ public class ReaderGroupStateManager {
             if (segments == null) {
                 return;
             }
-            log.debug("Removing reader {} from reader grop. CurrentState is: {}", readerId, state);
-            if (lastPosition != null && !lastPosition.asImpl().getOwnedSegments().containsAll(segments)) {
-                throw new IllegalArgumentException(
-                        "When shutting down a reader: Given position does not match the segments it was assigned: \n"
-                                + segments + " \n vs \n " + lastPosition.asImpl().getOwnedSegments());
-            }
-            updates.add(new RemoveReader(readerId, lastPosition == null ? null : lastPosition.asImpl().getOwnedSegmentsWithOffsets()));
+            log.debug("Removing reader {} from reader group. CurrentState is: {}. Position is: {}.", readerId, state, lastPosition);
+            updates.add(new RemoveReader(readerId, lastPosition == null ? Collections.emptyMap()
+                    : lastPosition.asImpl().getOwnedSegmentsWithOffsets()));
         });
     }
     
@@ -293,7 +289,7 @@ public class ReaderGroupStateManager {
             log.debug("Update group state for reader {}", readerId);
             sync.fetchUpdates();
             long groupRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
-            fetchStateTimer.reset(Duration.ofMillis(groupRefreshTimeMillis));
+            fetchStateTimer.reset(Duration.ofMillis(groupRefresquorumhTimeMillis));
             compactIfNeeded();
         }
     }
