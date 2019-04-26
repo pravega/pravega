@@ -37,7 +37,7 @@ public class MockClientFactory implements EventStreamClientFactory, Synchronizer
 
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
         this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        this.controller = new MockController("localhost", 0, connectionFactory);
+        this.controller = new MockController("localhost", 0, connectionFactory, false);
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory, ioFactory, ioFactory, ioFactory, ioFactory);
     }
 

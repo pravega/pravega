@@ -213,7 +213,7 @@ public class AppendTest {
 
         @Cleanup
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        Controller controller = new MockController(endpoint, port, clientCF, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
@@ -242,7 +242,7 @@ public class AppendTest {
 
         @Cleanup
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        Controller controller = new MockController(endpoint, port, clientCF, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
