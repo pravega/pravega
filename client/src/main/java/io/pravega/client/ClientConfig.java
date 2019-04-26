@@ -59,12 +59,12 @@ public class ClientConfig implements Serializable {
     /**
      * If the flag {@link #isEnableTls()}  is set, this flag decides whether to enable host name validation or not.
      */
-    private boolean validateHostName;
+    private final boolean validateHostName;
 
     /**
      * Maximum number of connections per Segment store.
      */
-    private int maxConnectionsPerSegmentStore;
+    private final int maxConnectionsPerSegmentStore;
 
     public boolean isEnableTls() {
         String scheme = this.controllerURI.getScheme();
