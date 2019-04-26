@@ -34,13 +34,8 @@ public class PravegaTablesControllerServiceStarterTest extends ControllerService
     }
 
     @Override
-    public void setup() {
-        try {
-            zkServer = new TestingServerStarter().start();
-        } catch (Exception e) {
-            log.error("Error starting test zk server");
-            Assert.fail("Error starting test zk server");
-        }
+    public void setup() throws Exception {
+        zkServer = new TestingServerStarter().start();
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkServer.getConnectString())
                 .initialSleepInterval(500)
@@ -55,20 +50,9 @@ public class PravegaTablesControllerServiceStarterTest extends ControllerService
     }
 
     @Override
-    public void tearDown() {
-        try {
-            storeClient.close();
-        } catch (Exception e) {
-            log.error("Error closing ZK client");
-            Assert.fail("Error closing ZK client");
-        }
-
-        try {
-            zkServer.close();
-        } catch (IOException e) {
-            log.error("Error stopping test zk server");
-            Assert.fail("Error stopping test zk server");
-        }
+    public void tearDown() throws Exception {
+        storeClient.close();
+        zkServer.close();
         executor.shutdown();
     }
 }

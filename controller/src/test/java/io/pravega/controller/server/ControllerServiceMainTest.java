@@ -21,7 +21,7 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
+import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -39,10 +39,10 @@ public abstract class ControllerServiceMainTest {
     }
 
     @Before
-    public abstract void setup();
+    public abstract void setup() throws Exception;
 
     @After
-    public abstract void tearDown();
+    public abstract void tearDown() throws IOException;
 
     @Slf4j
     static class MockControllerServiceStarter extends ControllerServiceStarter {
@@ -86,17 +86,8 @@ public abstract class ControllerServiceMainTest {
                 MockControllerServiceStarter::new);
 
         controllerServiceMain.startAsync();
-        try {
-            controllerServiceMain.awaitRunning();
-        } catch (IllegalStateException e) {
-            Assert.fail("Failed waiting for controllerServiceMain to get ready");
-        }
-
-        try {
-            controllerServiceMain.awaitServiceStarting().awaitRunning();
-        } catch (IllegalStateException e) {
-            Assert.fail("Failed waiting for starter to get ready");
-        }
+        controllerServiceMain.awaitRunning();
+        controllerServiceMain.awaitServiceStarting().awaitRunning();
 
         Main.onShutdown(controllerServiceMain);
         
@@ -109,31 +100,11 @@ public abstract class ControllerServiceMainTest {
                 MockControllerServiceStarter::new);
 
         controllerServiceMain.startAsync();
-        try {
-            controllerServiceMain.awaitRunning();
-        } catch (IllegalStateException e) {
-            Assert.fail("Failed waiting for controllerServiceMain to get ready");
-        }
-
-        try {
-            controllerServiceMain.awaitServiceStarting().awaitRunning();
-        } catch (IllegalStateException e) {
-            Assert.fail("Failed waiting for starter to get ready");
-        }
-
+        controllerServiceMain.awaitRunning();
+        controllerServiceMain.awaitServiceStarting().awaitRunning();
         controllerServiceMain.stopAsync();
-
-        try {
-            controllerServiceMain.awaitServicePausing().awaitTerminated();
-        } catch (IllegalStateException e) {
-            Assert.fail("Failed waiting for termination of starter");
-        }
-
-        try {
-            controllerServiceMain.awaitTerminated();
-        } catch (IllegalStateException e) {
-            Assert.fail("Failed waiting for termination of controllerServiceMain");
-        }
+        controllerServiceMain.awaitServicePausing().awaitTerminated();
+        controllerServiceMain.awaitTerminated();
     }
 
     protected ControllerServiceConfig createControllerServiceConfig() {

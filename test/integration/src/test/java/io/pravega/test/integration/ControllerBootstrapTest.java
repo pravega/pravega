@@ -47,24 +47,16 @@ public class ControllerBootstrapTest {
     private TableStore tableStore;
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         final String serviceHost = "localhost";
         final int containerCount = 4;
 
         // 1. Start ZK
-        try {
-            zkTestServer = new TestingServerStarter().start();
-        } catch (Exception e) {
-            Assert.fail("Failed starting ZK test server");
-        }
-
+        zkTestServer = new TestingServerStarter().start();
         // 2. Start controller
-        try {
-            controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
-                    controllerPort, serviceHost, servicePort, containerCount);
-        } catch (Exception e) {
-            Assert.fail("Failed starting ControllerWrapper");
-        }
+        controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
+                                                  controllerPort, serviceHost, servicePort, containerCount);
+
     }
 
     @After
