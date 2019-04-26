@@ -10,6 +10,7 @@
 package io.pravega.test.integration.endtoendtest;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -46,6 +47,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -326,7 +328,7 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
         groupManager.createReaderGroup(group, ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(1000)
+                .builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(200)
                 .stream(stream)
                 .build());
 
@@ -348,34 +350,53 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         //9. Read all events from segment 0.
         if (reader1Event.equalsIgnoreCase(getEventData.apply(0))) {
            assertEquals(getEventData.apply(0), reader1.readNextEvent(15000).getEvent());
-           readAndVerify(reader1, 2, 3);
+           assertEquals(getEventData.apply(1), reader2Event);
+           readAndVerify(reader2, 1);
         } else {
-           assertEquals(getEventData.apply(0), reader2.readNextEvent(15000).getEvent());
-           readAndVerify(reader2, 2, 3);
+           assertEquals(getEventData.apply(1), reader1.readNextEvent(15000).getEvent());
+           assertEquals(getEventData.apply(0), reader2Event);
+           readAndVerify(reader2, 0);
         }
 
-        //10. Generate StreamCuts
+        //Readers see the empty segments
+        EventRead<String> data = reader2.readNextEvent(100);
+        assertNull(data.getEvent());
+        data = reader1.readNextEvent(100);
+        assertNull(data.getEvent());
+        
         @Cleanup("shutdown")
         InlineExecutor backgroundExecutor = new InlineExecutor();
+        readerGroup.initiateCheckpoint("cp1", backgroundExecutor);
+        data = reader1.readNextEvent(5000);
+        assertEquals("cp1", data.getCheckpointName());
+        data = reader2.readNextEvent(5000);
+        assertEquals("cp1", data.getCheckpointName());
+        
+        //New segments are available to read
+        reader1Event = reader1.readNextEvent(5000).getEvent();
+        assertNotNull(reader1Event);
+        reader2Event = reader2.readNextEvent(5000).getEvent();
+        assertNotNull(reader2Event);
+        
+        //10. Generate StreamCuts
         CompletableFuture<Map<Stream, StreamCut>> sc = readerGroup.generateStreamCuts(backgroundExecutor);
         // The reader group state will be updated after 1 second.
         TimeUnit.SECONDS.sleep(1);
-
-        //11. Fetch the next events from the reader. Before the reader returns the next events both the readers update its current position.
-        EventRead<String> data = reader2.readNextEvent(5000);
-        data = reader1.readNextEvent(15000);
-
-        //10 Validate the StreamCut generated.
+        
+        reader1Event = reader1.readNextEvent(500).getEvent();
+        reader2Event = reader2.readNextEvent(500).getEvent();
+        
+        //11 Validate the StreamCut generated.
         assertTrue(Futures.await(sc)); // wait until the streamCut is obtained.
-        //expected segment 0 offset is 30L.
-        Map<Segment, Long> expectedOffsetMap = ImmutableMap.<Segment, Long>builder()
-                .put(getSegment(1, 0), 30L) // 1 event read from segment 1
-                .put(getSegment(2, 1), 30L) // 1 event read from segment 2 and 3.
-                .put(getSegment(3, 1), 30L)
+
+        Set<Segment> expectedSegments = ImmutableSet.<Segment>builder()
+                .add(getSegment(4, 1)) // 1 event read from segment 1
+                .add(getSegment(2, 1)) // 1 event read from segment 2 or 3.
+                .add(getSegment(3, 1))
                 .build();
         Map<Stream, StreamCut> scMap = sc.join();
         assertEquals("StreamCut for a single stream expected", 1, scMap.size());
-        assertEquals(new StreamCutImpl(stream, expectedOffsetMap), scMap.get(stream));
+        assertEquals(expectedSegments, scMap.get(stream).asImpl().getPositions().keySet());
     }
 
     private StreamConfiguration getStreamConfig() {
