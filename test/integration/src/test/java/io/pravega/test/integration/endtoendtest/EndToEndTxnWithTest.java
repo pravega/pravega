@@ -46,7 +46,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
@@ -54,8 +53,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -109,7 +111,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
     @Test(timeout = 10000)
     public void testTxnWithScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
@@ -121,10 +123,12 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         @Cleanup
         TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer","test", new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
-        Transaction<String> transaction = test.beginTxn();
-        transaction.writeEvent("0", "txntest1");
-        transaction.commit();
+        Transaction<String> transaction1 = test.beginTxn();
+        transaction1.writeEvent("0", "txntest1");
+        transaction1.commit();
 
+        assertEventuallyEquals(Transaction.Status.COMMITTED, () -> transaction1.checkStatus(), 5000);
+        
         // scale
         Stream stream = new StreamImpl("test", "test");
         Map<Double, Double> map = new HashMap<>();
@@ -135,27 +139,31 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
 
         assertTrue(result);
 
-        transaction = test.beginTxn();
-        transaction.writeEvent("0", "txntest2");
-        transaction.commit();
+        Transaction<String> transaction2 = test.beginTxn();
+        transaction2.writeEvent("0", "txntest2");
+        transaction2.commit();
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test").build());
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).stream("test/test").build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
-        EventRead<String> event = reader.readNextEvent(10000);
-        assertNotNull(event);
+        EventRead<String> event = reader.readNextEvent(5000);
+        assertNotNull(event.getEvent());
         assertEquals("txntest1", event.getEvent());
-        event = reader.readNextEvent(10000);
-        assertNotNull(event);
+        assertNull(reader.readNextEvent(100).getEvent());
+        groupManager.getReaderGroup("reader").initiateCheckpoint("cp", executorService());
+        event = reader.readNextEvent(5000);
+        assertEquals("cp", event.getCheckpointName());
+        event = reader.readNextEvent(5000);
+        assertNotNull(event.getEvent());
         assertEquals("txntest2", event.getEvent());
     }
 
     @Test(timeout = 30000)
     public void testTxnWithErrors() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope(SCOPE).get();
@@ -171,13 +179,11 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         transaction.writeEvent("0", "txntest1");
         //abort the transaction to simulate a txn abort due to a missing ping request.
         controller.abortTransaction(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join();
-        TimeUnit.SECONDS.sleep(10);
         //check the status of the transaction.
-        Transaction.Status status = controller.checkTransactionStatus(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join();
-        assertEquals("Transaction status should be Aborted", Transaction.Status.ABORTED, status);
+        assertEventuallyEquals(Transaction.Status.ABORTED, () -> controller.checkTransactionStatus(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join(), 10000);
         transaction.writeEvent("0", "txntest2");
         //verify that commit fails with TxnFailedException.
-        AssertExtensions.assertThrows("TxnFailedException should be thrown", () -> transaction.commit(), t -> t instanceof TxnFailedException);
+        assertThrows("TxnFailedException should be thrown", () -> transaction.commit(), t -> t instanceof TxnFailedException);
     }
 
 
