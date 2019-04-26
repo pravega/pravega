@@ -19,13 +19,11 @@ import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
-import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -48,7 +46,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 
 @Slf4j
 public class EndToEndStatsTest {
@@ -114,20 +112,17 @@ public class EndToEndStatsTest {
         for (int i = 0; i < 10; i++) {
             test.writeEvent("test").get();
         }
-        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10);
+        assertEventuallyEquals(10, () -> statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 2000);
 
         Transaction<String> transaction = test.beginTxn();
         for (int i = 0; i < 10; i++) {
             transaction.writeEvent("0", "txntest1");
         }
-        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10);
+        assertEventuallyEquals(10, () -> statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 2000);
 
         transaction.commit();
-        Stream stream = new StreamImpl("test", "test");
-        while (!controller.checkTransactionStatus(stream, transaction.getTxnId()).get().equals(Transaction.Status.COMMITTED)) {
-            Thread.sleep(100);
-        }
-        assertEquals(statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 20);
+
+        assertEventuallyEquals(20, () -> statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10000);
     }
 
     private static class TestStatsRecorder implements SegmentStatsRecorder {

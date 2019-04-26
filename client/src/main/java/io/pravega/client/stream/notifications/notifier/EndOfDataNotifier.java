@@ -10,7 +10,7 @@
 package io.pravega.client.stream.notifications.notifier;
 
 import java.util.concurrent.ScheduledExecutorService;
-
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.impl.ReaderGroupState;
 import io.pravega.client.stream.notifications.EndOfDataNotification;
@@ -28,6 +28,14 @@ public class EndOfDataNotifier extends AbstractPollingNotifier<EndOfDataNotifica
                              final StateSynchronizer<ReaderGroupState> synchronizer,
                              final ScheduledExecutorService executor) {
         super(notifySystem, executor, synchronizer);
+    }
+    
+    /**
+     * Invokes the periodic processing now in the current thread.
+     */
+    @VisibleForTesting
+    public void pollNow() {
+        this.checkAndTriggerEndOfStreamNotification();
     }
 
     @Override

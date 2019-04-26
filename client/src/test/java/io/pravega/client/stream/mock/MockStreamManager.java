@@ -56,7 +56,7 @@ public class MockStreamManager implements StreamManager, ReaderGroupManager {
     public MockStreamManager(String scope, String endpoint, int port) {
         this.scope = scope;
         this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().controllerURI(URI.create("tcp://localhost")).build());
-        this.controller = new MockController(endpoint, port, connectionFactory);
+        this.controller = new MockController(endpoint, port, connectionFactory, true);
         this.clientFactory = new MockClientFactory(scope, controller);
     }
 
