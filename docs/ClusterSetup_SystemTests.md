@@ -88,7 +88,7 @@ $> git clone https://github.com/OlegPS/charts.git
  ```./gradlew --info startK8SystemTests -DimageVersion=<image version #> -DimagePrefix=nautilus -DdockerRegistryUrl=devops-repo.isus.emc.com:8116```
    
    
-## Steps for cleanup after system tests:
+## Cluster Tear Down:
 
 Create a bash script with the following entries:
 
@@ -117,7 +117,7 @@ Create a bash script with the following entries:
 	kubectl get po
 ```
 
-## Steps for checking test logs on jenkins cluster (husk/miek)
+## Check test logs on jenkins cluster (husk/miek)
   
  1. Add this DNS record to your hosts file
 `10.249.250.202 api-nightshift.ecs.lab.emc.com`
