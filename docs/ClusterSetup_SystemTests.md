@@ -27,7 +27,8 @@ a. Install Jarvis:
 `$> chmod +x /usr/local/bin/jarvis`
 
 b. Install PKS
-Download PKS CLI (Linux) from [here](https://network.pivotal.io/products/pivotal-container-service/)
+
+Download and install PKS CLI (Linux) as documented [here](https://network.pivotal.io/products/pivotal-container-service/)
 
 c. Install kubectl
 
