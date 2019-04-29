@@ -43,7 +43,7 @@ public class RevisionedStreamClientTest {
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
@@ -83,7 +83,7 @@ public class RevisionedStreamClientTest {
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
@@ -118,7 +118,7 @@ public class RevisionedStreamClientTest {
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
@@ -154,7 +154,7 @@ public class RevisionedStreamClientTest {
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);

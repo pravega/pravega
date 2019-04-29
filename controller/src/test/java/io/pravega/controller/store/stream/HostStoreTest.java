@@ -88,20 +88,27 @@ public class HostStoreTest {
                 .containerCount(containerCount)
                 .build();
 
-        // Create ZK based host store.
-        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
-
-        CompletableFuture<Void> latch = new CompletableFuture<>();
-        ((ZKHostStore) hostStore).addListener(() -> {
-            latch.complete(null);
-        });
         // Update host store map.
         Map<Host, Set<Integer>> hostContainerMap = HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount);
+
+        // Create ZK based host store.
+        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
+        CompletableFuture<Void> latch1 = new CompletableFuture<>();
+        CompletableFuture<Void> latch2 = new CompletableFuture<>();
+        ((ZKHostStore) hostStore).addListener(() -> {
+            // With the addition of updateMap() in tryInit(), this listener is actually called twice, and we need to
+            // wait for the second operation to complete (related to updateHostContainersMap()).
+            if (latch1.isDone()) {
+                latch2.complete(null);
+            }
+            latch1.complete(null);
+        });
         hostStore.updateHostContainersMap(hostContainerMap);
-        latch.join();
+        latch1.join();
+        latch2.join();
         validateStore(hostStore);
 
-        // verify that a new hostStore is initialized with map set by previous host store. 
+        // verify that a new hostStore is initialized with map set by previous host store.
         HostControllerStore hostStore2 = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
 
         Map<Host, Set<Integer>> map = hostStore2.getHostContainersMap();

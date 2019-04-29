@@ -129,7 +129,12 @@ public class EndToEndTransactionOrderTest {
 
         clientFactory = new MockClientFactory("test", controller);
         readerGroupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
-        readerGroupManager.createReaderGroup("readergrp", ReaderGroupConfig.builder().stream("test/test").build());
+        readerGroupManager.createReaderGroup("readergrp",
+                                             ReaderGroupConfig.builder()
+                                                              .automaticCheckpointIntervalMillis(2000)
+                                                              .groupRefreshTimeMillis(1000)
+                                                              .stream("test/test")
+                                                              .build());
 
         reader = clientFactory.createReader("1",
                 "readergrp",

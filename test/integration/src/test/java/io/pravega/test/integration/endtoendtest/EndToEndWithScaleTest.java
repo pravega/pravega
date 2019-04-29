@@ -49,6 +49,7 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -96,12 +97,12 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
         zkTestServer.close();
     }
 
-    @Test(timeout = 30000)
+    @Test(timeout = 60000)
     public void testScale() throws Exception {
         final String scope = "test";
         final String streamName = "test";
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
 
         // Test scale both in a new stream and in a re-created one.
@@ -133,16 +134,20 @@ public class EndToEndWithScaleTest extends ThreadPooledTestSuite {
             @Cleanup
             ReaderGroupManager groupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory,
                     connectionFactory);
-            groupManager.createReaderGroup("reader" + i, ReaderGroupConfig.builder().disableAutomaticCheckpoints().
+            groupManager.createReaderGroup("reader" + i, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).
                     stream(Stream.of(scope, streamName).getScopedName()).build());
             @Cleanup
             EventStreamReader<String> reader = clientFactory.createReader("readerId" + i, "reader" + i, new JavaSerializer<>(),
                     ReaderConfig.builder().build());
             EventRead<String> event = reader.readNextEvent(10000);
-            assertNotNull(event);
+            assertNotNull(event.getEvent());
             assertEquals("txntest1" + i, event.getEvent());
+            event = reader.readNextEvent(100);
+            assertNull(event.getEvent());
+            groupManager.getReaderGroup("reader" + i).initiateCheckpoint("cp" + i, executorService());
             event = reader.readNextEvent(10000);
-            assertNotNull(event);
+            assertEquals("cp" + i, event.getCheckpointName());
+            event = reader.readNextEvent(10000);
             assertEquals("txntest2" + i, event.getEvent());
             assertTrue(controller.sealStream(scope, streamName).join());
             assertTrue(controller.deleteStream(scope, streamName).join());
