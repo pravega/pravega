@@ -14,18 +14,16 @@ import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.test.common.TestingServerStarter;
+import java.io.IOException;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.test.TestingServer;
-import org.junit.Assert;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.junit.Assert.assertEquals;
 

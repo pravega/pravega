@@ -14,10 +14,8 @@ import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.test.common.TestingServerStarter;
-import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.Executors;
-
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;

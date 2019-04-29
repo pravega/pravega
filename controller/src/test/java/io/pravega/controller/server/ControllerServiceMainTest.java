@@ -16,14 +16,13 @@ import io.pravega.controller.store.host.HostMonitorConfig;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 /**
  * ControllerServiceMain tests.
