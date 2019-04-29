@@ -175,7 +175,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                 rp.connectionDropped();
             } catch (Exception e) {
                 // Suppressing exception which prevents all ReplyProcessor.connectionDropped from being invoked.
-                log.warn("Encountered exception invoking ReplyProcessor for flow id " + flowId, e);
+                log.warn("Encountered exception invoking ReplyProcessor for flow id {}", flowId, e);
             }
         });
         super.channelUnregistered(ctx);
@@ -192,7 +192,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                     rp.hello((WireCommands.Hello) cmd);
                 } catch (Exception e) {
                     // Suppressing exception which prevents all ReplyProcessor.hello from being invoked.
-                    log.warn("Encountered exception invoking ReplyProcessor.hello for flow id " + flowId, e);
+                    log.warn("Encountered exception invoking ReplyProcessor.hello for flow id {}", flowId, e);
                 }
             });
             return;
@@ -206,7 +206,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             try {
                 processor.process(cmd);
             } catch (Exception e) {
-                log.error("ReplyProcessor.process failed for reply {} due to {}", cmd, e.getMessage());
+                log.warn("ReplyProcessor.process failed for reply {} due to {}", cmd, e.getMessage());
                 processor.processingFailure(e);
             }
         });
@@ -220,7 +220,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                 rp.processingFailure(new ConnectionFailedException(cause));
             } catch (Exception e) {
                 // Suppressing exception which prevents all ReplyProcessor.processingFailure from being invoked.
-                log.warn("Encountered exception invoking ReplyProcessor.processingFailure for flow id " + flowId, e);
+                log.warn("Encountered exception invoking ReplyProcessor.processingFailure for flow id {}", flowId, e);
             }
         });
     }
