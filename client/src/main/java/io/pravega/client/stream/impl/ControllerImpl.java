@@ -24,6 +24,7 @@ import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -870,13 +871,18 @@ public class ControllerImpl implements Controller {
                                                  .setLease(lease).build(), callback);
             return callback.getFuture();
         }, this.executor);
-        return result.thenApply(status -> ModelHelper.encode(status.getStatus(), stream + " " + txId))
-                     .whenComplete((s, e) -> {
-                         if (e != null) {
-                             log.warn("Ping Transaction failed:", e);
-                         }
-                         LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
-                     });
+        return result.thenApply(status -> {
+            try {
+                return ModelHelper.encode(status.getStatus(), stream + " " + txId);
+            } catch (PingFailedException ex) {
+                throw new CompletionException(ex);
+            }
+        }).whenComplete((s, e) -> {
+            if (e != null) {
+                log.warn("Ping Transaction failed:", e);
+            }
+            LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
+        });
     }
 
     @Override

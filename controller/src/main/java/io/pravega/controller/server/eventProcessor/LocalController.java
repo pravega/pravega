@@ -11,6 +11,7 @@ package io.pravega.controller.server.eventProcessor;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -44,6 +45,7 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -317,7 +319,13 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Transaction.PingStatus> pingTransaction(Stream stream, UUID txId, long lease) {
         return controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease)
-                         .thenApply(status -> ModelHelper.encode(status.getStatus(), stream + " " + txId));
+                         .thenApply(status -> {
+                             try {
+                                 return ModelHelper.encode(status.getStatus(), stream + " " + txId);
+                             } catch (PingFailedException ex) {
+                                 throw new CompletionException(ex);
+                             }
+                         });
     }
 
     @Override

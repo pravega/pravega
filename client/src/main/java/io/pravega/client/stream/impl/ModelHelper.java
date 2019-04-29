@@ -36,7 +36,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import lombok.SneakyThrows;
 
 /**
  * Provides translation (encode/decode) between the Model classes and its gRPC representation.
@@ -180,9 +179,10 @@ public final class ModelHelper {
      * @param status     PingTxnStatus object instance.
      * @param logString Description text to be logged when ping transaction status is invalid.
      * @return Transaction.PingStatus
+     * @throws PingFailedException if status of Ping transaction operations is not successful.
      */
-    @SneakyThrows
-    public static final Transaction.PingStatus encode(final Controller.PingTxnStatus.Status status, final String logString) {
+    public static final Transaction.PingStatus encode(final Controller.PingTxnStatus.Status status, final String logString)
+            throws PingFailedException {
         Preconditions.checkNotNull(status, "status");
         Exceptions.checkNotNullOrEmpty(logString, "logString");
         Transaction.PingStatus result;
