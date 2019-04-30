@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -102,7 +103,7 @@ public class PingerTest {
     public void startTxnKeepAliveError() throws Exception {
         final UUID txnID = UUID.randomUUID();
 
-        CompletableFuture<Void> failedFuture = new CompletableFuture<>();
+        CompletableFuture<Transaction.PingStatus> failedFuture = new CompletableFuture<>();
         failedFuture.completeExceptionally(new RuntimeException("Error"));
         when(controller.pingTransaction(eq(stream), eq(txnID), anyLong())).thenReturn(failedFuture);
 
