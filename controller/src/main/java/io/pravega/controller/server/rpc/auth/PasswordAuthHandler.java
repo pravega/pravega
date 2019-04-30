@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.auth;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -99,6 +100,18 @@ public class PasswordAuthHandler implements AuthHandler {
         return authorizeForUser(userMap.get(userName), resource);
     }
 
+    /**
+     * This method exists expressly for unit testing purposes. It loads the contents of the specified
+     * {@code passwordFile} into this object.
+     *
+     * @param passwordFile the file with a list of users, their encrypted passwords and their ACLs that is to be used
+     *                     by this instance.
+     */
+    @VisibleForTesting
+    void initialize(String passwordFile) {
+        loadPasswordFile(passwordFile);
+    }
+
     @Override
     public void initialize(ServerConfig serverConfig) {
         loadPasswordFile(((GRPCServerConfig) serverConfig).getUserPasswordFile());
@@ -111,7 +124,7 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     private Permissions authorizeForUser(PravegaACls pravegaACls, String resource) {
-        Permissions retVal = Permissions.NONE;
+        Permissions result = Permissions.NONE;
 
         /**
          *  `*` Means a wildcard.
@@ -119,14 +132,44 @@ public class PasswordAuthHandler implements AuthHandler {
          *  If it is a partial match, the target has to end with a `/`
          */
         for (PravegaAcl acl : pravegaACls.acls) {
-            if (acl.resource.equals(resource) ||
-                    (acl.resource.endsWith("/") && resource.startsWith(acl.resource))
-                    || (resource.startsWith(acl.resource + "/"))
-                    || ((acl.resource.equals("*")) && (acl.acl.ordinal() > retVal.ordinal()))) {
-                retVal = acl.acl;
+
+            // Separating into different blocks, to make the code more understandable.
+            // It makes the code look a bit strange, but it is still simpler and easier to decipher than what it be
+            // if we combine the conditions.
+
+            if (acl.isResource(resource)) {
+                // Example: resource = "myscope", acl-resource = "myscope"
+                result = acl.permissions;
+                break;
+            }
+
+            if (acl.isResource("/*") && !resource.contains("/")) {
+                // Example: resource = "myscope", acl-resource ="/*"
+                result = acl.permissions;
+                break;
+            }
+
+            if (acl.resourceEndsWith("/") && acl.resourceStartsWith(resource)) {
+                result = acl.permissions;
+                break;
+            }
+
+            // Say, resource is myscope/mystream. ACL specifies permission for myscope/*.
+            // Auth should return the the ACL's permissions in that case.
+            if (resource.contains("/") && !resource.endsWith("/")) {
+                String[] values = resource.split("/");
+                if (acl.isResource(values[0] + "/*")) {
+                    result = acl.permissions;
+                    break;
+                }
+            }
+
+            if (acl.isResource("*") && acl.hasHigherPermissionsThan(result)) {
+                result = acl.permissions;
+                break;
             }
         }
-        return retVal;
+        return result;
     }
 
     private List<PravegaAcl> getAcls(String aclString) {
@@ -154,9 +197,23 @@ public class PasswordAuthHandler implements AuthHandler {
 
     @Data
     private class PravegaAcl {
-        private final String resource;
-        private final Permissions acl;
+        private final String resourceRepresentation;
+        private final Permissions permissions;
 
+        public boolean isResource(String resource) {
+            return resourceRepresentation.equals(resource);
+        }
 
+        public boolean resourceEndsWith(String resource) {
+            return resourceRepresentation.endsWith(resource);
+        }
+
+        public boolean resourceStartsWith(String resource) {
+            return resourceRepresentation.startsWith(resource);
+        }
+
+        public boolean hasHigherPermissionsThan(Permissions input) {
+            return this.permissions.ordinal() > input.ordinal();
+        }
     }
 }

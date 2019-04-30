@@ -24,6 +24,7 @@ import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.common.util.Retry;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -160,7 +161,16 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                               * inflight that will need to be resent to the new segment when the write lock
                               * is released. (To preserve order)
                               */
-                             flushInternal();
+                             for (SegmentOutputStream writer : selector.getWriters()) {
+                                 try {
+                                     writer.write(PendingEvent.withoutHeader(null, ByteBufferUtils.EMPTY, null));
+                                     writer.flush();
+                                 } catch (SegmentSealedException e) {
+                                     // Segment sealed exception observed during a flush. Re-run flush on all the
+                                     // available writers.
+                                     log.info("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
+                                 }
+                             }
                              toSeal = sealedSegmentQueue.poll();
                              log.info("Sealing another segment {} ", toSeal);
                          }
@@ -361,24 +371,20 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         synchronized (writeFlushLock) {
             boolean success = false;
             while (!success) {
-                success = flushInternal();
+                success = true;
+                for (SegmentOutputStream writer : selector.getWriters()) {
+                    try {
+                        writer.flush();
+                    } catch (SegmentSealedException e) {
+                        // Segment sealed exception observed during a flush. Re-run flush on all the
+                        // available writers.
+                        success = false;
+                        log.warn("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
+                        break;
+                    }
+                }
             }
         }
-    }
-
-    private boolean flushInternal() {
-        boolean success = true;
-        for (SegmentOutputStream writer : selector.getWriters()) {
-            try {
-                writer.flush();
-            } catch (SegmentSealedException e) {
-                // Segment sealed exception observed during a flush. Re-run flush on all the
-                // available writers.
-                success = false;
-                log.warn("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
-            }
-        }
-        return success;
     }
 
     @Override

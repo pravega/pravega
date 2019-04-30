@@ -21,12 +21,14 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.ToString;
 
 import java.util.Optional;
 
 /**
  * Controller Service Configuration.
  */
+@ToString
 @Getter
 public class ControllerServiceConfigImpl implements ControllerServiceConfig {
 
@@ -58,7 +60,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
         if (controllerClusterListenerEnabled) {
-            Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper,
+            Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper ||
+                            storeClientConfig.getStoreType() == StoreType.PravegaTable,
                     "If controllerCluster is enabled, store type should be Zookeeper");
         }
         if (eventProcessorConfig.isPresent()) {

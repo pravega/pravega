@@ -15,12 +15,14 @@ import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.client.ZKClientConfig;
 import com.google.common.base.Preconditions;
 import lombok.Getter;
+import lombok.ToString;
 
 import java.util.Optional;
 
 /**
  * Store client configuration.
  */
+@ToString
 @Getter
 public class StoreClientConfigImpl implements StoreClientConfig {
 
@@ -45,5 +47,10 @@ public class StoreClientConfigImpl implements StoreClientConfig {
     public static StoreClientConfig withZKClient(ZKClientConfig zkClientConfig) {
         Preconditions.checkNotNull(zkClientConfig, "zkClientConfig");
         return new StoreClientConfigImpl(StoreType.Zookeeper, Optional.of(zkClientConfig));
+    }
+    
+    public static StoreClientConfig withPravegaTablesClient(ZKClientConfig zkClientConfig) {
+        Preconditions.checkNotNull(zkClientConfig, "zkClientConfig");
+        return new StoreClientConfigImpl(StoreType.PravegaTable, Optional.of(zkClientConfig));
     }
 }

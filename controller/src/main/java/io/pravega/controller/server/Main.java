@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.impl.ControllerEventProcessorConfigImpl;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
@@ -25,7 +26,12 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
 import java.util.Optional;
+import java.util.function.BiConsumer;
+
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -39,20 +45,27 @@ public class Main {
         StatsProvider statsProvider = null;
         try {
             //0. Initialize metrics provider
-            MetricsProvider.initialize(Config.getMetricsConfig());
+            MetricsProvider.initialize(Config.METRICS_CONFIG);
             statsProvider = MetricsProvider.getMetricsProvider();
             statsProvider.start();
 
             ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder()
                     .connectionString(Config.ZK_URL)
                     .secureConnectionToZooKeeper(Config.SECURE_ZK)
+                    .trustStorePath(Config.ZK_TRUSTSTORE_FILE_PATH)
+                    .trustStorePasswordPath(Config.ZK_TRUSTSTORE_PASSWORD_FILE_PATH)
                     .namespace("pravega/" + Config.CLUSTER_NAME)
                     .initialSleepInterval(Config.ZK_RETRY_SLEEP_MS)
                     .maxRetries(Config.ZK_MAX_RETRIES)
                     .sessionTimeoutMs(Config.ZK_SESSION_TIMEOUT_MS)
                     .build();
 
-            StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+            StoreClientConfig storeClientConfig;
+            if (Config.USE_PRAVEGA_TABLES) {
+                storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
+            } else {
+                storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+            }
 
             HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
                     .hostMonitorEnabled(Config.HOST_MONITOR_ENABLED)
@@ -68,11 +81,14 @@ public class Main {
 
             ControllerEventProcessorConfig eventProcessorConfig = ControllerEventProcessorConfigImpl.withDefault();
 
-            GRPCServerConfig grpcServerConfig = Config.getGRPCServerConfig();
+            GRPCServerConfig grpcServerConfig = Config.GRPC_SERVER_CONFIG;
 
             RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
                     .host(Config.REST_SERVER_IP)
                     .port(Config.REST_SERVER_PORT)
+                    .tlsEnabled(Config.TLS_ENABLED)
+                    .keyFilePath(Config.REST_KEYSTORE_FILE_PATH)
+                    .keyFilePasswordPath(Config.REST_KEYSTORE_PASSWORD_FILE_PATH)
                     .build();
 
             ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
@@ -86,8 +102,14 @@ public class Main {
                     .restServerConfig(Optional.of(restServerConfig))
                     .build();
 
+            setUncaughtExceptionHandler(Main::logUncaughtException);
+
             ControllerServiceMain controllerServiceMain = new ControllerServiceMain(serviceConfig);
             controllerServiceMain.startAsync();
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                onShutdown(controllerServiceMain);
+            }));
+            
             controllerServiceMain.awaitTerminated();
 
             log.info("Controller service exited");
@@ -98,6 +120,34 @@ public class Main {
         } finally {
             if (statsProvider != null) {
                 statsProvider.close();
+            }
+        }
+    }
+
+    @VisibleForTesting
+    static void setUncaughtExceptionHandler(BiConsumer<Thread, Throwable> exceptionConsumer) {
+        Thread.setDefaultUncaughtExceptionHandler(exceptionConsumer::accept);
+    }
+
+    static void logUncaughtException(Thread t, Throwable e) {
+        log.error("Thread {} with stackTrace {} failed with uncaught exception", t.getName(), t.getStackTrace(), e);
+    }
+
+    @VisibleForTesting
+    static void onShutdown(ControllerServiceMain controllerServiceMain) {
+        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        memoryMXBean.setVerbose(true);
+        log.info("Shutdown hook memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
+                memoryMXBean.getNonHeapMemoryUsage());
+
+        log.info("Controller service shutting down");
+        try {
+            controllerServiceMain.stopAsync();
+            controllerServiceMain.awaitTerminated();
+        } finally {
+            if (Config.DUMP_STACK_ON_SHUTDOWN) {
+                Thread.getAllStackTraces().forEach((key, value) ->
+                        log.info("Shutdown Hook Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
             }
         }
     }

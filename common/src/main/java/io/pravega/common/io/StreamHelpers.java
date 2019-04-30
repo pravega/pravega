@@ -11,6 +11,7 @@ package io.pravega.common.io;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -54,13 +55,17 @@ public final class StreamHelpers {
      * @param source The InputStream to read.
      * @param length The number of bytes to read.
      * @return A byte array containing the contents of the Stream.
-     * @throws IOException If unable to read from the given InputStream.
+     * @throws IOException If unable to read from the given InputStream. Throws {@link EOFException} if the number of bytes
+     * remaining in the InputStream is less than length.
      */
     public static byte[] readAll(InputStream source, int length) throws IOException {
         byte[] ret = new byte[length];
         int readBytes = readAll(source, ret, 0, ret.length);
-        Preconditions.checkArgument(readBytes == ret.length,
-                "Invalid value for length (%s). Was only able to read %s bytes from the given InputStream.", ret.length, readBytes);
+        if (readBytes < ret.length) {
+            throw new EOFException(String.format(
+                    "Was only able to read %d bytes, which is less than the requested length of %d.", readBytes, ret.length));
+        }
+
         return ret;
     }
 }

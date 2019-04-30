@@ -9,9 +9,6 @@
  */
 package io.pravega.controller.task;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -38,7 +35,6 @@ import io.pravega.controller.task.Stream.TestTasks;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import java.io.Serializable;
-import java.net.URI;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -65,7 +61,6 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -75,48 +70,44 @@ import static org.junit.Assert.assertTrue;
  * Task test cases.
  */
 @Slf4j
-public class TaskTest {
+public abstract class TaskTest {
     private static final String HOSTNAME = "host-1234";
     private static final String SCOPE = "scope";
+    protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected CuratorFramework cli;
+
     private final String stream1 = "stream1";
     private final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
     private final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
-    private final ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
 
-    private final StreamMetadataStore streamStore;
+    private StreamMetadataStore streamStore;
 
     private final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
 
-    private final TaskMetadataStore taskMetadataStore;
+    private TaskMetadataStore taskMetadataStore;
 
-    private final TestingServer zkServer;
+    private TestingServer zkServer;
 
-    private final StreamMetadataTasks streamMetadataTasks;
-    private final SegmentHelper segmentHelperMock;
-    private final CuratorFramework cli;
-    private Map<Long, Map.Entry<Double, Double>> segmentsCreated;
+    private StreamMetadataTasks streamMetadataTasks;
+    private SegmentHelper segmentHelperMock;
     private final RequestTracker requestTracker = new RequestTracker(true);
+    
+    abstract StreamMetadataStore getStream();
 
-    public TaskTest() throws Exception {
+    @Before
+    public void setUp() throws Exception {
         zkServer = new TestingServerStarter().start();
         zkServer.start();
 
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), new RetryOneTime(2000));
         cli.start();
-        streamStore = StreamStoreFactory.createZKStore(cli, executor);
+        streamStore = getStream();
         taskMetadataStore = TaskStoreFactory.createZKStore(cli, executor);
 
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
+                executor, HOSTNAME, AuthHelper.getDisabledAuthHelper(), requestTracker);
 
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), hostStore, taskMetadataStore, segmentHelperMock,
-                executor, HOSTNAME, new ConnectionFactoryImpl(ClientConfig.builder()
-                                                                          .controllerURI(URI.create("tcp://localhost"))
-                                                                          .build()),
-                AuthHelper.getDisabledAuthHelper(), requestTracker);
-    }
-
-    @Before
-    public void setUp() throws ExecutionException, InterruptedException {
         final String stream2 = "stream2";
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
@@ -139,7 +130,7 @@ public class TaskTest {
         List<Long> sealedSegments = Collections.singletonList(1L);
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore.submitScale(SCOPE, stream1, sealedSegments, Arrays.asList(segment1, segment2), start + 20, null, null, executor).get();
         EpochTransitionRecord response = versioned.getObject();
-        segmentsCreated = response.getNewSegmentsWithRange();
+        Map<Long, Map.Entry<Double, Double>> segmentsCreated = response.getNewSegmentsWithRange();
         VersionedMetadata<State> state = streamStore.getVersionedState(SCOPE, stream1, null, executor).join();
         state = streamStore.updateVersionedState(SCOPE, stream1, State.SCALING, state, null, executor).get();
         versioned = streamStore.startScale(SCOPE, stream1, false, versioned, state, null, executor).join();
@@ -169,6 +160,7 @@ public class TaskTest {
     @After
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
+        streamStore.close();
         cli.close();
         zkServer.stop();
         zkServer.close();
@@ -235,8 +227,8 @@ public class TaskTest {
 
         // Create objects.
         @Cleanup
-        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), hostStore, taskMetadataStore, segmentHelperMock,
-                executor, deadHost, Mockito.mock(ConnectionFactory.class),  AuthHelper.getDisabledAuthHelper(), requestTracker);
+        StreamMetadataTasks mockStreamTasks = new StreamMetadataTasks(streamStore, StreamStoreFactory.createInMemoryBucketStore(), taskMetadataStore, segmentHelperMock,
+                executor, deadHost, AuthHelper.getDisabledAuthHelper(), requestTracker);
         mockStreamTasks.setCreateIndexOnlyMode();
         TaskSweeper sweeper = new TaskSweeper(taskMetadataStore, HOSTNAME, executor, streamMetadataTasks);
 

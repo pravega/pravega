@@ -38,6 +38,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -63,6 +64,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -103,8 +105,8 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid,  SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
 
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
@@ -126,11 +128,11 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        reset(connection);
         cf.getProcessor(uri).connectionDropped(); // simulate a connection dropped
         //Ensure setup Append is invoked on the executor.
-        verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
     }
 
     @Test(timeout = 10000)
@@ -150,8 +152,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
+        verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
     }
 
     @Test(timeout = 10000)
@@ -174,8 +175,8 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, resendToSuccessorsCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT, "SomeException"));
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), SEGMENT, "SomeException", -1L));
         CompletableFuture<ClientConnection> connectionFuture = output.getConnection();
         assertThrows(NoSuchSegmentException.class, () -> Futures.getThrowingException(connectionFuture));
         assertTrue(callbackInvoked.get());
@@ -198,17 +199,17 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        reset(connection);
         //simulate a processing Failure and ensure SetupAppend is executed.
         cf.getProcessor(uri).processingFailure(new IOException());
-        verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
-
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        reset(connection);
         cf.getProcessor(uri).connectionDropped();
-        verify(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
-
-        cf.getProcessor(uri).wrongHost(new WireCommands.WrongHost(3, SEGMENT, "newHost", "SomeException"));
-        verify(connection).send(new SetupAppend(4, cid, SEGMENT, ""));
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        reset(connection);
+        cf.getProcessor(uri).wrongHost(new WireCommands.WrongHost(output.getRequestId(), SEGMENT, "newHost", "SomeException"));
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
     }
 
     @SuppressWarnings("unchecked")
@@ -247,8 +248,8 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
 
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
@@ -277,15 +278,15 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0)));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test4"), new CompletableFuture<>()));
         
-        Append append1 = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null);
-        Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(getBuffer("test2")), null);
-        Append append3 = new Append(SEGMENT, cid, 3, 1, Unpooled.wrappedBuffer(getBuffer("test3")), null);
-        Append append4 = new Append(SEGMENT, cid, 4, 1, Unpooled.wrappedBuffer(getBuffer("test4")), null);
-        inOrder.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
+        Append append1 = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null, output.getRequestId());
+        Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(getBuffer("test2")), null, output.getRequestId());
+        Append append3 = new Append(SEGMENT, cid, 3, 1, Unpooled.wrappedBuffer(getBuffer("test3")), null, output.getRequestId());
+        Append append4 = new Append(SEGMENT, cid, 4, 1, Unpooled.wrappedBuffer(getBuffer("test4")), null, output.getRequestId());
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         inOrder.verify(connection).send(append1);
         inOrder.verify(connection).send(append2);
         inOrder.verify(connection).close();
-        inOrder.verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
         inOrder.verify(connection).send(append3);
         inOrder.verify(connection).send(append4);
@@ -308,7 +309,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             ByteBuffer data, int num) throws SegmentSealedException, ConnectionFailedException {
         CompletableFuture<Void> acked = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked));
-        verify(connection).send(new Append(SEGMENT, cid, num, 1, Unpooled.wrappedBuffer(data), null));
+        verify(connection).send(new Append(SEGMENT, cid, num, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, acked.isDone());
     }
 
@@ -324,15 +325,16 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked));
-        verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, acked.isDone());
-        AssertExtensions.assertBlocks(() -> output.close(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0, -1)));
+        AssertExtensions.assertBlocks(() -> output.close(),
+                                      () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0, -1)));
         assertEquals(false, acked.isCompletedExceptionally());
         assertEquals(true, acked.isDone());
         verify(connection, Mockito.atMost(1)).send(new WireCommands.KeepAlive());
@@ -355,24 +357,26 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked1 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked1));
-        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, acked1.isDone());
-        AssertExtensions.assertBlocks(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0, -1)));
+        AssertExtensions.assertBlocks(() -> output.flush(),
+                                      () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0, -1)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
         
         CompletableFuture<Void> acked2 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked2));
-        order.verify(connection).send(new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, acked2.isDone());
-        AssertExtensions.assertBlocks(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 2, 1, -1)));
+        AssertExtensions.assertBlocks(() -> output.flush(),
+                                      () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 2, 1, -1)));
         assertEquals(false, acked2.isCompletedExceptionally());
         assertEquals(true, acked2.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
@@ -393,15 +397,16 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         InOrder order = Mockito.inOrder(connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked1 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked1));
-        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, acked1.isDone());
-        AssertExtensions.assertBlocks(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0, -1)));
+        AssertExtensions.assertBlocks(() -> output.flush(),
+                                      () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0, -1)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
@@ -410,9 +415,9 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
         CompletableFuture<Void> acked2 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked2));
-        order.verify(connection).send(new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, acked2.isDone());
-        cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 3, 2L, -1));
+        cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 3, 2L, -1));
 
         // check that client reconnected
         verify(cf, times(2)).establishConnection(any(), any());
@@ -433,15 +438,16 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         InOrder order = Mockito.inOrder(connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked1 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked1));
-        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, acked1.isDone());
-        AssertExtensions.assertBlocks(() -> output.flush(), () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0, -1)));
+        AssertExtensions.assertBlocks(() -> output.flush(),
+                                      () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0, -1)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
         order.verify(connection).send(new WireCommands.KeepAlive());
@@ -450,9 +456,9 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
         CompletableFuture<Void> acked2 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked2));
-        order.verify(connection).send(new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, acked2.isDone());
-        cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 2, 3, -1));
+        cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 2, 3, -1));
 
         // check that client reconnected
         verify(cf, times(2)).establishConnection(any(), any());
@@ -471,14 +477,14 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
         InOrder inOrder = Mockito.inOrder(connection);
-        inOrder.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> acked = new CompletableFuture<>();
-        Append append = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null);
+        Append append = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId());
         CompletableFuture<Void> acked2 = new CompletableFuture<>();
-        Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null);
+        Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId());
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -499,10 +505,10 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             output.write(PendingEvent.withoutHeader(null, data, acked));
             output.write(PendingEvent.withoutHeader(null, data, acked2));
         }, () -> {            
-            cf.getProcessor(uri).appendSetup(new AppendSetup(2, SEGMENT, cid, 0));
+            cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         });
         inOrder.verify(connection).send(append);
-        inOrder.verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         inOrder.verify(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
         inOrder.verify(connection).send(append2);
         assertEquals(false, acked.isDone());
@@ -527,13 +533,13 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
         InOrder inOrder = Mockito.inOrder(connection);
-        inOrder.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
         
         //Prep mock: the mockito doAnswers setup below are triggered during the close inside of the testBlocking() call.
         CompletableFuture<Void> acked = new CompletableFuture<>();
-        Append append = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null);
+        Append append = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId());
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -555,13 +561,19 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         //Verify behavior
         AssertExtensions.assertBlocks(() -> {
             output.close();
-        }, () -> {            
-            cf.getProcessor(uri).appendSetup(new AppendSetup(2, SEGMENT, cid, 0));
-            inOrder.verify(connection).send(new WireCommands.KeepAlive());
-            inOrder.verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
-            inOrder.verify(connection).sendAsync(Mockito.eq(Collections.singletonList(append)), Mockito.any());
-            cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(cid, 1, 0, -1));
+        }, () -> {
+            // close is unblocked once the connection is setup and data is appended on Segment store.
+            cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+            cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0, -1));
         });
+        // Verify the order of WireCommands sent.
+        inOrder.verify(connection).send(new WireCommands.KeepAlive());
+        // Two SetupAppend WireCommands are sent since the connection is dropped right after the first KeepAlive WireCommand is sent.
+        // The second SetupAppend WireCommand is sent while trying to re-establish connection.
+        inOrder.verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        // Ensure the pending append is sent over the connection. The exact verification of the append data is performed while setting up
+        // the when clause of setting up append.
+        inOrder.verify(connection).sendAsync(Mockito.anyList(), Mockito.any());
         inOrder.verify(connection).close();
         assertEquals(true, acked.isDone());
         inOrder.verifyNoMoreInteractions();
@@ -579,8 +591,8 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
 
         ByteBuffer data = ByteBuffer.allocate(PendingEvent.MAX_WRITE_SIZE + 1);
         CompletableFuture<Void> acked = new CompletableFuture<>();
@@ -606,15 +618,15 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         InOrder order = Mockito.inOrder(connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, ack));
-        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, ack.isDone());
-        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException"));
+        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
         output.getUnackedEventsOnSeal(); // this is invoked by the segmentSealedCallback.
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
@@ -631,18 +643,18 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         InOrder order = Mockito.inOrder(connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, ack));
-        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, ack.isDone());
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
-            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException"));
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
             output.getUnackedEventsOnSeal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
@@ -669,19 +681,19 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         InOrder order = Mockito.inOrder(connection);
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, ack));
-        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, ack.isDone());
 
         @Cleanup("shutdownNow")
         ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1, "netty-callback");
         //simulate a SegmentIsSealed WireCommand from SegmentStore.
-        executor.submit(() -> cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException")));
+        executor.submit(() -> cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1)));
 
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
@@ -706,29 +718,35 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid,
                 segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, ack));
-        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, ack.isDone());
-        
+
+        final CountDownLatch connectionDroppedLatch = new CountDownLatch(1);
         Mockito.doThrow(new ConnectionFailedException()).when(connection).send(new WireCommands.KeepAlive());
-        Mockito.doAnswer(new Answer<Void>() {
+        doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                cf.getProcessor(uri).appendSetup(new AppendSetup(3, SEGMENT, cid, 1));
+                // The segment writer will try to reconnect once the connection is failed post sending a KeepAlive.
+                // enable a response for AppendSetup only after the connection dropped is dropped.
+                connectionDroppedLatch.await();
+                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 1));
                 return null;
             }
-        }).when(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
+        }).when(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+
         AssertExtensions.assertBlocks(() -> {
             output.flush();
         }, () -> {
             cf.getProcessor(uri).connectionDropped();
+            connectionDroppedLatch.countDown();
         });
-        order.verify(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         assertEquals(true, ack.isDone());
     }
 
@@ -748,7 +766,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         
         output.reconnect();
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test1"), new CompletableFuture<>()));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test2"), new CompletableFuture<>()));
         doAnswer(new Answer<Void>() {
@@ -765,34 +783,36 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 return null;
             }
         }).when(connection).sendAsync(Mockito.any(List.class), Mockito.any(CompletedCallback.class));
-        
+
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                cf.getProcessor(uri).appendSetup(new AppendSetup(2, SEGMENT, cid, 0));
+                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
                 return null;
             }
-        }).when(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
-        
+        }).doNothing() // disable the sending a new appendSetup the next time SetupAppend is invoked by the segment writer is invoked.
+          .when(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+
         cf.getProcessor(uri).connectionDropped();
         AssertExtensions.assertBlocks(() -> output.write(PendingEvent.withoutHeader(null, getBuffer("test3"), new CompletableFuture<>())),
-                           () -> {
-                               cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
-                           });
+                                      () -> {
+                                          // the write should be blocked until the appendSetup is returned by the Segment stores.
+                                          cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+                                      });
         output.write(PendingEvent.withoutHeader(null, getBuffer("test4"), new CompletableFuture<>()));
         
-        Append append1 = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null);
-        Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(getBuffer("test2")), null);
-        Append append3 = new Append(SEGMENT, cid, 3, 1, Unpooled.wrappedBuffer(getBuffer("test3")), null);
-        Append append4 = new Append(SEGMENT, cid, 4, 1, Unpooled.wrappedBuffer(getBuffer("test4")), null);
-        inOrder.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
+        Append append1 = new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(getBuffer("test1")), null, output.getRequestId());
+        Append append2 = new Append(SEGMENT, cid, 2, 1, Unpooled.wrappedBuffer(getBuffer("test2")), null, output.getRequestId());
+        Append append3 = new Append(SEGMENT, cid, 3, 1, Unpooled.wrappedBuffer(getBuffer("test3")), null, output.getRequestId());
+        Append append4 = new Append(SEGMENT, cid, 4, 1, Unpooled.wrappedBuffer(getBuffer("test4")), null, output.getRequestId());
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         inOrder.verify(connection).send(append1);
         inOrder.verify(connection).send(append2);
         inOrder.verify(connection).close();
-        inOrder.verify(connection).send(new SetupAppend(2, cid, SEGMENT, ""));
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
         inOrder.verify(connection).close();
-        inOrder.verify(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
+        inOrder.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         inOrder.verify(connection).sendAsync(eq(ImmutableList.of(append1, append2)), any());
         inOrder.verify(connection).send(append3);
         inOrder.verify(connection).send(append4);
@@ -820,8 +840,8 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         };
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, exceptionCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         CompletableFuture<Void> ack = new CompletableFuture<>();
@@ -830,18 +850,18 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                cf.getProcessor(uri).appendSetup(new AppendSetup(3, SEGMENT, cid, 0));
+                cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
                 return null;
             }
         }).when(connection).send(new SetupAppend(3, cid, SEGMENT, ""));
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
-            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(1, SEGMENT, "SomeException"));
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
             output.getUnackedEventsOnSeal();
         });
         verify(connection).send(new WireCommands.KeepAlive());
-        verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, ack.isDone());
     }
     
@@ -858,21 +878,21 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         //Write an Event.
         CompletableFuture<Void> ack = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, ack));
-        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, ack.isDone()); //writer is not complete until a response from Segment Store is received.
 
         //Simulate a No Such Segment while waiting on flush.
         AssertExtensions.assertBlocks(() -> {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
-            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, SEGMENT, "SomeException"));
+            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), SEGMENT, "SomeException", -1L));
             output.getUnackedEventsOnSeal();
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
@@ -891,14 +911,14 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, TXN_SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, TXN_SEGMENT, cid, 0));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, TXN_SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), TXN_SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         // Write an Event.
         CompletableFuture<Void> ack = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, ack));
-        order.verify(connection).send(new Append(TXN_SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(TXN_SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertFalse(ack.isDone()); //writer is not complete until a response from Segment Store is received.
 
         // Validate that flush() is blocking until there is a response from Segment Store.
@@ -907,7 +927,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
         }, () -> {
             // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
-            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT, "SomeException"));
+            cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), TXN_SEGMENT, "SomeException", -1L));
         });
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
     }
@@ -926,18 +946,18 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
-        order.verify(connection).send(new SetupAppend(1, cid, TXN_SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(1, TXN_SEGMENT, cid, 0));
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, TXN_SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), TXN_SEGMENT, cid, 0));
         ByteBuffer data = getBuffer("test");
 
         // Write an Event.
         CompletableFuture<Void> ack1 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, ack1));
-        order.verify(connection).send(new Append(TXN_SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null));
+        order.verify(connection).send(new Append(TXN_SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertFalse(ack1.isDone()); //writer is not complete until a response from Segment Store is received.
 
         // Simulate a NoSuchSegment response from SegmentStore due to a Transaction abort.
-        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(1, TXN_SEGMENT, "SomeException"));
+        cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), TXN_SEGMENT, "SomeException", -1L));
 
         //Trigger a second write.
         CompletableFuture<Void> ack2 = new CompletableFuture<>();

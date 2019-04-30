@@ -19,8 +19,8 @@ import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_CONTAINER_COUNT;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_FAILURES;
 import static io.pravega.shared.MetricsNames.SEGMENT_STORE_HOST_NUMBER;
 import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromContainer;
-import static io.pravega.shared.MetricsNames.nameFromHost;
+import static io.pravega.shared.MetricsTags.containerTag;
+import static io.pravega.shared.MetricsTags.hostTag;
 
 /**
  * Class to encapsulate the logic to report Controller metrics for Segment Store hosts and Container lifecycle.
@@ -66,20 +66,20 @@ public final class HostContainerMetrics extends AbstractControllerMetrics {
     }
 
     private void reportContainerCountPerHost(Host host, Set<Integer> containerIds) {
-        DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(SEGMENT_STORE_HOST_CONTAINER_COUNT, host.toString()), containerIds.size());
+        DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_STORE_HOST_CONTAINER_COUNT, containerIds.size(), hostTag(host.toString()));
     }
 
     private void reportHostFailures(Host failedHost) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEGMENT_STORE_HOST_FAILURES), 1);
-        DYNAMIC_LOGGER.incCounterValue(nameFromHost(SEGMENT_STORE_HOST_FAILURES, failedHost.toString()), 1);
+        DYNAMIC_LOGGER.incCounterValue(SEGMENT_STORE_HOST_FAILURES, 1, hostTag(failedHost.toString()));
         // Set to 0 the number of containers for the failed host.
-        DYNAMIC_LOGGER.reportGaugeValue(nameFromHost(SEGMENT_STORE_HOST_CONTAINER_COUNT, failedHost.toString()), 0);
+        DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_STORE_HOST_CONTAINER_COUNT, 0, hostTag(failedHost.toString()));
     }
 
     private void reportContainerFailovers(Set<Integer> failedContainers) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(CONTAINER_FAILOVERS), failedContainers.size());
         for (Integer containerId: failedContainers) {
-            DYNAMIC_LOGGER.incCounterValue(nameFromContainer(CONTAINER_FAILOVERS, containerId), 1);
+            DYNAMIC_LOGGER.incCounterValue(CONTAINER_FAILOVERS, 1, containerTag(containerId));
         }
     }
 }

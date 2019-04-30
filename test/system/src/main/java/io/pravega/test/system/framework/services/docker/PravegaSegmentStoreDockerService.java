@@ -83,6 +83,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
         stringBuilderMap.put("log.level", "DEBUG");
         stringBuilderMap.put("curator-default-session-timeout", String.valueOf(30 * 1000));
         stringBuilderMap.put("hdfs.replaceDataNodesOnFailure", "false");
+        stringBuilderMap.put("bookkeeper.bkAckQuorumSize", "3");
         for (Map.Entry<String, String> entry : stringBuilderMap.entrySet()) {
             systemPropertyBuilder.append("-D").append(entry.getKey()).append("=").append(entry.getValue()).append(" ");
         }
@@ -91,7 +92,7 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
 
         //set env
         String env1 = "PRAVEGA_SEGMENTSTORE_OPTS=" + hostSystemProperties;
-        String env2 = "JAVA_OPTS=-Xmx900m";
+        String env2 = "JAVA_OPTS=-Xmx2000m";
         List<String> envList = new ArrayList<>();
         envList.add(env1);
         envList.add(env2);

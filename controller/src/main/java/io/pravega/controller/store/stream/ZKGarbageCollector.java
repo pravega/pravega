@@ -126,7 +126,7 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
 
     @VisibleForTesting
     CompletableFuture<Void> process() {
-        return zkStoreHelper.setData(guardPath, new Data(new byte[0], new Version.IntVersion(latestVersion.get())))
+        return zkStoreHelper.setData(guardPath, new byte[0], new Version.IntVersion(latestVersion.get()))
                 .thenComposeAsync(r -> {
                     // If we reach here, we were able to update the guard and have loose exclusive rights on batch update.
                     // Note: Each change of guard will guarantee at least one batch internal cycle before another instance is able
@@ -145,7 +145,6 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     return gcProcessingSupplier.get();
                 }, gcExecutor)
                 // fetch the version and update it.
-                .thenCompose(v -> fetchVersion())
                 .exceptionally(e -> {
                     if (Exceptions.unwrap(e) instanceof StoreException.WriteConflictException) {
                         log.debug("Unable to acquire guard. Will try in next cycle.");
@@ -154,13 +153,24 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                         log.error("Exception thrown during Garbage Collection iteration for {}. Log and ignore.", gcName, e);
                     }
                     return null;
-                });
+                }).thenCompose(v -> fetchVersion());
+
     }
 
     @VisibleForTesting
     CompletableFuture<Void> fetchVersion() {
-        return zkStoreHelper.getData(guardPath)
+        return zkStoreHelper.getData(guardPath, x -> x)
                 .thenAccept(data -> latestVersion.set(data.getVersion().asIntVersion().getIntValue()));
+    }
+    
+    @VisibleForTesting
+    void setVersion(int newVersion) {
+        latestVersion.set(newVersion);
+    }
+
+    @VisibleForTesting
+    int getVersion() {
+        return latestVersion.get();
     }
 
     @SneakyThrows(Exception.class)

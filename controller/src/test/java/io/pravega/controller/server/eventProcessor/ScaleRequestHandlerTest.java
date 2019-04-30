@@ -22,7 +22,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.controller.eventProcessor.EventSerializer;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.requesthandlers.AutoScaleTask;
@@ -31,12 +30,8 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperatio
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.store.host.HostControllerStore;
-import io.pravega.controller.store.host.HostStoreFactory;
-import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -46,6 +41,7 @@ import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -92,7 +88,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -100,22 +95,20 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-public class ScaleRequestHandlerTest {
+public abstract class ScaleRequestHandlerTest {
+    protected ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
+    protected CuratorFramework zkClient;
+
     private final String scope = "scope";
     private final String stream = "stream";
-    private ScheduledExecutorService executor = Executors.newScheduledThreadPool(10);
     private StreamMetadataStore streamStore;
     private BucketStore bucketStore;
     private TaskMetadataStore taskMetadataStore;
-    private HostControllerStore hostStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
 
     private TestingServer zkServer;
-
-    private CuratorFramework zkClient;
     private EventStreamClientFactory clientFactory;
     private ConnectionFactoryImpl connectionFactory;
 
@@ -140,21 +133,19 @@ public class ScaleRequestHandlerTest {
             hostId = UUID.randomUUID().toString();
         }
 
-        streamStore = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+        streamStore = spy(getStore());
         bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
 
         taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
 
-        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
-
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         clientFactory = mock(EventStreamClientFactory.class);
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore, segmentHelper,
-                executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper(), requestTracker);
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
+                executor, hostId, AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, hostStore,
-                segmentHelper, executor, hostId, connectionFactory,  AuthHelper.getDisabledAuthHelper());
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
+                segmentHelper, executor, hostId, AuthHelper.getDisabledAuthHelper());
 
         long createTimestamp = System.currentTimeMillis();
 
@@ -174,6 +165,7 @@ public class ScaleRequestHandlerTest {
         connectionFactory.close();
         streamMetadataTasks.close();
         streamTransactionMetadataTasks.close();
+        streamStore.close();
         zkClient.close();
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);
@@ -187,8 +179,7 @@ public class ScaleRequestHandlerTest {
         StreamRequestHandler multiplexer = new StreamRequestHandler(requestHandler, scaleRequestHandler, null, null, null, null, streamStore, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
-
-        when(clientFactory.<ControllerEvent>createEventWriter(eq(Config.SCALE_STREAM_NAME), any(), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, 2, AutoScaleEvent.UP, System.currentTimeMillis(),
                 1, false, System.currentTimeMillis());
@@ -214,7 +205,7 @@ public class ScaleRequestHandlerTest {
         assertTrue(Futures.await(multiplexer.process(scaleOpEvent)));
 
         // verify that the event is processed successfully
-        List<Segment> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
+        List<StreamSegmentRecord> activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
 
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == 2L));
         // verify that two splits are created even when we sent 1 as numOfSplits in AutoScaleEvent.
@@ -281,7 +272,7 @@ public class ScaleRequestHandlerTest {
     @Test(timeout = 30000)
     public void testScaleWithTransactionRequest() throws InterruptedException {
         EventWriterMock writer = new EventWriterMock();
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new EventSerializer<>()), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
@@ -302,7 +293,7 @@ public class ScaleRequestHandlerTest {
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
-        State state = streamStore.getState(scope, stream, false, null, executor).join();
+        State state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
         EpochRecord epochOne = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
@@ -352,7 +343,7 @@ public class ScaleRequestHandlerTest {
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
         EventWriterMock writer = new EventWriterMock();
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new EventSerializer<>()), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
@@ -379,7 +370,7 @@ public class ScaleRequestHandlerTest {
                 false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
-        State state = streamStore.getState(scope, stream, false, null, executor).join();
+        State state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
@@ -396,7 +387,7 @@ public class ScaleRequestHandlerTest {
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
                 false, System.currentTimeMillis(), System.currentTimeMillis())), e -> Exceptions.unwrap(e) instanceof IllegalStateException);
 
-        state = streamStore.getState(scope, stream, false, null, executor).join();
+        state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
     }
 
@@ -410,7 +401,7 @@ public class ScaleRequestHandlerTest {
         streamMetadataTasks.createStream(scope, stream, config, System.currentTimeMillis()).get();
 
         EventWriterMock writer = new EventWriterMock();
-        when(clientFactory.createEventWriter(eq(Config.SCALE_STREAM_NAME), eq(new EventSerializer<>()), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
@@ -437,7 +428,7 @@ public class ScaleRequestHandlerTest {
                 false, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
         // 3. verify that scale is complete
-        State state = streamStore.getState(scope, stream, false, null, executor).join();
+        State state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
 
         // 4. just submit a new scale. don't let it run. this should create an epoch transition. state should still be active
@@ -454,7 +445,7 @@ public class ScaleRequestHandlerTest {
                 Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 0.75), new AbstractMap.SimpleEntry<>(0.75, 1.0)),
                 true, System.currentTimeMillis(), System.currentTimeMillis())).join();
 
-        state = streamStore.getState(scope, stream, false, null, executor).join();
+        state = streamStore.getState(scope, stream, true, null, executor).join();
         assertEquals(State.ACTIVE, state);
         EpochRecord epoch = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(4, epoch.getEpoch());
@@ -462,7 +453,7 @@ public class ScaleRequestHandlerTest {
 
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
-    public void testConcurrentIdempotentManualScaleRequest() {
+    public void testConcurrentIdempotentManualScaleRequest() throws Exception {
         Map<String, Integer> map = new HashMap<>();
         map.put("startScale", 0);
         map.put("scaleCreateNewEpochs", 0);
@@ -493,7 +484,7 @@ public class ScaleRequestHandlerTest {
     
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
-    public void testConcurrentIdempotentAutoScaleRequest() {
+    public void testConcurrentIdempotentAutoScaleRequest() throws Exception {
         Map<String, Integer> map = new HashMap<>();
         map.put("startScale", 0);
         map.put("scaleCreateNewEpochs", 0);
@@ -539,9 +530,9 @@ public class ScaleRequestHandlerTest {
                                              Predicate<Throwable> firstExceptionPredicate,
                                              boolean expectFailureOnSecondJob,
                                              Predicate<Throwable> secondExceptionPredicate,
-                                             Map<String, Integer> invocationCount) {
-        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
-        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+                                             Map<String, Integer> invocationCount) throws Exception {
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
@@ -557,7 +548,7 @@ public class ScaleRequestHandlerTest {
                     Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
         }
         
-        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore2 = getStore();
 
         ScaleOperationTask scaleRequestHandler1 = new ScaleOperationTask(streamMetadataTasks, streamStore1Spied, executor);
         ScaleOperationTask scaleRequestHandler2 = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
@@ -565,7 +556,8 @@ public class ScaleRequestHandlerTest {
         setMockLatch(streamStore1, streamStore1Spied, func, signal, wait);
         
         // the processing will stall at start scale
-        CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null)
+                                                           .thenComposeAsync(v -> scaleRequestHandler1.execute(event), executor);
         signal.join();
         
         // let this run to completion. this should succeed 
@@ -590,10 +582,16 @@ public class ScaleRequestHandlerTest {
         // validate scale done
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore1.getEpochTransition(scope, stream, null, executor).join();
         assertEquals(EpochTransitionRecord.EMPTY, versioned.getObject());
-        assertEquals(2, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(2, getVersionNumber(versioned));
         assertEquals(1, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+        streamStore1.close();
+        streamStore2.close();
     }
+
+    abstract <T> Number getVersionNumber(VersionedMetadata<T> versioned); 
+
+    abstract StreamMetadataStore getStore();
 
     private void setMockLatch(StreamMetadataStore store, StreamMetadataStore spied, 
                              String func, CompletableFuture<Void> signal, CompletableFuture<Void> waitOn) {
@@ -641,7 +639,7 @@ public class ScaleRequestHandlerTest {
 
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
-    public void testConcurrentDistinctManualScaleRequest() {
+    public void testConcurrentDistinctManualScaleRequest() throws Exception {
         Map<String, Integer> map = new HashMap<>();
         map.put("startScale", 0);
         map.put("scaleCreateNewEpochs", 0);
@@ -668,7 +666,7 @@ public class ScaleRequestHandlerTest {
 
     @SuppressWarnings("unchecked")
     @Test(timeout = 30000)
-    public void testConcurrentDistinctAutoScaleRequest() {
+    public void testConcurrentDistinctAutoScaleRequest() throws Exception {
         Map<String, Integer> map = new HashMap<>();
         map.put("startScale", 0);
         map.put("scaleCreateNewEpochs", 0);
@@ -696,9 +694,9 @@ public class ScaleRequestHandlerTest {
     // concurrent run of scale 1 intermixed with scale 2 
     private void concurrentDistinctScaleRun(String stream, String funcToWaitOn, boolean isManual,
                                     Predicate<Throwable> firstExceptionPredicate,
-                                    Map<String, Integer> invocationCount) {
-        StreamMetadataStore streamStore1 = StreamStoreFactory.createZKStore(zkClient, executor);
-        StreamMetadataStore streamStore1Spied = spy(StreamStoreFactory.createZKStore(zkClient, executor));
+                                    Map<String, Integer> invocationCount) throws Exception {
+        StreamMetadataStore streamStore1 = getStore();
+        StreamMetadataStore streamStore1Spied = spy(getStore());
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(
                 ScalingPolicy.byEventRate(1, 2, 1)).build();
         streamStore1.createStream(scope, stream, config, System.currentTimeMillis(), null, executor).join();
@@ -714,14 +712,15 @@ public class ScaleRequestHandlerTest {
                     Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), System.currentTimeMillis(), null, null, executor).join();
         }
 
-        StreamMetadataStore streamStore2 = StreamStoreFactory.createZKStore(zkClient, executor);
+        StreamMetadataStore streamStore2 = getStore();
 
         ScaleOperationTask scaleRequestHandler1 = new ScaleOperationTask(streamMetadataTasks, streamStore1Spied, executor);
         ScaleOperationTask scaleRequestHandler2 = new ScaleOperationTask(streamMetadataTasks, streamStore2, executor);
 
         setMockLatch(streamStore1, streamStore1Spied, funcToWaitOn, signal, wait);
 
-        CompletableFuture<Void> future1 = scaleRequestHandler1.execute(event);
+        CompletableFuture<Void> future1 = CompletableFuture.completedFuture(null)
+                                                           .thenComposeAsync(v -> scaleRequestHandler1.execute(event), executor);
         signal.join();
 
         // let this run to completion. this should succeed 
@@ -751,9 +750,11 @@ public class ScaleRequestHandlerTest {
         // validate scale done
         VersionedMetadata<EpochTransitionRecord> versioned = streamStore1.getEpochTransition(scope, stream, null, executor).join();
         assertEquals(EpochTransitionRecord.EMPTY, versioned.getObject());
-        assertEquals(4, versioned.getVersion().asIntVersion().getIntValue());
+        assertEquals(4, getVersionNumber(versioned));
         assertEquals(2, streamStore1.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
         assertEquals(State.ACTIVE, streamStore1.getState(scope, stream, true, null, executor).join());
+        streamStore1.close();
+        streamStore2.close();
     }
 
     @Test
@@ -816,7 +817,7 @@ public class ScaleRequestHandlerTest {
     @Test
     public void testScaleRange() throws ExecutionException, InterruptedException {
         // key range values taken from issue #2543
-        Segment segment = new Segment(StreamSegmentNameUtils.computeSegmentId(2, 1), 100L, 0.1706574888245243, 0.7085170563088633);
+        StreamSegmentRecord segment = new StreamSegmentRecord(2, 1, 100L, 0.1706574888245243, 0.7085170563088633);
         doReturn(CompletableFuture.completedFuture(segment)).when(streamStore).getSegment(any(), any(), anyLong(), any(), any());
 
         AutoScaleTask requestHandler = new AutoScaleTask(streamMetadataTasks, streamStore, executor);
@@ -825,8 +826,7 @@ public class ScaleRequestHandlerTest {
                 null, null, null, streamStore, executor);
         // Send number of splits = 1
         EventWriterMock writer = new EventWriterMock();
-
-        when(clientFactory.<ControllerEvent>createEventWriter(eq(Config.SCALE_STREAM_NAME), any(), any())).thenReturn(writer);
+        streamMetadataTasks.setRequestEventWriter(writer);
 
         AutoScaleEvent scaleUpEvent = new AutoScaleEvent(scope, stream, StreamSegmentNameUtils.computeSegmentId(2, 1),
                 AutoScaleEvent.UP, System.currentTimeMillis(), 1, false, System.currentTimeMillis());

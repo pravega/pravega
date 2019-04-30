@@ -11,11 +11,13 @@ package io.pravega.client.stream;
 
 import com.google.common.base.Preconditions;
 import java.io.Serializable;
+
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 /**
  * A policy that specifies how the number of segments in a stream should scale over time.
@@ -23,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 @Data
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
+@ToString
 public class ScalingPolicy implements Serializable {
     private static final long serialVersionUID = 1L;
 

@@ -16,6 +16,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Event;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap.SimpleImmutableEntry;
@@ -28,8 +29,10 @@ import lombok.Data;
 import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class WireCommandsTest {
 
@@ -73,9 +76,64 @@ public class WireCommandsTest {
         testCommand(new WireCommands.AppendBlockEnd(uuid, i, buf, i, i, l));
     }
 
+    @Data
+    private static final class ConditionalAppendV7 implements WireCommand, Request {
+        final WireCommandType type = WireCommandType.CONDITIONAL_APPEND;
+        final UUID writerId;
+        final long eventNumber;
+        final long expectedOffset;
+        final Event event;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(expectedOffset);
+            event.writeFields(out);
+        }
+
+        @Override
+        public long getRequestId() {
+            return eventNumber;
+        }
+
+        @Override
+        public void process(RequestProcessor cp) {
+            //Unreachable. This should be handled in AppendDecoder.
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Test
     public void testConditionalAppend() throws IOException {
-        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf)));
+        testCommand(new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l));
+
+        // Test that we are able to decode a message with a previous version.
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        ConditionalAppendV7 commandV7 = new ConditionalAppendV7(uuid, l, l, new Event(buf));
+        commandV7.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), -1));
+    }
+
+    @Test
+    public void testInvalidConditionalAppend() throws IOException {
+        WireCommands.ConditionalAppend cmd = new WireCommands.ConditionalAppend(uuid, l, l, new Event(buf), l);
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
+        cmd.writeFields(new DataOutputStream(bout));
+        byte[] bytes = bout.toByteArray();
+
+        // Invalid length scenario.
+        assertThrows("Read with invalid buffer length.",
+                     () -> WireCommands.ConditionalAppend.readFrom(new ByteBufInputStream(wrappedBuffer(bytes)), 4),
+                     t -> t instanceof InvalidMessageException);
+        // Invalid buffer data.
+        assertThrows("Read with invalid data.",
+                     () -> WireCommands.ConditionalAppend.readFrom(new ByteBufInputStream(buf), buf.capacity()),
+                     t -> t instanceof EOFException);
+        assertThrows("Unsupported operation",
+                     () -> cmd.process(mock(RequestProcessor.class)),
+                     t -> t instanceof UnsupportedOperationException);
     }
 
     @Test
@@ -129,11 +187,11 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         DataAppendedV2 commandV2 = new DataAppendedV2(uuid, l);
         commandV2.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(uuid, l, -1, l));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(-1L, uuid, l, -1, l));
 
         // Test that we are able to encode and decode the current response
         // to append data correctly.
-        testCommand(new WireCommands.DataAppended(uuid, l, Long.MIN_VALUE, -l));
+        testCommand(new WireCommands.DataAppended(l, uuid, l, Long.MIN_VALUE, -l));
     }
 
     /*
@@ -198,7 +256,7 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         SegmentIsSealedV5 commandV5 = new SegmentIsSealedV5(l, "");
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsSealed(l, "", ""));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsSealed(l, "", "", -1L));
     }
 
     @Data
@@ -230,7 +288,7 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         SegmentIsTruncatedV5 commandV5 = new SegmentIsTruncatedV5(l, "", 0);
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsTruncated(l, "", 0, ""));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.SegmentIsTruncated(l, "", 0, "", -1L));
     }
 
     @Data
@@ -300,7 +358,7 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         NoSuchSegmentV5 commandV5 = new NoSuchSegmentV5(l, "");
         commandV5.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.NoSuchSegment(l, "", ""));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.NoSuchSegment(l, "", "", -1));
     }
 
     @Data
@@ -396,17 +454,17 @@ public class WireCommandsTest {
 
     @Test
     public void testConditionalCheckFailed() throws IOException {
-        testCommand(new WireCommands.ConditionalCheckFailed(uuid, l));
+        testCommand(new WireCommands.ConditionalCheckFailed(uuid, l, l));
     }
 
     @Test
     public void testReadSegment() throws IOException {
-        testCommand(new WireCommands.ReadSegment(testString1, l, i, ""));
+        testCommand(new WireCommands.ReadSegment(testString1, l, i, "", l));
     }
 
     @Test
     public void testSegmentRead() throws IOException {
-        testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buffer));
+        testCommand(new WireCommands.SegmentRead(testString1, l, true, false, buffer, l));
     }
     
     @Test
@@ -497,7 +555,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSegmentIsTruncated() throws IOException {
-        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1, "SomeException"));
+        testCommand(new WireCommands.SegmentIsTruncated(l, testString1, l + 1, "SomeException", l));
     }
 
     @Test
@@ -533,7 +591,7 @@ public class WireCommandsTest {
 
     @Test
     public void testSegmentIsSealed() throws IOException {
-        testCommand(new WireCommands.SegmentIsSealed(l, testString1, "SomeException"));
+        testCommand(new WireCommands.SegmentIsSealed(l, testString1, "SomeException", l));
     }
 
     @Test
@@ -543,7 +601,7 @@ public class WireCommandsTest {
 
     @Test
     public void testNoSuchSegment() throws IOException {
-        testCommand(new WireCommands.NoSuchSegment(l, testString1, "SomeException"));
+        testCommand(new WireCommands.NoSuchSegment(l, testString1, "SomeException", l));
     }
 
     @Test

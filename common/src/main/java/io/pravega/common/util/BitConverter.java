@@ -13,6 +13,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.UUID;
 
 /**
  * Helper methods for various Number to Bit conversions.
@@ -192,6 +193,46 @@ public final class BitConverter {
     }
 
     /**
+     * Writes the given 128-bit UUID to the given byte array at the given offset.
+     *
+     * @param target The byte array to write to.
+     * @param offset The offset within the byte array to write at.
+     * @param value  The value to write.
+     * @return The number of bytes written.
+     */
+    public static int writeUUID(byte[] target, int offset, UUID value) {
+        writeLong(target, offset, value.getMostSignificantBits());
+        writeLong(target, offset + Long.BYTES, value.getLeastSignificantBits());
+        return 2 * Long.BYTES;
+    }
+
+    /**
+     * Reads a 128-bit UUID from the given ArrayView starting at the given position.
+     *
+     * @param source   The ArrayView to read from.
+     * @param position The position in the ArrayView to start reading at.
+     * @return The read UUID.
+     */
+    public static UUID readUUID(ArrayView source, int position) {
+        long msb = readLong(source, position);
+        long lsb = readLong(source, position + Long.BYTES);
+        return new UUID(msb, lsb);
+    }
+
+    /**
+     * Reads a 128-bit UUID from the given byte array starting at the given position.
+     *
+     * @param source   The byte array to read from.
+     * @param position The position in the byte array to start reading at.
+     * @return The read UUID.
+     */
+    public static UUID readUUID(byte[] source, int position) {
+        long msb = readLong(source, position);
+        long lsb = readLong(source, position + Long.BYTES);
+        return new UUID(msb, lsb);
+    }
+
+    /**
      * Reads a 64-bit long from the given ArrayView starting at the given position.
      *
      * @param source   The ArrayView to read from.
@@ -225,6 +266,36 @@ public final class BitConverter {
                 | (source[position + 5] & 0xFF) << 16
                 | (source[position + 6] & 0xFF) << 8
                 | (source[position + 7] & 0xFF);
+    }
+
+    /**
+     * Reads a 64-bit long from the given InputStream that was encoded using BitConverter.writeLong.
+     *
+     * @param source The InputStream to read from.
+     * @return The read number.
+     * @throws IOException If an exception got thrown.
+     */
+    public static long readLong(InputStream source) throws IOException {
+        int b1 = source.read();
+        int b2 = source.read();
+        int b3 = source.read();
+        int b4 = source.read();
+        int b5 = source.read();
+        int b6 = source.read();
+        int b7 = source.read();
+        int b8 = source.read();
+        if ((b1 | b2 | b3 | b4 | b5 | b6 | b7 | b8) < 0) {
+            throw new EOFException();
+        } else {
+            return ((long) b1 << 56) +
+                    ((long) (b2 & 255) << 48) +
+                    ((long) (b3 & 255) << 40) +
+                    ((long) (b4 & 255) << 32) +
+                    ((long) (b5 & 255) << 24) +
+                    (long) ((b6 & 255) << 16) +
+                    (long) ((b7 & 255) << 8) +
+                    (long) ((b8 & 255));
+        }
     }
 
     /**

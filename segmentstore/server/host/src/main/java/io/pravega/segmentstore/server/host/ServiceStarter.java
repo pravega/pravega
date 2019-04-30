@@ -104,10 +104,17 @@ public final class ServiceStarter {
         autoScaleMonitor = new AutoScaleMonitor(service, builderConfig.getConfig(AutoScalerConfig::builder));
 
         TokenVerifierImpl tokenVerifier = new TokenVerifierImpl(builderConfig.getConfig(AutoScalerConfig::builder));
+
+        // Log the configuration
+        log.info(serviceConfig.toString());
+        log.info(builderConfig.getConfig(AutoScalerConfig::builder).toString());
+
         this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
-                                                      this.serviceConfig.getListeningPort(), service, tableStoreService, autoScaleMonitor.getRecorder(),
+                                                      this.serviceConfig.getListeningPort(), service, tableStoreService,
+                                                      autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
                                                       this.serviceConfig.isReplyWithStackTraceOnError());
+
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
         log.info("StreamSegmentService started.");

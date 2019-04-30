@@ -67,20 +67,21 @@ public class ControllerServiceTest {
 
     private final StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
 
-    private final StreamMetadataTasks streamMetadataTasks;
-    private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private final ConnectionFactoryImpl connectionFactory;
-    private final ControllerService consumer;
+    private StreamMetadataTasks streamMetadataTasks;
+    private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private ConnectionFactoryImpl connectionFactory;
+    private ControllerService consumer;
 
-    private final CuratorFramework zkClient;
-    private final TestingServer zkServer;
+    private CuratorFramework zkClient;
+    private TestingServer zkServer;
 
     private long startTs;
     private long scaleTs;
 
     private RequestTracker requestTracker = new RequestTracker(true);
-
-    public ControllerServiceTest() throws Exception {
+    
+    @Before
+    public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
         zkServer.start();
         zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
@@ -90,19 +91,16 @@ public class ControllerServiceTest {
         final TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         final HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, hostStore, taskMetadataStore,
-                segmentHelper, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper(), requestTracker);
+
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
+                segmentHelper, executor, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                hostStore, segmentHelper, executor, "host", connectionFactory, AuthHelper.getDisabledAuthHelper());
+                segmentHelper, executor, "host", AuthHelper.getDisabledAuthHelper());
 
-        consumer = new ControllerService(streamStore, hostStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                new SegmentHelper(), executor, null);
-    }
-
-    @Before
-    public void setup() throws ExecutionException, InterruptedException {
+        consumer = new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
+                new SegmentHelper(connectionFactory, hostStore), executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
@@ -164,6 +162,7 @@ public class ControllerServiceTest {
         streamTransactionMetadataTasks.close();
         streamMetadataTasks.close();
         connectionFactory.close();
+        streamStore.close();
         zkClient.close();
         zkServer.close();
         ExecutorServiceHelpers.shutdown(executor);

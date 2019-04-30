@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -25,15 +24,12 @@ import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.test.common.TestUtils;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.mockito.Mockito.mock;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
@@ -48,6 +44,9 @@ public class ControllerBootstrapTest {
     private TestingServer zkTestServer;
     private ControllerWrapper controllerWrapper;
     private PravegaConnectionListener server;
+    private ServiceBuilder serviceBuilder;
+    private StreamSegmentStore store;
+    private TableStore tableStore;
 
     @Before
     public void setup() {
@@ -78,6 +77,9 @@ public class ControllerBootstrapTest {
         if (server != null) {
             server.close();
         }
+        if (serviceBuilder != null) {
+            serviceBuilder.close();
+        }
         if (zkTestServer != null) {
             zkTestServer.close();
         }
@@ -87,6 +89,15 @@ public class ControllerBootstrapTest {
     public void bootstrapTest() throws Exception {
         Controller controller = controllerWrapper.getController();
 
+        // Now start Pravega service.
+        serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
+        serviceBuilder.initialize();
+        store = serviceBuilder.createStreamSegmentService();
+        tableStore = serviceBuilder.createTableStoreService();
+
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
+        server.startListening();
+
         // Create test scope. This operation should succeed.
         Boolean scopeStatus = controller.createScope(SCOPE).join();
         Assert.assertEquals(true, scopeStatus);
@@ -94,30 +105,10 @@ public class ControllerBootstrapTest {
         // Try creating a stream. It should not complete until Pravega host has started.
         // After Pravega host starts, stream should be successfully created.
         StreamConfiguration streamConfiguration = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(1))
-                .build();
+                                                                     .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                     .build();
         CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
-
-        // Create transaction should fail.
-        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
-
-        try {
-            txIdFuture.join();
-            Assert.fail();
-        } catch (CompletionException ce) {
-            Assert.assertEquals(IllegalStateException.class, Exceptions.unwrap(ce).getClass());
-            Assert.assertTrue("Expected failure", true);
-        }
-
-        // Now start Pravega service.
-        ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
-        serviceBuilder.initialize();
-        StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
-        server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
-        server.startListening();
-
         // Ensure that create stream succeeds.
         try {
             Boolean status = streamStatus.join();
@@ -126,12 +117,8 @@ public class ControllerBootstrapTest {
             Assert.fail();
         }
 
-        // Sleep for a while for initialize to complete
-        boolean initialized = controllerWrapper.awaitTasksModuleInitialization(5000, TimeUnit.MILLISECONDS);
-        Assert.assertTrue(initialized);
-
         // Now create transaction should succeed.
-        txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
+        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
 
         try {
             TxnSegments id = txIdFuture.join();

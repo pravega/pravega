@@ -17,12 +17,13 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
-import io.pravega.shared.protocol.netty.WireCommands.Flush;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.io.IOException;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -65,8 +66,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
     private final AppendBatchSizeTracker blockSizeSupplier;
-    private final HashMap<String, Session> setupSegments = new HashMap<>();
+    private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
     private String segmentBeingAppendedTo;
+    private UUID writerIdPerformingAppends;
     private int currentBlockSize;
     private int bytesLeftInBlock;
 
@@ -75,6 +77,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         private final UUID id;
         private long lastEventNumber = -1L;
         private int eventCount;
+        private final long requestId;
     }
 
     @Override
@@ -82,18 +85,19 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         log.trace("Encoding message to send over the wire {}", msg);
         if (msg instanceof Append) {
             Append append = (Append) msg;
-            Session session = setupSegments.get(append.segment);
+            Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
             validateAppend(append, session);
-            if (append.segment != segmentBeingAppendedTo) {
+            if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
                 breakFromAppend(out);
             }
             if (bytesLeftInBlock == 0) {
                 currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
                 bytesLeftInBlock = currentBlockSize;
                 segmentBeingAppendedTo = append.segment;
+                writerIdPerformingAppends = append.writerId;
                 writeMessage(new AppendBlock(session.id), out);
                 if (ctx != null) {
-                    ctx.executor().schedule(new Flusher(ctx.channel(), currentBlockSize),
+                    ctx.executor().schedule(new BlockTimeouter(ctx.channel(), currentBlockSize),
                                             blockSizeSupplier.getBatchTimeout(),
                                             TimeUnit.MILLISECONDS);
                 }
@@ -112,12 +116,12 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 ByteBuf dataInsideBlock = data.readSlice(bytesInBlock);
                 ByteBuf dataRemainging = data;
                 writeMessage(new PartialEvent(dataInsideBlock), out);
-                writeMessage(new AppendBlockEnd(session.id,
+                writeMessage(new AppendBlockEnd(append.writerId,
                                                 currentBlockSize - bytesLeftInBlock,
                                                 dataRemainging,
                                                 session.eventCount,
                                                 session.lastEventNumber,
-                                                0L), out);
+                                                append.getRequestId()), out);
                 bytesLeftInBlock = 0;
                 session.eventCount = 0;
             }
@@ -125,10 +129,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             breakFromAppend(out);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
-            setupSegments.put(setup.getSegment(), new Session(setup.getWriterId()));
-        } else if (msg instanceof Flush) {
-            Flush flush = (Flush) msg;
-            if (currentBlockSize == flush.getBlockSize()) {
+            setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
+                              new Session(setup.getWriterId(), setup.getRequestId()));
+        } else if (msg instanceof BlockTimeout) {
+            BlockTimeout timeoutMsg = (BlockTimeout) msg;
+            if (currentBlockSize == timeoutMsg.ifStillBlockSize) {
                 breakFromAppend(out);
             }
         } else if (msg instanceof WireCommand) {
@@ -157,17 +162,19 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private void breakFromAppend(ByteBuf out) {
         if (bytesLeftInBlock != 0) {
             writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
-            Session session = setupSegments.get(segmentBeingAppendedTo);
+            Session session = setupSegments.get(new SimpleImmutableEntry<>(segmentBeingAppendedTo, writerIdPerformingAppends));
+
             writeMessage(new AppendBlockEnd(session.id,
                     currentBlockSize - bytesLeftInBlock,
                     null,
                     session.eventCount,
-                    session.lastEventNumber, 0L), out);
+                    session.lastEventNumber, session.requestId), out);
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
             session.eventCount = 0;
         }
         segmentBeingAppendedTo = null;
+        writerIdPerformingAppends = null;
     }
 
     @SneakyThrows(IOException.class)
@@ -200,13 +207,18 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     @RequiredArgsConstructor
-    private static class Flusher implements Runnable {
+    private static final class BlockTimeout {
+        private final int ifStillBlockSize;
+    }
+    
+    @RequiredArgsConstructor
+    private static final class BlockTimeouter implements Runnable {
         private final Channel channel;
         private final int blockSize;
 
         @Override
         public void run() {
-            channel.writeAndFlush(new Flush(blockSize));
+            channel.writeAndFlush(new BlockTimeout(blockSize));
         }
     }
 

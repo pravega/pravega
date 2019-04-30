@@ -210,6 +210,10 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }, executorService);
     }
 
+    CompletableFuture<Void> startWritingIntoTxn(final TransactionalEventStreamWriter<String> writer) {
+        return startWritingIntoTxn(writer, testState.stopWriteFlag);
+    }
+
     CompletableFuture<Void> startWritingIntoTxn(final TransactionalEventStreamWriter<String> writer, AtomicBoolean stopFlag) {
         return CompletableFuture.runAsync(() -> {
             while (!stopFlag.get()) {
@@ -331,12 +335,12 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     }
 
     void createWriters(EventStreamClientFactory clientFactory, final int writers, String scope, String stream) {
-        createWritersInternal(clientFactory, writers, scope, stream, testState.writersComplete);
+        createWritersInternal(clientFactory, writers, scope, stream, testState.writersComplete, testState.txnWrite);
     }
 
     void addNewWriters(EventStreamClientFactory clientFactory, final int writers, String scope, String stream) {
         Preconditions.checkNotNull(testState.writersListComplete.get(0));
-        createWritersInternal(clientFactory, writers, scope, stream, testState.newWritersComplete);
+        createWritersInternal(clientFactory, writers, scope, stream, testState.newWritersComplete, testState.txnWrite);
     }
 
     void waitForTxnsToComplete() {
@@ -420,7 +424,8 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
 
     // Private methods region
 
-    private void createWritersInternal(EventStreamClientFactory clientFactory, final int writers, String scope, String stream, CompletableFuture<Void> writersComplete) {
+    private void createWritersInternal(EventStreamClientFactory clientFactory, final int writers, String scope, String stream,
+                                       CompletableFuture<Void> writersComplete, boolean isTransactionalWriter) {
         testState.writersListComplete.add(writersComplete);
         log.info("Client factory details {}", clientFactory.toString());
         log.info("Creating {} writers", writers);
@@ -428,9 +433,10 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         log.info("Writers writing in the scope {}", scope);
         CompletableFuture.runAsync(() -> {
             for (int i = 0; i < writers; i++) {
-                log.info("Starting writer{}", i);
-                final EventStreamWriter<String> tmpWriter = instantiateWriter(clientFactory, stream);
-                final CompletableFuture<Void> writerFuture = startWriting(tmpWriter);
+                log.info("Starting writer: {} (is transactional? {})", i, isTransactionalWriter);
+                final CompletableFuture<Void> writerFuture = isTransactionalWriter ?
+                        startWritingIntoTxn(instantiateTransactionalWriter("writer-" + i, clientFactory, stream)) :
+                        startWriting(instantiateWriter(clientFactory, stream));
                 Futures.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                 writerFutureList.add(writerFuture);
             }
@@ -442,12 +448,21 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     }
 
     private <T extends Serializable> EventStreamWriter<T> instantiateWriter(EventStreamClientFactory clientFactory, String stream) {
-        EventWriterConfig writerConfig = EventWriterConfig.builder()
-                                                          .maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
-                                                          .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
-                                                          .transactionTimeoutTime(TRANSACTION_TIMEOUT)
-                                                          .build();
-        return clientFactory.createEventWriter(stream, new JavaSerializer<>(), writerConfig);
+        return clientFactory.createEventWriter(stream, new JavaSerializer<>(), buildWriterConfig());
+    }
+
+    private <T extends Serializable> TransactionalEventStreamWriter<T> instantiateTransactionalWriter(String writerId,
+                                                                                                      EventStreamClientFactory clientFactory,
+                                                                                                      String stream) {
+        return clientFactory.createTransactionalEventWriter(writerId, stream, new JavaSerializer<T>(), buildWriterConfig());
+    }
+
+    private EventWriterConfig buildWriterConfig() {
+        return EventWriterConfig.builder()
+                                .maxBackoffMillis(WRITER_MAX_BACKOFF_MILLIS)
+                                .retryAttempts(WRITER_MAX_RETRY_ATTEMPTS)
+                                .transactionTimeoutTime(TRANSACTION_TIMEOUT)
+                                .build();
     }
 
     private <T> void closeWriter(EventStreamWriter<T> writer) {

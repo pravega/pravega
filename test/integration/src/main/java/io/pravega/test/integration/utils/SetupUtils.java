@@ -16,6 +16,7 @@ import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.netty.impl.ConnectionPoolImpl;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -94,7 +95,7 @@ public final class SetupUtils {
             log.warn("Services already started, not attempting to start again");
             return;
         }
-        this.connectionFactory = new ConnectionFactoryImpl(clientConfig, numThreads);
+        this.connectionFactory = new ConnectionFactoryImpl(clientConfig, new ConnectionPoolImpl(clientConfig), numThreads);
         this.controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                                              connectionFactory.getInternalExecutor());
         this.clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);

@@ -10,6 +10,8 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.common.cluster.Host;
+import io.pravega.controller.store.host.ZKHostStore;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -28,6 +30,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Host store tests.
@@ -59,7 +62,7 @@ public class HostStoreTest {
         validateStore(hostStore);
     }
 
-    @Test
+    @Test(timeout = 10000L)
     public void zkHostStoreTests() {
         try {
             @Cleanup
@@ -85,9 +88,13 @@ public class HostStoreTest {
             // Create ZK based host store.
             HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
 
+            CompletableFuture<Void> latch = new CompletableFuture<>();
+            ((ZKHostStore) hostStore).addListener(() -> {
+                latch.complete(null);
+            });
             // Update host store map.
             hostStore.updateHostContainersMap(HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount));
-
+            latch.join();
             validateStore(hostStore);
         } catch (Exception e) {
             log.error("Unexpected error", e);
@@ -100,6 +107,10 @@ public class HostStoreTest {
         Assert.assertEquals(containerCount, hostStore.getContainerCount());
         Host hostObj = hostStore.getHostForSegment("dummyScope", "dummyStream",
                 (int) Math.floor(containerCount * Math.random()));
+        Assert.assertEquals(controllerPort, hostObj.getPort());
+        Assert.assertEquals(host, hostObj.getIpAddr());
+
+        hostObj = hostStore.getHostForTableSegment(StreamSegmentNameUtils.getQualifiedTableName("scope", "stream", "table", "id"));
         Assert.assertEquals(controllerPort, hostObj.getPort());
         Assert.assertEquals(host, hostObj.getIpAddr());
     }

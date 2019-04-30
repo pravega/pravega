@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
@@ -45,9 +46,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentNavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -72,7 +71,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final String segmentName;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
-    private final Supplier<Long> requestIdGenerator = new AtomicLong(0)::incrementAndGet;
     private final UUID writerId;
     private final Consumer<Segment> resendToSuccessorsCallback;
     private final State state = new State();
@@ -80,6 +78,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final RetryWithBackoff retrySchedule;
     private final Object writeOrderLock = new Object();
     private final String delegationToken;
+    @VisibleForTesting
+    @Getter
+    private final long requestId = Flow.create().asLong();
 
     /**
      * Internal object that tracks the state of the connection.
@@ -345,11 +346,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              .map(entry -> new Append(segmentName, writerId, entry.getKey(),
                                                                       1,
                                                                       entry.getValue().getData(),
-                                                                      null))
+                                                                      null,
+                                                                      requestId
+                                                                      ))
                                              .collect(Collectors.toList());
             ClientConnection connection = state.getConnection();
             if (connection == null) {
-                log.warn("Connection setup could not be completed because connection is already failed.", writerId);
+                log.warn("Connection setup could not be completed because connection is already failed for writer {}", writerId);
                 return;
             }
             if (toRetransmit == null || toRetransmit.isEmpty()) {
@@ -436,7 +439,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             long eventNumber = state.addToInflight(event);
             try {
-                Append append = new Append(segmentName, writerId, eventNumber, 1, event.getData(), null);
+                Append append = new Append(segmentName, writerId, eventNumber, 1, event.getData(), null, requestId);
                 log.trace("Sending append request: {}", append);
                 connection.send(append);
             } catch (ConnectionFailedException e) {
@@ -533,10 +536,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                      log.info("Fetching endpoint for segment {}, writerID: {}", segmentName, writerId);
                      return controller.getEndpointForSegment(segmentName).thenComposeAsync((PravegaNodeUri uri) -> {
                          log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
-                         return connectionFactory.establishConnection(uri, responseProcessor);
+                         return connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);
                      }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
-                         SetupAppend cmd = new SetupAppend(requestIdGenerator.get(), writerId, segmentName, delegationToken);
+                         SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, delegationToken);
                          try {
                              connection.send(cmd);
                          } catch (ConnectionFailedException e1) {

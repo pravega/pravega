@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -42,6 +43,9 @@ public class RawClient implements AutoCloseable {
     private final Map<Long, CompletableFuture<Reply>> requests = new HashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    @Getter
+    private final Flow flow = Flow.create();
+
     private final class ResponseProcessor extends FailingReplyProcessor {
 
         @Override
@@ -71,7 +75,7 @@ public class RawClient implements AutoCloseable {
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth token failure: ", authTokenCheckFailed);
+            log.warn("Auth token failure: {}", authTokenCheckFailed);
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
     }
@@ -79,7 +83,7 @@ public class RawClient implements AutoCloseable {
     public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
         this.segmentId = segmentId;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
+                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(flow, uri, responseProcessor));
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 

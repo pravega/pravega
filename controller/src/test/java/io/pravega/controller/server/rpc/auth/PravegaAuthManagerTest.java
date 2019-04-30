@@ -62,9 +62,8 @@ public class PravegaAuthManagerTest {
             writer.write("dummy:password:\n");
             writer.write("dummy1:password:readresource;;\n");
             writer.write("dummy2:password:readresource;specificresouce,READ;totalaccess,READ_UPDATE\n");
-            writer.write("dummy3:" + passwordEncryptor.encryptPassword("password") + ":readresource;specificresouce,READ;totalaccess,READ_UPDATE\n");
+            writer.write("dummy3:" + passwordEncryptor.encryptPassword("password") + ":readresource;specificresouce,READ;readresource/*,READ;totalaccess,READ_UPDATE\n");
             writer.write("dummy4:" + passwordEncryptor.encryptPassword("password") + ":readresource;specificresouce,READ;*,READ_UPDATE\n");
-            writer.close();
         }
 
     }

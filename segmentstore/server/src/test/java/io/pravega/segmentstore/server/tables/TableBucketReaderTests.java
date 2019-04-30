@@ -108,15 +108,18 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the ability to (not) locate Table Entries in a Table Bucket for deleted keys.
+     * Tests the ability to (not) locate Table Entries in a Table Bucket for deleted and inexistent keys.
      */
     @Test
-    public void testFindEntryDeleted() throws Exception {
+    public void testFindEntryNotExists() throws Exception {
         val segment = new SegmentMock(executorService());
 
-        // Generate our test data and append it to the segment.
+        // Generate our test data.
         val es = new EntrySerializer();
-        val deletedKey = generateEntries(es).get(0).getKey();
+        val entries = generateEntries(es);
+
+        // Deleted key (that was previously indexed).
+        val deletedKey = entries.get(0).getKey();
         byte[] data = new byte[es.getRemovalLength(deletedKey)];
         es.serializeRemoval(Collections.singleton(deletedKey), data);
         segment.append(data, null, TIMEOUT).join();
@@ -125,7 +128,12 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
                 executorService());
 
         val deletedResult = reader.find(deletedKey.getKey(), 0L, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertNull("Not expecting any result for key that was deleted.", deletedResult);
+        Assert.assertNull("Expecting a TableEntry with null value for deleted key..", deletedResult.getValue());
+
+        // Inexistent key (that did not exist previously).
+        val inexistentKey = entries.get(1).getKey();
+        val inexistentResult = reader.find(inexistentKey.getKey(), 0L, new TimeoutTimer(TIMEOUT)).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertNull("Not expecting any result for key that was never present.", inexistentResult);
     }
 
     /**
