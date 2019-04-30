@@ -197,7 +197,7 @@ public final class ModelHelper {
                 result = Transaction.PingStatus.ABORTED;
                 break;
             default:
-                throw new PingFailedException("Ping transaction for " + logString + "failed with status " + status);
+                throw new PingFailedException("Ping transaction for " + logString + " failed with status " + status);
         }
         return result;
     }
