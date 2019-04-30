@@ -20,7 +20,6 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -31,6 +30,10 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+import java.io.Serializable;
+import java.net.URI;
+import java.util.List;
+import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
@@ -40,15 +43,9 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
-import java.io.Serializable;
-import java.net.URI;
-import java.util.List;
-import java.util.UUID;
-
 import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -144,15 +141,10 @@ public class PravegaTest extends AbstractReadWriteTest {
 
         EventRead<String> event = null;
         do {
-            try {
-                event = reader.readNextEvent(10_000);
-                log.debug("Read event: {}.", event.getEvent());
-                if (event.getEvent() != null) {
-                    readCount++;
-                }
-            } catch (ReinitializationRequiredException e) {
-                log.error("Exception while reading event using readerId: {}", reader, e);
-                fail("Reinitialization Exception is not expected");
+            event = reader.readNextEvent(10_000);
+            log.debug("Read event: {}.", event.getEvent());
+            if (event.getEvent() != null) {
+                readCount++;
             }
             // try reading until all the written events are read, else the test will timeout.
         } while ((event.getEvent() != null || event.isCheckpoint()) && readCount < NUM_EVENTS);
