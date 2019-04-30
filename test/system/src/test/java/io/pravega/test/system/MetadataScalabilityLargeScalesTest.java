@@ -62,6 +62,7 @@ public class MetadataScalabilityLargeScalesTest extends MetadataScalabilityTest 
      * @param sortedCurrentSegments segments in current epoch
      * @return scale input for next scale to perform
      */
+    @Override
     Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments) {
         return new ImmutablePair<>(getSegmentsToSeal(sortedCurrentSegments), getNewRanges());     
     }

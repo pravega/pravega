@@ -14,13 +14,11 @@ import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.test.common.TestingServerStarter;
+import java.util.UUID;
+import java.util.concurrent.Executors;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
-
-import java.io.IOException;
-import java.util.UUID;
-import java.util.concurrent.Executors;
 
 /**
  * ControllerServiceStarter backed by ZK store tests.
@@ -34,13 +32,8 @@ public class PravegaTablesControllerServiceStarterTest extends ControllerService
     }
 
     @Override
-    public void setup() {
-        try {
-            zkServer = new TestingServerStarter().start();
-        } catch (Exception e) {
-            log.error("Error starting test zk server");
-            Assert.fail("Error starting test zk server");
-        }
+    public void setup() throws Exception {
+        zkServer = new TestingServerStarter().start();
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkServer.getConnectString())
                 .initialSleepInterval(500)
@@ -55,20 +48,9 @@ public class PravegaTablesControllerServiceStarterTest extends ControllerService
     }
 
     @Override
-    public void tearDown() {
-        try {
-            storeClient.close();
-        } catch (Exception e) {
-            log.error("Error closing ZK client");
-            Assert.fail("Error closing ZK client");
-        }
-
-        try {
-            zkServer.close();
-        } catch (IOException e) {
-            log.error("Error stopping test zk server");
-            Assert.fail("Error stopping test zk server");
-        }
+    public void tearDown() throws Exception {
+        storeClient.close();
+        zkServer.close();
         executor.shutdown();
     }
 }

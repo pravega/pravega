@@ -226,9 +226,6 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
             EventRead<Integer> event = reader.readNextEvent(READ_TIMEOUT);
             assertTrue("Read for Checkpoint event", (event != null) && (event.isCheckpoint()));
             assertEquals("CheckPoint Name", checkPointName, event.getCheckpointName());
-        } catch (ReinitializationRequiredException e) {
-            log.error("Exception while reading event using readerId: {}", readerId, e);
-            fail("Reinitialization Exception is not expected");
         }
         return checkpoint.join();
     }
