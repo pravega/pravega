@@ -532,7 +532,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // 1. Verify executeIfEmpty works on an empty segment. Also verifies it blocks a conditional update.
         val toRun1 = new CompletableFuture<Void>();
         val persist1 = new CompletableFuture<Long>();
-        val empty1 = context.index.executeIfEmpty(context.segment, () -> toRun1);
+        val empty1 = context.index.executeIfEmpty(context.segment, () -> toRun1, context.timer);
         val updateBatch = toUpdateBatch(unversionedKeys.stream().map(k -> TableKey.notExists(k.getKey())).collect(Collectors.toList()));
         val update1 = empty1.thenCompose(v -> {
             Assert.assertTrue("Conditional update not blocked by executeIfEmpty.", toRun1.isDone());
@@ -550,7 +550,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // 2. After an update.
         AssertExtensions.assertSuppliedFutureThrows(
                 "executeIfEmpty should not run if table is not empty.",
-                () -> context.index.executeIfEmpty(context.segment, () -> Futures.failedFuture(new AssertionError("This should not run"))),
+                () -> context.index.executeIfEmpty(context.segment, () -> Futures.failedFuture(new AssertionError("This should not run")), context.timer),
                 ex -> ex instanceof TableSegmentNotEmptyException);
 
         // 3. After a removal.
@@ -566,7 +566,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val empty2 = update2.thenCompose(v -> context.index.executeIfEmpty(context.segment, () -> {
             Assert.assertTrue("executeIfEmpty should not execute prior to call to update()..", persist2.isDone());
             return CompletableFuture.completedFuture(null);
-        }));
+        }, context.timer));
 
         // Verify that executeIfEmpty is blocked on a conditional update.
         persist2.complete(2L);
