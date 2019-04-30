@@ -117,6 +117,9 @@ message PingTxnStatus {
         MAX_EXECUTION_TIME_EXCEEDED = 2;
         SCALE_GRACE_TIME_EXCEEDED = 3 [deprecated=true];
         DISCONNECTED = 4;
+        COMMITTED = 5;
+        ABORTED = 6;
+        UNKNOWN = 7;
     }
     Status status = 1;
 }

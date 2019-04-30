@@ -11,10 +11,12 @@ package io.pravega.common;
 
 import java.time.Duration;
 import java.util.function.Supplier;
+import lombok.ToString;
 
 /**
  * Helps figuring out how much time is left from a particular (initial) timeout.
  */
+@ToString(of = { "timeout" })
 public class TimeoutTimer {
     private final Supplier<Long> getNanos;
     private volatile Duration timeout;

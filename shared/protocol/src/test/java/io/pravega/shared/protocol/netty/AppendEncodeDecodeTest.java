@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
@@ -225,6 +226,72 @@ public class AppendEncodeDecodeTest {
         int numEvents = 4;
         int size = appendBlockSize - 16;
         sendAndVerifyEvents(streamName, writerId, numEvents, size, numEvents);
+    }
+    
+    @Test 
+    public void testSwitchingWriters() throws Exception {
+        int size = 20; //Used to force a minimum size
+        CommandEncoder encoder = new CommandEncoder(new FixedBatchSizeTracker(size));
+        UUID writer1 = new UUID(1, 1);
+        UUID writer2 = new UUID(2, 2);
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        SetupAppend setupAppend = new SetupAppend(1, writer1, streamName, "");
+        encoder.encode(null, setupAppend, fakeNetwork);
+        setupAppend = new SetupAppend(1, writer2, streamName, "");
+        encoder.encode(null, setupAppend, fakeNetwork);
+        Append msg1 = new Append(streamName, writer1, 1, new Event(Unpooled.wrappedBuffer(new byte[] { 1, 2, 3, 4 })), 1);
+        encoder.encode(null, msg1, fakeNetwork);
+        Append msg2 = new Append(streamName, writer2, 1, new Event(Unpooled.wrappedBuffer(new byte[] { 1, 2, 3, 4 })), 1);
+        encoder.encode(null, msg2, fakeNetwork);
+    }
+    
+    @Test
+    public void testZeroSizeAppend() throws Exception {
+        int size = 0; //Used to force a minimum size
+        CommandEncoder encoder = new CommandEncoder(new FixedBatchSizeTracker(size));
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
+        encoder.encode(null, setupAppend, fakeNetwork);
+        Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
+        assertEquals(0, msg.data.readableBytes());
+        encoder.encode(null, msg, fakeNetwork);
+        Append msg2 = new Append(streamName, writerId, 2, 1, Unpooled.EMPTY_BUFFER, null, 1);
+        Append msg3 = new Append(streamName, writerId, 3, 1, Unpooled.EMPTY_BUFFER, null, 1);
+        encoder.encode(null, msg2, fakeNetwork);
+        encoder.encode(null, msg3, fakeNetwork);
+        ArrayList<Object> received = Lists.newArrayList();
+        read(fakeNetwork, received);
+        assertEquals(4, received.size());
+        assertEquals(setupAppend, received.get(0));
+        assertEquals(msg, received.get(1));
+        assertEquals(msg2, received.get(2));
+        assertEquals(msg3, received.get(3));
+    }
+    
+    @Test
+    public void testZeroSizeAppendInBlock() throws Exception {
+        int size = 100;
+        CommandEncoder encoder = new CommandEncoder(new FixedBatchSizeTracker(size));
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
+        encoder.encode(null, setupAppend, fakeNetwork);
+        Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
+        assertEquals(0, msg.data.readableBytes());
+        encoder.encode(null, msg, fakeNetwork);
+        Append msg2 = new Append(streamName, writerId, 2, 1, Unpooled.EMPTY_BUFFER, null, 1);
+        Append msg3 = new Append(streamName, writerId, 3, 1, Unpooled.EMPTY_BUFFER, null, 1);
+        encoder.encode(null, msg2, fakeNetwork);
+        encoder.encode(null, msg3, fakeNetwork);
+        encoder.encode(null, new KeepAlive(), fakeNetwork);
+        ArrayList<Object> received = Lists.newArrayList();
+        read(fakeNetwork, received);
+        assertEquals(3, received.size());
+        assertEquals(setupAppend, received.get(0));
+        assertEquals(new Append(streamName, writerId, 3, 3, Unpooled.EMPTY_BUFFER, null, 1), received.get(1));
+        assertEquals(new KeepAlive(), received.get(2));
     }
 
     @Test

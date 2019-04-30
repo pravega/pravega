@@ -51,7 +51,7 @@ public class SegmentMetadataClientTest {
         @Cleanup
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
         @Cleanup
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -80,7 +80,7 @@ public class SegmentMetadataClientTest {
         @Cleanup
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
         @Cleanup
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -110,7 +110,7 @@ public class SegmentMetadataClientTest {
         @Cleanup
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
         @Cleanup
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -141,7 +141,7 @@ public class SegmentMetadataClientTest {
         @Cleanup
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
         @Cleanup
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -167,7 +167,7 @@ public class SegmentMetadataClientTest {
         Segment segment = new Segment("scope", "testRetry", 4);
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
         @Cleanup
@@ -192,7 +192,7 @@ public class SegmentMetadataClientTest {
         @Cleanup
         MockConnectionFactoryImpl cf = Mockito.spy(new MockConnectionFactoryImpl());
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
         @Cleanup
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(endpoint, connection);
@@ -240,7 +240,7 @@ public class SegmentMetadataClientTest {
         ConnectionFactory cf = Mockito.mock(ConnectionFactory.class);
         Mockito.when(cf.getInternalExecutor()).thenReturn(executor);
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), cf, true);
         ClientConnection connection1 = mock(ClientConnection.class);
         ClientConnection connection2 = mock(ClientConnection.class);
         AtomicReference<ReplyProcessor> processor = new AtomicReference<>();

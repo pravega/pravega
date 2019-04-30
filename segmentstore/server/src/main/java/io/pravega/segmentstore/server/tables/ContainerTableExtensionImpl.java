@@ -169,7 +169,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return this.segmentContainer
                     .forSegment(segmentName, timer.getRemaining())
                     .thenComposeAsync(segment -> this.keyIndex.executeIfEmpty(segment,
-                            () -> this.segmentContainer.deleteStreamSegment(segmentName, timer.getRemaining())),
+                            () -> this.segmentContainer.deleteStreamSegment(segmentName, timer.getRemaining()), timer),
                             this.executor);
         }
 

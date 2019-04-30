@@ -63,6 +63,7 @@ public class MetadataScalabilityLargeNumSegmentsTest extends MetadataScalability
      * @param sortedCurrentSegments sorted current segments
      * @return scale input for next scale
      */
+    @Override
     Pair<List<Long>, Map<Double, Double>> getScaleInput(ArrayList<Segment> sortedCurrentSegments) {
         int i = counter.incrementAndGet();
         List<Long> segmentsToSeal = sortedCurrentSegments.stream()
