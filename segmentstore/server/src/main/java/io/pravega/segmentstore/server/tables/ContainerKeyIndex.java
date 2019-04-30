@@ -124,6 +124,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * @param segment The Segment to perform the action on.
      * @param action  A Supplier that, when invoked, will begin executing the action. This returns a CompletableFuture
      *                that will indicate when the action completed.
+     * @param timer   Timer for the operation.
      * @param <T>     Return type.
      * @return A CompletableFuture that, when completed normally, will indicate that the action was executed. If it failed,
      * or if the segment is not empty, it will be failed with the appropriate exception. Notable exceptions:
@@ -131,21 +132,58 @@ class ContainerKeyIndex implements AutoCloseable {
      * <li>{@link TableSegmentNotEmptyException} If the Segment is not empty.
      * </ul>
      */
-    <T> CompletableFuture<T> executeIfEmpty(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> action) {
+    <T> CompletableFuture<T> executeIfEmpty(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> action, TimeoutTimer timer) {
         return this.recoveryTracker.waitIfNeeded(segment, () -> this.conditionalUpdateProcessor.addWithFilter(
                 conditionKey -> conditionKey.getKey() == segment.getSegmentId(),
-                () -> {
-                    SegmentProperties sp = segment.getInfo();
-                    long entryCount = this.indexReader.getBucketCount(sp) + this.cache.getBucketCountDelta(segment.getSegmentId());
-                    if (entryCount <= 0) {
-                        // Segment is empty.
-                        return action.get();
-                    } else {
-                        // Segment is not empty.
-                        return Futures.failedFuture(new TableSegmentNotEmptyException(sp.getName()));
-                    }
-                }
-        ));
+                () -> isTableSegmentEmpty(segment, timer)
+                        .thenCompose(isEmpty -> {
+                            if (isEmpty) {
+                                // Segment is empty.
+                                return action.get();
+                            } else {
+                                // Segment is not empty.
+                                return Futures.failedFuture(new TableSegmentNotEmptyException(segment.getInfo().getName()));
+                            }
+                        })));
+    }
+
+    /**
+     * Determines if a Table Segment is empty or not, by accounting for both the indexed portion and the unindexed (tail)
+     * section.
+     *
+     * @param segment The Segment to verify.
+     * @param timer   Timer for the operation.
+     * @return A CompletableFuture that, when completed, will indicate if the Table Segment is empty or not.
+     */
+    private CompletableFuture<Boolean> isTableSegmentEmpty(DirectSegmentAccess segment, TimeoutTimer timer) {
+        // Get a snapshot of the Tail Index and identify all bucket removals.
+        val tailHashes = this.cache.getTailHashes(segment.getSegmentId());
+        val tailRemovals = tailHashes.entrySet().stream()
+                                     .filter(e -> e.getValue().isRemoval())
+                                     .map(Map.Entry::getKey)
+                                     .collect(Collectors.toList());
+        if (tailHashes.size() > tailRemovals.size()) {
+            // Tail Index has at least one update, which implies the Table Segment is not empty.
+            return CompletableFuture.completedFuture(false);
+        } else {
+            // Get the number of indexed Table Buckets.
+            SegmentProperties sp = segment.getInfo();
+            long indexedBucketCount = this.indexReader.getBucketCount(sp);
+            if (tailRemovals.isEmpty()) {
+                // No removals in the Tail index, so we can derive our response from the total number of indexed buckets.
+                return CompletableFuture.completedFuture(indexedBucketCount <= 0);
+            } else {
+                // Tail Index has at least one removal. We need to check which of these removals point to a real Table Bucket.
+                // It is possible that we received an unconditional remove for a Table Bucket that does not exist or a Table
+                // Bucket has been created and immediately deleted (before being included in the main Index). In order to
+                // determine if the table is empty, we need to figure out the exact count of removed buckets.
+                return this.indexReader.locateBuckets(segment, tailRemovals, timer)
+                                       .thenApply(buckets -> {
+                                           long removedCount = buckets.values().stream().filter(TableBucket::exists).count();
+                                           return indexedBucketCount <= removedCount;
+                                       });
+            }
+        }
     }
 
     /**

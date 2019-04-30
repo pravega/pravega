@@ -12,7 +12,7 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.base.Preconditions;
 import io.pravega.common.hash.HashHelper;
 import io.pravega.common.util.BitConverter;
-import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.storage.Cache;
 import java.util.ArrayList;
@@ -232,7 +232,7 @@ class SegmentKeyCache {
     }
 
     /**
-     * Updates the Last Indexed Offset (cached value of the Segment's {@link Attributes#TABLE_INDEX_OFFSET} attribute).
+     * Updates the Last Indexed Offset (cached value of the Segment's {@link TableAttributes#INDEX_OFFSET} attribute).
      * Clears out any backpointers whose source offsets will be smaller than the new value for Last Indexed Offset.
      */
     void setLastIndexedOffset(long currentLastIndexedOffset, int cacheGeneration) {
@@ -284,21 +284,6 @@ class SegmentKeyCache {
      */
     synchronized Map<UUID, CacheBucketOffset> getTailBucketOffsets() {
         return new HashMap<>(this.tailOffsets);
-    }
-
-    /**
-     * Gets a value representing the difference between the number of Table Buckets updated (or inserted) and the ones
-     * that have been removed.
-     *
-     * @return The result.
-     */
-    synchronized int getBucketCountDelta() {
-        int result = 0;
-        for (val s : this.tailOffsets.values()) {
-            result += s.isRemoval() ? -1 : 1;
-        }
-
-        return result;
     }
 
     @Override
