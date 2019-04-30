@@ -31,7 +31,6 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
-import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -46,6 +45,7 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -317,11 +317,15 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
-        return Futures.toVoidExpecting(
-                controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease),
-                PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
-                PingFailedException::new);
+    public CompletableFuture<Transaction.PingStatus> pingTransaction(Stream stream, UUID txId, long lease) {
+        return controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease)
+                         .thenApply(status -> {
+                             try {
+                                 return ModelHelper.encode(status.getStatus(), stream + " " + txId);
+                             } catch (PingFailedException ex) {
+                                 throw new CompletionException(ex);
+                             }
+                         });
     }
 
     @Override
