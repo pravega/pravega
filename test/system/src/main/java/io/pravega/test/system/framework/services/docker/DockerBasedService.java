@@ -99,7 +99,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                         () -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
                 log.info("Replicas {}", replicas);
                 log.info("Task running count {}", taskRunningCount);
-                if (((long) taskRunningCount) == replicas) {
+                if (replicas > 0 && ((long) taskRunningCount) == replicas) {
                     return true;
                 }
             }
