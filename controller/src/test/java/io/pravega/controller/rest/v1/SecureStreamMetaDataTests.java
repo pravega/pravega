@@ -10,7 +10,7 @@
 package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
-import io.pravega.common.SecurityConfigDefaults;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
 import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;

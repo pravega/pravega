@@ -12,7 +12,7 @@ package io.pravega.local;
 import io.pravega.client.ClientConfig;
 
 import io.pravega.client.admin.StreamManager;
-import io.pravega.common.SecurityConfigDefaults;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import javax.net.ssl.SSLHandshakeException;
