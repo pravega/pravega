@@ -84,7 +84,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
     private static final int MAX_INSTANCE_COUNT = 4;
     private static final List<UUID> ATTRIBUTES = Arrays.asList(Attributes.EVENT_COUNT, UUID.randomUUID(), UUID.randomUUID());
-    private static final int EXPECTED_ATTRIBUTE_VALUE = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
+    private static final int ATTRIBUTE_UPDATE_DELTA = APPENDS_PER_SEGMENT + ATTRIBUTE_UPDATES_PER_SEGMENT;
     private static final Duration TIMEOUT = Duration.ofSeconds(120);
 
     protected final ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
@@ -150,6 +150,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, Long> startOffsets = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
+        long expectedAttributeValue = 0;
         int instanceId = 0;
 
         // Phase 1: Create segments and add some appends.
@@ -167,9 +168,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             ArrayList<String> segmentsAndTransactions = new ArrayList<>(segmentNames);
             transactionsBySegment.values().forEach(segmentsAndTransactions::addAll);
             appendData(segmentsAndTransactions, segmentContents, lengths, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            expectedAttributeValue += ATTRIBUTE_UPDATE_DELTA;
             log.info("Finished appending data.");
 
-            checkSegmentStatus(lengths, startOffsets, false, false, segmentStore);
+            checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
             log.info("Finished Phase 1");
         }
 
@@ -185,7 +187,12 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             log.info("Finished merging transactions.");
 
-            checkSegmentStatus(lengths, startOffsets, false, false, segmentStore);
+            // Append more data.
+            appendData(segmentNames, segmentContents, lengths, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            expectedAttributeValue += ATTRIBUTE_UPDATE_DELTA;
+            log.info("Finished appending after merging transactions.");
+
+            checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
             log.info("Finished Phase 2.");
         }
 
@@ -225,7 +232,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             sealSegments(segmentNames, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             log.info("Finished sealing.");
 
-            checkSegmentStatus(lengths, startOffsets, true, false, segmentStore);
+            checkSegmentStatus(lengths, startOffsets, true, false, expectedAttributeValue, segmentStore);
 
             waitForSegmentsInStorage(segmentNames, segmentStore, readOnlySegmentStore)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -235,7 +242,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             deleteSegments(segmentNames, segmentStore).join();
             log.info("Finished deleting segments.");
 
-            checkSegmentStatus(lengths, startOffsets, true, true, segmentStore);
+            checkSegmentStatus(lengths, startOffsets, true, true, expectedAttributeValue, segmentStore);
             log.info("Finished Phase 4.");
         }
 
@@ -295,7 +302,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Delete everything.
             deleteSegments(segmentNames, context.getActiveStore()).join();
             log.info("Finished deleting segments.");
-            checkSegmentStatus(lengths, startOffsets, true, true, context.getActiveStore());
+            checkSegmentStatus(lengths, startOffsets, true, true, ATTRIBUTE_UPDATE_DELTA, context.getActiveStore());
         }
 
         log.info("Finished.");
@@ -544,7 +551,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     private void checkSegmentStatus(HashMap<String, Long> segmentLengths, HashMap<String, Long> startOffsets,
-                                    boolean expectSealed, boolean expectDeleted, StreamSegmentStore store) {
+                                    boolean expectSealed, boolean expectDeleted, long expectedAttributeValue, StreamSegmentStore store) {
         for (Map.Entry<String, Long> e : segmentLengths.entrySet()) {
             String segmentName = e.getKey();
             if (expectDeleted) {
@@ -565,16 +572,16 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 val allAttributes = store.getAttributes(segmentName, ATTRIBUTES, true, TIMEOUT).join();
                 for (UUID attributeId : ATTRIBUTES) {
                     Assert.assertEquals("Unexpected attribute value from getAttributes().",
-                            EXPECTED_ATTRIBUTE_VALUE, (long) allAttributes.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
+                            expectedAttributeValue, (long) allAttributes.getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
 
                     if (Attributes.isCoreAttribute(attributeId)) {
                         // Core attributes must always be available from getInfo
                         Assert.assertEquals("Unexpected core attribute value from getInfo().",
-                                EXPECTED_ATTRIBUTE_VALUE, (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
+                                expectedAttributeValue, (long) sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE));
                     } else {
                         val extAttrValue = sp.getAttributes().getOrDefault(attributeId, Attributes.NULL_ATTRIBUTE_VALUE);
                         Assert.assertTrue("Unexpected extended attribute value from getInfo()",
-                                extAttrValue == Attributes.NULL_ATTRIBUTE_VALUE || extAttrValue == EXPECTED_ATTRIBUTE_VALUE);
+                                extAttrValue == Attributes.NULL_ATTRIBUTE_VALUE || extAttrValue == expectedAttributeValue);
                     }
                 }
             }
