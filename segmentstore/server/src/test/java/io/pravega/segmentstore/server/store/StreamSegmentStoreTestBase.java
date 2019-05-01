@@ -78,7 +78,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
     private static final int THREADPOOL_SIZE_TEST = 3;
     private static final String EMPTY_SEGMENT_NAME = "Empty_Segment";
-    private static final int SEGMENT_COUNT = 10;
+    private static final int SEGMENT_COUNT = 1;
     private static final int TRANSACTIONS_PER_SEGMENT = 1;
     private static final int APPENDS_PER_SEGMENT = 100;
     private static final int ATTRIBUTE_UPDATES_PER_SEGMENT = 100;
@@ -186,6 +186,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             // Merge all transactions.
             mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             log.info("Finished merging transactions.");
+
+            // Check the status now. A nice side effect of this is that it loads all extended attributes from Storage so
+            // that we can modify them in the next step (during appending).
+            checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
 
             // Append more data.
             appendData(segmentNames, segmentContents, lengths, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
