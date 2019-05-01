@@ -130,6 +130,17 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
         return 1.0;
     }
 
+    /**
+     * When overridden in a derived class, this will indicate whether we want to execute a new set of Segment Appends
+     * after we have merged transactions into them. Default is true, but some tests may take longer to execute so this
+     * can be disabled for those.
+     *
+     * @return True if {@link #testEndToEnd()} should append data after merging transactions, false otherwise.
+     */
+    protected boolean appendAfterMerging() {
+        return true;
+    }
+
     //endregion
 
     /**
@@ -187,14 +198,18 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
             mergeTransactions(transactionsBySegment, lengths, segmentContents, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             log.info("Finished merging transactions.");
 
-            // Check the status now. A nice side effect of this is that it loads all extended attributes from Storage so
-            // that we can modify them in the next step (during appending).
-            checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
+            if (appendAfterMerging()) {
+                // Check the status now. A nice side effect of this is that it loads all extended attributes from Storage so
+                // that we can modify them in the next step (during appending).
+                checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
 
-            // Append more data.
-            appendData(segmentNames, segmentContents, lengths, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            expectedAttributeValue += ATTRIBUTE_UPDATE_DELTA;
-            log.info("Finished appending after merging transactions.");
+                // Append more data.
+                appendData(segmentNames, segmentContents, lengths, segmentStore).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                expectedAttributeValue += ATTRIBUTE_UPDATE_DELTA;
+                log.info("Finished appending after merging transactions.");
+            } else {
+                log.info("Skipped appending after merging transactions due to setting being disabled in this test.");
+            }
 
             checkSegmentStatus(lengths, startOffsets, false, false, expectedAttributeValue, segmentStore);
             log.info("Finished Phase 2.");
