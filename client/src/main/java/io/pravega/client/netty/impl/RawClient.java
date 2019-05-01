@@ -56,10 +56,22 @@ public class RawClient implements AutoCloseable {
                 if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
                     closeConnection(new IllegalStateException("Incompatible wire protocol versions " + hello));
                 }
+            } else if (reply instanceof WireCommands.WrongHost) {
+                log.info("WrongHost");
+                closeConnection(new ConnectionFailedException(reply.toString()));
+            } else if (reply instanceof WireCommands.TableSegmentNotEmpty) {
+                log.info("TableSegmentNotEmpty");
+                closeConnection(new ConnectionFailedException(reply.toString()));
             } else {
                 log.debug("Received reply {}", reply);
                 reply(reply);
             }
+        }
+
+        @Override
+        public void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty) {
+            log.warn("deleteTableSegment:  TableSegmentNotEmpty.");
+            closeConnection(new ConnectionFailedException("TableSegmentNotEmpty"));
         }
 
         @Override
@@ -78,6 +90,12 @@ public class RawClient implements AutoCloseable {
             log.warn("Auth token failure: {}", authTokenCheckFailed);
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
+    }
+
+    public RawClient(PravegaNodeUri uri, ConnectionFactory connectionFactory) {
+        this.segmentId = null;
+        this.connection = connectionFactory.establishConnection(flow, uri, responseProcessor);
+        Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
     public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
@@ -99,9 +117,17 @@ public class RawClient implements AutoCloseable {
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
         if (closed.get() || exceptionToInflightRequests instanceof ConnectionClosedException) {
-            log.debug("Closing connection to segment {} with exception {}", this.segmentId, exceptionToInflightRequests);
+            if (segmentId != null) {
+                log.debug("Closing connection to segment {} with exception {}", this.segmentId, exceptionToInflightRequests);
+            } else {
+                log.debug("Closing connection with exception {}", exceptionToInflightRequests);
+            }
         } else {
-            log.warn("Closing connection to segment {} with exception: {}", this.segmentId, exceptionToInflightRequests);
+            if (segmentId != null) {
+                log.warn("Closing connection to segment {} with exception: {}", this.segmentId, exceptionToInflightRequests);
+            } else {
+                log.warn("Closing connection with exception: {}", exceptionToInflightRequests);
+            }
         }
         if (closed.compareAndSet(false, true)) {
             connection.thenAccept(c -> {
