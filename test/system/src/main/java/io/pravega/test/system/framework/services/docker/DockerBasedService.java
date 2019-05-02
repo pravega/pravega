@@ -79,16 +79,16 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             Service.Criteria servicecriteria = Service.Criteria.builder().serviceName(serviceName).build();
             List<Service> serviceList = Exceptions.handleInterruptedCall(
                     () -> dockerClient.listServices(servicecriteria));
-            log.info("isRunning: Service list size {}", serviceList.size());
+            log.info("Service list size {}", serviceList.size());
             Task.Criteria taskCriteria = Task.Criteria.builder().serviceName(serviceName).build();
             List<Task> taskList = Exceptions.handleInterruptedCall(
                     () -> dockerClient.listTasks(taskCriteria));
-            log.info("isRunning: Task list size {}", taskList.size());
+            log.info("Task list size {}", taskList.size());
             if (!taskList.isEmpty()) {
                 for (int j = 0; j < taskList.size(); j++) {
-                    log.info("isRunning: Task id {}", taskList.get(j).id());
+                    log.info("Task id {}", taskList.get(j).id());
                     String state = taskList.get(j).status().state();
-                    log.info("isRunning: Task state {}", state);
+                    log.info("Task state {}", state);
                     if (state.equals(TaskStatus.TASK_STATE_RUNNING)) {
                         taskRunningCount++;
                     }
@@ -97,8 +97,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             if (!serviceList.isEmpty()) {
                 long replicas = Exceptions.handleInterruptedCall(
                         () -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
-                log.info("isRunning: Replicas {}", replicas);
-                log.info("isRunning: Task running count {}", taskRunningCount);
+                log.info("Replicas {}", replicas);
+                log.info("Task running count {}", taskRunningCount);
                 if (((long) taskRunningCount) == replicas) {
                     return true;
                 }
@@ -110,7 +110,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     }
 
     CompletableFuture<Void> waitUntilServiceRunning() {
-        log.info("IS RUNNING {}", isRunning());
+        log.debug("IS RUNNING {}", isRunning());
         return Futures.loop(() -> !isRunning(), //condition
                 () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
