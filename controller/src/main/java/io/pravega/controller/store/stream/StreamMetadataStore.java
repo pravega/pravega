@@ -20,6 +20,7 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -33,6 +34,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -706,6 +708,7 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param txId     transaction id
      * @param commit   Boolean indicating whether to change txn state to committing or aborting.
      * @param version  Expected version of the transaction record in the store.
+     *                 // TODO: shivesh
      * @param context  operation context
      * @param executor callers executor
      * @return         Pair containing the transaction status after sealing and transaction epoch.
@@ -713,6 +716,8 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final String scope, final String stream,
                                                                        final UUID txId, final boolean commit,
                                                                        final Optional<Version> version,
+                                                                       final String writerId,
+                                                                       final long timestamp,
                                                                        final OperationContext context,
                                                                        final Executor executor);
 
@@ -1034,6 +1039,11 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> completeCommitTransactions(final String scope, final String stream, final VersionedMetadata<CommittingTransactionsRecord> record,
                                                        final OperationContext context, final ScheduledExecutorService executor);
 
+
+    // TODO: shivesh: javadoc
+    CompletableFuture<Void> recordCommitOffsets(final String scope, final String stream, final UUID txnId, final Map<Long, Long> map,
+                                                final OperationContext context, final ScheduledExecutorService executor);
+    
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.
      * If a node already exists, this attempt is ignored.
@@ -1070,4 +1080,15 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @return CompletableFuture which indicates completion of processing.
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
+
+    // TODO: shivesh javadoc
+    CompletableFuture<WriterTimestampResponse> noteWriterMark(String scope, String stream, String writer,
+                                                              long timestamp, Map<Long,Long> streamCut,
+                                                              OperationContext context, Executor executor);
+    
+    CompletableFuture<Void> removeWriter(String scope, String stream, String writer, OperationContext context, Executor executor);
+    
+    CompletableFuture<WriterMark> getWriterMark(String scope, String stream, String writer, OperationContext context, Executor executor);
+
+    CompletableFuture<Map<String, WriterMark>> getAllWritersMarks(String scope, String stream, OperationContext context, Executor executor);
 }

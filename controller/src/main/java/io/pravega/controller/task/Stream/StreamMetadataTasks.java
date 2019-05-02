@@ -798,7 +798,7 @@ public class StreamMetadataTasks extends TaskBase {
                 segmentCut.getValue(), delegationToken, requestId), executor));
     }
 
-    public CompletableFuture<Map<Long, Long>> getSealedSegmentsSize(String scope, String stream, List<Long> sealedSegments, String delegationToken) {
+    public CompletableFuture<Map<Long, Long>> getSegmentsSize(String scope, String stream, List<Long> sealedSegments, String delegationToken) {
         return Futures.allOfWithResults(
                 sealedSegments
                         .stream()

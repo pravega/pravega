@@ -20,6 +20,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -413,7 +414,9 @@ interface Stream {
      */
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
                                                                        final boolean commit,
-                                                                       final Optional<Version> version);
+                                                                       final Optional<Version> version,
+                                                                       final String writerId,
+                                                                       final long timestamp);
 
     /**
      * Returns transaction's status
@@ -530,6 +533,9 @@ interface Stream {
      */
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record);
 
+    // todo: shivesh
+    CompletableFuture<Void> recordCommitOffsets(UUID txnId, Map<Long, Long> commitOffsets);
+    
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.
      * If a node already exists, this attempt is ignored.
@@ -554,6 +560,15 @@ interface Stream {
      * @return CompletableFuture which indicates completion of processing.
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName);
+
+    // TODO: shivesh
+    CompletableFuture<WriterTimestampResponse> noteWriterMark(String writer, long timestamp, Map<Long, Long> streamCut);
+
+    CompletableFuture<Void> removeWriter(String writer);
+    
+    CompletableFuture<WriterMark> getWriterMark(String writer);
+
+    CompletableFuture<Map<String, WriterMark>> getAllWritersMarks();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.
