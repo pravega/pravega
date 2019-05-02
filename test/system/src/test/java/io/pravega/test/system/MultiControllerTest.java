@@ -141,6 +141,7 @@ public class MultiControllerTest extends AbstractSystemTest {
                     throwable -> throwable instanceof RetriesExhaustedException);
         }
 
+        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
         log.info("multiControllerTest execution completed");
     }
 
