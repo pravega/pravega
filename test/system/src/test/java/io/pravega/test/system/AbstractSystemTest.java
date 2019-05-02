@@ -63,6 +63,7 @@ abstract class AbstractSystemTest {
     static URI ensureControllerRunning(final URI zkUri) {
         Service conService = Utils.createPravegaControllerService(zkUri);
         if (!conService.isRunning()) {
+            log.info("Starting the controller service");
             conService.start(true);
         }
 
