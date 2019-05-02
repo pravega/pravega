@@ -168,15 +168,13 @@ public final class EventProcessorGroupImpl<T extends ControllerEvent> extends Ab
 
                 // Initiate stop on all event processor cells and await their termination.
                 for (EventProcessorCell<T> cell : eventProcessorMap.values()) {
-                    log.info("Stopping {}", cell);
-                    // first report reader offline with the last position then shut it down.
-                    readerGroup.readerOffline(cell.getReaderId(), cell.getCheckpoint());
+                    log.info("Stopping event processor cell: {}", cell);
                     cell.stopAsync();
-                    log.info("Awaiting termination of {}", cell);
+                    log.info("Awaiting termination of event processor cell: {}", cell);
                     try {
                         cell.awaitTerminated();
-                    } catch (IllegalStateException e) {
-                        log.warn(String.format("Failed terminating %s", cell), e.getMessage());
+                    } catch (Exception e) {
+                        log.warn("Failed terminating event processor cell {}.", cell, e);
                     }
                 }
 
