@@ -39,8 +39,9 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.time.Duration;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -141,9 +142,9 @@ public class EndToEndStatsTest {
         @Getter
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
-        // A set to keep strong references to metric objects, as caching is skipped in the test.
+        // A placeholder to keep strong references to metric objects, as caching is skipped in the test.
         // Note Micrometer registry holds weak references only, so there is chance metric objects without strong references might be garbage collected.
-        private Set<Meter> metrics = new HashSet<>();
+        private List<Meter> references = Collections.synchronizedList(new LinkedList<Meter>());
 
         @Override
         public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
@@ -170,8 +171,8 @@ public class EndToEndStatsTest {
             if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
                 Counter eventCounter = registry.counter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
                 Counter byteCounter = registry.counter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
-                metrics.add(eventCounter);
-                metrics.add(byteCounter);
+                references.add(eventCounter);
+                references.add(byteCounter);
                 eventCounter.increment(numOfEvents);
                 byteCounter.increment(dataLength);
             }
@@ -181,8 +182,8 @@ public class EndToEndStatsTest {
         public void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime) {
             Counter eventCounter = registry.counter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
             Counter byteCounter = registry.counter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
-            metrics.add(eventCounter);
-            metrics.add(byteCounter);
+            references.add(eventCounter);
+            references.add(byteCounter);
             eventCounter.increment(numOfEvents);
             byteCounter.increment(dataLength);
         }
