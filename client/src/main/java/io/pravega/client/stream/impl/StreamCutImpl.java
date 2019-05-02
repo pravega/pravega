@@ -172,7 +172,7 @@ public class StreamCutImpl extends StreamCutInternal {
             builder.stream(stream);
             Map<Segment, Long> map = revisionDataInput.readMap(in -> new Segment(stream.getScope(),
                                                                                  stream.getStreamName(), in.readCompactLong()),
-                                                               in -> in.readCompactLong());
+                                                               in -> in.readLong());
             builder.positions(map);
         }
 
@@ -180,7 +180,7 @@ public class StreamCutImpl extends StreamCutInternal {
             revisionDataOutput.writeUTF(cut.getStream().getScopedName());
             Map<Segment, Long> map = cut.getPositions();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactLong(s.getSegmentId()),
-                                        (out, offset) -> out.writeCompactLong(offset));
+                                        (out, offset) -> out.writeLong(offset));
         }
     }
 

@@ -73,7 +73,7 @@ public abstract class AbstractService implements Service {
     static final String BOOKKEEPER_LABEL = "bookie";
     static final String PRAVEGA_ID = "pravega";
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
-    static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
+    static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "IfNotPresent");
     private static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
     private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
@@ -117,7 +117,7 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount) {
 
         // generate BookkeeperSpec.
-        final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
+        final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("1Gi", "standard");
         // use the latest version of bookkeeper.
         final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image",
                                                                                              getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, PRAVEGA_BOOKKEEPER_VERSION))
@@ -130,7 +130,7 @@ public abstract class AbstractService implements Service {
                                                                                         .build();
 
         // generate Pravega Spec.
-        final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
+        final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("2Gi", "standard");
         final ImmutableMap<String, String> options = ImmutableMap.<String, String>builder()
                 // Segment store properties.
                 .put("autoScale.muteInSeconds", "120")

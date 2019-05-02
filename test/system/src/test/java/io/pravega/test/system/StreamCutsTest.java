@@ -27,6 +27,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
@@ -44,6 +45,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
@@ -79,6 +81,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     @Rule
     public final Timeout globalTimeout = Timeout.seconds(10 * 60);
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
+    private final ScheduledExecutorService streamCutExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "streamCutExecutor");
     private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
@@ -272,6 +275,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                                            List<Map<Stream, StreamCut>> streamSlices) {
         int readEvents;
         for (int i = 1; i < streamSlices.size(); i++) {
+            log.debug("Reading between startStreamCut {} and endStreamCut {}", streamSlices.get(i-1), streamSlices.get(i));
             ReaderGroupConfig configBuilder = ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_ONE))
                                                                          .stream(Stream.of(SCOPE, STREAM_TWO))
                                                                          .startingStreamCuts(streamSlices.get(i - 1))
@@ -291,8 +295,11 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(EventStreamClientFactory client, ReaderGroup readerGroup,
                                                                                      int totalEvents) {
         final AtomicReference<EventStreamReader<T>> reader = new AtomicReference<>();
+        final AtomicReference<CompletableFuture<Map<Stream, StreamCut>>> scFuture =
+                new AtomicReference<>(CompletableFuture.completedFuture(null));
         reader.set(client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
                 ReaderConfig.builder().build()));
+        final List<CompletableFuture<Map<Stream, StreamCut>>> streamCutFutureList = new ArrayList<>();
         final List<Map<Stream, StreamCut>> streamCuts = new ArrayList<>();
         final AtomicInteger validEvents = new AtomicInteger();
 
@@ -302,27 +309,37 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                     try {
                         EventRead<T> event = reader.get().readNextEvent(READ_TIMEOUT);
                         if (event.getEvent() != null) {
+                            log.info(" Future of sc result {}", Futures.await(scFuture.get(), 15_000));
                             validEvents.incrementAndGet();
                             log.debug("Read event result in getStreamCutSlices: {}. Valid events: {}.", event.getEvent(), validEvents);
 
                             // Get a StreamCut each defined number of events.
                             if (validEvents.get() % CUT_SIZE == 0 && validEvents.get() > 0) {
-                                reader.get().close();
-                                log.info("Adding a StreamCut positioned at event {}: {}.", validEvents, readerGroup.getStreamCuts());
-                                streamCuts.add(readerGroup.getStreamCuts());
-                                reader.set(client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
-                                        ReaderConfig.builder().build()));
+                                CompletableFuture<Map<Stream, StreamCut>> streamCutsFuture =
+                                        readerGroup.generateStreamCuts(streamCutExecutor);
+                                scFuture.set(streamCutsFuture);
+                                // wait for two seconds to force reader group state update.
+                                Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
+                                log.info("Adding a StreamCut positioned at event {}", validEvents);
+                                streamCutFutureList.add(streamCutsFuture);
                             }
                         } else {
                             log.warn("Read unexpected null event at {}.", validEvents);
                         }
                     } catch (ReinitializationRequiredException e) {
-                        log.warn("Reinitialization of readers required: {}.", e);
+                        log.warn("Reinitialization of readers required.", e);
                     }
                 }, executor),
                 executor).join();
+        log.info("Event read {} after fetching all Stream Cut Slices", reader.get().readNextEvent(READ_TIMEOUT));
         reader.get().close();
-        return streamCuts;
+        CompletableFuture<List<Map<Stream, StreamCut>>> r2 = Futures.allOfWithResults(streamCutFutureList);
+        boolean streamCutFuture = Futures.await(r2, 2_000);
+        log.info("StreamCut Future status is {}", streamCutFuture);
+        return Futures.getAndHandleExceptions(r2, t -> {
+            log.error("StreamCut generation did not complete", t);
+            return null;
+        });
     }
 
     private CompletableFuture<Boolean> scaleStream(String scope, String stream, double splitSize, ScheduledExecutorService executorService) {
@@ -341,7 +358,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         if (Futures.await(scaleStatus, SCALE_WAIT_SECONDS)) {
             log.info("Scale operation has completed: {}", scaleStatus.join());
             if (!scaleStatus.join()) {
-                log.error("Scale operation did not complete", scaleStatus.join());
+                log.error("Scale operation did not complete {}", scaleStatus.join());
                 Assert.fail("Scale operation did not complete successfully");
             }
         } else {

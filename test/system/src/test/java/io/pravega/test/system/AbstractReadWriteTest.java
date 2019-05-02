@@ -403,7 +403,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         for (int i = initialPoint; i < totalEvents + initialPoint; i++) {
-            writer.writeEvent(String.valueOf(i)).join();
+            writer.writeEvent(String.format("%04d", i)).join();
             log.debug("Writing event: {} to stream {}.", streamName + String.valueOf(i), streamName);
         }
     }
