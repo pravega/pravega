@@ -533,7 +533,13 @@ interface Stream {
      */
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record);
 
-    // todo: shivesh
+    /**
+     * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 
+     * Its behaviour is idempotent and if a transaction already has commitOffsets set earlier, they are not overwritten. 
+     * @param txnId transaction id
+     * @param commitOffsets segment to offset position where transaction was committed
+     * @return A completableFuture which, when completed, will have transaction commit offset recorded successfully.
+     */
     CompletableFuture<Void> recordCommitOffsets(UUID txnId, Map<Long, Long> commitOffsets);
     
     /**
@@ -561,13 +567,34 @@ interface Stream {
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName);
 
-    // TODO: shivesh
-    CompletableFuture<WriterTimestampResponse> noteWriterMark(String writer, long timestamp, Map<Long, Long> streamCut);
+    /**
+     * Method to record writer's mark in the metadata store. If this is a known writer, its mark is updated if it advances 
+     * both time and position from the previously recorded position.    
+     * @param writer writer id
+     * @param timestamp mark timestamp
+     * @param position writer position 
+     * @return A completableFuture, which when completed, will have recorded the new mark for the writer. 
+     */
+    CompletableFuture<WriterTimestampResponse> noteWriterMark(String writer, long timestamp, Map<Long, Long> position);
 
+    /**
+     * Method to remove writer specific metadata from the metadata store. Remove method is idempotent. 
+     * @param writer writer id
+     * @return A completableFuture, which when completed, will have removed writer metadata. 
+     */
     CompletableFuture<Void> removeWriter(String writer);
-    
+
+    /**
+     * Method to retrieve writer's latest recorded mark.  
+     * @param writer writer id
+     * @return A completableFuture, which when completed, will contain writer's mark.  
+     */
     CompletableFuture<WriterMark> getWriterMark(String writer);
 
+    /**
+     * Method to retrieve latest recorded mark for all known writers.  
+     * @return A completableFuture, which when completed, will contain map of writer to respective marks.  
+     */
     CompletableFuture<Map<String, WriterMark>> getAllWritersMarks();
 
     /**

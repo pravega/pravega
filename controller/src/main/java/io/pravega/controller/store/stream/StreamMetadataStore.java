@@ -34,7 +34,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -708,7 +707,8 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param txId     transaction id
      * @param commit   Boolean indicating whether to change txn state to committing or aborting.
      * @param version  Expected version of the transaction record in the store.
-     *                 // TODO: shivesh
+     * @param writerId writer id. Used only if commit is set to true. 
+     * @param timestamp commit timestamp. Valid only when commit flag is true.
      * @param context  operation context
      * @param executor callers executor
      * @return         Pair containing the transaction status after sealing and transaction epoch.
@@ -1040,8 +1040,18 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                        final OperationContext context, final ScheduledExecutorService executor);
 
 
-    // TODO: shivesh: javadoc
-    CompletableFuture<Void> recordCommitOffsets(final String scope, final String stream, final UUID txnId, final Map<Long, Long> map,
+    /**
+     * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 
+     * Its behaviour is idempotent and if a transaction already has commitOffsets set earlier, they are not overwritten. 
+     * @param scope scope name
+     * @param stream stream name
+     * @param txnId transaction id
+     * @param commitOffsets segment to offset position where transaction was committed
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture which, when completed, will have transaction commit offset recorded successfully.
+     */
+    CompletableFuture<Void> recordCommitOffsets(final String scope, final String stream, final UUID txnId, final Map<Long, Long> commitOffsets,
                                                 final OperationContext context, final ScheduledExecutorService executor);
     
     /**
@@ -1081,14 +1091,51 @@ public interface StreamMetadataStore extends AutoCloseable {
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName, OperationContext context, ScheduledExecutorService executor);
 
-    // TODO: shivesh javadoc
+    /**
+     * Method to record writer's mark in the metadata store. If this is a known writer, its mark is updated if it advances 
+     * both time and position from the previously recorded position.    
+     * @param scope scope name
+     * @param stream stream name
+     * @param writer writer id
+     * @param timestamp mark timestamp
+     * @param position writer position 
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture, which when completed, will have recorded the new mark for the writer. 
+     */
     CompletableFuture<WriterTimestampResponse> noteWriterMark(String scope, String stream, String writer,
-                                                              long timestamp, Map<Long,Long> streamCut,
+                                                              long timestamp, Map<Long, Long> position,
                                                               OperationContext context, Executor executor);
-    
+
+    /**
+     * Method to remove writer specific metadata from the metadata store. Remove method is idempotent. 
+     * @param scope scope name
+     * @param stream stream name
+     * @param writer writer id
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture, which when completed, will have removed writer metadata. 
+     */
     CompletableFuture<Void> removeWriter(String scope, String stream, String writer, OperationContext context, Executor executor);
-    
+
+    /**
+     * Method to retrieve writer's latest recorded mark.  
+     * @param scope scope name
+     * @param stream stream name
+     * @param writer writer id
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture, which when completed, will contain writer's mark.  
+     */
     CompletableFuture<WriterMark> getWriterMark(String scope, String stream, String writer, OperationContext context, Executor executor);
 
+    /**
+     * Method to retrieve latest recorded mark for all known writers.  
+     * @param scope scope name
+     * @param stream stream name
+     * @param context operation context
+     * @param executor executor
+     * @return A completableFuture, which when completed, will contain map of writer to respective marks.  
+     */
     CompletableFuture<Map<String, WriterMark>> getAllWritersMarks(String scope, String stream, OperationContext context, Executor executor);
 }

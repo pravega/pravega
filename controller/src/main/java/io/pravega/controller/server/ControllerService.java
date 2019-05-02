@@ -21,6 +21,7 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -530,6 +531,23 @@ public class ControllerService {
                                 response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
                                 break;
                         }
+                    }
+                    return response.build();
+                });
+    }
+ 
+    public CompletableFuture<Controller.WriterShutdownResponse> shutdownWriter(String scope, String stream, String writer) {
+        return streamStore.removeWriter(scope, stream, writer, null, executor)
+                .handle((r, e) -> {
+                    Controller.WriterShutdownResponse.Builder response = Controller.WriterShutdownResponse.newBuilder();
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                            response.setResult(Controller.WriterShutdownResponse.Status.STREAM_DOES_NOT_EXIST);
+                        } else {
+                            response.setResult(Controller.WriterShutdownResponse.Status.INTERNAL_ERROR);
+                        }
+                    } else {
+                        response.setResult(Controller.WriterShutdownResponse.Status.SUCCESS);
                     }
                     return response.build();
                 });

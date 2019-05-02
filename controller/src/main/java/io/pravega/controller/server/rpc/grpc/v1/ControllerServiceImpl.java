@@ -436,9 +436,15 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void writerShutdown(Controller.WriterShutdownRequest request, StreamObserver<Controller.WriterShutdownResponse> responseObserver) {
-        // TODO: shivesh
-        // soft remove writer metadata.. set shutdown flag to true.
-        // the background process will delete this writer 
+        StreamInfo streamInfo = request.getStream();
+        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter());
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.shutdownWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter()),
+                responseObserver);
     }
 
     @Override

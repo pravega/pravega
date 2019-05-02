@@ -152,7 +152,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * This method should be called immediately after creating StreamTransactionMetadataTasks object.
      *
      * @param clientFactory Client factory reference.
-     * @param config        Controller event processor configuration.
+     * @param config Controller event processor configuration.
      */
     @Synchronized
     public void initializeStreamWriters(final EventStreamClientFactory clientFactory,
@@ -184,17 +184,17 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     /**
      * Create transaction.
      *
-     * @param scope      stream scope.
-     * @param stream     stream name.
-     * @param lease      Time for which transaction shall remain open with sending any heartbeat.
-     *                   the scaling operation is initiated on the txn stream.
-     * @param contextOpt operational context
+     * @param scope              stream scope.
+     * @param stream             stream name.
+     * @param lease              Time for which transaction shall remain open with sending any heartbeat.
+     *                           the scaling operation is initiated on the txn stream.
+     * @param contextOpt         operational context
      * @return transaction id.
      */
     public CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createTxn(final String scope,
-                                                                                                  final String stream,
-                                                                                                  final long lease,
-                                                                                                  final OperationContext contextOpt) {
+                                                                                      final String stream,
+                                                                                      final long lease,
+                                                                                      final OperationContext contextOpt) {
         final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
         return createTxnBody(scope, stream, lease, context);
     }
@@ -202,11 +202,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     /**
      * Transaction heartbeat, that increases transaction timeout by lease number of milliseconds.
      *
-     * @param scope      Stream scope.
-     * @param stream     Stream name.
-     * @param txId       Transaction identifier.
-     * @param lease      Amount of time in milliseconds by which to extend the transaction lease.
-     * @param contextOpt operational context
+     * @param scope Stream scope.
+     * @param stream Stream name.
+     * @param txId Transaction identifier.
+     * @param lease Amount of time in milliseconds by which to extend the transaction lease.
+     * @param contextOpt       operational context
      * @return Transaction metadata along with the version of it record in the store.
      */
     public CompletableFuture<PingTxnStatus> pingTxn(final String scope,
@@ -221,11 +221,11 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
     /**
      * Abort transaction.
      *
-     * @param scope      stream scope.
-     * @param stream     stream name.
-     * @param txId       transaction id.
-     * @param version    Expected version of the transaction record in the store.
-     * @param contextOpt operational context
+     * @param scope  stream scope.
+     * @param stream stream name.
+     * @param txId   transaction id.
+     * @param version Expected version of the transaction record in the store.
+     * @param contextOpt       operational context
      * @return true/false.
      */
     public CompletableFuture<TxnStatus> abortTxn(final String scope,
@@ -248,44 +248,62 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
      * @return true/false.
      */
     public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
+                                                  final OperationContext contextOpt) {
+        final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
+        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, "", Long.MIN_VALUE, context),
+                RETRYABLE_PREDICATE, 3, executor);
+    }
+
+    /**
+     * Commit transaction.
+     *
+     * @param scope      stream scope.
+     * @param stream     stream name.
+     * @param txId       transaction id.
+     * @param writerId   writer id
+     * @param timestamp  commit time as recorded by writer
+     * @param contextOpt optional context
+     * @return true/false.
+     */
+    public CompletableFuture<TxnStatus> commitTxn(final String scope, final String stream, final UUID txId,
                                                   final String writerId, final long timestamp,
                                                   final OperationContext contextOpt) {
         final OperationContext context = getNonNullOperationContext(scope, stream, contextOpt);
-        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, context),
+        return withRetriesAsync(() -> sealTxnBody(hostId, scope, stream, true, txId, null, writerId, timestamp, context),
                 RETRYABLE_PREDICATE, 3, executor);
     }
 
     /**
      * Creates txn on the specified stream.
-     * <p>
+     *
      * Post-condition:
      * 1. If txn creation succeeds, then
-     * (a) txn node is created in the store,
-     * (b) txn segments are successfully created on respective segment stores,
-     * (c) txn is present in the host-txn index of current host,
-     * (d) txn's timeout is being tracked in timeout service.
-     * <p>
+     *     (a) txn node is created in the store,
+     *     (b) txn segments are successfully created on respective segment stores,
+     *     (c) txn is present in the host-txn index of current host,
+     *     (d) txn's timeout is being tracked in timeout service.
+     *
      * 2. If process fails after creating txn node, but before responding to the client, then since txn is
      * present in the host-txn index, some other controller process shall abort the txn after maxLeaseValue
-     * <p>
+     *
      * 3. If timeout service tracks timeout of specified txn,
      * then txn is also present in the host-txn index of current process.
-     * <p>
+     *
      * Invariant:
      * The following invariants are maintained throughout the execution of createTxn, pingTxn and sealTxn methods.
      * 1. If timeout service tracks timeout of a txn, then txn is also present in the host-txn index of current process.
      * 2. If txn znode is updated, then txn is also present in the host-txn index of current process.
      *
-     * @param scope  scope name.
-     * @param stream stream name.
-     * @param lease  txn lease.
-     * @param ctx    context.
-     * @return identifier of the created txn.
+     * @param scope               scope name.
+     * @param stream              stream name.
+     * @param lease               txn lease.
+     * @param ctx                 context.
+     * @return                    identifier of the created txn.
      */
     CompletableFuture<Pair<VersionedTransactionData, List<StreamSegmentRecord>>> createTxnBody(final String scope,
-                                                                                               final String stream,
-                                                                                               final long lease,
-                                                                                               final OperationContext ctx) {
+                                                                                   final String stream,
+                                                                                   final long lease,
+                                                                                   final OperationContext ctx) {
         // Step 1. Validate parameters.
         CompletableFuture<Void> validate = validate(lease);
         long maxExecutionPeriod = Math.min(MAX_EXECUTION_TIME_MULTIPLIER * lease, Duration.ofDays(1).toMillis());
@@ -302,38 +320,38 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
         // and then epoch node is deleted as scale starts and completes.
         return validate.thenCompose(validated -> RetryHelper.withRetriesAsync(() ->
                 streamMetadataStore.generateTransactionId(scope, stream, ctx, executor)
-                                   .thenCompose(txnId -> {
-                                       CompletableFuture<Void> addIndex = addTxnToIndex(scope, stream, txnId);
+                .thenCompose(txnId -> {
+                    CompletableFuture<Void> addIndex = addTxnToIndex(scope, stream, txnId);
 
-                                       // Step 3. Create txn node in the store.
-                                       CompletableFuture<VersionedTransactionData> txnFuture = createTxnInStore(scope, stream, lease,
-                                               ctx, maxExecutionPeriod, txnId, addIndex);
+                    // Step 3. Create txn node in the store.
+                    CompletableFuture<VersionedTransactionData> txnFuture = createTxnInStore(scope, stream, lease,
+                            ctx, maxExecutionPeriod, txnId, addIndex);
 
-                                       // Step 4. Notify segment stores about new txn.
-                                       CompletableFuture<List<StreamSegmentRecord>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
-                                               streamMetadataStore.getSegmentsInEpoch(scope, stream, txnData.getEpoch(), ctx, executor), executor);
+                    // Step 4. Notify segment stores about new txn.
+                    CompletableFuture<List<StreamSegmentRecord>> segmentsFuture = txnFuture.thenComposeAsync(txnData ->
+                            streamMetadataStore.getSegmentsInEpoch(scope, stream, txnData.getEpoch(), ctx, executor), executor);
 
-                                       CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
-                                               notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
-                                               // Method notifyTxnCreation ensures that notification completes
-                                               // even in the presence of n/w or segment store failures.
-                                               log.trace("Txn={}, notified segments stores", txnId));
+                    CompletableFuture<Void> notify = segmentsFuture.thenComposeAsync(activeSegments ->
+                            notifyTxnCreation(scope, stream, activeSegments, txnId), executor).whenComplete((v, e) ->
+                            // Method notifyTxnCreation ensures that notification completes
+                            // even in the presence of n/w or segment store failures.
+                            log.trace("Txn={}, notified segments stores", txnId));
 
-                                       // Step 5. Start tracking txn in timeout service
-                                       return notify.whenCompleteAsync((result, ex) -> {
-                                           addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture);
-                                       }, executor).thenApplyAsync(v -> {
-                                           List<StreamSegmentRecord> segments = segmentsFuture.join().stream().map(x -> {
-                                               long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
-                                               int epoch = StreamSegmentNameUtils.getEpoch(generalizedSegmentId);
-                                               int segmentNumber = StreamSegmentNameUtils.getSegmentNumber(generalizedSegmentId);
-                                               return StreamSegmentRecord.builder().creationEpoch(epoch).segmentNumber(segmentNumber)
-                                                                         .creationTime(x.getCreationTime()).keyStart(x.getKeyStart()).keyEnd(x.getKeyEnd()).build();
-                                           }).collect(Collectors.toList());
+                    // Step 5. Start tracking txn in timeout service
+                    return notify.whenCompleteAsync((result, ex) -> {
+                        addTxnToTimeoutService(scope, stream, lease, maxExecutionPeriod, txnId, txnFuture);
+                    }, executor).thenApplyAsync(v -> {
+                        List<StreamSegmentRecord> segments = segmentsFuture.join().stream().map(x -> {
+                            long generalizedSegmentId = RecordHelper.generalizedSegmentId(x.segmentId(), txnId);
+                            int epoch = StreamSegmentNameUtils.getEpoch(generalizedSegmentId);
+                            int segmentNumber = StreamSegmentNameUtils.getSegmentNumber(generalizedSegmentId);
+                            return StreamSegmentRecord.builder().creationEpoch(epoch).segmentNumber(segmentNumber)
+                                    .creationTime(x.getCreationTime()).keyStart(x.getKeyStart()).keyEnd(x.getKeyEnd()).build();
+                        }).collect(Collectors.toList());
 
-                                           return new ImmutablePair<>(txnFuture.join(), segments);
-                                       }, executor);
-                                   }), e -> {
+                        return new ImmutablePair<>(txnFuture.join(), segments);
+                    }, executor);
+                }), e -> {
             Throwable unwrap = Exceptions.unwrap(e);
             return unwrap instanceof StoreException.WriteConflictException || unwrap instanceof StoreException.DataNotFoundException;
         }, 5, executor));
@@ -355,27 +373,27 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                                                          OperationContext ctx, long maxExecutionPeriod, UUID txnId,
                                                                          CompletableFuture<Void> addIndex) {
         return addIndex.thenComposeAsync(ignore ->
-                streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
-                        ctx, executor), executor).whenComplete((v, e) -> {
-            if (e != null) {
-                log.debug("Txn={}, failed creating txn in store", txnId);
-            } else {
-                log.debug("Txn={}, created in store", txnId);
-            }
-        });
+                                streamMetadataStore.createTransaction(scope, stream, txnId, lease, maxExecutionPeriod,
+                                        ctx, executor), executor).whenComplete((v, e) -> {
+                            if (e != null) {
+                                log.debug("Txn={}, failed creating txn in store", txnId);
+                            } else {
+                                log.debug("Txn={}, created in store", txnId);
+                            }
+                        });
     }
 
     private CompletableFuture<Void> addTxnToIndex(String scope, String stream, UUID txnId) {
         TxnResource resource = new TxnResource(scope, stream, txnId);
         // Step 2. Add txn to host-transaction index.
         return streamMetadataStore.addTxnToIndex(hostId, resource, null)
-                                  .whenComplete((v, e) -> {
-                                      if (e != null) {
-                                          log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
-                                      } else {
-                                          log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
-                                      }
-                                  });
+                .whenComplete((v, e) -> {
+                    if (e != null) {
+                        log.debug("Txn={}, failed adding txn to host-txn index of host={}", txnId, hostId);
+                    } else {
+                        log.debug("Txn={}, added txn to host-txn index of host={}", txnId, hostId);
+                    }
+                });
     }
 
     @SuppressWarnings("ReturnCount")
@@ -393,28 +411,28 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     /**
      * Ping a txn thereby updating its timeout to current time + lease.
-     * <p>
+     *
      * Post-condition:
      * 1. If ping request completes successfully, then
-     * (a) txn timeout is set to lease + current time in timeout service,
-     * (b) txn version in timeout service equals version of txn node in store,
-     * (c) if txn's timeout was not previously tracked in timeout service of current process,
-     * then version of txn node in store is updated, thus fencing out other processes tracking timeout for this txn,
-     * (d) txn is present in the host-txn index of current host,
-     * <p>
+     *     (a) txn timeout is set to lease + current time in timeout service,
+     *     (b) txn version in timeout service equals version of txn node in store,
+     *     (c) if txn's timeout was not previously tracked in timeout service of current process,
+     *     then version of txn node in store is updated, thus fencing out other processes tracking timeout for this txn,
+     *     (d) txn is present in the host-txn index of current host,
+     *
      * 2. If process fails before responding to the client, then since txn is present in the host-txn index,
      * some other controller process shall abort the txn after maxLeaseValue
-     * <p>
+     *
      * Store read/update operation is not invoked on receiving ping request for a txn that is being tracked in the
      * timeout service. Otherwise, if the txn is not being tracked in the timeout service, txn node is read from
      * the store and updated.
      *
-     * @param scope  scope name.
-     * @param stream stream name.
-     * @param txnId  txn id.
-     * @param lease  txn lease.
-     * @param ctx    context.
-     * @return ping status.
+     * @param scope      scope name.
+     * @param stream     stream name.
+     * @param txnId      txn id.
+     * @param lease      txn lease.
+     * @param ctx        context.
+     * @return           ping status.
      */
     CompletableFuture<PingTxnStatus> pingTxnBody(final String scope,
                                                  final String stream,
@@ -500,7 +518,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
             }
         }, executor);
     }
-    
+
     CompletableFuture<TxnStatus> sealTxnBody(final String host,
                                              final String scope,
                                              final String stream,
@@ -508,9 +526,9 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                              final UUID txnId,
                                              final Version version,
                                              final OperationContext ctx) {
-        return sealTxnBody(host, scope, stream, commit, txnId, version, null, Long.MIN_VALUE, ctx);
+        return sealTxnBody(host, scope, stream, commit, txnId, version, "", Long.MIN_VALUE, ctx);
     }
-    
+
     /**
      * Seals a txn and transitions it to COMMITTING (resp. ABORTING) state if commit param is true (resp. false).
      *

@@ -774,9 +774,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
 
     @Override
     public CompletableFuture<WriterTimestampResponse> noteWriterMark(String scope, String stream, String writer,
-                                                                     long timestamp, Map<Long,Long> streamCut,
+                                                                     long timestamp, Map<Long, Long> position,
                                                                      OperationContext context, Executor executor) {
-        return withCompletion(getStream(scope, stream, context).noteWriterMark(writer, timestamp, streamCut), executor);
+        return withCompletion(getStream(scope, stream, context).noteWriterMark(writer, timestamp, position), executor);
     }
 
     @Override

@@ -1104,7 +1104,8 @@ public abstract class PersistentStreamBase implements Stream {
      * @param txId    transaction identifier.
      * @param commit  boolean indicating whether to commit or abort the transaction.
      * @param version optional expected version of transaction node to validate before updating it.
-     *                // TODO: shivesh
+     * @param writerId writer Id
+     * @param timestamp commit timestamp supplied by writer
      * @return        a pair containing transaction status and its epoch.
      */
     private CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealActiveTxn(final int epoch,
@@ -1470,10 +1471,7 @@ public abstract class PersistentStreamBase implements Stream {
                         if (record.getObject().getTimestamp() > timestamp) {
                             return CompletableFuture.completedFuture(WriterTimestampResponse.INVALID_TIME);
                         }
-                        // TODO: do a basic sanity check for position advancement.. we will not assume any complex 
-                        // overlaps of positions. We will simply 
-                        // highest segment number in new >= highest in old, 
-                        if (greaterThan(record.getObject().getPosition(), immutablePositionMap)) {
+                        if (compareWriterPositions(record.getObject().getPosition(), immutablePositionMap)) {
                             return CompletableFuture.completedFuture(WriterTimestampResponse.INVALID_POSITION);
                         }
                         
@@ -1484,23 +1482,30 @@ public abstract class PersistentStreamBase implements Stream {
                 });
     }
 
-    private boolean greaterThan(Map<Long, Long> position1, Map<Long, Long> position2) {
-        // TODO: shivesh
-        return true;
+    private boolean compareWriterPositions(Map<Long, Long> position1, Map<Long, Long> position2) {
+        // This method is deliberately kept simple. It compares if position 2's highest segment number is higher 
+        // than position 1. 
+
+        long maxInPos2Only = position2.keySet().stream().filter(position1::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
+        long maxInPos1Only = position1.keySet().stream().filter(position2::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
+        // if there is a segment only in pos1 then there should be a segment only in position 2 otherwise 
+        // we fail the check.
+        // Note: Since we are taking segments only in position 1 or position 2, 
+        boolean compareMaxes = maxInPos2Only >= maxInPos1Only;
+        
+        boolean compareOverlaps = position2.entrySet().stream().filter(x -> position1.containsKey(x.getKey()))
+                 .allMatch(x -> {
+                     // for all segments that are present in both, position 2 should have greater than eq 
+                     return x.getValue() >= position1.get(x.getKey());
+                 });
+        
+        return compareMaxes && compareOverlaps;
     }
 
     @Override
     public CompletableFuture<WriterMark> getWriterMark(String writer) {
-        // PT: read it from the table
         return getWriterMarkRecord(writer).thenApply(VersionedMetadata::getObject);
     }
-
-//    @Override
-//    public CompletableFuture<Map<String, WriterMark>> getAllWritersMarks() {
-//        // PT: read all entries from the table
-//        // ZK: get all children and then read their values --> after reading the key, the value may get deleted.. so take care of it
-//        // IM: get all writers
-//    }
     
     protected CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpochHelper(
             ZkOrderedStore txnCommitOrderer, Executor executor) {
