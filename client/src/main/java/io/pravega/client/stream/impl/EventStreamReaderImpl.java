@@ -23,6 +23,7 @@ import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.ReinitializationRequiredException;
@@ -283,11 +284,16 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     @Override
     public void close() {
+        closeAt(getPosition());
+    }
+
+    @Override
+    public void closeAt(Position position) {
         synchronized (readers) {
             if (!closed) {
-                log.info("Closing reader {} ", this);
+                log.info("Closing reader {} at position {}.", this, position);
                 closed = true;
-                groupState.readerShutdown(getPosition());
+                groupState.readerShutdown(position);
                 for (EventSegmentReader reader : readers) {
                     reader.close();
                 }
