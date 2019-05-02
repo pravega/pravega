@@ -120,30 +120,30 @@ public class EndToEndStatsTest {
         for (int i = 0; i < 10; i++) {
             test.writeEvent("test").get();
         }
-        assertEventuallyEquals(10, () -> (int)(statsRecorder.getRegistry().counter(SEGMENT_WRITE_EVENTS, tags).count()), 2000);
-        assertEventuallyEquals(190, () -> (int)(statsRecorder.getRegistry().counter(SEGMENT_WRITE_BYTES, tags).count()), 100);
+        assertEventuallyEquals(10, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_EVENTS, tags).count()), 2000);
+        assertEventuallyEquals(190, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_BYTES, tags).count()), 100);
 
         Transaction<String> transaction = test.beginTxn();
         for (int i = 0; i < 10; i++) {
             transaction.writeEvent("0", "txntest1");
         }
-        assertEventuallyEquals(10, () -> (int)(statsRecorder.getRegistry().counter(SEGMENT_WRITE_EVENTS, tags).count()), 2000);
-        assertEventuallyEquals(190, () -> (int)(statsRecorder.getRegistry().counter(SEGMENT_WRITE_BYTES, tags).count()), 100);
+        assertEventuallyEquals(10, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_EVENTS, tags).count()), 2000);
+        assertEventuallyEquals(190, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_BYTES, tags).count()), 100);
 
         transaction.commit();
 
-        assertEventuallyEquals(20, () -> (int)(statsRecorder.getRegistry().counter(SEGMENT_WRITE_EVENTS, tags).count()), 10000);
-        assertEventuallyEquals(420, () -> (int)(statsRecorder.getRegistry().counter(SEGMENT_WRITE_BYTES, tags).count()), 100);
+        assertEventuallyEquals(20, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_EVENTS, tags).count()), 10000);
+        assertEventuallyEquals(420, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_BYTES, tags).count()), 100);
     }
 
     private static class TestStatsRecorder implements SegmentStatsRecorder {
 
+        @Getter
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
         // A set to keep strong references to metric objects, as caching is skipped in the test.
         // Note Micrometer registry holds weak references only, so there is chance metric objects without strong references might be garbage collected.
         private Set<Meter> metrics = new HashSet<>();
-
-        @Getter
-        SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
         @Override
         public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
