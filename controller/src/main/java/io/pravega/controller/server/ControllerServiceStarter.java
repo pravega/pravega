@@ -404,6 +404,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 transactionMetrics.close();
             }
 
+            log.info("Finishing controller service shutDown");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
     }
