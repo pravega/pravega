@@ -29,12 +29,15 @@ import static io.pravega.test.system.framework.Utils.EXECUTOR_TYPE;
 abstract class AbstractSystemTest {
 
     static final Predicate<URI> ISGRPC = uri -> {
+        log.info("URI in ISGRPC: {}", uri);
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
+                log.info("REMOTE_SEQUENTIAL in ISGRPC: {}", uri.getPort() == Utils.MARATHON_CONTROLLER_PORT);
                 return uri.getPort() == Utils.MARATHON_CONTROLLER_PORT;
             case DOCKER:
             case KUBERNETES:
             default:
+                log.info("DOCKER, KUBERNETES in ISGRPC: {}", uri.getPort() == Utils.DOCKER_CONTROLLER_PORT);  
                 return uri.getPort() == Utils.DOCKER_CONTROLLER_PORT;
         }
     };
