@@ -83,6 +83,7 @@ public class EndToEndTransactionTest {
 
         @Cleanup
         TransactionalEventStreamWriter<String> producer = clientFactory.createTransactionalEventWriter(
+                "writer",
                 testStream,
                 new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(txnTimeout).build());

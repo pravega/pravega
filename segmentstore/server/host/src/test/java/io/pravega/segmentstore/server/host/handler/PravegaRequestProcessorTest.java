@@ -324,7 +324,7 @@ public class PravegaRequestProcessorTest {
             return t instanceof WireCommands.StreamSegmentInfo && ((WireCommands.StreamSegmentInfo) t).exists();
         }));
         processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, -1));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
                 .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
@@ -360,7 +360,7 @@ public class PravegaRequestProcessorTest {
         store.sealStreamSegment(txnName, Duration.ZERO).join();
 
         processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, -1));
         processor.getStreamSegmentInfo(new WireCommands.GetStreamSegmentInfo(requestId, transactionName, ""));
         order.verify(connection)
                 .send(new WireCommands.NoSuchSegment(requestId, StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid), "", -1L));
@@ -394,7 +394,7 @@ public class PravegaRequestProcessorTest {
         processor.createSegment(new WireCommands.CreateSegment(requestId, transactionName, WireCommands.CreateSegment.NO_SCALE, 0, ""));
         order.verify(connection).send(new WireCommands.SegmentCreated(requestId, transactionName));
         processor.mergeSegments(new WireCommands.MergeSegments(requestId, streamSegmentName, transactionName, ""));
-        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName));
+        order.verify(connection).send(new WireCommands.SegmentsMerged(requestId, streamSegmentName, transactionName, -1));
 
         txnid = UUID.randomUUID();
         transactionName = StreamSegmentNameUtils.getTransactionNameFromId(streamSegmentName, txnid);

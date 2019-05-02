@@ -40,6 +40,8 @@ service ControllerService {
     rpc listStreamsInScope(StreamsInScopeRequest) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
+    rpc writerShutdown(WriterShutdownRequest) returns (WriterShutdownResponse);
+    rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);
 }
 
 message ServerRequest {
@@ -243,6 +245,8 @@ message CreateTxnResponse {
 message TxnRequest {
     StreamInfo streamInfo = 1;
     TxnId txnId = 2;
+    string writerId = 3;
+    int64 timestamp = 4;
 }
 
 message PingTxnRequest {
@@ -323,4 +327,35 @@ message StreamCutValidityResponse {
 
 message DelegationToken {
     string delegationToken = 1;
- }
+}
+
+message WriterShutdownRequest {
+    string writer = 1;
+    StreamInfo stream = 2;
+}
+
+message WriterShutdownResponse {
+    enum Status {
+        SUCCESS = 0;
+        UNKNOWN_WRITER = 1;
+        STREAM_DOES_NOT_EXIST = 2;
+        INTERNAL_ERROR = 3;
+    }
+    Status result = 1;
+}
+
+message TimestampFromWriter {
+    string writer = 1;
+    StreamCut position = 2;
+    int64 timestamp = 3;
+}
+
+message TimestampResponse {
+    enum Status {
+        SUCCESS = 0;
+        INVALID_TIME = 1;
+        INVALID_POSITION = 2;
+        INTERNAL_ERROR = 3;
+    }
+    Status result = 1;
+}

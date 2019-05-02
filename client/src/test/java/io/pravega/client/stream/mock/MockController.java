@@ -16,6 +16,7 @@ import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -309,7 +310,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
+    public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txId) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (Segment segment : getSegmentsForStream(stream)) {
             futures.add(commitTxSegment(txId, segment));            
@@ -537,6 +538,17 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         return CompletableFuture.completedFuture("");
+    }
+
+    @Override
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp,
+                                                           Position lastWrittenPosition) {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> writerShutdown(String writerId, Stream stream) {
+        return CompletableFuture.completedFuture(null);
     }
 }
 

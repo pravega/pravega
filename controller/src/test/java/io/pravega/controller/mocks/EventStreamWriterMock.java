@@ -73,4 +73,9 @@ public class EventStreamWriterMock<T> implements EventStreamWriter<T> {
     public EventStreamReader<T> getReader() {
         return new EventStreamReaderMock<>(eventList);
     }
+
+    @Override
+    public void noteTime(long timestamp) {
+        throw new NotImplementedException("noteTime");
+    }
 }

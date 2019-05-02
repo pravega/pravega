@@ -45,6 +45,12 @@ public class EventWriterConfig implements Serializable {
      * it affects all transactions.
      */
     private final long transactionTimeoutTime;
+       
+    /**
+     * Automatically invoke {@link EventStreamWriter#noteTime(long)} passing
+     * {@link System#currentTimeMillis()} on a regular interval.
+     */
+    private final boolean automaticallyNoteTime;
 
     public static final class EventWriterConfigBuilder {
         private int initalBackoffMillis = 1;
@@ -52,5 +58,7 @@ public class EventWriterConfig implements Serializable {
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
         private long transactionTimeoutTime = 30 * 1000 - 1;
+        private long timestampAggrigationTimeout = 120 * 1000;
+        private boolean automaticallyNoteTime = false; 
     }
 }

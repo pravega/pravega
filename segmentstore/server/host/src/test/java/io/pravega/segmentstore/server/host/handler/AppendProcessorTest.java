@@ -80,7 +80,7 @@ public class AppendProcessorTest {
                              AppendProcessor.TIMEOUT);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
-        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L));
+        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, -1));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
 
@@ -111,7 +111,7 @@ public class AppendProcessorTest {
                 AppendProcessor.TIMEOUT);
         verify(connection).send(new AppendSetup(requestId, streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
-        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L));
+        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L, -1));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
 
@@ -186,8 +186,8 @@ public class AppendProcessorTest {
                              AppendProcessor.TIMEOUT);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
-        verify(connection).send(new DataAppended(requestId, clientId, 1, 0));
-        verify(connection).send(new DataAppended(requestId, clientId, 2, 1));
+        verify(connection).send(new DataAppended(requestId, clientId, 1, 0, -1));
+        verify(connection).send(new DataAppended(requestId, clientId, 2, 1, -1));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
         verify(mockedRecorder, times(2)).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
@@ -220,7 +220,7 @@ public class AppendProcessorTest {
         verify(store).append(streamSegmentName, 0L, data, updateEventNumber(clientId, 2, 1, 1), AppendProcessor.TIMEOUT);
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
-        verify(connection).send(new DataAppended(requestId, clientId, 1, 0));
+        verify(connection).send(new DataAppended(requestId, clientId, 1, 0, -1));
         verify(connection).send(new ConditionalCheckFailed(clientId, 2, requestId));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
@@ -307,9 +307,9 @@ public class AppendProcessorTest {
                              AppendProcessor.TIMEOUT);
         verify(connection, atLeast(0)).resumeReading();
         verify(connection).send(new AppendSetup(requestId, segment1, clientId1, 0));
-        verify(connection).send(new DataAppended(requestId, clientId1, data.length, 0));
+        verify(connection).send(new DataAppended(requestId, clientId1, data.length, 0, -1));
         verify(connection).send(new AppendSetup(requestId, segment2, clientId2, 0));
-        verify(connection).send(new DataAppended(requestId, clientId2, data.length, 0));
+        verify(connection).send(new DataAppended(requestId, clientId2, data.length, 0, -1));
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }
@@ -450,8 +450,8 @@ public class AppendProcessorTest {
                 AppendProcessor.TIMEOUT);
         //Verify two DataAppended acks are sent out.
         verify(connection, times(2)).send(any(DataAppended.class));
-        verify(connection).send(new DataAppended(requestId, clientId, 100, Long.MIN_VALUE));
-        verify(connection).send(new DataAppended(requestId, clientId, 200, 100));
+        verify(connection).send(new DataAppended(requestId, clientId, 100, Long.MIN_VALUE, -1));
+        verify(connection).send(new DataAppended(requestId, clientId, 200, 100, -1));
     }
 
     @Test
