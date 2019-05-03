@@ -62,7 +62,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     static final int TRANSACTION_TIMEOUT = 59 * 1000;
     static final int RK_RENEWAL_RATE_WRITER = 500;
     static final int SCALE_WAIT_ITERATIONS = 12;
-    private static final int READ_TIMEOUT = 1000;
+    private static final int READ_TIMEOUT = 2000;
 
     final String readerName = "reader";
     ScheduledExecutorService executorService;
@@ -403,7 +403,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         for (int i = initialPoint; i < totalEvents + initialPoint; i++) {
-            writer.writeEvent(String.format("%04d", i)).join();
+            writer.writeEvent(String.format("%04d", i)).join(); // this ensures the event size is constant.
             log.debug("Writing event: {} to stream {}.", streamName + String.valueOf(i), streamName);
         }
     }

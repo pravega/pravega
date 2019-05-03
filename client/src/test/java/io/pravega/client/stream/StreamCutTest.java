@@ -37,6 +37,7 @@ public class StreamCutTest {
                 .put(new Segment("scope", "stream", computeSegmentId(5, 2)), 50L)
                 .put(new Segment("scope", "stream", computeSegmentId(8, 2)), 50L)
                 .put(new Segment("scope", "stream", computeSegmentId(9, 2)), 60L)
+                .put(new Segment("scope", "stream", computeSegmentId(10, 2)), -1L)
                 .build();
 
         StreamCut sc = new StreamCutImpl(Stream.of("scope", "stream"), segmentOffsetMap);

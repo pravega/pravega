@@ -61,6 +61,7 @@ import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -254,6 +255,8 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                 // Create a new reader group per stream cut slice and read in parallel only events within the cut.
                 final String readerGroupId = READER_GROUP + "CombSize" + String.valueOf(combinationCutSize) + "-" + System.nanoTime();
                 manager.createReaderGroup(readerGroupId, configBuilder.build());
+                log.debug("Reading events between starting StreamCut {} and ending StreamCut {}",
+                          configBuilder.build().getStartingStreamCuts(), endingPoint);
                 readEvents = readEventFutures(clientFactory, readerGroupId, parallelSegments).stream()
                                                                                              .map(CompletableFuture::join)
                                                                                              .reduce((a, b) -> a + b).get();
@@ -275,7 +278,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                                            List<Map<Stream, StreamCut>> streamSlices) {
         int readEvents;
         for (int i = 1; i < streamSlices.size(); i++) {
-            log.debug("Reading between startStreamCut {} and endStreamCut {}", streamSlices.get(i-1), streamSlices.get(i));
+            log.debug("Reading events between starting StreamCut {} and ending StreamCut {}", streamSlices.get(i-1), streamSlices.get(i));
             ReaderGroupConfig configBuilder = ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_ONE))
                                                                          .stream(Stream.of(SCOPE, STREAM_TWO))
                                                                          .startingStreamCuts(streamSlices.get(i - 1))
@@ -295,12 +298,10 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     private <T extends Serializable> List<Map<Stream, StreamCut>> getStreamCutSlices(EventStreamClientFactory client, ReaderGroup readerGroup,
                                                                                      int totalEvents) {
         final AtomicReference<EventStreamReader<T>> reader = new AtomicReference<>();
-        final AtomicReference<CompletableFuture<Map<Stream, StreamCut>>> scFuture =
-                new AtomicReference<>(CompletableFuture.completedFuture(null));
+        final AtomicReference<CompletableFuture<Map<Stream, StreamCut>>> streamCutFuture = new AtomicReference<>(CompletableFuture.completedFuture(null));
         reader.set(client.createReader("slicer", readerGroup.getGroupName(), new JavaSerializer<>(),
-                ReaderConfig.builder().build()));
+                                       ReaderConfig.builder().build()));
         final List<CompletableFuture<Map<Stream, StreamCut>>> streamCutFutureList = new ArrayList<>();
-        final List<Map<Stream, StreamCut>> streamCuts = new ArrayList<>();
         final AtomicInteger validEvents = new AtomicInteger();
 
         Futures.loop(
@@ -309,7 +310,9 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                     try {
                         EventRead<T> event = reader.get().readNextEvent(READ_TIMEOUT);
                         if (event.getEvent() != null) {
-                            log.info(" Future of sc result {}", Futures.await(scFuture.get(), 15_000));
+                            log.info("Await and verify if the last StreamCut generation completed successfully {}",
+                                     Futures.await(streamCutFuture.get(), 10_000));
+                            assertTrue("StreamCut generation did not complete", Futures.await(streamCutFuture.get(), 10_000));
                             validEvents.incrementAndGet();
                             log.debug("Read event result in getStreamCutSlices: {}. Valid events: {}.", event.getEvent(), validEvents);
 
@@ -317,8 +320,9 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                             if (validEvents.get() % CUT_SIZE == 0 && validEvents.get() > 0) {
                                 CompletableFuture<Map<Stream, StreamCut>> streamCutsFuture =
                                         readerGroup.generateStreamCuts(streamCutExecutor);
-                                scFuture.set(streamCutsFuture);
-                                // wait for two seconds to force reader group state update.
+                                streamCutFuture.set(streamCutsFuture);
+                                // wait for 5 seconds to force reader group state update, so that we can ensure StreamCut for every
+                                // CUT_SIZE number of events.
                                 Exceptions.handleInterrupted(() -> TimeUnit.SECONDS.sleep(5));
                                 log.info("Adding a StreamCut positioned at event {}", validEvents);
                                 streamCutFutureList.add(streamCutsFuture);
@@ -331,14 +335,12 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                     }
                 }, executor),
                 executor).join();
-        log.info("Event read {} after fetching all Stream Cut Slices", reader.get().readNextEvent(READ_TIMEOUT));
         reader.get().close();
-        CompletableFuture<List<Map<Stream, StreamCut>>> r2 = Futures.allOfWithResults(streamCutFutureList);
-        boolean streamCutFuture = Futures.await(r2, 2_000);
-        log.info("StreamCut Future status is {}", streamCutFuture);
-        return Futures.getAndHandleExceptions(r2, t -> {
+
+        // Now return all the streamCuts generated.
+        return Futures.getAndHandleExceptions(Futures.allOfWithResults(streamCutFutureList), t -> {
             log.error("StreamCut generation did not complete", t);
-            return null;
+            throw new AssertionError("StreamCut generation did not complete", t);
         });
     }
 

@@ -69,7 +69,7 @@ public class SerializationTest {
     
     @Test
     public void testStreamCut() {
-        StreamCutImpl cut = new StreamCutImpl(Stream.of("Foo/Bar"), ImmutableMap.of(Segment.fromScopedName("Foo/Bar/1"), -1L));
+        StreamCutImpl cut = new StreamCutImpl(Stream.of("Foo/Bar"), ImmutableMap.of(Segment.fromScopedName("Foo/Bar/1"), 3L));
         ByteBuffer bytes = cut.toBytes();
         StreamCut cut2 = StreamCut.fromBytes(bytes);
         assertEquals(cut, cut2);

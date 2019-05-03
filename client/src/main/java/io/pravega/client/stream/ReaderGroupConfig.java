@@ -223,8 +223,7 @@ public class ReaderGroupConfig implements Serializable {
                         .forEach(s -> {
                             if (startPositions.get(s) == -1) {
                                 Preconditions.checkArgument(endPositions.get(s) == -1,
-                                                            "Segment offset in startStreamCut should be <= segment offset in endStreamCut" +
-                                                                    "...");
+                                                            "Segment offset in startStreamCut should be <= segment offset in endStreamCut");
                             } else if (endPositions.get(s) != -1) {
                                 Preconditions.checkArgument(startPositions.get(s) <= endPositions.get(s),
                                                             "Segment offset in startStreamCut should be <= segment offset in endStreamCut.");
