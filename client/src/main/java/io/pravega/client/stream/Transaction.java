@@ -29,6 +29,12 @@ public interface Transaction<Type> {
         ABORTED
     }
 
+    enum PingStatus {
+        OPEN,
+        COMMITTED,
+        ABORTED
+    }
+
     /**
      * Returns a unique ID that can be used to identify this transaction.
      *

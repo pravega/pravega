@@ -18,6 +18,7 @@ import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -78,8 +79,9 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import lombok.extern.slf4j.Slf4j;
+import java.util.function.Predicate;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
@@ -605,11 +607,34 @@ public class ControllerImplTest {
             @Override
             public void pingTransaction(PingTxnRequest request,
                     StreamObserver<PingTxnStatus> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                switch (request.getStreamInfo().getStream()) {
+                    case "stream1":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream2":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.LEASE_TOO_LARGE).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream3":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream4":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.DISCONNECTED).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream5":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.COMMITTED).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream6":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.ABORTED).build());
+                        responseObserver.onCompleted();
+                        break;
+                    default:
+                        responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                        break;
                 }
             }
 
@@ -664,8 +689,8 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void getDelegationToken(io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo request,
-                                           io.grpc.stub.StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> responseObserver) {
+            public void getDelegationToken(StreamInfo request,
+                                           StreamObserver<Controller.DelegationToken> responseObserver) {
                 responseObserver.onNext(Controller.DelegationToken.newBuilder().setDelegationToken("token").build());
                 responseObserver.onCompleted();
             }
@@ -1128,12 +1153,36 @@ public class ControllerImplTest {
 
     @Test
     public void testPingTransaction() throws Exception {
-        CompletableFuture<Void> transaction;
-        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream1"), UUID.randomUUID(), 0);
-        assertTrue(transaction.get() == null);
 
+        Predicate<Throwable> isPingFailedException = t -> t instanceof PingFailedException;
+
+        CompletableFuture<Transaction.PingStatus> transaction;
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream1"), UUID.randomUUID(), 0);
+        assertEquals(transaction.get(), Transaction.PingStatus.OPEN);
+
+        // controller returns error with status LEASE_TOO_LARGE
         transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream2"), UUID.randomUUID(), 0);
-        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, isPingFailedException);
+
+        // controller returns error with status MAX_EXECUTION_TIME_EXCEEDED
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream3"), UUID.randomUUID(), 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, isPingFailedException);
+
+        // controller returns error with status DISCONNECTED
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream4"), UUID.randomUUID(), 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction,  isPingFailedException);
+
+        // controller returns error with status COMMITTED
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream5"), UUID.randomUUID(), 0);
+        assertEquals(transaction.get(), Transaction.PingStatus.COMMITTED);
+
+        // controller returns error with status ABORTED
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream6"), UUID.randomUUID(), 0);
+        assertEquals(transaction.get(), Transaction.PingStatus.ABORTED);
+
+        // controller fails with internal exception causing the controller client to retry.
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream7"), UUID.randomUUID(), 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, t -> t instanceof RetriesExhaustedException);
     }
 
     @Test

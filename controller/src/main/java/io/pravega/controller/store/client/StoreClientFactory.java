@@ -131,7 +131,7 @@ public class StoreClientFactory {
                     this.client.register(watcher);
                 } catch (IllegalArgumentException e) {
                     log.warn("Input argument for new ZooKeeper client ({}, {}, {}) changed with respect to existing client ({}, {}, {}).",
-                        connectString, sessionTimeout, canBeReadOnly, this.connectString, this.sessionTimeout, this.canBeReadOnly, e);
+                        connectString, sessionTimeout, canBeReadOnly, this.connectString, this.sessionTimeout, this.canBeReadOnly);
                     closeClient(client);
                 }
             }
