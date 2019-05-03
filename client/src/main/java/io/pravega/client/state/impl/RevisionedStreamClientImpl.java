@@ -144,7 +144,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 if (!hasNext()) {
                     throw new NoSuchElementException();
                 }
-                log.trace("Iterator reading entry at", offset.get());
+                log.trace("Iterator reading entry at {}", offset.get());
                 in.setOffset(offset.get());
                 try {
                     data = in.read();
