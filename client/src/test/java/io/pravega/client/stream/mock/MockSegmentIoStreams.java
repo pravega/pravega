@@ -239,4 +239,9 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     public void sealSegment() {
         //Nothing to do
     }
+
+    @Override
+    public long getLastObservedWriteOffset() {
+        return fetchCurrentSegmentLength();
+    }
 }

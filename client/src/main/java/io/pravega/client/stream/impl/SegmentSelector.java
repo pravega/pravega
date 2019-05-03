@@ -177,8 +177,8 @@ public class SegmentSelector {
     }
 
     @Synchronized
-    public List<SegmentOutputStream> getWriters() {
-        return new ArrayList<>(writers.values());
+    public Map<Segment, SegmentOutputStream> getWriters() {
+        return new HashMap<>(writers);
     }
 
 }

@@ -201,6 +201,15 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
             return segment.getScopedName();
         }
 
+        @Override
+        public long getLastObservedWriteOffset() {
+            long result = 0;
+            for (PendingEvent value : unacked) {
+                result += value.getData().capacity();
+            }
+            return result;
+        }
+
     }
 
     @NotThreadSafe
@@ -245,6 +254,11 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         @Override
         public String getSegmentName() {
             return segment.getScopedName();
+        }
+
+        @Override
+        public long getLastObservedWriteOffset() {
+            return -1;
         }
 
     }

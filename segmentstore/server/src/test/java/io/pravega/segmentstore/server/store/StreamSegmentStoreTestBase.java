@@ -391,7 +391,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                result.add(store -> store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT));
+                result.add(store -> Futures.toVoid(store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT)));
             }
 
             // Add the rest of the attribute updates.

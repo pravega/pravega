@@ -16,6 +16,7 @@ import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
@@ -37,6 +38,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -161,7 +163,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                               * inflight that will need to be resent to the new segment when the write lock
                               * is released. (To preserve order)
                               */
-                             for (SegmentOutputStream writer : selector.getWriters()) {
+                             for (SegmentOutputStream writer : selector.getWriters().values()) {
                                  try {
                                      writer.write(PendingEvent.withoutHeader(null, ByteBufferUtils.EMPTY, null));
                                      writer.flush();
@@ -372,7 +374,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
             boolean success = false;
             while (!success) {
                 success = true;
-                for (SegmentOutputStream writer : selector.getWriters()) {
+                for (SegmentOutputStream writer : selector.getWriters().values()) {
                     try {
                         writer.flush();
                     } catch (SegmentSealedException e) {
@@ -397,7 +399,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
             boolean success = false;
             while (!success) {
                 success = true;
-                for (SegmentOutputStream writer : selector.getWriters()) {
+                for (SegmentOutputStream writer : selector.getWriters().values()) {
                     try {
                         writer.close();
                     } catch (SegmentSealedException e) {
@@ -418,7 +420,13 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
 
     @Override
     public void noteTime(long timestamp) {
-        //TODO watermarking : Pass timestamp to controller.
+        Map<Segment, Long> offsets = selector.getWriters()
+                                             .entrySet()
+                                             .stream()
+                                             .collect(Collectors.toMap(e -> e.getKey(),
+                                                                       e -> e.getValue().getLastObservedWriteOffset()));
+        Position position = new PositionImpl(offsets);
+        controller.noteTimestampFromWriter(writerId, stream, timestamp, position);
         
     }
 
