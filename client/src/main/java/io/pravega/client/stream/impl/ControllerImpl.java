@@ -25,6 +25,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -32,13 +33,14 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.stream.api.grpc.v1.Controller.ContinuationToken;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -60,17 +62,21 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampFromWriter;
+import io.pravega.controller.stream.api.grpc.v1.Controller.TimestampResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.WriterShutdownRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.WriterShutdownResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
@@ -92,10 +98,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
-
 import org.slf4j.LoggerFactory;
-
-import static io.pravega.controller.stream.api.grpc.v1.Controller.ContinuationToken;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -884,7 +887,9 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId) {
+    public CompletableFuture<Void> commitTransaction(final Stream stream, final String writerId, final Long timestamp, final UUID txId) {
+        //TODO watermarking: Pass data over the wire to the controller.
+        
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
@@ -961,6 +966,67 @@ public class ControllerImpl implements Controller {
                     }
                     LoggerHelpers.traceLeave(log, "checkTransactionStatus", traceId);
                 });
+    }
+
+    @Override
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, Position lastWrittenPosition) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(stream, "stream");
+        Preconditions.checkNotNull(writer, "writer");
+        Preconditions.checkNotNull(lastWrittenPosition, "lastWrittenPosition");
+        long traceId = LoggerHelpers.traceEnter(log, "noteTimestampFromWriter", writer, stream);
+
+        final CompletableFuture<TimestampResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<TimestampResponse> callback = new RPCAsyncCallback<>(traceId, "lastWrittenPosition");
+            client.noteTimestampFromWriter(TimestampFromWriter.newBuilder()
+                                                              .setWriter(writer)
+                                                              .setTimestamp(timestamp)
+                                                              .setPosition(ModelHelper.createStreamCut(stream,
+                                                                                                       lastWrittenPosition.asImpl()))
+                                                              .build(),
+                                           callback);
+            return callback.getFuture();
+        }, this.executor);
+        return Futures.toVoidExpecting(result,
+                                       TimestampResponse.newBuilder()
+                                                        .setResult(TimestampResponse.Status.SUCCESS)
+                                                        .build(),
+                                       RuntimeException::new)
+                      .whenComplete((x, e) -> {
+                          if (e != null) {
+                              log.warn("noteTimestampFromWriter failed: ", e);
+                          }
+                          LoggerHelpers.traceLeave(log, "noteTimestampFromWriter", traceId);
+                      });
+    }
+
+    @Override
+    public CompletableFuture<Void> writerShutdown(String writerId, Stream stream) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Preconditions.checkNotNull(stream, "stream");
+        Preconditions.checkNotNull(writerId, "writerId");
+        long traceId = LoggerHelpers.traceEnter(log, "writerShutdown", writerId, stream);
+        final CompletableFuture<WriterShutdownResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<WriterShutdownResponse> callback = new RPCAsyncCallback<>(traceId, "writerShutdown");
+            client.writerShutdown(WriterShutdownRequest.newBuilder()
+                                                       .setWriter(writerId)
+                                                       .setStream(ModelHelper.createStreamInfo(stream.getScope(),
+                                                                                               stream.getStreamName()))
+                                                       .build(),
+                                  callback);
+            return callback.getFuture();
+        }, this.executor);
+        return Futures.toVoidExpecting(result,
+                                       WriterShutdownResponse.newBuilder()
+                                                             .setResult(WriterShutdownResponse.Status.SUCCESS)
+                                                             .build(),
+                                       RuntimeException::new)
+                      .whenComplete((x, e) -> {
+                          if (e != null) {
+                              log.warn("writerShutdown failed: ", e);
+                          }
+                          LoggerHelpers.traceLeave(log, "writerShutdown", traceId);
+                      });
     }
 
     @Override

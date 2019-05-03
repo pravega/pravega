@@ -435,7 +435,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
             for (int i = 0; i < writers; i++) {
                 log.info("Starting writer: {} (is transactional? {})", i, isTransactionalWriter);
                 final CompletableFuture<Void> writerFuture = isTransactionalWriter ?
-                        startWritingIntoTxn(instantiateTransactionalWriter(clientFactory, stream)) :
+                        startWritingIntoTxn(instantiateTransactionalWriter("writer-" + i, clientFactory, stream)) :
                         startWriting(instantiateWriter(clientFactory, stream));
                 Futures.exceptionListener(writerFuture, t -> log.error("Error while writing events:", t));
                 writerFutureList.add(writerFuture);
@@ -451,9 +451,10 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         return clientFactory.createEventWriter(stream, new JavaSerializer<>(), buildWriterConfig());
     }
 
-    private <T extends Serializable> TransactionalEventStreamWriter<T> instantiateTransactionalWriter(EventStreamClientFactory clientFactory,
+    private <T extends Serializable> TransactionalEventStreamWriter<T> instantiateTransactionalWriter(String writerId,
+                                                                                                      EventStreamClientFactory clientFactory,
                                                                                                       String stream) {
-        return clientFactory.createTransactionalEventWriter(stream, new JavaSerializer<>(), buildWriterConfig());
+        return clientFactory.createTransactionalEventWriter(writerId, stream, new JavaSerializer<T>(), buildWriterConfig());
     }
 
     private EventWriterConfig buildWriterConfig() {

@@ -215,7 +215,7 @@ public class FlowHandlerTest {
 
     @Test
     public void testChannelReadDataAppended() throws Exception {
-        WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1);
+        WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1, 0);
         InOrder order = inOrder(processor);
         flowHandler.channelRegistered(ctx);
         flowHandler.channelRead(ctx, dataAppendedCmd);

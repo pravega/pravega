@@ -219,7 +219,7 @@ public class EndToEndTransactionOrderTest {
         EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                           .transactionTimeoutTime(30000)
                                                           .build();
-        TransactionalEventStreamWriter<Integer> test = clientFactory.createTransactionalEventWriter("test", new IntegerSerializer(), writerConfig);
+        TransactionalEventStreamWriter<Integer> test = clientFactory.createTransactionalEventWriter(writerId, "test", new IntegerSerializer(), writerConfig);
         List<UUID> list = new LinkedList<>();
         writersList.put(writerId, list);
 

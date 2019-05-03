@@ -12,6 +12,7 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -35,7 +36,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -325,7 +325,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txnId) {
+    public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txnId) {
         return controller
                 .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
                 .thenApply(x -> null);
@@ -420,5 +420,18 @@ public class LocalController implements Controller {
         }
         return streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
+    }
+
+    @Override
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp,
+                                                           Position lastWrittenPosition) {
+        // TODO watermarking: Implement this feature in the controller and call the method here.
+        return null;
+    }
+
+    @Override
+    public CompletableFuture<Void> writerShutdown(String writerId, Stream stream) {
+        // TODO watermarking: Implement this feature in the controller and call the method here.
+        return null;
     }
 }

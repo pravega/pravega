@@ -29,6 +29,7 @@ import io.pravega.client.stream.ReaderNotInReaderGroupException;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Sequence;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
@@ -294,6 +295,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public String toString() {
         return "EventStreamReaderImpl( id=" + groupState.getReaderId() + ")";
+    }
+
+    @Override
+    public TimeWindow getCurrentTimeWindow() {
+        // TODO watermarking: return value to caller.
+        return null;
     }
     
 }
