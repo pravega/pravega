@@ -14,18 +14,16 @@ import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
 import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
 import io.pravega.test.common.TestingServerStarter;
+import java.io.IOException;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.test.TestingServer;
-import org.junit.Assert;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.junit.Assert.assertEquals;
 
@@ -41,13 +39,8 @@ public class PravegaTablesControllerServiceMainTest extends ControllerServiceMai
     }
 
     @Override
-    public void setup() {
-        try {
-            zkServer = new TestingServerStarter().start();
-        } catch (Exception e) {
-            log.error("Error starting test zk server");
-            Assert.fail("Error starting test zk server");
-        }
+    public void setup() throws Exception {
+        zkServer = new TestingServerStarter().start();
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkServer.getConnectString())
                 .initialSleepInterval(500)
@@ -59,13 +52,8 @@ public class PravegaTablesControllerServiceMainTest extends ControllerServiceMai
     }
 
     @Override
-    public void tearDown() {
-        try {
-            zkServer.close();
-        } catch (IOException e) {
-            log.error("Error stopping test zk server");
-            Assert.fail("Error stopping test zk server");
-        }
+    public void tearDown() throws IOException {
+        zkServer.close();
     }
     
     static class MockControllerServiceStarter extends ControllerServiceStarter {
@@ -104,46 +92,22 @@ public class PravegaTablesControllerServiceMainTest extends ControllerServiceMai
                 });
 
         controllerServiceMain.startAsync();
-
-        try {
-            controllerServiceMain.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for controllerServiceMain to get ready", e);
-            Assert.fail("Failed waiting for controllerServiceMain to get ready");
-        }
+        controllerServiceMain.awaitRunning();
 
         MockControllerServiceStarter controllerServiceStarter = (MockControllerServiceStarter) controllerServiceMain.awaitServiceStarting();
-        try {
-            controllerServiceStarter.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for controllerServiceStarter to get ready", e);
-            Assert.fail("Failed waiting for controllerServiceStarter to get ready");
-            return;
-        }
+        controllerServiceStarter.awaitRunning();
 
         assertEquals(1, clientQueue.size());
         CuratorFramework curatorClient = (CuratorFramework) clientQueue.poll().getClient();
         // Simulate ZK session timeout
         // we will submit zk session expiration and 
-        CompletableFuture.runAsync(() -> {
-            try {
-                curatorClient.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
-            } catch (Exception e) {
-                log.error("Failed while simulating client session expiry", e);
-                Assert.fail("Failed while simulating client session expiry");
-            }
-        });
+        curatorClient.getZookeeperClient().getZooKeeper().getTestable().injectSessionExpiration();
+
         CompletableFuture<Void> callBackCalled = new CompletableFuture<>();
         // issue a zkClient request.. 
-        CompletableFuture.runAsync(() -> {
-            try {
-                curatorClient.getData().inBackground((client1, event) -> {
-                    callBackCalled.complete(null);
-                }).forPath("/test");
-            } catch (Exception e) {
-                Assert.fail("Failed while trying to submit a background request to curator");
-            }
-        });
+        curatorClient.getData().inBackground((client1, event) -> {
+            callBackCalled.complete(null);
+        }).forPath("/test");
 
         // verify that termination is started. We will first make sure curator calls the callback before we let the 
         // ControllerServiceStarter to shutdown completely. This simulates grpc behaviour where grpc waits until all 
@@ -155,19 +119,8 @@ public class PravegaTablesControllerServiceMainTest extends ControllerServiceMai
         waitingForShutdownSignal.complete(null);
         
         // Now, that session has expired, lets wait for starter to start again.
-        try {
-            controllerServiceMain.awaitServicePausing().awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for controllerServiceStarter termination", e);
-            Assert.fail("Failed waiting for controllerServiceStarter termination");
-        }
-
-        try {
-            controllerServiceMain.awaitServiceStarting().awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for starter to get ready again", e);
-            Assert.fail("Failed waiting for controllerServiceStarter to get ready again");
-        }
+        controllerServiceMain.awaitServicePausing().awaitTerminated();
+        controllerServiceMain.awaitServiceStarting().awaitRunning();
 
         // assert that previous curator client has indeed shutdown. 
         assertEquals(curatorClient.getState(), CuratorFrameworkState.STOPPED);
@@ -177,19 +130,7 @@ public class PravegaTablesControllerServiceMainTest extends ControllerServiceMai
         assertEquals(((CuratorFramework) clientQueue.peek().getClient()).getState(), CuratorFrameworkState.STARTED);
 
         controllerServiceMain.stopAsync();
-
-        try {
-            controllerServiceMain.awaitServicePausing().awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for controllerServiceStarter termination", e);
-            Assert.fail("Failed waiting for controllerServiceStarter termination");
-        }
-
-        try {
-            controllerServiceMain.awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Failed waiting for termination of controllerServiceMain", e);
-            Assert.fail("Failed waiting for termination of controllerServiceMain");
-        }
+        controllerServiceMain.awaitServicePausing().awaitTerminated();
+        controllerServiceMain.awaitTerminated();
     }
 }

@@ -13,6 +13,7 @@ import io.pravega.client.segment.impl.NoSuchEventException;
 import io.pravega.client.stream.EventPointer;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
+import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.TimeWindow;
@@ -56,5 +57,9 @@ public class EventStreamReaderMock<T> implements EventStreamReader<T> {
     @Override
     public TimeWindow getCurrentTimeWindow() {
         return null;
+    }
+
+    @Override
+    public void closeAt(Position position) {
     }
 }

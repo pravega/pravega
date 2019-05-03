@@ -17,7 +17,7 @@ import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map.Entry;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -98,9 +98,9 @@ public class IteratorTest {
                 });
             }
 
-            CompletableFuture<Entry<String, Collection<Integer>>> result = CompletableFuture.completedFuture(
-                    new AbstractMap.SimpleEntry<>("" + endIndex, list.subList(startIndex, endIndex)));
-            return result;
+            CompletableFuture<Map.Entry<String, Collection<Integer>>> completedFuture = CompletableFuture.completedFuture(new AbstractMap.SimpleEntry<String, Collection<Integer>>(""
+                    + endIndex, list.subList(startIndex, endIndex)));
+            return completedFuture;
         }, ""));
 
         Integer next0 = iterator.getNext().join();

@@ -183,9 +183,9 @@ public interface Controller extends AutoCloseable {
      * @param stream     Stream name
      * @param txId       Transaction id
      * @param lease      Time for which transaction shall remain open with sending any heartbeat.
-     * @return           Void or PingFailedException
+     * @return           Transaction.PingStatus or PingFailedException
      */
-    CompletableFuture<Void> pingTransaction(final Stream stream, final UUID txId, final long lease);
+    CompletableFuture<Transaction.PingStatus> pingTransaction(final Stream stream, final UUID txId, final long lease);
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the
