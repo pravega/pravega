@@ -12,6 +12,7 @@ package io.pravega.local;
 import io.pravega.client.ClientConfig;
 
 import io.pravega.client.admin.StreamManager;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import javax.net.ssl.SSLHandshakeException;
@@ -55,7 +56,7 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
     ClientConfig prepareValidClientConfig() {
         return ClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                .trustStore("../config/cert.pem")
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                 .validateHostName(false)
                 .build();
     }
