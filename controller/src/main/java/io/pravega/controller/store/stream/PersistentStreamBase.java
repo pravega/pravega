@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -1188,7 +1189,7 @@ public abstract class PersistentStreamBase implements Stream {
         return Futures.exceptionallyExpecting(getActiveTx(epoch, txnId)
                 .thenCompose(txnRecord -> {
                     ActiveTxnRecord activeTxnRecord = txnRecord.getObject();
-                    assert activeTxnRecord.getTxnStatus().equals(TxnStatus.COMMITTING);
+                    Preconditions.checkArgument(activeTxnRecord.getTxnStatus().equals(TxnStatus.COMMITTING));
                     if (activeTxnRecord.getCommitOffsets().isEmpty()) {
                         ActiveTxnRecord updated = new ActiveTxnRecord(activeTxnRecord.getTxCreationTimestamp(),
                                 activeTxnRecord.getLeaseExpiryTime(),
@@ -1204,7 +1205,22 @@ public abstract class PersistentStreamBase implements Stream {
                     }
                 }), DATA_NOT_FOUND_PREDICATE, null);
     }
-    
+
+    CompletableFuture<Void> generateMarksForTransactions(List<UUID> transactions) {
+        return Futures.allOf(transactions.stream().map(txId -> {
+            int epoch = RecordHelper.getTransactionEpoch(txId);
+            return Futures.exceptionallyExpecting(getActiveTx(epoch, txId), DATA_NOT_FOUND_PREDICATE, null)
+                          .thenCompose(txnRecord -> {
+                              if (txnRecord != null && !Strings.isNullOrEmpty(txnRecord.getObject().getWriterId())) {
+                                  ActiveTxnRecord record = txnRecord.getObject();
+                                  return Futures.toVoid(noteWriterMark(record.getWriterId(), record.getCommitTime(), record.getCommitOffsets()));
+                              } else {
+                                  return CompletableFuture.completedFuture(null);
+                              }
+                          });
+        }).collect(Collectors.toList()));
+    }
+
     @VisibleForTesting
     public CompletableFuture<TxnStatus> commitTransaction(final UUID txId) {
         int epoch = RecordHelper.getTransactionEpoch(txId);
@@ -1401,7 +1417,7 @@ public abstract class PersistentStreamBase implements Stream {
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
-        CompletableFuture<Void> future = CompletableFuture.completedFuture(null);
+        CompletableFuture<Void> future = generateMarksForTransactions(record.getObject().getTransactionsToCommit());
         for (UUID txnId : record.getObject().getTransactionsToCommit()) {
             log.debug("Committing transaction {} on stream {}/{}", txnId, scope, name);
             // commit transaction in segment store

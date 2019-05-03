@@ -188,7 +188,8 @@ class PravegaTablesStream extends PersistentStreamBase {
         if (record.getObject().getTransactionsToCommit().size() == 0) {
             future = CompletableFuture.completedFuture(null);
         } else {
-            future = createCompletedTxEntries(completedRecords)
+            future = generateMarksForTransactions(record.getObject().getTransactionsToCommit())
+                .thenCompose(v -> createCompletedTxEntries(completedRecords))
                     .thenCompose(x -> getTransactionsInEpochTable(record.getObject().getEpoch())
                             .thenCompose(table -> storeHelper.removeEntries(table, completedRecords.keySet())))
                     .thenCompose(x -> tryRemoveOlderTransactionsInEpochTables(epoch -> epoch < record.getObject().getEpoch()));

@@ -526,7 +526,10 @@ interface Stream {
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommitTransactionsRecord();
 
     /**
-     * Method to delete committing transaction record from the store for a given stream.
+     * Method to reset committing transaction record from the store for a given stream.
+     * This method is also responsible for marking all involved transactions as committed. 
+     * It also generates marks for writers if applicable before marking the said transactions 
+     * as committed. 
      *
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      * @param record existing versioned record.
