@@ -94,7 +94,7 @@ public class RawClient implements AutoCloseable {
 
     public RawClient(PravegaNodeUri uri, ConnectionFactory connectionFactory) {
         this.segmentId = null;
-        this.connection = connectionFactory.establishConnection(flow, uri, responseProcessor);
+        this.connection = connectionFactory.establishConnection(uri, responseProcessor);
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
