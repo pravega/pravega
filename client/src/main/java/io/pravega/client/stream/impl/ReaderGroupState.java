@@ -81,12 +81,12 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<Segment, Set<Long>> futureSegments;
     @GuardedBy("$lock")
-    private final Map<String, Map<Segment, Long>> assignedSegments;
+    private final Map<String, Map<SegmentWithRange, Long>> assignedSegments;
     @GuardedBy("$lock")
-    private final Map<Segment, Long> unassignedSegments;
+    private final Map<SegmentWithRange, Long> unassignedSegments;
     private final Map<Segment, Long> endSegments;
     
-    ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<Segment, Long> segmentsToOffsets,
+    ReaderGroupState(String scopedSynchronizerStream, Revision revision, ReaderGroupConfig config, Map<SegmentWithRange, Long> segmentsToOffsets,
                      Map<Segment, Long> endSegments) {
         Exceptions.checkNotNullOrEmpty(scopedSynchronizerStream, "scopedSynchronizerStream");
         Preconditions.checkNotNull(revision);
@@ -112,12 +112,12 @@ public class ReaderGroupState implements Revisioned {
         long maxDistance = Long.MIN_VALUE;
         Map<String, Double> result = new HashMap<>();
         for (Entry<String, Long> entry : distanceToTail.entrySet()) {
-            Set<Segment> segments = assignedSegments.get(entry.getKey()).keySet();
+            Set<SegmentWithRange> segments = assignedSegments.get(entry.getKey()).keySet();
             if (segments != null && !segments.isEmpty()) {
                 maxDistance = Math.max(Math.max(ASSUMED_LAG_MILLIS, entry.getValue()), maxDistance);
             }
         }
-        for (Entry<String, Map<Segment, Long>> entry : assignedSegments.entrySet()) {
+        for (Entry<String, Map<SegmentWithRange, Long>> entry : assignedSegments.entrySet()) {
             if (entry.getValue().isEmpty()) {
                 result.put(entry.getKey(), 0.0);
             } else {
@@ -169,21 +169,21 @@ public class ReaderGroupState implements Revisioned {
      */
     @Synchronized
     Set<Segment> getSegments(String reader) {
-        Map<Segment, Long> segments = assignedSegments.get(reader);
+        Map<SegmentWithRange, Long> segments = assignedSegments.get(reader);
         if (segments == null) {
             return null;
         }
-        return new HashSet<>(segments.keySet());
+        return segments.keySet().stream().map(s -> s.getSegment()).collect(Collectors.toSet());
     }
     
     @Synchronized
     Map<Stream, Map<Segment, Long>> getPositions() {
         Map<Stream, Map<Segment, Long>> result = new HashMap<>();
-        for (Entry<Segment, Long> entry : unassignedSegments.entrySet()) {
-            result.computeIfAbsent(entry.getKey().getStream(), s -> new HashMap<>()).put(entry.getKey(), entry.getValue());
+        for (Entry<SegmentWithRange, Long> entry : unassignedSegments.entrySet()) {
+            result.computeIfAbsent(entry.getKey().getSegment().getStream(), s -> new HashMap<>()).put(entry.getKey().getSegment(), entry.getValue());
         }
-        for (Map<Segment, Long> assigned : assignedSegments.values()) {
-            for (Entry<Segment, Long> entry : assigned.entrySet()) {
+        for (Map<SegmentWithRange, Long> assigned : assignedSegments.values()) {
+            for (Entry<SegmentWithRange, Long> entry : assigned.entrySet()) {
                 result.computeIfAbsent(entry.getKey().getStream(), s -> new HashMap<>()).put(entry.getKey(), entry.getValue());
             }
         }
@@ -196,7 +196,7 @@ public class ReaderGroupState implements Revisioned {
     }
     
     @Synchronized
-    Map<Segment, Long> getUnassignedSegments() {
+    Map<SegmentWithRange, Long> getUnassignedSegments() {
         return new HashMap<>(unassignedSegments);
     }
 
@@ -225,8 +225,8 @@ public class ReaderGroupState implements Revisioned {
                 result.add(segment.getScopedStreamName());
             }
         }
-        for (Segment segment : unassignedSegments.keySet()) {
-            result.add(segment.getScopedStreamName());
+        for (SegmentWithRange segment : unassignedSegments.keySet()) {
+            result.add(segment.getSegment().getScopedStreamName());
         }
         return result;
     }

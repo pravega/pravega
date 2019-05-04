@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.WireCommandType;
@@ -17,6 +18,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -30,10 +32,14 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
+    @Getter
+    private final SegmentWithRange segmentWithRange;
     private final SegmentInputStream in;
 
-    EventSegmentReaderImpl(SegmentInputStream input) {
+    EventSegmentReaderImpl(SegmentWithRange segment, SegmentInputStream input) {
         Preconditions.checkNotNull(input);
+        Preconditions.checkNotNull(segment);
+        this.segmentWithRange = segment;
         this.in = input;
     }
 
@@ -56,14 +62,14 @@ class EventSegmentReaderImpl implements EventSegmentReader {
     @Synchronized
     public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         long originalOffset = in.getOffset();
-        long traceId = LoggerHelpers.traceEnter(log, "read", getSegmentId(), originalOffset, timeout);
+        long traceId = LoggerHelpers.traceEnter(log, "read", in.getSegmentId(), originalOffset, timeout);
         boolean success = false;
         try {
             ByteBuffer result = readEvent(timeout);
             success = true;
             return result;
         } finally {
-            LoggerHelpers.traceLeave(log, "read", traceId, getSegmentId(), originalOffset, timeout, success);
+            LoggerHelpers.traceLeave(log, "read", traceId, in.getSegmentId(), originalOffset, timeout, success);
             if (!success) {
                 in.setOffset(originalOffset);
             }
@@ -108,11 +114,6 @@ class EventSegmentReaderImpl implements EventSegmentReader {
     public void close() {
         in.close();
     }    
-
-    @Override
-    public Segment getSegmentId() {
-        return in.getSegmentId();
-    }
 
     @Override
     @Synchronized

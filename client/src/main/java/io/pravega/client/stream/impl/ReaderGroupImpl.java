@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -306,6 +307,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
     }
 
     @Override
+    @VisibleForTesting
     public Map<Stream, StreamCut> getStreamCuts() {
         synchronizer.fetchUpdates();
         ReaderGroupState state = synchronizer.getState();
