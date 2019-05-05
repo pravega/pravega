@@ -20,6 +20,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.List;
@@ -413,7 +414,9 @@ interface Stream {
      */
     CompletableFuture<SimpleEntry<TxnStatus, Integer>> sealTransaction(final UUID txId,
                                                                        final boolean commit,
-                                                                       final Optional<Version> version);
+                                                                       final Optional<Version> version,
+                                                                       final String writerId,
+                                                                       final long timestamp);
 
     /**
      * Returns transaction's status
@@ -523,13 +526,25 @@ interface Stream {
     CompletableFuture<VersionedMetadata<CommittingTransactionsRecord>> getVersionedCommitTransactionsRecord();
 
     /**
-     * Method to delete committing transaction record from the store for a given stream.
+     * Method to reset committing transaction record from the store for a given stream.
+     * This method is also responsible for marking all involved transactions as committed. 
+     * It also generates marks for writers if applicable before marking the said transactions 
+     * as committed. 
      *
      * @return A completableFuture which, when completed, will mean that deletion of txnCommitNode is complete.
      * @param record existing versioned record.
      */
     CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record);
 
+    /**
+     * Method to record commit offset for a transaction. This method stores the commit offset in ActiveTransaction record. 
+     * Its behaviour is idempotent and if a transaction already has commitOffsets set earlier, they are not overwritten. 
+     * @param txnId transaction id
+     * @param commitOffsets segment to offset position where transaction was committed
+     * @return A completableFuture which, when completed, will have transaction commit offset recorded successfully.
+     */
+    CompletableFuture<Void> recordCommitOffsets(UUID txnId, Map<Long, Long> commitOffsets);
+    
     /**
      * This method attempts to create a new Waiting Request node and set the processor's name in the node.
      * If a node already exists, this attempt is ignored.
@@ -554,6 +569,36 @@ interface Stream {
      * @return CompletableFuture which indicates completion of processing.
      */
     CompletableFuture<Void> deleteWaitingRequestConditionally(String processorName);
+
+    /**
+     * Method to record writer's mark in the metadata store. If this is a known writer, its mark is updated if it advances 
+     * both time and position from the previously recorded position.    
+     * @param writer writer id
+     * @param timestamp mark timestamp
+     * @param position writer position 
+     * @return A completableFuture, which when completed, will have recorded the new mark for the writer. 
+     */
+    CompletableFuture<WriterTimestampResponse> noteWriterMark(String writer, long timestamp, Map<Long, Long> position);
+
+    /**
+     * Method to remove writer specific metadata from the metadata store. Remove method is idempotent. 
+     * @param writer writer id
+     * @return A completableFuture, which when completed, will have removed writer metadata. 
+     */
+    CompletableFuture<Void> removeWriter(String writer);
+
+    /**
+     * Method to retrieve writer's latest recorded mark.  
+     * @param writer writer id
+     * @return A completableFuture, which when completed, will contain writer's mark.  
+     */
+    CompletableFuture<WriterMark> getWriterMark(String writer);
+
+    /**
+     * Method to retrieve latest recorded mark for all known writers.  
+     * @return A completableFuture, which when completed, will contain map of writer to respective marks.  
+     */
+    CompletableFuture<Map<String, WriterMark>> getAllWritersMarks();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.

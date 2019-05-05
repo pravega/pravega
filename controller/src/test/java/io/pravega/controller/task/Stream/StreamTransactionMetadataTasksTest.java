@@ -296,12 +296,12 @@ public class StreamTransactionMetadataTasksTest {
 
         // Change state of one txn to COMMITTING.
         TxnStatus txnStatus2 = streamStore.sealTransaction(SCOPE, STREAM, tx2.getId(), true, Optional.empty(),
-                null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
+                "", Long.MIN_VALUE, null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.COMMITTING, txnStatus2);
 
         // Change state of another txn to ABORTING.
         TxnStatus txnStatus3 = streamStore.sealTransaction(SCOPE, STREAM, tx3.getId(), false, Optional.empty(),
-                null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
+                "", Long.MIN_VALUE, null, executor).thenApply(AbstractMap.SimpleEntry::getKey).join();
         Assert.assertEquals(TxnStatus.ABORTING, txnStatus3);
 
         // Create transaction tasks for sweeping txns from failedHost.

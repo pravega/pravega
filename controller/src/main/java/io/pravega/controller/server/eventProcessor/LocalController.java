@@ -331,7 +331,7 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txnId) {
         return controller
-                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId), writerId, timestamp)
                 .thenApply(x -> null);
     }
 

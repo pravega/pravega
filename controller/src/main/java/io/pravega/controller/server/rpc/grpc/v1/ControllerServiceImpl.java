@@ -333,7 +333,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        request.getTxnId(), request.getWriterId(), request.getTimestamp()),
                 responseObserver);
     }
 
@@ -432,6 +432,37 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
+    // region watermarking apis
+
+    @Override
+    public void writerShutdown(Controller.WriterShutdownRequest request, StreamObserver<Controller.WriterShutdownResponse> responseObserver) {
+        StreamInfo streamInfo = request.getStream();
+        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter());
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.shutdownWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter()),
+                responseObserver);
+    }
+
+    @Override
+    public void noteTimestampFromWriter(Controller.TimestampFromWriter request, StreamObserver<Controller.TimestampResponse> responseObserver) {
+        StreamInfo streamInfo = request.getPosition().getStreamInfo();
+        log.info("noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter(), request.getTimestamp());
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.noteTimestampFromWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter(), request.getTimestamp(), request.getPosition().getCutMap()),
+                responseObserver);
+    }
+
+
+    // endregion
+    
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver, RequestTag requestTag) {

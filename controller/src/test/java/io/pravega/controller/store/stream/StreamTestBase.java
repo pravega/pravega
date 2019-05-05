@@ -97,7 +97,7 @@ public abstract class StreamTestBase {
     private UUID createAndCommitTransaction(Stream stream, int msb, long lsb) {
         return stream.generateNewTxnId(msb, lsb)
                      .thenCompose(x -> stream.createTransaction(x, 1000L, 1000L))
-                     .thenCompose(y -> stream.sealTransaction(y.getId(), true, Optional.empty())
+                     .thenCompose(y -> stream.sealTransaction(y.getId(), true, Optional.empty(), "", Long.MIN_VALUE)
                                              .thenApply(z -> y.getId())).join();
     }
 

@@ -62,4 +62,9 @@ public class EventStreamReaderMock<T> implements EventStreamReader<T> {
     @Override
     public void closeAt(Position position) {
     }
+    
+    @Override  
+    public TimeWindow getCurrentTimeWindow() {
+        return null;
+    }
 }

@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.records.ActiveTxnRecord;
@@ -28,6 +29,7 @@ import io.pravega.controller.store.stream.records.StateRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.util.Config;
 
 import javax.annotation.concurrent.GuardedBy;
@@ -98,6 +100,11 @@ public class InMemoryStream extends PersistentStreamBase {
      */
     @GuardedBy("txnsLock")
     private final Map<Integer, Set<UUID>> epochTxnMap = new HashMap<>();
+
+    private final Object writersLock = new Object();
+
+    @GuardedBy("writersLock")
+    private final Map<String, VersionedMetadata<WriterMark>> writerMarks = new HashMap<>();
 
     InMemoryStream(String scope, String name) {
         this(scope, name, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS).toMillis());
@@ -710,7 +717,7 @@ public class InMemoryStream extends PersistentStreamBase {
                     activeTxns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject()))));
         }
     }
-
+    
     @Override
     CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
         List<Long> toPurge = new ArrayList<>();
@@ -957,6 +964,78 @@ public class InMemoryStream extends PersistentStreamBase {
             this.waitingRequestNode = null;
         }
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    CompletableFuture<Void> createWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        WriterMark mark = new WriterMark(timestamp, position);
+
+        synchronized (writersLock) {
+            VersionedMetadata<WriterMark> existing = writerMarks.get(writer);
+            if (existing != null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_EXISTS, "writer mark exists"));
+            } else {
+                writerMarks.put(writer, new VersionedMetadata<>(mark, new Version.IntVersion(0)));
+                result.complete(null);
+            }
+        }
+        
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriter(String writer) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        
+        synchronized (writersLock) {
+            writerMarks.remove(writer);
+        }
+        
+        return result;
+    }
+
+    @Override
+    CompletableFuture<VersionedMetadata<WriterMark>> getWriterMarkRecord(String writer) {
+        CompletableFuture<VersionedMetadata<WriterMark>> result = new CompletableFuture<>();
+        
+        synchronized (writersLock) {
+            VersionedMetadata<WriterMark> mark = writerMarks.get(writer);
+            if (mark == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "writer mark not found"));
+            } else {
+                result.complete(mark);
+            }
+        }
+        
+        return result;
+    }
+
+    @Override
+    public CompletableFuture<Map<String, WriterMark>> getAllWritersMarks() {
+        Map<String, WriterMark> result;
+        synchronized (writersLock) {
+            result = writerMarks.entrySet().stream().collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().getObject()));
+        }
+        return CompletableFuture.completedFuture(result);
+    }
+
+    @Override
+    CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, Version version) {
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        VersionedMetadata<WriterMark> updatedCopy = updatedCopy(new VersionedMetadata<>(new WriterMark(timestamp, position), version));
+        synchronized (writersLock) {
+            VersionedMetadata<WriterMark> existing = writerMarks.get(writer);
+            if (existing == null) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "writer mark not found"));
+            } else if (!Objects.equals(existing.getVersion(), version)) {
+                result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT, "writer mark version mismatch"));
+            } else {
+                this.writerMarks.put(writer, existing);
+                result.complete(null);
+            }
+        }
+        return result;
     }
 
     private <T> VersionedMetadata<T> updatedCopy(VersionedMetadata<T> input) {

@@ -31,6 +31,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
@@ -593,10 +594,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                                               final UUID txId,
                                                                               final boolean commit,
                                                                               final Optional<Version> version,
+                                                                              final String writerId,
+                                                                              final long timestamp,
                                                                               final OperationContext context,
                                                                               final Executor executor) {
         return withCompletion(getStream(scopeName, streamName, context)
-                .sealTransaction(txId, commit, version), executor);
+                .sealTransaction(txId, commit, version, writerId, timestamp), executor);
     }
 
     @Override
@@ -736,6 +739,12 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
+    public CompletableFuture<Void> recordCommitOffsets(String scope, String stream, UUID txnId, Map<Long, Long> commitOffsets, 
+                                                       OperationContext context, ScheduledExecutorService executor) {
+        return withCompletion(getStream(scope, stream, context).recordCommitOffsets(txnId, commitOffsets), executor);
+    }
+
+    @Override
     public CompletableFuture<Void> completeCommitTransactions(String scope, String stream, VersionedMetadata<CommittingTransactionsRecord> record,
                                                               OperationContext context, ScheduledExecutorService executor) {
         Stream streamObj = getStream(scope, stream, context);
@@ -761,6 +770,31 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     public CompletableFuture<Void> deleteWaitingRequestConditionally(String scope, String stream, String processorName,
                                                                      OperationContext context, ScheduledExecutorService executor) {
         return withCompletion(getStream(scope, stream, context).deleteWaitingRequestConditionally(processorName), executor);
+    }
+
+    @Override
+    public CompletableFuture<WriterTimestampResponse> noteWriterMark(String scope, String stream, String writer,
+                                                                     long timestamp, Map<Long, Long> position,
+                                                                     OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).noteWriterMark(writer, timestamp, position), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriter(String scope, String stream, String writer,
+                                                       OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).removeWriter(writer), executor);
+    }
+
+    @Override
+    public CompletableFuture<WriterMark> getWriterMark(String scope, String stream, String writer,
+                                                       OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getWriterMark(writer), executor);
+    }
+
+    @Override
+    public CompletableFuture<Map<String, WriterMark>> getAllWritersMarks(String scope, String stream, 
+                                                                         OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getAllWritersMarks(), executor);
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {
