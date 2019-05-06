@@ -36,7 +36,6 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import static io.pravega.test.system.framework.Utils.DOCKER_BASED;
@@ -44,7 +43,6 @@ import static org.junit.Assert.assertEquals;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-@Ignore
 public class MultiControllerTest extends AbstractSystemTest {
 
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();

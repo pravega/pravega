@@ -34,7 +34,6 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -46,7 +45,6 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-@Ignore
 public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
 
     private static final int NUM_SCOPES = 3;
