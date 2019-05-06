@@ -484,7 +484,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }
     }
 
-    private <T> void closeReader(EventStreamReader<T> reader) {
+    protected <T> void closeReader(EventStreamReader<T> reader) {
         try {
             log.info("Closing reader");
             reader.close();

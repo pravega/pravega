@@ -13,6 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
+import io.pravega.client.stream.Checkpoint;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.ReaderConfig;
@@ -46,8 +47,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -61,6 +65,7 @@ import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -79,9 +84,11 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     private static final int READ_TIMEOUT = 5 * 1000;
 
     @Rule
-    public final Timeout globalTimeout = Timeout.seconds(10 * 60);
+    public final Timeout globalTimeout = Timeout.seconds(15 * 60);
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
     private final ScheduledExecutorService streamCutExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "streamCutExecutor");
+    private final ScheduledExecutorService chkPointExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "chkPointExecutor");
+    private final ScheduledExecutorService readerExecutor = ExecutorServiceHelpers.newScheduledThreadPool(4, "readerPool");
     private URI controllerURI = null;
     private StreamManager streamManager = null;
     private Controller controller = null;
@@ -197,7 +204,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
 
         // Ensure that reader groups can correctly read slice by slice from different Streams.
         readSliceBySliceAndVerify(readerGroupManager, clientFactory, parallelSegments, streamSlices);
-        log.info("Finished checking sequentially slice by slice.");
+            log.info("Finished checking sequentially slice by slice.");
 
         // Perform different combinations of StreamCuts and verify that read event boundaries are still correct.
         combineSlicesAndVerify(readerGroupManager, clientFactory, parallelSegments, streamSlices);
@@ -211,8 +218,10 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                                                               .endingStreamCuts(streamSlices.get(streamSlices.size() - 1)).build();
         readerGroup.resetReaderGroup(firstSliceConfig);
         log.info("Resetting existing reader group {} to stream cut {}.", READER_GROUP, initialPosition);
-        final int readEvents = readEventFutures(clientFactory, readerGroup.getGroupName(),
-                parallelSegments).stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get();
+//        final int readEvents = readEventFutures(clientFactory, readerGroup.getGroupName(),
+//                parallelSegments).stream().map(CompletableFuture::join).reduce((a, b) -> a + b).get();
+        final int readEvents = readAllEvents(readerGroupManager, clientFactory, readerGroup.getGroupName(), parallelSegments,
+                                             Integer.MAX_VALUE ).stream().map(CompletableFuture::join).reduce(Integer::sum).get();
         assertEquals("Expected read events: ", TOTAL_EVENTS / 2, readEvents);
         return streamSlices;
     }
@@ -256,9 +265,12 @@ public class StreamCutsTest extends AbstractReadWriteTest {
                 manager.createReaderGroup(readerGroupId, configBuilder.build());
                 log.debug("Reading events between starting StreamCut {} and ending StreamCut {}",
                           configBuilder.build().getStartingStreamCuts(), endingPoint);
-                readEvents = readEventFutures(clientFactory, readerGroupId, parallelSegments).stream()
-                                                                                             .map(CompletableFuture::join)
-                                                                                             .reduce((a, b) -> a + b).get();
+//                readEvents = readEventFutures(clientFactory, readerGroupId, parallelSegments).stream()
+//                                                                                             .map(CompletableFuture::join)
+//                                                                                             .reduce((a, b) -> a + b).get();
+                readEvents = readAllEvents(manager, clientFactory, readerGroupId, parallelSegments, Integer.MAX_VALUE).stream()
+                                                                                                                      .map(CompletableFuture::join)
+                                                                                                                      .reduce(Integer::sum).get();
                 log.debug("Read events by group {}: {}.", readerGroupId, readEvents);
                 assertEquals("Expected events read: ", combinationCutSize * CUT_SIZE, readEvents);
                 combinationCutSize++;
@@ -286,9 +298,12 @@ public class StreamCutsTest extends AbstractReadWriteTest {
             // Create a new reader group per stream cut slice and read in parallel only events within the cut.
             final String readerGroupId = READER_GROUP + String.valueOf(i) + "-" + System.nanoTime();
             manager.createReaderGroup(readerGroupId, configBuilder);
-            readEvents = readEventFutures(clientFactory, readerGroupId, parallelSegments).stream()
-                                                                                         .map(CompletableFuture::join)
-                                                                                         .reduce((a, b) -> a + b).get();
+            readEvents = readAllEvents(manager, clientFactory, readerGroupId, parallelSegments, Integer.MAX_VALUE).stream()
+                                                                                                                  .map(CompletableFuture::join)
+                                                                                                                  .reduce(Integer::sum).get();
+//            readEvents = readEventFutures(clientFactory, readerGroupId, parallelSegments).stream()
+//                                                                                         .map(CompletableFuture::join)
+//                                                                                         .reduce((a, b) -> a + b).get();
             log.debug("Read events by group {}: {}.", readerGroupId, readEvents);
             assertEquals("Expected events read: ", CUT_SIZE, readEvents);
         }
@@ -365,6 +380,55 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         } else {
             Assert.fail("Scale operation threw an exception");
         }
+    }
+
+    List<CompletableFuture<Integer>> readAllEvents(ReaderGroupManager rgMgr, EventStreamClientFactory client, String rGroupId,
+                                                int numberOfSegments, int limit) {
+        return IntStream.range(0, numberOfSegments)
+                        .mapToObj(i -> CompletableFuture.supplyAsync(() -> createReaderAndReadEvents(rgMgr, client, rGroupId, limit, i),
+                                                                        readerExecutor))
+                        .collect(Collectors.toList());
+
+    }
+
+    private <T extends Serializable> int createReaderAndReadEvents(ReaderGroupManager rgMgr, EventStreamClientFactory client,
+                                                                   String rGroupId, int limit, int readerIndex) {
+        // create a reader.
+        EventStreamReader<T> reader = client.createReader(rGroupId + "-" + readerIndex, rGroupId, new JavaSerializer<>(),
+                                                          ReaderConfig.builder().build());
+        EventRead<T> event = null;
+        int validEvents = 0;
+        AtomicBoolean sealedSegmentUpdated = new AtomicBoolean(false);
+        try {
+            do {
+                try {
+                    event = reader.readNextEvent(READ_TIMEOUT);
+                    log.debug("Read event result in readEvents: {}.", event.getEvent());
+                    if (event.getEvent() == null && !event.isCheckpoint() && !sealedSegmentUpdated.get()) {
+                        // initiate a checkpoint to ensure all sealed segments are acquired by the reader.
+                        ReaderGroup readerGroup = rgMgr.getReaderGroup(rGroupId);
+                        CompletableFuture<Checkpoint> chkPointFuture = readerGroup.initiateCheckpoint("chkPoint", chkPointExecutor);
+                        chkPointFuture.whenComplete( (checkpoint, t) -> {
+                            if (t != null) {
+                                log.error("Checkpoint operation failed", t);
+                            } else{
+                                log.info("Checkpoint {} completed", checkpoint);
+                                sealedSegmentUpdated.set(true);
+                            }
+                        });
+                    }
+                    if (event.getEvent() != null) {
+                        validEvents++;
+                    }
+                } catch (ReinitializationRequiredException e) {
+                    log.error("Reinitialization Exception while reading event using readerId: {}", reader, e);
+                    fail("Reinitialization Exception is not expected");
+                }
+            } while (((event.getEvent() != null || event.isCheckpoint() || !sealedSegmentUpdated.get()) && validEvents < limit));
+        } finally {
+            closeReader(reader);
+        }
+        return validEvents;
     }
 
     // End utils region
