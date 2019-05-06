@@ -307,6 +307,25 @@ public class EventProcessorTest {
         cell.startAsync();
         cell.awaitTerminated();
         Assert.assertTrue(true);
+
+        // Test case 6. Close event processor cell when reader/checkpoint store throw exceptions.
+        Mockito.doThrow(new IllegalArgumentException("Failing reader")).when(reader).closeAt(any());
+        checkpointStore = Mockito.spy(checkpointStore);
+        Mockito.doThrow(new IllegalArgumentException("Failing checkpointStore"))
+               .when(checkpointStore)
+               .removeReader(anyString(), anyString(), anyString());
+        eventProcessorConfig = EventProcessorConfig.<TestEvent>builder()
+                .supplier(StartFailingEventProcessor::new)
+                .serializer(new EventSerializer<>())
+                .decider((Throwable e) -> ExceptionHandler.Directive.Stop)
+                .config(config)
+                .build();
+        checkpointStore.addReader(PROCESS, READER_GROUP, READER_ID);
+        cell = new EventProcessorCell<>(eventProcessorConfig, reader, new EventStreamWriterMock<>(), system.getProcess(),
+                READER_ID, 0, checkpointStore);
+        cell.startAsync();
+        cell.awaitTerminated();
+        Assert.assertTrue(true);
     }
 
     @Test(timeout = 10000)

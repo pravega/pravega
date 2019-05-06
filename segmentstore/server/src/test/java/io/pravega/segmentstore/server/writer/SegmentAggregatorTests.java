@@ -653,6 +653,62 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Tests the flush() method with a sequence of {@link MergeSegmentOperation}, {@link UpdateAttributesOperation} and
+     * {@link StreamSegmentAppendOperation}.
+     *
+     * This combination will cause the SegmentAggregator to have two operations in its queue: a {@link MergeSegmentOperation}
+     * and an AggregatedAppendOperation. The AggregatedAppendOperation is generated from the {@link UpdateAttributesOperation}
+     * which does not have a StorageOffset - this test verifies it correctly picks up the maximum value between
+     * StorageOffset and LastAddedOffset.
+     */
+    @Test
+    public void testFlushUpdateAttributesWithMergersAndAppends() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+
+        @Cleanup
+        ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+        @Cleanup
+        TestContext context = new TestContext(config);
+        val toMerge = context.transactionAggregators[0];
+        context.segmentAggregator.initialize(TIMEOUT).join();
+        toMerge.initialize(TIMEOUT).join();
+
+        // Write something to the source segment, then flush it to Storage.
+        val sourceAppendOp = generateAppendAndUpdateMetadata(0, toMerge.getMetadata().getId(), context);
+        toMerge.add(sourceAppendOp);
+        getAppendData(sourceAppendOp, writtenData, context);
+        toMerge.add(generateSealAndUpdateMetadata(toMerge.getMetadata().getId(), context));
+        flushAllSegments(context);
+
+        // Merge the Source Segment, then add an UpdateAttributesOperation followed by a SegmentAppendOperation.
+        context.segmentAggregator.add(generateMergeTransactionAndUpdateMetadata(toMerge.getMetadata().getId(), context));
+        context.segmentAggregator.add(generateUpdateAttributesAndUpdateMetadata(SEGMENT_ID, context));
+        val appendOp = generateAppendAndUpdateMetadata(0, SEGMENT_ID, context);
+        context.segmentAggregator.add(appendOp);
+        getAppendData(appendOp, writtenData, context);
+        WriterFlushResult mergeFlushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        AssertExtensions.assertGreaterThan("Expecting a merger to happen now.", 0, mergeFlushResult.getMergedBytes());
+
+        // Call flush() and inspect the result.
+        context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+        Assert.assertTrue("Unexpected value returned by mustFlush().", context.segmentAggregator.mustFlush());
+        WriterFlushResult flushResult = context.segmentAggregator.flush(TIMEOUT).join();
+        Assert.assertEquals("Expecting one attribute to be flushed.", 1, flushResult.getFlushedAttributes());
+        Assert.assertFalse("Unexpected value returned by mustFlush() after flush (time threshold).", context.segmentAggregator.mustFlush());
+
+        // Check data in storage.
+        byte[] expectedData = writtenData.toByteArray();
+        byte[] actualData = new byte[expectedData.length];
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
+        Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageLength);
+        context.storage.read(readHandle(context.segmentAggregator.getMetadata().getName()), 0, actualData, 0, actualData.length, TIMEOUT).join();
+        Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+
+        // Check attributes.
+        checkAttributes(context);
+    }
+
+    /**
      * Tests the flush() method with UpdateAttributeOperations.
      */
     @Test
