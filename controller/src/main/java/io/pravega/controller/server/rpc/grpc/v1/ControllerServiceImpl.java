@@ -13,6 +13,7 @@ import com.google.common.base.Throwables;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.AuthorizationException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
@@ -223,7 +224,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getSegmentsBetweenStreamCuts called for stream {} for cuts from {} to {}", request.getStreamInfo(), request.getFromMap(), request.getToMap());
         String scope = request.getStreamInfo().getScope();
         String stream = request.getStreamInfo().getStream();
-        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getSegmentsBetweenStreamCuts(request)
                         .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
@@ -456,12 +457,20 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             streamObserver.onCompleted();
                         }
                     });
-        } catch (Exception e) {
-            log.error("Controller api failed with authenticator error");
+        } catch (RuntimeException e) {
+            log.warn(e.getMessage(), e);
             logAndUntrackRequestTag(requestTag);
-            streamObserver.onError(Status.UNAUTHENTICATED
-                    .withDescription("Authentication failed")
-                    .asRuntimeException());
+
+            Throwable cause = e.getCause();
+            if (cause instanceof AuthorizationException) {
+                streamObserver.onError(Status.UNAUTHENTICATED
+                        .withDescription("Authentication failed")
+                        .asRuntimeException());
+            } else {
+                streamObserver.onError(Status.INTERNAL
+                        .withDescription(cause.getMessage())
+                        .asRuntimeException());
+            }
         }
     }
 
