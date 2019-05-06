@@ -77,7 +77,7 @@ public class StreamCutsTest extends AbstractReadWriteTest {
     private static final String SCOPE = "testStreamcutsStreamScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private static final String READER_GROUP = "testStreamcutsStreamRG" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
 
-    private static final int TOTAL_EVENTS = 4000;
+    private static final int TOTAL_EVENTS = 2000;
     private static final int CUT_SIZE = 400;
     private static final int SCALE_WAIT_SECONDS = 30 * 1000;
     private static final int READ_TIMEOUT = 5 * 1000;
