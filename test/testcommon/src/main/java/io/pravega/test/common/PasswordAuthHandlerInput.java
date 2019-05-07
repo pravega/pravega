@@ -75,6 +75,3 @@ public class PasswordAuthHandlerInput {
         private final String acl;
     }
 }
-
-
-
