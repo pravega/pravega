@@ -13,7 +13,6 @@ import com.google.common.base.Throwables;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
-import io.pravega.auth.AuthorizationException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
 import io.pravega.common.hash.RandomFactory;
@@ -446,7 +445,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         logAndUntrackRequestTag(requestTag);
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
-                            log.error("Controller api failed with error: ", ex);
+                            log.error("Controller api failed with error. " + ex.getMessage(), ex);
                             String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
                             streamObserver.onError(Status.INTERNAL
                                     .withCause(cause)
@@ -457,20 +456,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             streamObserver.onCompleted();
                         }
                     });
-        } catch (RuntimeException e) {
-            log.warn(e.getMessage(), e);
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
             logAndUntrackRequestTag(requestTag);
-
-            Throwable cause = e.getCause();
-            if (cause instanceof AuthorizationException) {
-                streamObserver.onError(Status.UNAUTHENTICATED
-                        .withDescription("Authentication failed")
-                        .asRuntimeException());
-            } else {
-                streamObserver.onError(Status.INTERNAL
-                        .withDescription(cause.getMessage())
-                        .asRuntimeException());
-            }
+            streamObserver.onError(Status.UNAUTHENTICATED
+                    .withDescription("Authentication failed")
+                    .asRuntimeException());
         }
     }
 
