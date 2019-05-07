@@ -21,7 +21,8 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * This is a helper class for use in tests for creating and representing file used in PasswordAuthHandler.
+ * This is a helper class for tests and may be used for generating the input file for the PasswordAuthHandler - the
+ * default AuthHandler implementation.
  */
 public class PasswordAuthHandlerInput {
 
@@ -40,11 +41,11 @@ public class PasswordAuthHandlerInput {
         }
     }
 
-    public void addEntry(Entry entry) {
-        addEntries(Arrays.asList(entry));
+    public void postEntry(Entry entry) {
+        postEntries(Arrays.asList(entry));
     }
 
-    public void addEntries(List<Entry> entries) {
+    public void postEntries(List<Entry> entries) {
         try (FileWriter writer = new FileWriter(inputFile.getAbsolutePath())) {
             entries.forEach(e -> {
                 try {
@@ -69,11 +70,9 @@ public class PasswordAuthHandlerInput {
     @Data(staticConstructor="of")
     public static class Entry {
 
-         private final String username;
-
-         private final String password;
-
-         private final String acl;
+        private final String username;
+        private final String password;
+        private final String acl;
     }
 }
 
