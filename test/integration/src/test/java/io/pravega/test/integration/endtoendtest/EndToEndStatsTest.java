@@ -39,8 +39,8 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import lombok.Cleanup;
 import lombok.Getter;
@@ -144,7 +144,7 @@ public class EndToEndStatsTest {
 
         // A placeholder to keep strong references to metric objects, as caching is skipped in the test.
         // Note Micrometer registry holds weak references only, so there is chance metric objects without strong references might be garbage collected.
-        private List<Meter> references = Collections.synchronizedList(new LinkedList<Meter>());
+        private List<Meter> references = Collections.synchronizedList(new ArrayList<Meter>());
 
         @Override
         public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
