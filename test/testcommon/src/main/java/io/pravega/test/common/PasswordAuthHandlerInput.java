@@ -59,7 +59,7 @@ public class PasswordAuthHandlerInput {
         }
     }
 
-    private String credentialsAndAclString (Entry entry) {
+    private String credentialsAndAclString(Entry entry) {
         Preconditions.checkArgument(!Strings.isNullOrEmpty(entry.username)
                 && !Strings.isNullOrEmpty(entry.password)
                 && entry.acl != null
@@ -67,7 +67,7 @@ public class PasswordAuthHandlerInput {
         return String.format("%s:%s:%s%n", entry.username, entry.password, entry.acl);
     }
 
-    @Data(staticConstructor="of")
+    @Data(staticConstructor = "of")
     public static class Entry {
 
         private final String username;

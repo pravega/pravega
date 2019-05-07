@@ -35,17 +35,17 @@ import java.security.spec.InvalidKeySpecException;
  */
 public class BatchClientWithAuthTest extends BatchClientTest {
 
-    private static final File pwdAuthHandlerInput = createAuthFile();
+    private static final File PASSWORD_AUTHHANDLER_INPUT = createAuthFile();
 
     @AfterClass
     public static void classTearDown() {
-        if (pwdAuthHandlerInput.exists()) {
-            pwdAuthHandlerInput.delete();
+        if (PASSWORD_AUTHHANDLER_INPUT.exists()) {
+            PASSWORD_AUTHHANDLER_INPUT.delete();
         }
     }
 
     @Override
-    protected ClientConfig createClientConfig () {
+    protected ClientConfig createClientConfig() {
         return ClientConfig.builder()
                     .controllerURI(URI.create(this.controllerUri()))
                     .credentials(new DefaultCredentials("1111_aaaa", "admin"))
@@ -70,7 +70,7 @@ public class BatchClientWithAuthTest extends BatchClientTest {
         return new ControllerWrapper(zkTestServer.getConnectString(),
                 false, true,
                 controllerPort, serviceHost, servicePort, containerCount, -1,
-                true, pwdAuthHandlerInput.getPath(), "secret");
+                true, PASSWORD_AUTHHANDLER_INPUT.getPath(), "secret");
     }
 
     @Test

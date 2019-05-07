@@ -80,9 +80,10 @@ public class BatchClientTest {
     protected final int servicePort = TestUtils.getAvailableListenPort();
     protected final int containerCount = 4;
 
+    protected TestingServer zkTestServer;
+
     private final Random random = RandomFactory.create();
 
-    protected TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
