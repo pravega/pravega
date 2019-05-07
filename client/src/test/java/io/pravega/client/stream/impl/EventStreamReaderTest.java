@@ -282,8 +282,6 @@ public class EventStreamReaderTest {
                .thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(segment1))
                .thenReturn(Long.MAX_VALUE);
-        Mockito.when(groupState.getEndOffsetForSegment(segment2))
-               .thenReturn(Long.MAX_VALUE);
         SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, "");
         SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, "");
         writeInt(stream1, 1);
