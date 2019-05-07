@@ -530,15 +530,15 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
-    public void getSegmentsImmediatlyFollowingTest() {
+    public void getSegmentsImmediatelyFollowingTest() {
         scaleTest();
         ResultObserver<SuccessorResponse> result = new ResultObserver<>();
-        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), result);
+        this.controllerService.getSegmentsImmediatelyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), result);
         final SuccessorResponse successorResponse = result.get();
         Assert.assertEquals(2, successorResponse.getSegmentsCount());
 
         ResultObserver<SuccessorResponse> result2 = new ResultObserver<>();
-        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
+        this.controllerService.getSegmentsImmediatelyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
                 result2);
         final SuccessorResponse successorResponse2 = result2.get();
         Assert.assertEquals(0, successorResponse2.getSegmentsCount());
