@@ -308,12 +308,9 @@ public class ReaderGroupStateManager {
             if (!state.isReaderOnline(readerId)) {
                 throw new ReaderNotInReaderGroupException(readerId);
             }
-
             if (acquireTimer.hasRemaining()) {
-                log.info("==> acquireTime has remaining {}", acquireTimer.getRemaining());
                 return false;
             }
-
             if (state.getCheckpointForReader(readerId) != null) {
                 return false;
             }
