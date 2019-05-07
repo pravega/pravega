@@ -69,10 +69,7 @@ public class BatchClientWithAuthTest extends BatchClientTest {
     protected ControllerWrapper createControllerWrapper() {
         return new ControllerWrapper(zkTestServer.getConnectString(),
                 false, true,
-                controllerPort,
-                serviceHost,
-                servicePort,
-                containerCount, -1,
+                controllerPort, serviceHost, servicePort, containerCount, -1,
                 true, pwdAuthHandlerInput.getPath(), "secret");
     }
 
@@ -89,17 +86,15 @@ public class BatchClientWithAuthTest extends BatchClientTest {
     }
 
     private static File createAuthFile() {
-        PasswordAuthHandlerInput inputFile = new PasswordAuthHandlerInput("BatchClientAuth",
-                ".txt");
+        PasswordAuthHandlerInput result = new PasswordAuthHandlerInput("BatchClientAuth", ".txt");
 
-        StrongPasswordProcessor passwordEncryptor = StrongPasswordProcessor.builder().build();
-        String encryptedPassword = null;
+        StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();
         try {
-            encryptedPassword = passwordEncryptor.encryptPassword("1111_aaaa");
+            String encryptedPassword = passwordProcessor.encryptPassword("1111_aaaa");
+            result.postEntry(PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "*,READ_UPDATE;"));
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             throw new RuntimeException(e);
         }
-        inputFile.addEntry(PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "*,READ_UPDATE;"));
-        return inputFile.getInputFile();
+        return result.getInputFile();
     }
 }
