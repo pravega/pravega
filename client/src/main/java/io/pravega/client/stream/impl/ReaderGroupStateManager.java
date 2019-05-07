@@ -308,10 +308,12 @@ public class ReaderGroupStateManager {
             if (!state.isReaderOnline(readerId)) {
                 throw new ReaderNotInReaderGroupException(readerId);
             }
-            // Acquire segments if no segments assigned to a reader and there are unassigned segments that can be acquired.
-            if ((!(state.getSegments(readerId).isEmpty() && state.getNumberOfUnassignedSegments() != 0)) && acquireTimer.hasRemaining()) {
+
+            if (acquireTimer.hasRemaining()) {
+                log.info("==> acquireTime has remaining {}", acquireTimer.getRemaining());
                 return false;
             }
+
             if (state.getCheckpointForReader(readerId) != null) {
                 return false;
             }
