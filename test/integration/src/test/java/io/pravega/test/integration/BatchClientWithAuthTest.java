@@ -30,8 +30,8 @@ import java.security.spec.InvalidKeySpecException;
  * The tests in this class are intended to verify whether Batch Client works with a Pravega cluster
  * that has "Auth" (short for authentication and authorization) enabled.
  *
- * This class inherits the tests of the parent class. Some of the test methods of the parent are reproduced here to
- * make it easier to run each test interactively if needed (for debugging purposes).
+ * This class inherits the tests of the parent class. Some of the test methods of the parent are reproduced here as
+ * handles, to enable running an individual test interactively (for debugging purposes).
  */
 public class BatchClientWithAuthTest extends BatchClientTest {
 
@@ -67,14 +67,13 @@ public class BatchClientWithAuthTest extends BatchClientTest {
     }
 
     protected ControllerWrapper createControllerWrapper() {
-        File inputFile = createAuthFile();
         return new ControllerWrapper(zkTestServer.getConnectString(),
                 false, true,
                 controllerPort,
                 serviceHost,
                 servicePort,
                 containerCount, -1,
-                true, inputFile.getPath(), "secret");
+                true, pwdAuthHandlerInput.getPath(), "secret");
     }
 
     @Test

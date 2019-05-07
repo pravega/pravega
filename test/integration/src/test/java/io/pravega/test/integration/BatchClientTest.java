@@ -73,19 +73,22 @@ public class BatchClientTest {
     private static final String DATA_OF_SIZE_30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
 
     @Rule
-    public final Timeout globalTimeout = new Timeout(150, TimeUnit.SECONDS);
+    public final Timeout globalTimeout = new Timeout(50, TimeUnit.SECONDS);
+
     protected final int controllerPort = TestUtils.getAvailableListenPort();
-    private final URI controllerUri = URI.create("tcp://localhost:" + String.valueOf(controllerPort));
     protected final String serviceHost = "localhost";
     protected final int servicePort = TestUtils.getAvailableListenPort();
     protected final int containerCount = 4;
+
     private final Random random = RandomFactory.create();
+
     protected TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
     private ServiceBuilder serviceBuilder;
     private ScheduledExecutorService executor;
     private JavaSerializer<String> serializer;
+    private ClientConfig clientConfig;
 
     @Before
     public void setUp() throws Exception {
@@ -104,6 +107,8 @@ public class BatchClientTest {
         controllerWrapper = createControllerWrapper();
         controllerWrapper.awaitRunning();
         serializer = new JavaSerializer<>();
+
+        clientConfig = createClientConfig();
     }
 
     @After
@@ -114,6 +119,8 @@ public class BatchClientTest {
         serviceBuilder.close();
         zkTestServer.close();
     }
+
+    //region Factory methods that may be overridden by subclasses.
 
     protected ServiceBuilder createServiceBuilder() {
         return ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
@@ -138,12 +145,10 @@ public class BatchClientTest {
         return "tcp://localhost:" + String.valueOf(controllerPort);
     }
 
+    //endregion
 
     @Test
     public void testBatchClient() throws Exception {
-
-        ClientConfig clientConfig = createClientConfig();
-
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
         createTestStreamWithEvents(clientFactory);
@@ -178,9 +183,6 @@ public class BatchClientTest {
     @Test
     @SuppressWarnings("deprecation")
     public void testBatchClientWithStreamTruncation() throws Exception {
-
-        ClientConfig clientConfig = createClientConfig();
-
         StreamManager streamManager = StreamManager.create(clientConfig);
 
         @Cleanup
@@ -209,27 +211,38 @@ public class BatchClientTest {
 
     @Test(expected = TruncatedDataException.class)
     public void testBatchClientWithStreamTruncationPostGetSegments() throws Exception {
+
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
         createTestStreamWithEvents(clientFactory);
         @Cleanup
-        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
 
         // 1. Fetch Segments.
-        ArrayList<SegmentRange> segmentsPostTruncation = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
+        ArrayList<SegmentRange> segmentsPostTruncation = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(SCOPE, STREAM), StreamCut.UNBOUNDED, StreamCut.UNBOUNDED).getIterator());
 
         // 2. Create a StreamCut at the end of segment 0 ( offset = 3 * 30 = 90)
-        StreamCut streamCut90L = new StreamCutImpl(Stream.of(SCOPE, STREAM), ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 90L));
+        StreamCut streamCut90L = new StreamCutImpl(Stream.of(SCOPE, STREAM),
+                ImmutableMap.of(new Segment(SCOPE, STREAM, 0), 90L));
+
         // 3. Truncate stream.
-        assertTrue("truncate stream", controllerWrapper.getController().truncateStream(SCOPE, STREAM, streamCut90L).join());
+        assertTrue("truncate stream",
+                controllerWrapper.getController().truncateStream(SCOPE, STREAM, streamCut90L).join());
+
         // 4. Use SegmentRange obtained before truncation.
-        SegmentRange s0 = segmentsPostTruncation.stream().filter(segmentRange -> segmentRange.getSegmentId() == 0L).findFirst().get();
+        SegmentRange s0 = segmentsPostTruncation.stream().filter(
+                segmentRange -> segmentRange.getSegmentId() == 0L).findFirst().get();
+
         // 5. Read non existent segment.
         List<String> eventList = new ArrayList<>();
+
         @Cleanup
         SegmentIterator<String> segmentIterator = batchClient.readSegment(s0, serializer);
         eventList.addAll(Lists.newArrayList(segmentIterator));
     }
+
+    //region Private helper methods
 
     private void validateSegmentCountAndEventCount(BatchClientFactory batchClient, ArrayList<SegmentRange> segmentsPostTruncation) {
         //expected segments = 1+ 3 + 2 = 6
@@ -279,7 +292,6 @@ public class BatchClientTest {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
-
         controllerWrapper.getControllerService().createScope(SCOPE).join();
         assertTrue("Create Stream operation", controllerWrapper.getController().createStream(SCOPE, STREAM, config).join());
     }
@@ -288,4 +300,6 @@ public class BatchClientTest {
         Supplier<String> routingKeyGenerator = () -> String.valueOf(random.nextInt());
         IntStream.range(0, numberOfEvents).forEach( v -> writer.writeEvent(routingKeyGenerator.get(), DATA_OF_SIZE_30).join());
     }
+
+    //endregion
 }
