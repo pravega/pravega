@@ -27,7 +27,7 @@ import java.util.List;
 public class PasswordAuthHandlerInput {
 
     @Getter
-    private File inputFile;
+    private File file;
 
     public PasswordAuthHandlerInput() {
         this("auth_file", ".txt");
@@ -35,7 +35,7 @@ public class PasswordAuthHandlerInput {
 
     public PasswordAuthHandlerInput(String fileName, String extension) {
         try {
-            inputFile = File.createTempFile(fileName, extension);
+            file = File.createTempFile(fileName, extension);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -46,7 +46,7 @@ public class PasswordAuthHandlerInput {
     }
 
     public void postEntries(List<Entry> entries) {
-        try (FileWriter writer = new FileWriter(inputFile.getAbsolutePath())) {
+        try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
             entries.forEach(e -> {
                 try {
                     writer.write(credentialsAndAclString(e));

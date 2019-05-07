@@ -95,6 +95,6 @@ public class BatchClientWithAuthTest extends BatchClientTest {
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             throw new RuntimeException(e);
         }
-        return result.getInputFile();
+        return result.getFile();
     }
 }
