@@ -16,10 +16,9 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
-import io.pravega.test.common.PasswordAuthHandlerInput;
+import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import org.junit.AfterClass;
-import org.junit.Test;
 
 import java.io.File;
 import java.net.URI;
@@ -71,18 +70,6 @@ public class BatchClientWithAuthTest extends BatchClientTest {
                 false, true,
                 controllerPort, serviceHost, servicePort, containerCount, -1,
                 true, PASSWORD_AUTHHANDLER_INPUT.getPath(), "secret");
-    }
-
-    @Test
-    @Override
-    public void testBatchClient() throws Exception {
-        super.testBatchClient();
-    }
-
-    @Test
-    @Override
-    public void testBatchClientWithStreamTruncation() throws Exception {
-        super.testBatchClientWithStreamTruncation();
     }
 
     private static File createAuthFile() {

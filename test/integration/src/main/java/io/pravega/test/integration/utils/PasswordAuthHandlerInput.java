@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.test.common;
+package io.pravega.test.integration.utils;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
