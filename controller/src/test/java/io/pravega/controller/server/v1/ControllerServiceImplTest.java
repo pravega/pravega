@@ -542,6 +542,19 @@ public abstract class ControllerServiceImplTest {
                 result2);
         final SuccessorResponse successorResponse2 = result2.get();
         Assert.assertEquals(0, successorResponse2.getSegmentsCount());
+
+        /* Testing deprecated RPC. This test code should be removed once we address: */
+        /* https://github.com/pravega/pravega/issues/3760                            */
+        ResultObserver<SuccessorResponse> resultDeprecated = new ResultObserver<>();
+        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), resultDeprecated);
+        final SuccessorResponse successorResponseDeprecated = result.get();
+        Assert.assertEquals(2, successorResponseDeprecated.getSegmentsCount());
+
+        ResultObserver<SuccessorResponse> resultDeprecated2 = new ResultObserver<>();
+        this.controllerService.getSegmentsImmediatelyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
+                resultDeprecated2);
+        final SuccessorResponse successorResponseDeprecated2 = result2.get();
+        Assert.assertEquals(0, successorResponseDeprecated2.getSegmentsCount());
     }
 
     @Test
