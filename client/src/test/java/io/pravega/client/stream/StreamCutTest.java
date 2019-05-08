@@ -59,6 +59,20 @@ public class StreamCutTest {
         assertEquals(sc, StreamCut.from(base64));
     }
 
+    @Test
+    public void testStreamCutSerializationCompatabilityV0() throws Exception {
+        ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
+                .put(new Segment("scope", "stream", computeSegmentId(1, 1)), 10L)
+                .put(new Segment("scope", "stream", computeSegmentId(2, 1)), 20L)
+                .build();
+        StreamCut sc = new StreamCutImpl( Stream.of("scope", "stream"), segmentOffsetMap);
+
+        // Obtain version 0 serialized data
+        final byte[] bufV0 = new StreamCutImpl.StreamCutSerializer().serialize(sc.asImpl()).array();
+        // deserialize it using current version 1 serialization and ensure compatibility.
+        assertEquals(sc, new StreamCutImpl.StreamCutSerializer01().deserialize(bufV0));
+    }
+
     private byte[] serialize(StreamCut sc) throws IOException {
         @Cleanup
         ByteArrayOutputStream baos = new ByteArrayOutputStream();

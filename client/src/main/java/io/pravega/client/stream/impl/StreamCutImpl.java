@@ -21,6 +21,8 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
@@ -51,7 +53,7 @@ import static io.pravega.common.util.ToStringUtils.stringToList;
 @EqualsAndHashCode(callSuper = false)
 public class StreamCutImpl extends StreamCutInternal {
 
-    static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
+    static final StreamCutSerializer SERIALIZER = new StreamCutSerializer01();
     private static final int TO_STRING_VERSION = 0;
 
     private final Stream stream;
@@ -172,7 +174,7 @@ public class StreamCutImpl extends StreamCutInternal {
             builder.stream(stream);
             Map<Segment, Long> map = revisionDataInput.readMap(in -> new Segment(stream.getScope(),
                                                                                  stream.getStreamName(), in.readCompactLong()),
-                                                               in -> in.readLong());
+                                                               in -> in.readCompactLong());
             builder.positions(map);
         }
 
@@ -180,7 +182,38 @@ public class StreamCutImpl extends StreamCutInternal {
             revisionDataOutput.writeUTF(cut.getStream().getScopedName());
             Map<Segment, Long> map = cut.getPositions();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactLong(s.getSegmentId()),
-                                        (out, offset) -> out.writeLong(offset));
+                                        (out, offset) -> out.writeCompactLong(offset));
+        }
+    }
+
+    // StreamCut serializer for version 1.
+    public static class StreamCutSerializer01 extends StreamCutSerializer {
+
+        @Override
+        protected byte getWriteVersion() {
+            return 1;
+        }
+
+        @Override
+        protected void declareVersions() {
+            super.declareVersions();
+            version(1).revision(0, this::write10, this::read10);
+        }
+
+        private void read10(RevisionDataInput revisionDataInput, StreamCutBuilder builder) throws IOException {
+            Stream stream = Stream.of(revisionDataInput.readUTF());
+            builder.stream(stream);
+            Map<Segment, Long> map = revisionDataInput.readMap(in -> new Segment(stream.getScope(),
+                                                                                 stream.getStreamName(), in.readCompactLong()),
+                                                               DataInput::readLong);
+            builder.positions(map);
+        }
+
+        private void write10(StreamCutInternal cut, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeUTF(cut.getStream().getScopedName());
+            Map<Segment, Long> map = cut.getPositions();
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactLong(s.getSegmentId()),
+                                        DataOutput::writeLong);
         }
     }
 
