@@ -181,7 +181,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                 containersToBeStopped = CollectionHelpers.filterOut(containersToBeStopped, containersPendingTasks);
 
                 // Only report if we have any changes or if sufficient time has elapsed since the last report.
-                boolean logReport = !(containersPendingTasks.isEmpty() || containersToBeStarted.isEmpty() || containersToBeStopped.isEmpty());
+                boolean logReport = !(containersPendingTasks.isEmpty() && containersToBeStarted.isEmpty() && containersToBeStopped.isEmpty());
                 if (logReport || (CURRENT_TIME_MILLIS.get() - this.lastReportTime.get() >= REPORT_INTERVAL_MILLIS)) {
                     log.info("Container Changes: Desired = {}, Current = {}, PendingTasks = {}, ToStart = {}, ToStop = {}.",
                             desiredList, runningContainers, containersPendingTasks, containersToBeStarted,
