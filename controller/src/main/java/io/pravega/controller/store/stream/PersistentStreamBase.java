@@ -1228,7 +1228,8 @@ public abstract class PersistentStreamBase implements Stream {
             // shutdownWriter api. 
             return Futures.exceptionallyExpecting(getActiveTx(epoch, txId)
                           .thenCompose(txnRecord -> {
-                              if (txnRecord != null && !Strings.isNullOrEmpty(txnRecord.getObject().getWriterId())) {
+                              if (txnRecord != null && !Strings.isNullOrEmpty(txnRecord.getObject().getWriterId()) 
+                                      && txnRecord.getObject().getCommitTime() >= 0L && !txnRecord.getObject().getCommitOffsets().isEmpty()) {
                                   ActiveTxnRecord record = txnRecord.getObject();
                                   return Futures.toVoid(noteWriterMark(record.getWriterId(), record.getCommitTime(), record.getCommitOffsets()));
                               } else {
