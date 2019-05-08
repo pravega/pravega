@@ -73,6 +73,29 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     @Override
     public boolean isRunning() {
         boolean value = false;
+        try {
+            //list the service with filter 'serviceName'
+            Service.Criteria servicecriteria = Service.Criteria.builder().serviceName(serviceName).build();
+            List<Service> serviceList = Exceptions.handleInterruptedCall(
+                    () -> dockerClient.listServices(servicecriteria));
+            log.info("Service list size {}", serviceList.size());
+            if (!serviceList.isEmpty()) {
+                long replicas = Exceptions.handleInterruptedCall(
+                        () -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
+                log.info("Replicas {}", replicas);
+             }
+
+             if (replicas > 0 && isSynced() == true){
+                 return true;
+             }
+        } catch (DockerException e) {
+            log.error("Unable to list docker services", e);
+        }
+        return value;
+    }
+
+    public boolean isSynced() {
+        boolean value = false;
         int taskRunningCount = 0;
         try {
             //list the service with filter 'serviceName'
@@ -99,7 +122,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                         () -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
                 log.info("Replicas {}", replicas);
                 log.info("Task running count {}", taskRunningCount);
-                if (replicas > 0 && ((long) taskRunningCount) == replicas) {
+                if (((long) taskRunningCount) == replicas) {
                     return true;
                 }
             }
@@ -110,8 +133,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     }
 
     CompletableFuture<Void> waitUntilServiceRunning() {
-        log.debug("IS RUNNING {}", isRunning());
-        return Futures.loop(() -> !isRunning(), //condition
+        log.debug("IS RUNNING {}", isSynced());
+        return Futures.loop(() -> !isSynced(), //condition
                 () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
     }
