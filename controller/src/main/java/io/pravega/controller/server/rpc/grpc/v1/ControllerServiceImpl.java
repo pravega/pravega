@@ -433,20 +433,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     // region watermarking apis
-
-    @Override
-    public void writerShutdown(Controller.WriterShutdownRequest request, StreamObserver<Controller.WriterShutdownResponse> responseObserver) {
-        StreamInfo streamInfo = request.getStream();
-        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
-                streamInfo.getStream(), request.getWriter());
-        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
-                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
-                AuthHandler.Permissions.READ_UPDATE),
-                delegationToken  -> controllerService.shutdownWriter(streamInfo.getScope(),
-                        streamInfo.getStream(), request.getWriter()),
-                responseObserver);
-    }
-
+    
     @Override
     public void noteTimestampFromWriter(Controller.TimestampFromWriter request, StreamObserver<Controller.TimestampResponse> responseObserver) {
         StreamInfo streamInfo = request.getPosition().getStreamInfo();
@@ -460,7 +447,18 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
-
+    @Override
+    public void writerShutdown(Controller.WriterShutdownRequest request, StreamObserver<Controller.WriterShutdownResponse> responseObserver) {
+        StreamInfo streamInfo = request.getStream();
+        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter());
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.shutdownWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter()),
+                responseObserver);
+    }
     // endregion
     
     // Convert responses from CompletableFuture to gRPC's Observer pattern.

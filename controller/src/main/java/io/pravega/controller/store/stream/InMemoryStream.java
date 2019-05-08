@@ -981,7 +981,7 @@ public class InMemoryStream extends PersistentStreamBase {
             }
         }
         
-        return CompletableFuture.completedFuture(null);
+        return result;
     }
 
     @Override
@@ -990,6 +990,7 @@ public class InMemoryStream extends PersistentStreamBase {
         
         synchronized (writersLock) {
             writerMarks.remove(writer);
+            result.complete(null);
         }
         
         return result;
@@ -1031,7 +1032,7 @@ public class InMemoryStream extends PersistentStreamBase {
             } else if (!Objects.equals(existing.getVersion(), version)) {
                 result.completeExceptionally(StoreException.create(StoreException.Type.WRITE_CONFLICT, "writer mark version mismatch"));
             } else {
-                this.writerMarks.put(writer, existing);
+                this.writerMarks.put(writer, updatedCopy);
                 result.complete(null);
             }
         }

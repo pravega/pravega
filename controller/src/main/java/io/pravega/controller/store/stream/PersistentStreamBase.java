@@ -1206,10 +1206,27 @@ public abstract class PersistentStreamBase implements Stream {
                 }), DATA_NOT_FOUND_PREDICATE, null);
     }
 
-    CompletableFuture<Void> generateMarksForTransactions(List<UUID> transactions) {
-        return Futures.allOf(transactions.stream().map(txId -> {
+    /**
+     * This method takes the list of transactions in the committing transactions record, and tries to report marks
+     * for writers for these transactions, if they exist. 
+     * WriterId, commit time and commit offsets are recorded in ActiveTxnRecord for each transaction. 
+     * For transactions where above fields are present, a mark is recorded for them. 
+     * This method will ignore any INVALID_TIME or INVALID_POSITION related failures in noting marks for writers.
+     * This is because those will typically arise from idempotent commit case where this and a transaction with higher 
+     * position and time may already have been committed and the overall mark for the writer may already have progressed.
+     * 
+     * @param committingTransactionsRecord Committing transaction record
+     * @return A completableFuture, which when completed will have marks reported for all transactions in the committing 
+     * transaction record for which a writer with time and position information is available. 
+     */
+    CompletableFuture<Void> generateMarksForTransactions(CommittingTransactionsRecord committingTransactionsRecord) {
+        return Futures.allOf(committingTransactionsRecord.getTransactionsToCommit().stream().map(txId -> {
             int epoch = RecordHelper.getTransactionEpoch(txId);
-            return Futures.exceptionallyExpecting(getActiveTx(epoch, txId), DATA_NOT_FOUND_PREDICATE, null)
+            // Ignore data not found exceptions. DataNotFound Exceptions can be thrown because transaction record no longer 
+            // exists and this is an idempotent case. DataNotFound can also be thrown because writer's mark was deleted 
+            // as we attempted to update an existing record. Note: Delete can be triggered by writer explicitly calling
+            // shutdownWriter api. 
+            return Futures.exceptionallyExpecting(getActiveTx(epoch, txId)
                           .thenCompose(txnRecord -> {
                               if (txnRecord != null && !Strings.isNullOrEmpty(txnRecord.getObject().getWriterId())) {
                                   ActiveTxnRecord record = txnRecord.getObject();
@@ -1217,7 +1234,7 @@ public abstract class PersistentStreamBase implements Stream {
                               } else {
                                   return CompletableFuture.completedFuture(null);
                               }
-                          });
+                          }), DATA_NOT_FOUND_PREDICATE, null);
         }).collect(Collectors.toList()));
     }
 
@@ -1417,7 +1434,7 @@ public abstract class PersistentStreamBase implements Stream {
     public CompletableFuture<Void> completeCommittingTransactions(VersionedMetadata<CommittingTransactionsRecord> record) {
         // Chain all transaction commit futures one after the other. This will ensure that order of commit
         // if honoured and is based on the order in the list.
-        CompletableFuture<Void> future = generateMarksForTransactions(record.getObject().getTransactionsToCommit());
+        CompletableFuture<Void> future = generateMarksForTransactions(record.getObject());
         for (UUID txnId : record.getObject().getTransactionsToCommit()) {
             log.debug("Committing transaction {} on stream {}/{}", txnId, scope, name);
             // commit transaction in segment store
@@ -1470,43 +1487,71 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<WriterTimestampResponse> noteWriterMark(String writer, long timestamp, Map<Long, Long> position) {
-        // remember writer position is not a stream cut.. 
-        
-        // sanity check: always advance the time and position..
-        // if time is not progressing --> respond with invalid time
-        // if position is not advancing --> respond with invalid position --> do a very basic check as this is costly
-        ImmutableMap<Long, Long> immutablePositionMap = ImmutableMap.copyOf(position);
-        return Futures.exceptionallyExpecting(getWriterMarkRecord(writer), e -> Exceptions.unwrap(e) instanceof DataNotFoundException, null) 
+        // Remember: a writer position is not a stream cut.  
+        // For sanity check we will check that the request advances the time and position.
+        // if time is not advanced --> respond with invalid time.
+        // if position is not advanced --> respond with invalid position
+        ImmutableMap<Long, Long> newPosition = ImmutableMap.copyOf(position);
+        return Futures.exceptionallyExpecting(getWriterMarkRecord(writer), DATA_NOT_FOUND_PREDICATE, null) 
                 .thenCompose(record -> {
                     if (record == null) {
-                        // create
-                        return createWriterMarkRecord(writer, timestamp, immutablePositionMap)
-                                .thenApply(v -> WriterTimestampResponse.SUCCESS);
+                        // Attempt to create a new record. It is possible that while we are attempting to create the record, 
+                        // a concurrent request could have created it. 
+                        // For example: a writer sends a request to one of controller instances to note writer mark and 
+                        // the connection is dropped. It could then send the request to noteTime to a different controller 
+                        // instance. So two controller instances could attempt concurrent creation of mark for the said writer.
+                        // In this case, we may have found mark to be inexistent when we did a get but it may have been created 
+                        // when we attempt to create it. So immediately after attempting a create, if we get DataExists, 
+                        // we will call noteWriterMark recursively. 
+                        return Futures.exceptionallyComposeExpecting(
+                                createWriterMarkRecord(writer, timestamp, newPosition)
+                                        .thenApply(v -> WriterTimestampResponse.SUCCESS),
+                                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, 
+                                () -> noteWriterMark(writer, timestamp, position));
                     } else {
                         // sanity check and update
                         if (record.getObject().getTimestamp() > timestamp) {
+                            // existing time is already ahead of new time
                             return CompletableFuture.completedFuture(WriterTimestampResponse.INVALID_TIME);
                         }
-                        if (compareWriterPositions(record.getObject().getPosition(), immutablePositionMap)) {
+                        if (!compareWriterPositions(record.getObject().getPosition(), newPosition)) {
+                            // existing position is already ahead of new position
                             return CompletableFuture.completedFuture(WriterTimestampResponse.INVALID_POSITION);
                         }
                         
-                        // its a legit mark.. lets update it
-                        return updateWriterMarkRecord(writer, timestamp, immutablePositionMap, record.getVersion())
+                        // its a valid mark, update it
+                        return updateWriterMarkRecord(writer, timestamp, newPosition, record.getVersion())
                                 .thenApply(v -> WriterTimestampResponse.SUCCESS);
                     }
                 });
     }
 
-    private boolean compareWriterPositions(Map<Long, Long> position1, Map<Long, Long> position2) {
-        // This method is deliberately kept simple. It compares if position 2's highest segment number is higher 
-        // than position 1. 
+
+    /**
+     * Compares two given positions and returns true if position 2 is ahead of position 1. 
+     * 
+     * Note: This is not absolutely correct implementation because that would be a very costly computation. 
+     * This method simply checks if position 2 has a higher max segment number than position 1. 
+     * If those are equal, then it simply checks the offsets in each segment in position 2 to be ahead of same segment in 
+     * position 1. 
+     * It doesnt deal with complex cases where in a position 1 there could be both predecessor and successor while position 2 
+     * only contains successor. There can be many such complex checks which will require looking up ranges of segments involved
+     * which we will avoid in this method. 
+     * 
+     * @param position1 position 1 
+     * @param position2 position 2
+     * @return return true if position 2 is ahead of/or equal to position 1. false otherwise. 
+     */
+    @VisibleForTesting
+    boolean compareWriterPositions(Map<Long, Long> position1, Map<Long, Long> position2) {
+        ArrayList<Map.Entry<Long, Long>> sortedPosition1 = new ArrayList<>(position1.entrySet());
+        sortedPosition1.sort(Collections.reverseOrder(Comparator.comparingLong(Map.Entry::getKey)));
+        ArrayList<Map.Entry<Long, Long>> sortedPosition2 = new ArrayList<>(position2.entrySet());
+        sortedPosition2.sort(Collections.reverseOrder(Comparator.comparingLong(Map.Entry::getKey)));
 
         long maxInPos2Only = position2.keySet().stream().filter(position1::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
         long maxInPos1Only = position1.keySet().stream().filter(position2::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
-        // if there is a segment only in pos1 then there should be a segment only in position 2 otherwise 
-        // we fail the check.
-        // Note: Since we are taking segments only in position 1 or position 2, 
+        
         boolean compareMaxes = maxInPos2Only >= maxInPos1Only;
         
         boolean compareOverlaps = position2.entrySet().stream().filter(x -> position1.containsKey(x.getKey()))

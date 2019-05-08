@@ -708,7 +708,7 @@ class ZKStream extends PersistentStreamBase {
         return store.getChildren(writerPositionsPath)
                 .thenCompose(children -> {
                     return Futures.allOfWithResults(children.stream().collect(Collectors.toMap(writer -> writer, 
-                            writer -> Futures.exceptionallyExpecting(getWriterMark(getWriterPath(writer)), 
+                            writer -> Futures.exceptionallyExpecting(getWriterMark(writer), 
                                     DATA_NOT_FOUND_PREDICATE, WriterMark.EMPTY))))
                             .thenApply(map -> map.entrySet().stream().filter(x -> !x.getValue().equals(WriterMark.EMPTY))
                                                  .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));

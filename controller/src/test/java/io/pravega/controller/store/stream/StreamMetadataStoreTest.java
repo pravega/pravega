@@ -27,6 +27,7 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -1395,5 +1396,84 @@ public abstract class StreamMetadataStoreTest {
             ((AbstractStreamMetadataStore) store).recordLastStreamSegment(scope, stream, i, null, executor).join();
             assertEquals(i + 1, (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
         }
+    }
+
+    @Test
+    public void testWriterMark() {
+        String stream = "mark";
+        store.createScope(scope).join();
+        store.createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
+                                                             .build(), System.currentTimeMillis(), null, executor).join();
+
+        // data not found
+        String writer1 = "writer1";
+        AssertExtensions.assertFutureThrows("", store.getWriterMark(scope, stream, writer1, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        // now note writer record
+        store.noteWriterMark(scope, stream, writer1, 0L, Collections.singletonMap(0L, 1L), null, executor).join();
+        store.getWriterMark(scope, stream, writer1, null, executor).join();
+
+        // update writer record
+        store.noteWriterMark(scope, stream, writer1, 1L, Collections.singletonMap(0L, 2L), null, executor).join();
+        store.getWriterMark(scope, stream, writer1, null, executor).join();
+
+        Map<String, WriterMark> marks = store.getAllWritersMarks(scope, stream, null, executor).join();
+        assertTrue(marks.containsKey(writer1));
+
+        // remove writer
+        store.removeWriter(scope, stream, writer1, null, executor).join();
+        AssertExtensions.assertFutureThrows("", store.getWriterMark(scope, stream, writer1, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        marks = store.getAllWritersMarks(scope, stream, null, executor).join();
+        assertTrue(marks.isEmpty());
+
+        String writer2 = "writer2";
+        store.noteWriterMark(scope, stream, writer2, 1L, Collections.singletonMap(0L, 1L), null, executor).join();
+        String writer3 = "writer3";
+        store.noteWriterMark(scope, stream, writer3, 1L, Collections.singletonMap(0L, 1L), null, executor).join();
+        String writer4 = "writer4";
+        store.noteWriterMark(scope, stream, writer4, 1L, Collections.singletonMap(0L, 1L), null, executor).join();
+
+        marks = store.getAllWritersMarks(scope, stream, null, executor).join();
+        assertFalse(marks.containsKey(writer1));
+        assertTrue(marks.containsKey(writer2));
+        assertTrue(marks.containsKey(writer3));
+        assertTrue(marks.containsKey(writer4));
+    }
+
+    @Test
+    public void testMarkOnTransactionCommit() {
+        // create txn
+        // seal txn with committing
+        final String scope = "MarkOnTransactionCommit";
+        final String stream = "MarkOnTransactionCommit";
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).join();
+
+        store.createStream(scope, stream, configuration, start, null, executor).join();
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx01 = store.createTransaction(scope, stream, txnId,
+                100, 100, null, executor).join();
+
+        String writer1 = "writer1";
+        long time = 1L;
+        store.sealTransaction(scope, stream, txnId, true, Optional.of(tx01.getVersion()), writer1, time, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        store.recordCommitOffsets(scope, stream, txnId, Collections.singletonMap(0L, 1L), null, executor).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor).join();
+
+        // verify that writer mark is created in the store
+        WriterMark mark = store.getWriterMark(scope, stream, writer1, null, executor).join();
+        assertEquals(mark.getTimestamp(), time);
+        assertEquals(mark.getPosition().size(), 1);
+        assertTrue(mark.getPosition().containsKey(0L));
+        assertEquals(mark.getPosition().get(0L).longValue(), 1L);
     }
 }

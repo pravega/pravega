@@ -9,10 +9,12 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -20,6 +22,7 @@ import io.pravega.controller.store.stream.records.HistoryTimeSeries;
 import io.pravega.controller.store.stream.records.SealedSegmentsMapShard;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
@@ -40,6 +43,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -48,7 +52,12 @@ import java.util.stream.Collectors;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getEpoch;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
 
 public abstract class StreamTestBase {
     protected final ScheduledExecutorService executor = Executors.newScheduledThreadPool(5);
@@ -65,7 +74,7 @@ public abstract class StreamTestBase {
 
     private PersistentStreamBase createStream(String scope, String name, long time, int numOfSegments, int startingSegmentNumber,
                                               int chunkSize, int shardSize) {
-        createScope("scope");
+        createScope(scope);
 
         PersistentStreamBase stream = getStream(scope, name, chunkSize, shardSize);
         StreamConfiguration config = StreamConfiguration.builder()
@@ -1384,5 +1393,108 @@ public abstract class StreamTestBase {
                 || x.segmentId() == seven.segmentId() || x.segmentId() == eight.segmentId() || x.segmentId() == nine.segmentId()
                 || x.segmentId() == ten.segmentId()));
 
+    }
+
+    @Test(timeout = 30000L)
+    public void testWriterMark() {
+        PersistentStreamBase stream = spy(createStream("writerMark", "writerMark", System.currentTimeMillis(), 3, 0));
+
+        Map<String, WriterMark> marks = stream.getAllWritersMarks().join();
+        assertTrue(marks.isEmpty());
+
+        // call noteWritermark --> this should call createMarkerRecord
+        String writer = "writer";
+        long timestamp = 0L;
+        Map<Long, Long> position = Collections.singletonMap(0L, 1L);
+        ImmutableMap<Long, Long> immutablePos = ImmutableMap.copyOf(position);
+
+        stream.noteWriterMark(writer, timestamp, position).join();
+
+        marks = stream.getAllWritersMarks().join();
+        assertEquals(marks.size(), 1);
+        verify(stream, times(1)).createWriterMarkRecord(writer, timestamp, immutablePos);
+
+        VersionedMetadata<WriterMark> mark = stream.getWriterMarkRecord(writer).join();
+        Version version = mark.getVersion();
+
+        // call noteWritermark --> this should call update
+        stream.noteWriterMark(writer, timestamp, position).join();
+        marks = stream.getAllWritersMarks().join();
+        assertEquals(marks.size(), 1);
+        mark = stream.getWriterMarkRecord(writer).join();
+        assertNotEquals(mark.getVersion(), version);
+        verify(stream, times(1)).updateWriterMarkRecord(anyString(), anyLong(), any(), any());
+
+        AssertExtensions.assertFutureThrows("", stream.createWriterMarkRecord(writer, timestamp, immutablePos),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException);
+
+        // update 
+        mark = stream.getWriterMarkRecord(writer).join();
+
+        stream.updateWriterMarkRecord(writer, timestamp, immutablePos, mark.getVersion()).join();
+
+        // verify bad version on update
+        AssertExtensions.assertFutureThrows("", stream.updateWriterMarkRecord(writer, timestamp, immutablePos, mark.getVersion()),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+
+        // update deleted writer --> data not found
+        stream.removeWriter(writer).join();
+        marks = stream.getAllWritersMarks().join();
+        assertEquals(marks.size(), 0);
+        AssertExtensions.assertFutureThrows("", stream.updateWriterMarkRecord(writer, timestamp, immutablePos, mark.getVersion()),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        // create writer record
+        stream.createWriterMarkRecord(writer, timestamp, immutablePos).join();
+
+        // Mock to throw DataNotFound for getWriterMark. This should result in noteWriterMark to attempt to create. 
+        // That should fail with DataExists resulting in recursive call into noteWriterMark to do get and update. 
+        AtomicBoolean callRealMethod = new AtomicBoolean(false);
+        doAnswer(x -> {
+            if (callRealMethod.compareAndSet(false, true)) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "writer mark"));
+            } else {
+                return x.callRealMethod();
+            }
+        }).when(stream).getWriterMarkRecord(writer);
+
+        timestamp = 1L;
+        position = Collections.singletonMap(0L, 2L);
+
+        stream.noteWriterMark(writer, timestamp, position).join();
+
+    }
+
+    @Test(timeout = 30000L)
+    public void testTransactionMark() {
+        PersistentStreamBase streamObj = createStream("txnMark", "txnMark", System.currentTimeMillis(), 3, 0);
+
+        UUID txnId = new UUID(0L, 0L);
+        VersionedTransactionData tx01 = streamObj.createTransaction(txnId, 100, 100).join();
+
+        String writer1 = "writer1";
+        long time = 1L;
+        streamObj.sealTransaction(txnId, true, Optional.of(tx01.getVersion()), writer1, time).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = streamObj.startCommittingTransactions().join();
+        streamObj.recordCommitOffsets(txnId, Collections.singletonMap(0L, 1L)).join();
+        streamObj.generateMarksForTransactions(record.getObject()).join();
+
+        // verify that writer mark is created in the store
+        WriterMark mark = streamObj.getWriterMark(writer1).join();
+        assertEquals(mark.getTimestamp(), time);
+
+        // idempotent call to generateMarksForTransactions
+        streamObj.generateMarksForTransactions(record.getObject()).join();
+        mark = streamObj.getWriterMark(writer1).join();
+        assertEquals(mark.getTimestamp(), time);
+
+        // complete txn commit explicitly such that activeTxnRecord no longer exists and then invoke generateMark
+        streamObj.commitTransaction(txnId).join();
+        AssertExtensions.assertFutureThrows("", streamObj.getActiveTx(0, txnId),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        streamObj.generateMarksForTransactions(record.getObject()).join();
+        mark = streamObj.getWriterMark(writer1).join();
+        assertEquals(mark.getTimestamp(), time);
     }
 }

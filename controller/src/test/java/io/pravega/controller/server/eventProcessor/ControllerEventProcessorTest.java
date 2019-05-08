@@ -36,6 +36,7 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -367,5 +368,26 @@ public abstract class ControllerEventProcessorTest {
     private void checkTransactionState(String scope, String stream, UUID txnId, TxnStatus expectedStatus) {
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnId, null, executor).join();
         assertEquals(expectedStatus, txnStatus);
+    }
+
+    @Test(timeout = 10000)
+    public void testMarkOnCommit() {
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
+        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,
+                null, executor).join();
+        Assert.assertNotNull(txnData);
+        checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
+
+        String writer1 = "writer1";
+        long timestamp = 1L;
+        streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), writer1, timestamp, null, executor).join();
+        checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
+
+        CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();
+        checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
+
+        WriterMark mark = streamStore.getWriterMark(SCOPE, STREAM, writer1, null, executor).join();
+        assertEquals(mark.getTimestamp(), timestamp);
     }
 }

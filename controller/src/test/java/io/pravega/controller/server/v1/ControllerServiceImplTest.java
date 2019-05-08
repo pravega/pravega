@@ -649,6 +649,93 @@ public abstract class ControllerServiceImplTest {
                 e -> checkGRPCException(e, IllegalArgumentException.class));
     }
 
+    @Test(timeout = 30000L)
+    public void testWriterMark() {
+        String writer1 = "writer1";
+        String stream = "mark";
+        StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, stream);
+        
+        createScopeAndStream(SCOPE1, stream, ScalingPolicy.fixed(2));
+        
+        // call note for new writer
+        Controller.StreamCut.Builder position = Controller.StreamCut.newBuilder()
+                                               .setStreamInfo(streamInfo)
+                                               .putCut(0L, 0L).putCut(1L, 0L);
+        Controller.TimestampFromWriter request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(1L)
+                                     .setPosition(position)
+                                     .build();
+
+        ResultObserver<Controller.TimestampResponse> resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
+
+        // call note for existing writer with advancing time and advancing position
+        position = Controller.StreamCut.newBuilder()
+                            .setStreamInfo(streamInfo)
+                            .putCut(0L, 1L).putCut(1L, 1L);
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(2L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        resultObserver.get();
+
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
+
+        // call note for existing writer with advancing time but same position
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(3L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
+        
+        // call note for existing writer with same time but advancing position
+        position = Controller.StreamCut.newBuilder()
+                            .setStreamInfo(streamInfo)
+                            .putCut(0L, 2L).putCut(1L, 2L);
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(3L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
+        
+        // call note for existing writer with lower time
+        position = Controller.StreamCut.newBuilder()
+                            .setStreamInfo(streamInfo)
+                            .putCut(0L, 2L).putCut(1L, 2L);
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(2L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.INVALID_TIME);
+        
+        // call note for existing writer with lower position
+        position = Controller.StreamCut.newBuilder()
+                            .setStreamInfo(streamInfo)
+                            .putCut(0L, 2L).putCut(1L, 1L);
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(4L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.INVALID_POSITION);
+    }
+
     protected void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {
         final StreamConfiguration configuration1 =
                 StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
