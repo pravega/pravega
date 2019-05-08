@@ -132,6 +132,7 @@ import org.junit.Test;
 import org.junit.rules.Timeout;
 
 import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Tests for StreamSegmentContainer class.
@@ -235,8 +236,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals,
                         i == 0 ? AttributeUpdateType.Replace : AttributeUpdateType.ReplaceIfEquals, i + 1, i));
                 byte[] appendData = getAppendData(segmentName, i);
-                opFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT));
-                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
+                long expectedLength = lengths.getOrDefault(segmentName, 0L) + appendData.length;
+                opFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT).thenApply(length -> {
+                    assertEquals(expectedLength, length.longValue());
+                    return null;
+                }));
+                lengths.put(segmentName, expectedLength);
                 recordAppend(segmentName, appendData, segmentContents);
             }
         }
@@ -318,7 +323,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
                 byte[] appendData = getAppendData(segmentName, i);
-                opFutures.add(context.container.append(segmentName, appendData, null, TIMEOUT));
+                opFutures.add(Futures.toVoid(context.container.append(segmentName, appendData, null, TIMEOUT)));
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
@@ -385,7 +390,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         .stream()
                         .map(attributeId -> new AttributeUpdate(attributeId, AttributeUpdateType.Accumulate, 1))
                         .collect(Collectors.toList());
-                opFutures.add(localContainer.append(segmentName, getAppendData(segmentName, i), attributeUpdates, TIMEOUT));
+                opFutures.add(Futures.toVoid(localContainer.append(segmentName, getAppendData(segmentName, i), attributeUpdates, TIMEOUT)));
             }
         }
 
@@ -581,8 +586,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             }
 
-            opFutures.add(localContainer.append(segmentName, getAppendData(segmentName, 0),
-                    Collections.singleton(new AttributeUpdate(ea1, AttributeUpdateType.ReplaceIfEquals, set, compare)), TIMEOUT));
+            opFutures.add(Futures.toVoid(localContainer.append(segmentName, getAppendData(segmentName, 0),
+                    Collections.singleton(new AttributeUpdate(ea1, AttributeUpdateType.ReplaceIfEquals, set, compare)), TIMEOUT)));
             opFutures.add(localContainer.updateAttributes(segmentName,
                     Collections.singleton(new AttributeUpdate(ea2, AttributeUpdateType.ReplaceIfEquals, set, compare)), TIMEOUT));
             badUpdate = !badUpdate;
@@ -640,7 +645,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
                 byte[] appendData = new byte[appendLength];
                 Arrays.fill(appendData, (byte) (fillValue + 1));
-                opFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT));
+                opFutures.add(Futures.toVoid(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT)));
                 expectedLength.addAndGet(appendData.length);
             }));
         }
@@ -723,7 +728,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         activateAllSegments(segmentNames, context);
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
@@ -780,7 +785,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
 
         for (String segmentName : segmentNames) {
@@ -915,7 +920,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         val nonEmptySegmentNames = segmentNames.subList(1, segmentNames.size() - 1);
 
         // 2. Add some appends.
-        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
 
         for (int i = 0; i < appendsPerSegment; i++) {
             // Append to all but the "empty" segment.
@@ -1014,7 +1019,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         mergeTransactions(transactionsBySegment, lengths, segmentContents, context);
 
         // 4. Add more appends (to the parent segments)
-        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             for (String segmentName : segmentNames) {
                 byte[] appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
@@ -1108,7 +1113,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         for (int i = 0; i < 5; i++) {
             for (String segmentName : segmentNames) {
                 byte[] appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
-                operationFutures.add(context.container.append(segmentName, appendData, null, TIMEOUT));
+                operationFutures.add(Futures.toVoid(context.container.append(segmentName, appendData, null, TIMEOUT)));
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
             }
@@ -1524,7 +1529,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             // Wait for the segments to be created first.
             Futures.allOf(creationFutures).join();
 
-            val opFutures = new ArrayList<CompletableFuture<Void>>();
+            val opFutures = new ArrayList<CompletableFuture<Long>>();
             for (int i = 0; i < APPENDS_PER_SEGMENT / 2; i++) {
                 for (String segmentName : segmentNames) {
                     byte[] appendData = getAppendData(segmentName, i);
@@ -1575,7 +1580,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             for (int i = 0; i < APPENDS_PER_SEGMENT / 2; i++) {
                 for (String segmentName : segmentNames) {
                     byte[] appendData = getAppendData(segmentName, i);
-                    opFutures.add(container.append(segmentName, appendData, null, TIMEOUT));
+                    opFutures.add(Futures.toVoid(container.append(segmentName, appendData, null, TIMEOUT)));
                     lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                     recordAppend(segmentName, appendData, segmentContents);
                 }
@@ -1877,7 +1882,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     }
 
     private void appendToParentsAndTransactions(Collection<String> segmentNames, HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
-        ArrayList<CompletableFuture<Void>> appendFutures = new ArrayList<>();
+        ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
                 byte[] appendData = getAppendData(segmentName, i);
@@ -2233,7 +2238,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             return (createSegment ? createStreamSegment(segmentName, null, TIMEOUT) : CompletableFuture.completedFuture(null))
                     .thenCompose(v -> Futures.loop(
                             canContinue,
-                            () -> append(segmentName, appendData, null, TIMEOUT),
+                            () -> Futures.toVoid(append(segmentName, appendData, null, TIMEOUT)),
                             this.executor))
                     .thenCompose(v -> createSegment ? deleteStreamSegment(segmentName, TIMEOUT) : CompletableFuture.completedFuture(null));
         }

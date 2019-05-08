@@ -180,6 +180,40 @@ public class WireCommandsTest {
             out.writeLong(eventNumber);
         }
     }
+    
+    @Data
+    public static final class DataAppendedV3 implements WireCommand {
+        final WireCommandType type = WireCommandType.DATA_APPENDED;
+        final UUID writerId;
+        final long eventNumber;
+        final long previousEventNumber;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(previousEventNumber);
+        }
+    }
+    
+    @Data
+    public static final class DataAppendedV4 implements WireCommand {
+        final WireCommandType type = WireCommandType.DATA_APPENDED;
+        final long requestId;
+        final UUID writerId;
+        final long eventNumber;
+        final long previousEventNumber;
+
+        @Override
+        public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
+            out.writeLong(eventNumber);
+            out.writeLong(previousEventNumber);
+            out.writeLong(requestId);
+        }
+    }
 
     @Test
     public void testDataAppended() throws IOException {
@@ -187,11 +221,21 @@ public class WireCommandsTest {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
         DataAppendedV2 commandV2 = new DataAppendedV2(uuid, l);
         commandV2.writeFields(new DataOutputStream(bout));
-        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(-1L, uuid, l, -1, l));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(-1L, uuid, l, -1, -1));
 
+        bout = new ByteArrayOutputStream();
+        DataAppendedV3 commandV3 = new DataAppendedV3(uuid, l, 2);
+        commandV3.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(-1L, uuid, l, 2L, -1));
+        
+        bout = new ByteArrayOutputStream();
+        DataAppendedV4 commandV4 = new DataAppendedV4(4, uuid, l, 3);
+        commandV4.writeFields(new DataOutputStream(bout));
+        testCommandFromByteArray(bout.toByteArray(), new WireCommands.DataAppended(4L, uuid, l, 3L, -1));
+        
         // Test that we are able to encode and decode the current response
         // to append data correctly.
-        testCommand(new WireCommands.DataAppended(l, uuid, l, Long.MIN_VALUE, -l));
+        testCommand(new WireCommands.DataAppended(1, uuid, l, Long.MIN_VALUE, -l));
     }
 
     /*

@@ -121,7 +121,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         @Cleanup
         ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
-        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer","test", new UTF8StringSerializer(),
+        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", "test", new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
         Transaction<String> transaction1 = test.beginTxn();
         transaction1.writeEvent("0", "txntest1");

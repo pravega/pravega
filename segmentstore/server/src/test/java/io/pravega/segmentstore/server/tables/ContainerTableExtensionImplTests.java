@@ -17,6 +17,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
@@ -944,12 +945,12 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
         @Override
-        public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
@@ -974,7 +975,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout) {
+        public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetSegmentName, String sourceSegmentName, Duration timeout) {
             throw new UnsupportedOperationException("Not Expected");
         }
 
