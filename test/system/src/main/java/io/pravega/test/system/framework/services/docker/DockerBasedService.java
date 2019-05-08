@@ -83,11 +83,10 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                 long replicas = Exceptions.handleInterruptedCall(
                         () -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
                 log.info("Replicas {}", replicas);
-             }
-
-             if (replicas > 0 && isSynced() == true){
-                 return true;
-             }
+                if (replicas > 0 && isSynced() == true){
+                    return true;
+                }
+            } 
         } catch (DockerException e) {
             log.error("Unable to list docker services", e);
         }
