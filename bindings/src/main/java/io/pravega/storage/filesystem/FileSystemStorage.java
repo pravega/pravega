@@ -320,7 +320,8 @@ public class FileSystemStorage implements SyncStorage {
                 totalBytesWritten += bytesWritten;
                 length -= bytesWritten;
             }
-            channel.force(false);
+            // Wait for data and file metadata to be flushed to storage device.
+            channel.force(true);
         }
         FileSystemMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
         FileSystemMetrics.WRITE_BYTES.add(totalBytesWritten);
@@ -378,7 +379,8 @@ public class FileSystemStorage implements SyncStorage {
                 offset += bytesTransferred;
                 length -= bytesTransferred;
             }
-            targetChannel.force(false);
+            // Wait for data and file metadata to be flushed to storage device.
+            targetChannel.force(true);
             Files.delete(sourcePath);
             LoggerHelpers.traceLeave(log, "concat", traceId);
             return null;
