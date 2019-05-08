@@ -47,6 +47,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -143,13 +144,13 @@ public class BatchClientTest {
     }
 
     protected String controllerUri() {
-        return "tcp://localhost:" + String.valueOf(controllerPort);
+        return "tcp://localhost:" + controllerPort;
     }
 
     //endregion
 
     @Test
-    public void testBatchClient() throws Exception {
+    public void testBatchClient() throws InterruptedException, ExecutionException {
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
         createTestStreamWithEvents(clientFactory);
@@ -183,7 +184,7 @@ public class BatchClientTest {
 
     @Test
     @SuppressWarnings("deprecation")
-    public void testBatchClientWithStreamTruncation() throws Exception {
+    public void testBatchClientWithStreamTruncation() throws InterruptedException, ExecutionException {
         StreamManager streamManager = StreamManager.create(clientConfig);
 
         @Cleanup
@@ -211,7 +212,7 @@ public class BatchClientTest {
     }
 
     @Test(expected = TruncatedDataException.class)
-    public void testBatchClientWithStreamTruncationPostGetSegments() throws Exception {
+    public void testBatchClientWithStreamTruncationPostGetSegments() throws InterruptedException, ExecutionException {
 
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
@@ -261,7 +262,7 @@ public class BatchClientTest {
      * Create a test stream with 1 segment which is scaled-up to 3 segments and later scaled-down to 2 segments.
      * Events of constant size are written to the stream before and after scale operation.
      */
-    private void createTestStreamWithEvents(EventStreamClientFactory clientFactory) throws Exception {
+    private void createTestStreamWithEvents(EventStreamClientFactory clientFactory) throws InterruptedException, ExecutionException {
         createStream();
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,
@@ -289,7 +290,7 @@ public class BatchClientTest {
         write30ByteEvents(3, writer);
     }
 
-    private void createStream() throws Exception {
+    private void createStream() throws InterruptedException {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
