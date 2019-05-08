@@ -11,6 +11,7 @@ package io.pravega.test.integration.utils;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.Exceptions;
 import lombok.Data;
 import lombok.Getter;
 
@@ -34,6 +35,8 @@ public class PasswordAuthHandlerInput {
     }
 
     public PasswordAuthHandlerInput(String fileName, String extension) {
+        Exceptions.checkNotNullOrEmpty(fileName, "fileName");
+        Exceptions.checkNotNullOrEmpty(extension, "extension");
         try {
             file = File.createTempFile(fileName, extension);
         } catch (IOException e) {
@@ -42,10 +45,12 @@ public class PasswordAuthHandlerInput {
     }
 
     public void postEntry(Entry entry) {
+        Preconditions.checkNotNull(entry, "Specified entry is null.");
         postEntries(Arrays.asList(entry));
     }
 
     public void postEntries(List<Entry> entries) {
+        Exceptions.checkNotNullOrEmpty(entries, "entries");
         try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
             entries.forEach(e -> {
                 try {
