@@ -18,6 +18,7 @@ import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
+import io.pravega.client.batch.impl.BatchClientFactoryImpl;
 import io.pravega.client.batch.impl.SegmentRangeImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
@@ -242,6 +243,19 @@ public class BatchClientTest {
         @Cleanup
         SegmentIterator<String> segmentIterator = batchClient.readSegment(s0, serializer);
         eventList.addAll(Lists.newArrayList(segmentIterator));
+    }
+
+    @Test
+    public void testGetStreamInfoOfImplementation() throws InterruptedException {
+        createStream();
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
+        BatchClientFactoryImpl batchClientImpl = (BatchClientFactoryImpl) batchClient;
+
+        io.pravega.client.batch.StreamInfo info = batchClientImpl.getStreamInfo(Stream.of(SCOPE, STREAM)).join();
+        assertEquals(SCOPE, info.getScope());
+        assertEquals(STREAM, info.getStreamName());
     }
 
     //region Private helper methods
