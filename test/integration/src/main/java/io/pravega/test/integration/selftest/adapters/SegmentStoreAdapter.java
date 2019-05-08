@@ -185,7 +185,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         ensureRunning();
         ArrayView s = event.getSerialization();
         byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
-        return this.streamSegmentStore.append(streamName, payload, null, timeout)
+        return Futures.toVoid(this.streamSegmentStore.append(streamName, payload, null, timeout))
                                       .exceptionally(ex -> attemptReconcile(ex, streamName, timeout));
     }
 
