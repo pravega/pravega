@@ -30,9 +30,11 @@ import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -74,7 +76,6 @@ public class PingerTest {
     @Test
     public void startTxnKeepAlive() throws Exception {
         final UUID txnID = UUID.randomUUID();
-        executor = new InlineExecutor();
         @Cleanup
         Pinger pinger = new Pinger(config, stream, controller, executor);
 
@@ -134,24 +135,40 @@ public class PingerTest {
     }
 
     @Test
-    public void startTxnKeepAliveCompleted() throws Exception {
+    public void testPingWithStatus() {
+
         config = EventWriterConfig.builder().transactionTimeoutTime(500).build();
         final UUID txnID1 = UUID.randomUUID();
         final UUID txnID2 = UUID.randomUUID();
+        final UUID txnID3 = UUID.randomUUID();
+        final UUID txnID4 = UUID.randomUUID();
 
+        @Cleanup("shutdown")
         InlineExecutor pingExecutor = new InlineExecutor();
-        when(controller.pingTransaction(any(Stream.class), any(UUID.class), anyLong()))
-                .thenReturn(CompletableFuture.<Transaction.PingStatus>completedFuture(Transaction.PingStatus.OPEN),
-                            CompletableFuture.<Transaction.PingStatus>completedFuture(Transaction.PingStatus.ABORTED));
+
+        //Setup mock to return different
+        when(controller.pingTransaction(any(Stream.class), eq(txnID1), anyLong()))
+                .thenReturn(CompletableFuture.<Transaction.PingStatus>completedFuture(Transaction.PingStatus.ABORTED));
+        when(controller.pingTransaction(any(Stream.class), eq(txnID2), anyLong()))
+                .thenReturn(CompletableFuture.<Transaction.PingStatus>completedFuture(Transaction.PingStatus.COMMITTED));
+        when(controller.pingTransaction(any(Stream.class), eq(txnID3), anyLong()))
+                .thenReturn(CompletableFuture.<Transaction.PingStatus>completedFuture(Transaction.PingStatus.OPEN));
+        CompletableFuture<Transaction.PingStatus> failedPingFuture = new CompletableFuture<>();
+        failedPingFuture.completeExceptionally(new RuntimeException("error"));
+        when(controller.pingTransaction(any(Stream.class), eq(txnID4), anyLong()))
+                .thenReturn(failedPingFuture);
         @Cleanup
         Pinger pinger = new Pinger(config, stream, controller, pingExecutor);
 
         pinger.startPing(txnID1);
         pinger.startPing(txnID2);
-        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
+        pinger.startPing(txnID3);
+        pinger.startPing(txnID4);
 
-//        verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID1), eq(config.getTransactionTimeoutTime()));
-
-
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID1), eq(config.getTransactionTimeoutTime()));
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID2), eq(config.getTransactionTimeoutTime()));
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID3), eq(config.getTransactionTimeoutTime()));
+        verify(controller, timeout(1000)).pingTransaction(eq(stream), eq(txnID4), eq(config.getTransactionTimeoutTime()));
+        assertEquals(2, pinger.getCompletedTxns().size());
     }
 }

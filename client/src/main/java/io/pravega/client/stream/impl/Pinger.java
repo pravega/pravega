@@ -18,14 +18,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.RandomUtils;
+
+import static io.pravega.common.Exceptions.unwrap;
 
 /**
  * Pinger is used to send pings to renew the transaction lease for active transactions.
@@ -44,6 +46,8 @@ public class Pinger implements AutoCloseable {
     private ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1,
             "pingTxnThread");
     private final List<UUID> txnList = Collections.synchronizedList(new ArrayList<>());
+    @Getter(value = AccessLevel.PACKAGE)
+    @VisibleForTesting
     private final LinkedBlockingQueue<UUID> completedTxns = new LinkedBlockingQueue<>();
     private final AtomicBoolean isStarted = new AtomicBoolean();
 
@@ -71,11 +75,11 @@ public class Pinger implements AutoCloseable {
 
     private long getPingInterval(long txnLeaseMillis) {
         double pingInterval = txnLeaseMillis * PING_INTERVAL_FACTOR;
-        if (pingInterval < TimeUnit.SECONDS.toMillis(5)) {
+        if (pingInterval < TimeUnit.SECONDS.toMillis(10)) {
             log.warn("Transaction ping interval is less than 10 seconds(lower bound)");
         }
         //Ping interval cannot be less than KeepAlive task interval of 10seconds.
-        return Math.max(TimeUnit.SECONDS.toMillis(5), (long) pingInterval);
+        return Math.max(TimeUnit.SECONDS.toMillis(10), (long) pingInterval);
     }
 
     @Synchronized
@@ -104,12 +108,11 @@ public class Pinger implements AutoCloseable {
                 controller.pingTransaction(stream, uuid, txnLeaseMillis)
                           .whenComplete((status, e) -> {
                               if (e != null) {
-                                  log.warn("Ping Transaction for txn ID:{} failed", uuid, e);
+                                  log.warn("Ping Transaction for txn ID:{} failed", uuid, unwrap(e));
                               } else if (Transaction.PingStatus.ABORTED.equals(status) || Transaction.PingStatus.COMMITTED.equals(status)) {
                                   completedTxns.offer(uuid);
                               }
                           });
-                log.debug("==> controller api invoked");
             } catch (Exception e) {
                 // Suppressing exception to prevent future pings from not being executed. 
                 log.warn("Encountered exception when attepting to ping transactions", e);
