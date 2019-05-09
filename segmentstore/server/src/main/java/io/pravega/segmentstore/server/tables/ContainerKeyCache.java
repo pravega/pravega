@@ -265,17 +265,6 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         return forSegmentCache(segmentId, SegmentKeyCache::getTailBucketOffsets, Collections.emptyMap());
     }
 
-    /**
-     * Gets a value representing the difference between the number of Table Buckets updated (or inserted) and the ones
-     * that have been removed for the given Segment.
-     *
-     * @param segmentId The Id of the Segment to get the difference for.
-     * @return The result.
-     */
-    int getBucketCountDelta(long segmentId) {
-        return forSegmentCache(segmentId, SegmentKeyCache::getBucketCountDelta, 0);
-    }
-
     private <T> T forSegmentCache(long segmentId, Function<SegmentKeyCache, T> ifExists, T ifNotExists) {
         SegmentKeyCache cache;
         synchronized (this.segmentCaches) {

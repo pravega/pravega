@@ -125,11 +125,11 @@ SSL/TLS `singlenode.enableTls` is disabled by default in Pravega standalone mode
 
      ```java
         singlenode.enableTls=true
-        singlenode.keyFile=../config/key.pem
-        singlenode.certFile=../config/cert.pem
-        singlenode.keyStoreJKS=../config/standalone.keystore.jks
-        singlenode.keyStoreJKSPasswordFile=../config/standalone.keystore.jks.passwd
-        singlenode.trustStoreJKS=../config/standalone.truststore.jks
+        singlenode.keyFile=../config/server-key.key
+        singlenode.certFile=../config/server-cert.crt
+        singlenode.keyStoreJKS=../config/server.keystore.jks
+        singlenode.keyStoreJKSPasswordFile=../config/server.keystore.jks.passwd
+        singlenode.trustStoreJKS=../config/client.truststore.jks
 
      ```
 
@@ -142,9 +142,9 @@ SSL/TLS `singlenode.enableTls` is disabled by default in Pravega standalone mode
 The following command sequence is used (in Linux) with the provided certificate file `cert.pem` into the JVM's system truststore.
 
    - `cd /path/to/pravega/config`
-   - Convert the `cert.pem` file to `DER` format: `openssl x509 -in cert.pem -inform pem -out cert.der  -outform der`
+   - Convert the `server-cert.crt` file to `DER` format: `openssl x509 -in server-cert.crt -inform pem -out server-cert.der -outform der`
    - Import the certificate into the local JVM's trust store:
-    `sudo keytool -importcert -alias local-CA -keystore /path/to/jre/lib/security/cacerts  -file cert.der` (using the default password `changeit`)
+    `sudo keytool -importcert -alias local-CA -keystore /path/to/jre/lib/security/cacerts  -file server-cert.der` (using the default password `changeit`)
 
    **Note:** If you want to use a custom truststore instead of adding the certificate to the system truststore, create a new truststore using Java keytool utility, add the certificate to it and configure the JVM to use it by setting the system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
 
@@ -162,7 +162,7 @@ The following command sequence is used (in Linux) with the provided certificate 
    ```java
     ClientConfig clientConfig = ClientConfig.builder()
                  .controllerURI(...)
-                 .trustStore("/path/to/cert.pem")
+                 .trustStore("/path/to/server-cert.crt")
                  .validateHostName(false)
                  .build();
    ```

@@ -171,8 +171,13 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         }
         channel.set(null);
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
-            rp.connectionDropped();
-            log.debug("Connection dropped for flow id {}", flowId);
+            try {
+                log.debug("Connection dropped for flow id {}", flowId);
+                rp.connectionDropped();
+            } catch (Exception e) {
+                // Suppressing exception which prevents all ReplyProcessor.connectionDropped from being invoked.
+                log.warn("Encountered exception invoking ReplyProcessor for flow id {}", flowId, e);
+            }
         });
         super.channelUnregistered(ctx);
     }
@@ -183,7 +188,14 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         log.debug(connectionName + " processing reply {} with flow {}", cmd, Flow.from(cmd.getRequestId()));
 
         if (cmd instanceof WireCommands.Hello) {
-            flowIdReplyProcessorMap.forEach((flowId, rp) -> rp.hello((WireCommands.Hello) cmd));
+            flowIdReplyProcessorMap.forEach((flowId, rp) -> {
+                try {
+                    rp.hello((WireCommands.Hello) cmd);
+                } catch (Exception e) {
+                    // Suppressing exception which prevents all ReplyProcessor.hello from being invoked.
+                    log.warn("Encountered exception invoking ReplyProcessor.hello for flow id {}", flowId, e);
+                }
+            });
             return;
         }
 
@@ -195,6 +207,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             try {
                 processor.process(cmd);
             } catch (Exception e) {
+                log.warn("ReplyProcessor.process failed for reply {} due to {}", cmd, e.getMessage());
                 processor.processingFailure(e);
             }
         });
@@ -203,8 +216,13 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
-            rp.processingFailure(new ConnectionFailedException(cause));
-            log.debug("Exception observed for flow id {}", flowId);
+            try {
+                log.debug("Exception observed for flow id {} due to {}", flowId, cause.getMessage());
+                rp.processingFailure(new ConnectionFailedException(cause));
+            } catch (Exception e) {
+                // Suppressing exception which prevents all ReplyProcessor.processingFailure from being invoked.
+                log.warn("Encountered exception invoking ReplyProcessor.processingFailure for flow id {}", flowId, e);
+            }
         });
     }
 

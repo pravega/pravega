@@ -136,7 +136,7 @@ public class ReaderGroupStateManager {
             if (segments == null) {
                 return;
             }
-            log.debug("Removing reader {} from reader grop. CurrentState is: {}", readerId, state);
+            log.debug("Removing reader {} from reader group. CurrentState is: {}. Position is: {}.", readerId, state, lastPosition);
             updates.add(new RemoveReader(readerId, lastPosition == null ? Collections.emptyMap()
                     : lastPosition.asImpl().getOwnedSegmentsWithOffsets()));
         });

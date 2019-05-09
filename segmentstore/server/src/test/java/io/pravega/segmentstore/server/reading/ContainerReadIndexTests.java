@@ -1201,7 +1201,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.readIndex.append(segmentId, offset, data);
     }
 
-    private void appendDataInStorage(TestContext context, HashMap<Long, ByteArrayOutputStream> segmentContents) {
+    private void appendDataInStorage(TestContext context, HashMap<Long, ByteArrayOutputStream> segmentContents) throws IOException {
         int writeId = 0;
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (long segmentId : context.metadata.getAllStreamSegmentIds()) {
@@ -1349,18 +1349,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
     }
 
-    private <T> void recordAppend(T segmentIdentifier, byte[] data, Map<T, ByteArrayOutputStream> segmentContents) {
+    private <T> void recordAppend(T segmentIdentifier, byte[] data, Map<T, ByteArrayOutputStream> segmentContents) throws IOException {
         ByteArrayOutputStream contents = segmentContents.getOrDefault(segmentIdentifier, null);
         if (contents == null) {
             contents = new ByteArrayOutputStream();
             segmentContents.put(segmentIdentifier, contents);
         }
-
-        try {
-            contents.write(data);
-        } catch (IOException ex) {
-            Assert.fail(ex.toString());
-        }
+        contents.write(data);
     }
 
     private ArrayList<Long> createSegments(TestContext context) {

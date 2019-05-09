@@ -250,7 +250,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
 
     @Override
     public void close() {
-        log.info("Closing stateSynchronizer ", this);
+        log.info("Closing stateSynchronizer {}", this);
         client.close();
     }
 
