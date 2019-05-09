@@ -54,6 +54,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -352,6 +353,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", doingWhat, u);
             connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
+        } else if (u instanceof CancellationException) {
+            // Cancellation exception is thrown when the Operation processor is shutting down.
+            log.info("Closing connection '{}' while performing append on Segment '{}' due to {}.", connection, segment, u.getMessage());
+            connection.close();
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
