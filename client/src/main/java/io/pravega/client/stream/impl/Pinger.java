@@ -38,6 +38,7 @@ import static io.pravega.common.Exceptions.unwrap;
 @Slf4j
 public class Pinger implements AutoCloseable {
     private static final double PING_INTERVAL_FACTOR = 0.5; //ping interval = factor * txn lease time.
+    private static final long MINIMUM_PING_INTERVAL_MS = TimeUnit.SECONDS.toMillis(10);
 
     private final Stream stream;
     private final Controller controller;
@@ -75,11 +76,11 @@ public class Pinger implements AutoCloseable {
 
     private long getPingInterval(long txnLeaseMillis) {
         double pingInterval = txnLeaseMillis * PING_INTERVAL_FACTOR;
-        if (pingInterval < TimeUnit.SECONDS.toMillis(10)) {
+        if (pingInterval < MINIMUM_PING_INTERVAL_MS) {
             log.warn("Transaction ping interval is less than 10 seconds(lower bound)");
         }
         //Ping interval cannot be less than KeepAlive task interval of 10seconds.
-        return Math.max(TimeUnit.SECONDS.toMillis(10), (long) pingInterval);
+        return Math.max(MINIMUM_PING_INTERVAL_MS, (long) pingInterval);
     }
 
     @Synchronized
@@ -101,8 +102,8 @@ public class Pinger implements AutoCloseable {
 
         List<UUID> stopPingTxns = new ArrayList<>();
         completedTxns.drainTo(stopPingTxns);
-        txnList.removeAll(stopPingTxns); // remove all completed transacations from the txn list which need to be pinged.
-        txnList.stream().forEach(uuid -> {
+        txnList.removeAll(stopPingTxns); // remove completed transactions from the pingable transaction list.
+        txnList.forEach(uuid -> {
             try {
                 log.debug("Sending ping request for txn ID: {} with lease: {}", uuid, txnLeaseMillis);
                 controller.pingTransaction(stream, uuid, txnLeaseMillis)
