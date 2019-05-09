@@ -72,9 +72,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     @Override
     public boolean isRunning() {
-        boolean value = false;
         try {
-            //list the service with filter 'serviceName'
+            // List the service with filter 'serviceName'
             Service.Criteria servicecriteria = Service.Criteria.builder().serviceName(serviceName).build();
             List<Service> serviceList = Exceptions.handleInterruptedCall(
                     () -> dockerClient.listServices(servicecriteria));
@@ -83,34 +82,33 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                 long replicas = Exceptions.handleInterruptedCall(
                         () -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
                 log.info("Replicas {}", replicas);
-                if (replicas > 0 && isSynced() == true){
+                if (replicas > 0 && isSynced()){
                     return true;
                 }
             } 
         } catch (DockerException e) {
             log.error("Unable to list docker services", e);
         }
-        return value;
+        return false;
     }
 
-    public boolean isSynced() {
-        boolean value = false;
+    private boolean isSynced() {
         int taskRunningCount = 0;
         try {
-            //list the service with filter 'serviceName'
+            // List the service with filter 'serviceName'
             Service.Criteria servicecriteria = Service.Criteria.builder().serviceName(serviceName).build();
             List<Service> serviceList = Exceptions.handleInterruptedCall(
                     () -> dockerClient.listServices(servicecriteria));
-            log.info("isSynced:Service list size {}", serviceList.size());
+            log.info("Service list size {}", serviceList.size());
             Task.Criteria taskCriteria = Task.Criteria.builder().serviceName(serviceName).build();
             List<Task> taskList = Exceptions.handleInterruptedCall(
                     () -> dockerClient.listTasks(taskCriteria));
             log.info("Task list size {}", taskList.size());
             if (!taskList.isEmpty()) {
                 for (int j = 0; j < taskList.size(); j++) {
-                    log.info("isSynced:Task id {}", taskList.get(j).id());
+                    log.info("Task id {}", taskList.get(j).id());
                     String state = taskList.get(j).status().state();
-                    log.info("isSynced:Task state {}", state);
+                    log.info("Task state {}", state);
                     if (state.equals(TaskStatus.TASK_STATE_RUNNING)) {
                         taskRunningCount++;
                     }
@@ -119,8 +117,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             if (!serviceList.isEmpty()) {
                 long replicas = Exceptions.handleInterruptedCall(
                         () -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
-                log.info("isSynced:Replicas {}", replicas);
-                log.info("isSynced:Task running count {}", taskRunningCount);
+                log.info("Replicas {}", replicas);
+                log.info("Task running count {}", taskRunningCount);
                 if (((long) taskRunningCount) == replicas) {
                     return true;
                 }
@@ -128,12 +126,12 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         } catch (DockerException e) {
             log.error("Unable to list docker services", e);
         }
-        log.info ("returning false from isSynced:");
-        return value;
+        log.info ("Service is not synced");
+        return false;
     }
 
     CompletableFuture<Void> waitUntilServiceRunning() {
-        log.info("IS RUNNING {}", isSynced());
+        log.debug("IS RUNNING {}", isSynced());
         return Futures.loop(() -> !isSynced(), //condition
                 () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
@@ -177,7 +175,6 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     public CompletableFuture<Void> scaleService(final int instanceCount) {
         try {
             Preconditions.checkArgument(instanceCount >= 0, "negative value: %s", instanceCount);
-            log.info("in scaleservice and instancecount is {}", instanceCount);
 
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
             TaskSpec taskSpec = Exceptions.handleInterruptedCall(() -> dockerClient.listServices(criteria).get(0).spec().taskTemplate());
@@ -208,7 +205,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     public void start(final boolean wait, final ServiceSpec serviceSpec) {
         try {
-            //list the service with filter 'serviceName'
+            // List the service with filter 'serviceName'
             Service.Criteria servicecriteria = Service.Criteria.builder().serviceName(serviceName).build();
             List<Service> serviceList = Exceptions.handleInterruptedCall(
                     () -> dockerClient.listServices(servicecriteria));
@@ -217,8 +214,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                  String serviceId = serviceList.get(0).id();
                  Service service = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceId));     
                  Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(),serviceSpec));
-            }    
-            else{
+            }else{
                 ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterruptedCall(() -> dockerClient.createService(serviceSpec));
                 assertNotNull(serviceCreateResponse.id());
             } 
