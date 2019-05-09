@@ -82,7 +82,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                 long replicas = Exceptions.handleInterruptedCall(
                         () -> dockerClient.inspectService(serviceList.get(0).id()).spec().mode().replicated().replicas());
                 log.info("Replicas {}", replicas);
-                if (replicas > 0 && isSynced()){
+                if (replicas > 0 && isSynced()) {
                     return true;
                 }
             } 
@@ -126,7 +126,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
         } catch (DockerException e) {
             log.error("Unable to list docker services", e);
         }
-        log.info ("Service is not synced");
+        log.info("Service is not synced");
         return false;
     }
 
@@ -213,8 +213,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
             if (!serviceList.isEmpty()) {
                  String serviceId = serviceList.get(0).id();
                  Service service = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceId));     
-                 Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(),serviceSpec));
-            }else{
+                 Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), serviceSpec));
+            } else {
                 ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterruptedCall(() -> dockerClient.createService(serviceSpec));
                 assertNotNull(serviceCreateResponse.id());
             } 
