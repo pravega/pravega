@@ -12,16 +12,20 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.RandomUtils;
 
 /**
  * Pinger is used to send pings to renew the transaction lease for active transactions.
@@ -40,6 +44,7 @@ public class Pinger implements AutoCloseable {
     private ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1,
             "pingTxnThread");
     private final List<UUID> txnList = Collections.synchronizedList(new ArrayList<>());
+    private final LinkedBlockingQueue<UUID> completedTxns = new LinkedBlockingQueue<>();
     private final AtomicBoolean isStarted = new AtomicBoolean();
 
     Pinger(EventWriterConfig config, Stream stream, Controller controller) {
@@ -89,14 +94,22 @@ public class Pinger implements AutoCloseable {
      */
     private void pingTransactions() {
         log.info("Start sending transaction pings.");
+
+        List<UUID> stopPingTxns = new ArrayList<>();
+        completedTxns.drainTo(stopPingTxns);
+        txnList.removeAll(stopPingTxns); // remove all completed transacations from the txn list which need to be pinged.
         txnList.stream().forEach(uuid -> {
             try {
                 log.debug("Sending ping request for txn ID: {} with lease: {}", uuid, txnLeaseMillis);
                 controller.pingTransaction(stream, uuid, txnLeaseMillis)
-                .exceptionally(e -> {
-                    log.warn("Ping Transaction for txn ID:{} failed", uuid, e);
-                    return null;
-                });
+                          .whenComplete((status, e) -> {
+                              if (e != null) {
+                                  log.warn("Ping Transaction for txn ID:{} failed", uuid, e);
+                              } else if (Transaction.PingStatus.ABORTED.equals(status) || Transaction.PingStatus.COMMITTED.equals(status)) {
+                                  completedTxns.offer(uuid);
+                              }
+                          });
+                log.debug("==> controller api invoked");
             } catch (Exception e) {
                 // Suppressing exception to prevent future pings from not being executed. 
                 log.warn("Encountered exception when attepting to ping transactions", e);

@@ -13,6 +13,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.test.common.InlineExecutor;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -73,6 +74,7 @@ public class PingerTest {
     @Test
     public void startTxnKeepAlive() throws Exception {
         final UUID txnID = UUID.randomUUID();
+        executor = new InlineExecutor();
         @Cleanup
         Pinger pinger = new Pinger(config, stream, controller, executor);
 
@@ -129,5 +131,27 @@ public class PingerTest {
         long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
         verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
                 eq(expectedKeepAliveInterval), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    public void startTxnKeepAliveCompleted() throws Exception {
+        config = EventWriterConfig.builder().transactionTimeoutTime(500).build();
+        final UUID txnID1 = UUID.randomUUID();
+        final UUID txnID2 = UUID.randomUUID();
+
+        InlineExecutor pingExecutor = new InlineExecutor();
+        when(controller.pingTransaction(any(Stream.class), any(UUID.class), anyLong()))
+                .thenReturn(CompletableFuture.<Transaction.PingStatus>completedFuture(Transaction.PingStatus.OPEN),
+                            CompletableFuture.<Transaction.PingStatus>completedFuture(Transaction.PingStatus.ABORTED));
+        @Cleanup
+        Pinger pinger = new Pinger(config, stream, controller, pingExecutor);
+
+        pinger.startPing(txnID1);
+        pinger.startPing(txnID2);
+        long expectedKeepAliveInterval = (long) (PING_INTERVAL_FACTOR * config.getTransactionTimeoutTime());
+
+//        verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID1), eq(config.getTransactionTimeoutTime()));
+
+
     }
 }
