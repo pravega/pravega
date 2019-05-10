@@ -20,6 +20,7 @@ import io.pravega.client.state.Update;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.SegmentWithRange.Range;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
@@ -28,18 +29,6 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.RevisionDataOutput.ElementSerializer;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-import lombok.Synchronized;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
-
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -53,6 +42,17 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.Synchronized;
+import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
@@ -79,7 +79,7 @@ public class ReaderGroupState implements Revisioned {
     @GuardedBy("$lock")
     private final Map<String, Long> distanceToTail;
     @GuardedBy("$lock")
-    private final Map<Segment, Set<Long>> futureSegments;
+    private final Map<SegmentWithRange, Set<Long>> futureSegments;
     @GuardedBy("$lock")
     private final Map<String, Map<SegmentWithRange, Long>> assignedSegments;
     @GuardedBy("$lock")
@@ -177,14 +177,14 @@ public class ReaderGroupState implements Revisioned {
     }
     
     @Synchronized
-    Map<Stream, Map<Segment, Long>> getPositions() {
-        Map<Stream, Map<Segment, Long>> result = new HashMap<>();
+    Map<Stream, Map<SegmentWithRange, Long>> getPositions() {
+        Map<Stream, Map<SegmentWithRange, Long>> result = new HashMap<>();
         for (Entry<SegmentWithRange, Long> entry : unassignedSegments.entrySet()) {
-            result.computeIfAbsent(entry.getKey().getSegment().getStream(), s -> new HashMap<>()).put(entry.getKey().getSegment(), entry.getValue());
+            result.computeIfAbsent(entry.getKey().getSegment().getStream(), s -> new HashMap<>()).put(entry.getKey(), entry.getValue());
         }
         for (Map<SegmentWithRange, Long> assigned : assignedSegments.values()) {
             for (Entry<SegmentWithRange, Long> entry : assigned.entrySet()) {
-                result.computeIfAbsent(entry.getKey().getStream(), s -> new HashMap<>()).put(entry.getKey(), entry.getValue());
+                result.computeIfAbsent(entry.getKey().getSegment().getStream(), s -> new HashMap<>()).put(entry.getKey(), entry.getValue());
             }
         }
         return result;
@@ -220,9 +220,9 @@ public class ReaderGroupState implements Revisioned {
     @Synchronized
     Set<String> getStreamNames() {
         Set<String> result = new HashSet<>();
-        for (Map<Segment, Long> segments : assignedSegments.values()) {
-            for (Segment segment : segments.keySet()) {
-                result.add(segment.getScopedStreamName());
+        for (Map<SegmentWithRange, Long> segments : assignedSegments.values()) {
+            for (SegmentWithRange segment : segments.keySet()) {
+                result.add(segment.getSegment().getScopedStreamName());
             }
         }
         for (SegmentWithRange segment : unassignedSegments.keySet()) {
@@ -306,12 +306,12 @@ public class ReaderGroupState implements Revisioned {
     @RequiredArgsConstructor
     public static class ReaderGroupStateInit implements InitialUpdate<ReaderGroupState> {
         private final ReaderGroupConfig config;
-        private final Map<Segment, Long> segments;
+        private final Map<SegmentWithRange, Long> startingSegments;
         private final Map<Segment, Long> endSegments;
         
         @Override
         public ReaderGroupState create(String scopedStreamName, Revision revision) {
-            return new ReaderGroupState(scopedStreamName, revision, config, segments, endSegments);
+            return new ReaderGroupState(scopedStreamName, revision, config, startingSegments, endSegments);
         }
         
         private static class ReaderGroupStateInitBuilder implements ObjectBuilder<ReaderGroupStateInit> {
@@ -330,21 +330,43 @@ public class ReaderGroupState implements Revisioned {
 
             @Override
             protected void declareVersions() {
-                version(0).revision(0, this::write00, this::read00);
+                version(0).revision(0, this::write00, this::read00)
+                          .revision(1, this::write01, this::read01);
             }
 
             private void read00(RevisionDataInput revisionDataInput, ReaderGroupStateInitBuilder builder) throws IOException {
                 builder.config(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
-                ElementDeserializer<Segment> keyDeserializer = in -> Segment.fromScopedName(in.readUTF());
-                builder.segments(revisionDataInput.readMap(keyDeserializer, RevisionDataInput::readLong));
-                builder.endSegments(revisionDataInput.readMap(keyDeserializer, RevisionDataInput::readLong));
+                ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
+                ElementDeserializer<SegmentWithRange> segmentWithRangeDeserializer = in -> new SegmentWithRange(Segment.fromScopedName(in.readUTF()), null);
+                builder.startingSegments(revisionDataInput.readMap(segmentWithRangeDeserializer, RevisionDataInput::readLong));
+                builder.endSegments(revisionDataInput.readMap(segmentDeserializer, RevisionDataInput::readLong));
+            }
+            
+            private void read01(RevisionDataInput revisionDataInput, ReaderGroupStateInitBuilder builder) throws IOException {
+                ElementDeserializer<SegmentWithRange> segmentWithRangeDeserializer = in -> {
+                    Segment segment = Segment.fromScopedName(in.readUTF());
+                    Range range = new Range(in.readDouble(), in.readDouble());
+                    return new SegmentWithRange(segment, range);
+                };
+                builder.startingSegments(revisionDataInput.readMap(segmentWithRangeDeserializer,
+                                                                   RevisionDataInput::readLong));
             }
 
             private void write00(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
                 revisionDataOutput.writeArray(new ByteArraySegment(state.config.toBytes()));
-                ElementSerializer<Segment> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
-                revisionDataOutput.writeMap(state.segments, keySerializer, RevisionDataOutput::writeLong);
-                revisionDataOutput.writeMap(state.endSegments, keySerializer, RevisionDataOutput::writeLong);
+                ElementSerializer<SegmentWithRange> segmentWithRangeSerializer = (out, s) -> out.writeUTF(s.getSegment().getScopedName());
+                ElementSerializer<Segment> segmentSerializer = (out, s) -> out.writeUTF(s.getScopedName());
+                revisionDataOutput.writeMap(state.startingSegments, segmentWithRangeSerializer, RevisionDataOutput::writeLong);
+                revisionDataOutput.writeMap(state.endSegments, segmentSerializer, RevisionDataOutput::writeLong);
+            }
+            
+            private void write01(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
+                ElementSerializer<SegmentWithRange> segmentWithRangeSerializer = (out, s) -> {
+                    out.writeUTF(s.getSegment().getScopedName());
+                    out.writeDouble(s.getRange().getLow());
+                    out.writeDouble(s.getRange().getHigh());
+                };
+                revisionDataOutput.writeMap(state.startingSegments, segmentWithRangeSerializer, RevisionDataOutput::writeLong);
             }
         }
         
@@ -358,9 +380,9 @@ public class ReaderGroupState implements Revisioned {
         private final ReaderGroupConfig config;
         private final CheckpointState checkpointState;
         private final Map<String, Long> distanceToTail;
-        private final Map<Segment, Set<Long>> futureSegments;
-        private final Map<String, Map<Segment, Long>> assignedSegments;
-        private final Map<Segment, Long> unassignedSegments;
+        private final Map<SegmentWithRange, Set<Long>> futureSegments;
+        private final Map<String, Map<SegmentWithRange, Long>> assignedSegments;
+        private final Map<SegmentWithRange, Long> unassignedSegments;
         private final Map<Segment, Long> endSegments;
         
         CompactReaderGroupState(ReaderGroupState state) {
@@ -369,11 +391,11 @@ public class ReaderGroupState implements Revisioned {
                 checkpointState = state.checkpointState.copy();
                 distanceToTail = new HashMap<>(state.distanceToTail);
                 futureSegments = new HashMap<>();
-                for (Entry<Segment, Set<Long>> entry : state.futureSegments.entrySet()) {
+                for (Entry<SegmentWithRange, Set<Long>> entry : state.futureSegments.entrySet()) {
                     futureSegments.put(entry.getKey(), new HashSet<>(entry.getValue()));
                 }
                 assignedSegments = new HashMap<>();
-                for (Entry<String, Map<Segment, Long>> entry : state.assignedSegments.entrySet()) {
+                for (Entry<String, Map<SegmentWithRange, Long>> entry : state.assignedSegments.entrySet()) {
                     assignedSegments.put(entry.getKey(), new HashMap<>(entry.getValue()));
                 }
                 unassignedSegments = new LinkedHashMap<>(state.unassignedSegments);
@@ -405,37 +427,98 @@ public class ReaderGroupState implements Revisioned {
 
             @Override
             protected void declareVersions() {
-                version(0).revision(0, this::write00, this::read00);
+                version(0).revision(0, this::write00, this::read00)
+                          .revision(1, this::write01, this::read01);
             }
 
-            private void read00(RevisionDataInput revisionDataInput, CompactReaderGroupStateBuilder builder) throws IOException {
+            private void read00(RevisionDataInput revisionDataInput,
+                                CompactReaderGroupStateBuilder builder) throws IOException {
                 ElementDeserializer<String> stringDeserializer = RevisionDataInput::readUTF;
                 ElementDeserializer<Long> longDeserializer = RevisionDataInput::readLong;
                 ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
+                ElementDeserializer<SegmentWithRange> segmentWithRangeDeserializer = in -> new SegmentWithRange(Segment.fromScopedName(in.readUTF()),
+                                                                                                                null);
                 builder.config(ReaderGroupConfig.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
                 builder.checkpointState(CheckpointState.fromBytes(ByteBuffer.wrap(revisionDataInput.readArray())));
                 builder.distanceToTail(revisionDataInput.readMap(stringDeserializer, longDeserializer));
-                builder.futureSegments(revisionDataInput.readMap(segmentDeserializer,
-                                                                 in -> in.readCollection(RevisionDataInput::readLong, HashSet::new)));
+                builder.futureSegments(revisionDataInput.readMap(segmentWithRangeDeserializer,
+                                                                 in -> in.readCollection(RevisionDataInput::readLong,
+                                                                                         HashSet::new)));
                 builder.assignedSegments(revisionDataInput.readMap(stringDeserializer,
-                                                                   in -> in.readMap(segmentDeserializer, longDeserializer)));
-                builder.unassignedSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
+                                                                   in -> in.readMap(segmentWithRangeDeserializer,
+                                                                                    longDeserializer)));
+                builder.unassignedSegments(revisionDataInput.readMap(segmentWithRangeDeserializer, longDeserializer));
                 builder.endSegments(revisionDataInput.readMap(segmentDeserializer, longDeserializer));
+            }
+
+            private void read01(RevisionDataInput revisionDataInput,
+                                CompactReaderGroupStateBuilder builder) throws IOException {
+                ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
+                ElementDeserializer<SegmentWithRange.Range> rangeDeserializer = in -> new SegmentWithRange.Range(in.readDouble(), in.readDouble());
+                Map<Segment, Range> ranges = revisionDataInput.readMap(segmentDeserializer, rangeDeserializer);
+
+                Map<SegmentWithRange, Set<Long>> fs = builder.futureSegments.entrySet()
+                                                                            .stream()
+                                                                            .collect(Collectors.toMap(e -> new SegmentWithRange(e.getKey().getSegment(),
+                                                                                                                                ranges.get(e.getKey().getSegment())),
+                                                                                                      e -> e.getValue()));
+                builder.futureSegments(fs);
+                Map<String, Map<SegmentWithRange, Long>> as = new HashMap<>();
+                for (Entry<String, Map<SegmentWithRange, Long>> entry : builder.assignedSegments.entrySet()) {
+                    as.put(entry.getKey(),
+                           entry.getValue()
+                                .entrySet()
+                                .stream()
+                                .collect(Collectors.toMap(e -> new SegmentWithRange(e.getKey().getSegment(),
+                                                                                    ranges.get(e.getKey().getSegment())),
+                                                          e -> e.getValue())));
+                }
+                builder.assignedSegments(as);
+                Map<SegmentWithRange, Long> us = new LinkedHashMap<>();
+                for (Entry<SegmentWithRange, Long> e : builder.unassignedSegments.entrySet()) {
+                    us.put(new SegmentWithRange(e.getKey().getSegment(), ranges.get(e.getKey().getSegment())),
+                           e.getValue());
+                }
+                builder.unassignedSegments(us);
             }
 
             private void write00(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
                 ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
                 ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
                 ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
+                ElementSerializer<SegmentWithRange> segmentWithRangeSerializer = (out, segment) -> out.writeUTF(segment.getSegment().getScopedName());
                 revisionDataOutput.writeArray(new ByteArraySegment(object.config.toBytes()));
                 revisionDataOutput.writeArray(new ByteArraySegment(object.checkpointState.toBytes()));
                 revisionDataOutput.writeMap(object.distanceToTail, stringSerializer, longSerializer);
-                revisionDataOutput.writeMap(object.futureSegments, segmentSerializer,
+                revisionDataOutput.writeMap(object.futureSegments, segmentWithRangeSerializer,
                                             (out, obj) -> out.writeCollection(obj, RevisionDataOutput::writeLong));
                 revisionDataOutput.writeMap(object.assignedSegments, stringSerializer,
-                                            (out, obj) -> out.writeMap(obj, segmentSerializer, longSerializer));
-                revisionDataOutput.writeMap(object.unassignedSegments, segmentSerializer, longSerializer);
+                                            (out, obj) -> out.writeMap(obj, segmentWithRangeSerializer, longSerializer));
+                revisionDataOutput.writeMap(object.unassignedSegments, segmentWithRangeSerializer, longSerializer);
                 revisionDataOutput.writeMap(object.endSegments, segmentSerializer, longSerializer);
+            }
+            
+            private void write01(CompactReaderGroupState object, RevisionDataOutput revisionDataOutput) throws IOException {
+                Map<Segment, SegmentWithRange.Range> ranges = new HashMap<>();
+                for (Entry<SegmentWithRange, Set<Long>> entry : object.futureSegments.entrySet()) {
+                    ranges.put(entry.getKey().getSegment(), entry.getKey().getRange());
+                }
+                for (Entry<String, Map<SegmentWithRange, Long>> entry : object.assignedSegments.entrySet()) {
+                    Set<Entry<SegmentWithRange, Long>> entrySet = entry.getValue().entrySet();
+                    for (Entry<SegmentWithRange, Long> e : entrySet) {
+                        ranges.put(e.getKey().getSegment(), e.getKey().getRange());
+                    }
+                }
+                for (Entry<SegmentWithRange, Long> e : object.unassignedSegments.entrySet()) {
+                    ranges.put(e.getKey().getSegment(), e.getKey().getRange());
+                }
+                
+                ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
+                ElementSerializer<SegmentWithRange.Range> rangeSerializer = (out, range) -> {
+                    out.writeDouble(range.getLow());
+                    out.writeDouble(range.getHigh());
+                };
+                revisionDataOutput.writeMap(ranges, segmentSerializer, rangeSerializer);
             }
         }
     }
@@ -477,7 +560,7 @@ public class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            Map<Segment, Long> oldPos = state.assignedSegments.putIfAbsent(readerId, new HashMap<>());
+            Map<SegmentWithRange, Long> oldPos = state.assignedSegments.putIfAbsent(readerId, new HashMap<>());
             if (oldPos != null) {
                 throw new IllegalStateException("Attempted to add a reader that is already online: " + readerId);
             }
@@ -529,18 +612,18 @@ public class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            Map<Segment, Long> assignedSegments = state.assignedSegments.remove(readerId);
+            Map<SegmentWithRange, Long> assignedSegments = state.assignedSegments.remove(readerId);
             Map<Segment, Long> finalPositions = new HashMap<>();
             if (assignedSegments != null) {
                 val iter = assignedSegments.entrySet().iterator();
                 while (iter.hasNext()) {
-                    Entry<Segment, Long> entry = iter.next();
-                    Segment segment = entry.getKey();
-                    Long offset = ownedSegments.get(segment);
+                    Entry<SegmentWithRange, Long> entry = iter.next();
+                    SegmentWithRange segment = entry.getKey();
+                    Long offset = ownedSegments.get(segment.getSegment());
                     if (offset == null) {
                         offset = entry.getValue();
                     }
-                    finalPositions.put(segment, offset);
+                    finalPositions.put(segment.getSegment(), offset);
                     state.unassignedSegments.put(segment, offset);
                     iter.remove();
                 }
@@ -598,13 +681,24 @@ public class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
+            Map<SegmentWithRange, Long> assigned = state.assignedSegments.get(readerId);
             Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
-            if (assigned.remove(segment) == null) {
+            SegmentWithRange segmentWithRange = removeSegmentFromAssigned(assigned);
+            state.unassignedSegments.put(segmentWithRange, offset);
+        }
+        
+        private SegmentWithRange removeSegmentFromAssigned(Map<SegmentWithRange, Long> assigned) {
+            SegmentWithRange result = null; 
+            for (SegmentWithRange key : assigned.keySet()) {
+                if (key.getSegment().equals(segment)) {
+                    result = key;
+                }
+            }
+            if (result == null) {
                 throw new IllegalStateException(
                         readerId + " asked to release a segment that was not assigned to it " + segment);
             }
-            state.unassignedSegments.put(segment, offset);
+            return result;
         }
 
         private static class ReleaseSegmentBuilder implements ObjectBuilder<ReleaseSegment> {
@@ -656,13 +750,19 @@ public class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
+            Map<SegmentWithRange, Long> assigned = state.assignedSegments.get(readerId);
             Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
-            Long offset = state.unassignedSegments.remove(segment);
-            if (offset == null) {
+            SegmentWithRange aquired = null;
+            for (SegmentWithRange segmentWithRange : state.unassignedSegments.keySet()) {
+                if (segmentWithRange.getSegment().equals(segment)) {
+                    aquired = segmentWithRange;
+                }
+            }
+            if (aquired == null) {
                 throw new IllegalStateException("Segment: " + segment + " is not unassigned. " + state);
             }
-            assigned.put(segment, offset);
+            Long offset = state.unassignedSegments.remove(aquired);
+            assigned.put(aquired, offset);
         }
 
         private static class AcquireSegmentBuilder implements ObjectBuilder<AcquireSegment> {
@@ -757,32 +857,32 @@ public class ReaderGroupState implements Revisioned {
     static class SegmentCompleted extends ReaderGroupStateUpdate {
 
         private final String readerId;
-        private final Segment segmentCompleted;
-        private final Map<Segment, List<Long>> successorsMappedToTheirPredecessors; //Immutable
+        private final SegmentWithRange segmentCompleted;
+        private final Map<SegmentWithRange, List<Long>> successorsMappedToTheirPredecessors; //Immutable
         
         /**
          * @see ReaderGroupState.ReaderGroupStateUpdate#update(ReaderGroupState)
          */
         @Override
         void update(ReaderGroupState state) {
-            Map<Segment, Long> assigned = state.assignedSegments.get(readerId);
+            Map<SegmentWithRange, Long> assigned = state.assignedSegments.get(readerId);
             Preconditions.checkState(assigned != null, "%s is not part of the readerGroup", readerId);
             if (assigned.remove(segmentCompleted) == null) {
                 throw new IllegalStateException(
                         readerId + " asked to complete a segment that was not assigned to it " + segmentCompleted);
             }
-            for (Entry<Segment, List<Long>> entry : successorsMappedToTheirPredecessors.entrySet()) {
+            for (Entry<SegmentWithRange, List<Long>> entry : successorsMappedToTheirPredecessors.entrySet()) {
                 if (!state.futureSegments.containsKey(entry.getKey())) {
                     Set<Long> requiredToComplete = new HashSet<>(entry.getValue());
                     state.futureSegments.put(entry.getKey(), requiredToComplete);
                 }
             }
             for (Set<Long> requiredToComplete : state.futureSegments.values()) {
-                requiredToComplete.remove(segmentCompleted.getSegmentId());
+                requiredToComplete.remove(segmentCompleted.getSegment().getSegmentId());
             }
             val iter = state.futureSegments.entrySet().iterator();
             while (iter.hasNext()) {
-                Entry<Segment, Set<Long>> entry = iter.next();
+                Entry<SegmentWithRange, Set<Long>> entry = iter.next();
                 if (entry.getValue().isEmpty()) {
                     state.unassignedSegments.put(entry.getKey(), 0L);
                     iter.remove();
@@ -808,22 +908,48 @@ public class ReaderGroupState implements Revisioned {
 
             @Override
             protected void declareVersions() {
-                version(0).revision(0, this::write00, this::read00);
+                version(0).revision(0, this::write00, this::read00)
+                          .revision(1, this::write01, this::read01);
             }
 
             private void read00(RevisionDataInput in, SegmentCompletedBuilder builder) throws IOException {
                 builder.readerId(in.readUTF());
-                builder.segmentCompleted(Segment.fromScopedName(in.readUTF()));
-                builder.successorsMappedToTheirPredecessors(in.readMap(i -> Segment.fromScopedName(i.readUTF()),
+                builder.segmentCompleted(new SegmentWithRange(Segment.fromScopedName(in.readUTF()), null));
+                builder.successorsMappedToTheirPredecessors(in.readMap(i -> new SegmentWithRange(Segment.fromScopedName(i.readUTF()), null),
                                                                        i -> i.readCollection(RevisionDataInput::readLong, ArrayList::new)));
+            }
+            
+            private void read01(RevisionDataInput revisionDataInput, SegmentCompletedBuilder builder) throws IOException {
+                ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
+                ElementDeserializer<SegmentWithRange.Range> rangeDeserializer = in -> new SegmentWithRange.Range(in.readDouble(), in.readDouble());
+                Map<Segment, Range> ranges = revisionDataInput.readMap(segmentDeserializer, rangeDeserializer);
+                builder.segmentCompleted(new SegmentWithRange(builder.segmentCompleted.getSegment(), ranges.get(builder.segmentCompleted.getSegment())));
+                Map<SegmentWithRange, List<Long>> successorsMappedToTheirPredecessors = new HashMap<>();
+                for (Entry<SegmentWithRange, List<Long>> entry : builder.successorsMappedToTheirPredecessors.entrySet()) {
+                    Segment segment = entry.getKey().getSegment();
+                    successorsMappedToTheirPredecessors.put(new SegmentWithRange(segment, ranges.get(segment)), entry.getValue());
+                }
+                builder.successorsMappedToTheirPredecessors(successorsMappedToTheirPredecessors);
             }
 
             private void write00(SegmentCompleted object, RevisionDataOutput out) throws IOException {
                 out.writeUTF(object.readerId);
-                out.writeUTF(object.segmentCompleted.getScopedName());
+                out.writeUTF(object.segmentCompleted.getSegment().getScopedName());
                 out.writeMap(object.successorsMappedToTheirPredecessors,
-                             (o, segment) -> o.writeUTF(segment.getScopedName()),
+                             (o, segment) -> o.writeUTF(segment.getSegment().getScopedName()),
                              (o, predecessors) -> o.writeCollection(predecessors, RevisionDataOutput::writeLong));
+            }
+            
+            private void write01(SegmentCompleted object, RevisionDataOutput out) throws IOException {
+                Map<Segment, SegmentWithRange.Range> rangeMap = new HashMap<>();
+                rangeMap.put(object.segmentCompleted.getSegment(), object.segmentCompleted.getRange());
+                for (SegmentWithRange segment : object.successorsMappedToTheirPredecessors.keySet()) {
+                    rangeMap.put(segment.getSegment(), segment.getRange());
+                }
+                out.writeMap(rangeMap, (o, segment) -> o.writeUTF(segment.getScopedName()), (o, range) -> {
+                    out.writeDouble(range.getLow());
+                    out.writeDouble(range.getHigh());
+                });
             }
         }
     }
@@ -849,9 +975,12 @@ public class ReaderGroupState implements Revisioned {
              */
             if (!state.checkpointState.isCheckpointSilent(checkpointId)) {
                 // Each reader updates the offsets of its assigned segments with the current positions for this checkpoint.
-                final Map<Segment, Long> readerPositions = state.assignedSegments.get(readerId);
-                for (Entry<Segment, Long> entry : positions.entrySet()) {
-                    readerPositions.replace(entry.getKey(), entry.getValue());
+                final Map<SegmentWithRange, Long> readerPositions = state.assignedSegments.get(readerId);
+                for (Entry<SegmentWithRange, Long> position : readerPositions.entrySet()) {
+                    Long offset = positions.get(position.getKey().getSegment());
+                    if (offset != null) {
+                        position.setValue(offset);
+                    }
                 }
             }
         }
@@ -906,7 +1035,12 @@ public class ReaderGroupState implements Revisioned {
          */
         @Override
         void update(ReaderGroupState state) {
-            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders(), state.getUnassignedSegments());
+            Map<Segment, Long> unassignedSegments = state.getUnassignedSegments()
+                                                         .entrySet()
+                                                         .stream()
+                                                         .collect(Collectors.toMap(e -> e.getKey().getSegment(),
+                                                                                   e -> e.getValue()));
+            state.checkpointState.beginNewCheckpoint(checkpointId, state.getOnlineReaders(), unassignedSegments);
         }
 
         private static class CreateCheckpointBuilder implements ObjectBuilder<CreateCheckpoint> {
