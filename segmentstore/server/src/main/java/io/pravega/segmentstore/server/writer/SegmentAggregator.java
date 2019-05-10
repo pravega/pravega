@@ -117,7 +117,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         this.timer = Preconditions.checkNotNull(timer, "timer");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.lastFlush = new AtomicReference<>(timer.getElapsed());
-        this.lastAddedOffset = new AtomicLong(-1); // Will be set properly in initialize().
+        this.lastAddedOffset = new AtomicLong(-1); // Will be set properly after we process a StorageOperation.
         this.mergeTransactionCount = new AtomicInteger();
         this.truncateCount = new AtomicInteger();
         this.hasSealPending = new AtomicBoolean();
@@ -398,7 +398,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             // and it means this operation has already been applied to the index.
             Map<UUID, Long> attributes = getExtendedAttributes(operation);
             if (!attributes.isEmpty()) {
-                AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(this.metadata.getStorageLength(), operation.getSequenceNumber());
+                AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(this.lastAddedOffset.get(), operation.getSequenceNumber());
                 aggregatedAppend.includeAttributes(attributes);
             }
         }
