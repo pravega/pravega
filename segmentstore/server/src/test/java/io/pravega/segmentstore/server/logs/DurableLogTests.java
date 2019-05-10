@@ -55,6 +55,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -1039,7 +1040,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the truncate() method without doing any recovery.
      */
     @Test
-    public void testTruncateWithoutRecovery() {
+    public void testTruncateWithoutRecovery() throws Exception {
         int streamSegmentCount = 50;
         int appendsPerStreamSegment = 20;
 
@@ -1071,10 +1072,15 @@ public class DurableLogTests extends OperationLogTestBase {
             // recovery, it wipes away all existing metadata).
             Set<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
-            queuedOperations.add(new MetadataCheckpointOperation()); // Add one of these at the end to ensure we can truncate everything.
+            val lastOp = new MetadataCheckpointOperation();
+            queuedOperations.add(lastOp); // Add one of these at the end to ensure we can truncate everything.
 
             List<OperationWithCompletion> completionFutures = processOperations(queuedOperations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
+            TestUtils.await(() -> {
+                val allOps = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
+                return allOps.size() > 0 && allOps.get(allOps.size() - 1) == lastOp;
+            }, 10, TIMEOUT.toMillis());
 
             // Get a list of all the operations, before truncation.
             List<Operation> originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
@@ -1133,6 +1139,10 @@ public class DurableLogTests extends OperationLogTestBase {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();
                 durableLog.add(lastCheckpoint, TIMEOUT).join();
+                TestUtils.await(() -> {
+                    val allOps = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
+                    return allOps.size() > 0 && allOps.get(allOps.size() - 1) == lastCheckpoint;
+                }, 10, TIMEOUT.toMillis());
                 durableLog.truncate(lastCheckpoint.getSequenceNumber(), TIMEOUT).join();
             }
 
