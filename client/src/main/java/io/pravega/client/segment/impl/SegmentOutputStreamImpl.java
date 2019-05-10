@@ -105,6 +105,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private final ConcurrentSkipListMap<Long, PendingEvent> inflight = new ConcurrentSkipListMap<>();
         @GuardedBy("lock")
         private long eventNumber = 0;
+        @GuardedBy("lock")
+        private long segmentLength = -1;
         private final ReusableFutureLatch<ClientConnection> setupConnection = new ReusableFutureLatch<>();
         private final ReusableLatch waitingInflight = new ReusableLatch(true);
         private final AtomicBoolean needSuccessors = new AtomicBoolean();
@@ -125,6 +127,18 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private int getNumInflight() {
             synchronized (lock) {
                 return inflight.size();
+            }
+        }
+
+        private long getLastSegmentLength() {
+            synchronized (lock) {
+                return segmentLength;
+            }
+        }
+
+        private void noteSegmentLength(long newLength) {
+            synchronized (lock) {
+                segmentLength = Math.max(segmentLength, newLength);
             }
         }
 
@@ -331,6 +345,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             try {
                 checkAckLevels(ackLevel, previousAckLevel);
                 ackUpTo(ackLevel);
+                state.noteSegmentLength(dataAppended.getCurrentSegmentWriteOffset());
             } catch (Exception e) {
                 failConnection(e);
             }
@@ -582,4 +597,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             return Collections.unmodifiableList(state.getAllInflightEvents());
         }
     }
+
+    @Override
+    public long getLastObservedWriteOffset() {
+        return state.getLastSegmentLength();
+    }
+    
+    
 }

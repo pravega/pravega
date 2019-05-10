@@ -700,15 +700,16 @@ public final class WireCommands {
             out.writeLong(eventNumber);
             out.writeLong(previousEventNumber);
             out.writeLong(requestId);
+            out.writeLong(currentSegmentWriteOffset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            long offset = in.readLong();
+            long eventNumber = in.readLong();
             long previousEventNumber = in.available() >= Long.BYTES ? in.readLong() : -1L;
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
             long currentSegmentWriteOffset = in.available() >= Long.BYTES ? in.readLong() : -1L;
-            return new DataAppended(requestId, writerId, offset, previousEventNumber, currentSegmentWriteOffset);
+            return new DataAppended(requestId, writerId, eventNumber, previousEventNumber, currentSegmentWriteOffset);
         }
         
         @Override
