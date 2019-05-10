@@ -1077,10 +1077,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
             List<OperationWithCompletion> completionFutures = processOperations(queuedOperations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
-            TestUtils.await(() -> {
-                val allOps = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
-                return allOps.size() > 0 && allOps.get(allOps.size() - 1) == lastOp;
-            }, 10, TIMEOUT.toMillis());
+            awaitLastOperationAdded(durableLog, metadata);
 
             // Get a list of all the operations, before truncation.
             List<Operation> originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
@@ -1100,6 +1097,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
                     // Perform the truncation.
                     durableLog.truncate(currentOperation.getSequenceNumber(), TIMEOUT).join();
+                    awaitLastOperationAdded(durableLog, metadata);
                     if (!isTruncationPointFirstOperation) {
                         Assert.assertTrue("No truncation occurred even though a valid Truncation Point was passed: " + currentOperation.getSequenceNumber(), truncationOccurred.get());
                     }
@@ -1139,14 +1137,12 @@ public class DurableLogTests extends OperationLogTestBase {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();
                 durableLog.add(lastCheckpoint, TIMEOUT).join();
-                TestUtils.await(() -> {
-                    val allOps = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
-                    return allOps.size() > 0 && allOps.get(allOps.size() - 1) == lastCheckpoint;
-                }, 10, TIMEOUT.toMillis());
+                awaitLastOperationAdded(durableLog, metadata);
                 durableLog.truncate(lastCheckpoint.getSequenceNumber(), TIMEOUT).join();
             }
 
             durableLog.add(newOp, TIMEOUT).join();
+            awaitLastOperationAdded(durableLog, metadata);
             final int expectedOperationCount = 3; // Full Checkpoint + Storage Checkpoint (auto-added)+ new op
             List<Operation> newOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             Assert.assertEquals("Unexpected number of operations added after full truncation.", expectedOperationCount, newOperations.size());
@@ -1431,6 +1427,26 @@ public class DurableLogTests extends OperationLogTestBase {
                     String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
                     expectedItem, actualItem);
         }
+    }
+
+    /**
+     * Blocks synchronously until an operation with a Sequence Number of at least
+     * {@link UpdateableContainerMetadata#getOperationSequenceNumber()} is present in the given {@link OperationLog}'s
+     * operations.
+     *
+     * This is helpful if we want to make sure that all the background async operations have completed before moving on
+     * to a next step. The {@link OperationProcessor} (inside {@link DurableLog}) acknowledges operations before adding
+     * them to the internal memory structures, so it is possible that we act on an ack before an operation that we need
+     * is present in the {@link DurableLog}.
+     */
+    @SneakyThrows(TimeoutException.class)
+    private void awaitLastOperationAdded(OperationLog durableLog, UpdateableContainerMetadata metadata) {
+        long sn = metadata.getOperationSequenceNumber();
+        TestUtils.await(
+                () -> {
+                    val allOps = readUpToSequenceNumber(durableLog, sn);
+                    return allOps.size() > 0 && allOps.get(allOps.size() - 1).getSequenceNumber() >= sn;
+                }, 10, TIMEOUT.toMillis());
     }
 
     //endregion
