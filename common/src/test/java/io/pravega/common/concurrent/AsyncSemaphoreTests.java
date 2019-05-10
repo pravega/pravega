@@ -26,7 +26,7 @@ import org.junit.rules.Timeout;
  * Unit tests for the {@link AsyncSemaphore} class.
  */
 public class AsyncSemaphoreTests {
-    private final int TIMEOUT_MILLIS = 30 * 1000;
+    private static final int TIMEOUT_MILLIS = 30 * 1000;
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
 
@@ -35,80 +35,80 @@ public class AsyncSemaphoreTests {
      */
     @Test
     public void testInvalidArguments() {
-        final int capacity = 10;
+        final int credits = 10;
         AssertExtensions.assertThrows(
-                "constructor: totalCapacity < 0",
-                () -> new AsyncSemaphore(0, -1),
+                "constructor: totalCredits < 0",
+                () -> new AsyncSemaphore(-1, 0),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
-                "constructor: totalCapacity == 0",
+                "constructor: totalCredits == 0",
                 () -> new AsyncSemaphore(0, 0),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
-                "constructor: usedCapacity < 0",
-                () -> new AsyncSemaphore(-1, 1),
+                "constructor: usedCredits < 0",
+                () -> new AsyncSemaphore(1, -1),
                 ex -> ex instanceof IllegalArgumentException);
 
-        val s = new AsyncSemaphore(0, capacity);
+        val s = new AsyncSemaphore(credits, 0);
         AssertExtensions.assertThrows(
-                "release: requestedCapacity < 0",
+                "release: credits < 0",
                 () -> s.release(-1),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
-                "acquire: requestedCapacity < 0",
-                () -> s.acquire(-1, CompletableFuture::new),
+                "run: credits < 0",
+                () -> s.run(CompletableFuture::new, -1),
                 ex -> ex instanceof IllegalArgumentException);
 
         AssertExtensions.assertThrows(
-                "acquire: requestedCapacity > totalCapacity",
-                () -> s.acquire(capacity + 1, CompletableFuture::new),
+                "run: credits > totalCredits",
+                () -> s.run(CompletableFuture::new, credits + 1),
                 ex -> ex instanceof IllegalArgumentException);
         Assert.assertEquals("Not expecting any queued tasks.", 0, s.getQueueSize());
-        Assert.assertEquals("Not expecting used capacity.", 0, s.getUsedCapacity());
+        Assert.assertEquals("Not expecting used credits.", 0, s.getUsedCredits());
     }
 
     /**
-     * Tests the {@link AsyncSemaphore#acquire} and {@link AsyncSemaphore#release} methods when tasks complete without
+     * Tests the {@link AsyncSemaphore#run} and {@link AsyncSemaphore#release} methods when tasks complete without
      * exceptions.
      */
     @Test
     public void testAcquireRelease() throws Exception {
-        final int capacity = 100;
-        final int initialUsedCapacity = capacity / 5;
-        final int immediateTaskCount = capacity - initialUsedCapacity;
-        final int queuedTaskCount = capacity / 2;
+        final int credits = 100;
+        final int initialUsedCredits = credits / 5;
+        final int immediateTaskCount = credits - initialUsedCredits;
+        final int queuedTaskCount = credits / 2;
 
         @Cleanup
-        val s = new AsyncSemaphore(initialUsedCapacity, capacity);
-        Assert.assertEquals("Unexpected initial used capacity.", initialUsedCapacity, s.getUsedCapacity());
+        val s = new AsyncSemaphore(credits, initialUsedCredits);
+        Assert.assertEquals("Unexpected initial used credits.", initialUsedCredits, s.getUsedCredits());
 
         val tasks = new HashMap<CompletableFuture<Integer>, CompletableFuture<Integer>>();
 
         // 1. We add a number of tasks that should not be queued (i.e., executed immediately).
         for (int i = 0; i < immediateTaskCount; i++) {
             CompletableFuture<Integer> task = new CompletableFuture<>();
-            val result = s.acquire(1, () -> task);
+            val result = s.run(() -> task, 1);
             tasks.put(task, result);
             Assert.assertEquals("For immediate execution, expecting the same Future to be returned.", task, result);
         }
 
-        Assert.assertEquals("Unexpected used capacity before queuing.", capacity, s.getUsedCapacity());
+        Assert.assertEquals("Unexpected used credits before queuing.", credits, s.getUsedCredits());
 
         // 1.1. Release some resources and add more non-queued tasks.
-        final int toRelease = initialUsedCapacity / 2;
+        final int toRelease = initialUsedCredits / 2;
         s.release(toRelease);
-        Assert.assertEquals("Unexpected used capacity.", capacity - toRelease, s.getUsedCapacity());
+        Assert.assertEquals("Unexpected used credits.", credits - toRelease, s.getUsedCredits());
         for (int i = 0; i < toRelease; i++) {
             CompletableFuture<Integer> task = new CompletableFuture<>();
-            val result = s.acquire(1, () -> task);
+            val result = s.run(() -> task, 1);
             tasks.put(task, result);
             Assert.assertEquals("For immediate execution, expecting the same Future to be returned.", task, result);
         }
 
-        Assert.assertEquals("Unexpected used capacity before queueing.", capacity, s.getUsedCapacity());
+        Assert.assertEquals("Unexpected used credits before queueing.", credits, s.getUsedCredits());
         Assert.assertEquals("Not expecting any queued items yet.", 0, s.getQueueSize());
 
         // Complete immediate tasks.
@@ -118,12 +118,12 @@ public class AsyncSemaphoreTests {
         // 2. Add a number of tasks that should be queued.
         for (int i = 0; i < queuedTaskCount; i++) {
             CompletableFuture<Integer> task = new CompletableFuture<>();
-            val result = s.acquire(1, () -> task);
+            val result = s.run(() -> task, 1);
             tasks.put(task, result);
             Assert.assertNotEquals("For delayed execution, expecting the different Future to be returned.", task, result);
         }
 
-        Assert.assertEquals("Unexpected used capacity after queuing.", capacity, s.getUsedCapacity());
+        Assert.assertEquals("Unexpected used credits after queuing.", credits, s.getUsedCredits());
         Assert.assertEquals("Expected items to be queued up.", queuedTaskCount, s.getQueueSize());
         Assert.assertTrue("Not expecting any queued tasks to be completed yet.",
                 tasks.values().stream().noneMatch(CompletableFuture::isDone));
@@ -139,7 +139,7 @@ public class AsyncSemaphoreTests {
             if (unreleasedTaskCount > 0) {
                 // Add one more. Depending on circumstance, this may or may not be immediately executed.
                 CompletableFuture<Integer> task = new CompletableFuture<>();
-                val result = s.acquire(1, () -> task);
+                val result = s.run(() -> task, 1);
                 tasks.put(task, result);
                 unreleasedTaskCount++;
             }
@@ -157,11 +157,11 @@ public class AsyncSemaphoreTests {
             Assert.assertEquals("Unexpected result.", expected, actual);
         }
 
-        Assert.assertEquals("Unexpected final used capacity.", capacity, s.getUsedCapacity());
+        Assert.assertEquals("Unexpected final used credits.", credits, s.getUsedCredits());
     }
 
     /**
-     * Tests the {@link AsyncSemaphore#acquire} and {@link AsyncSemaphore#release} methods when tasks are executed immediately
+     * Tests the {@link AsyncSemaphore#run} and {@link AsyncSemaphore#release} methods when tasks are executed immediately
      * but complete with exceptions
      */
     @Test
@@ -170,7 +170,7 @@ public class AsyncSemaphoreTests {
     }
 
     /**
-     * Tests the {@link AsyncSemaphore#acquire} and {@link AsyncSemaphore#release} methods when tasks are delayed
+     * Tests the {@link AsyncSemaphore#run} and {@link AsyncSemaphore#release} methods when tasks are delayed
      * but complete with exceptions
      */
     @Test
@@ -178,31 +178,30 @@ public class AsyncSemaphoreTests {
         testFailedTasks(10, 100);
     }
 
-    private void testFailedTasks(int capacity, int toAdd) {
-
+    private void testFailedTasks(int credits, int toAdd) {
         @Cleanup
-        val s = new AsyncSemaphore(0, capacity);
+        val s = new AsyncSemaphore(credits, 0);
         val tasks = new HashMap<CompletableFuture<Integer>, CompletableFuture<Integer>>();
 
         // 1. We add a number of tasks that should not be queued (i.e., executed immediately).
-        int expectedUsedCapacity = 0;
+        int expectedUsedCredits = 0;
         for (int i = 0; i < toAdd; i++) {
             CompletableFuture<Integer> task = new CompletableFuture<>();
             boolean failSync = i % 2 == 0;
-            val result = s.acquire(1, () -> {
+            val result = s.run(() -> {
                 if (failSync) {
                     throw new IntentionalException();
                 } else {
                     return task;
                 }
-            });
+            }, 1);
             if (!failSync) {
                 tasks.put(task, result);
-                expectedUsedCapacity = Math.min(capacity, expectedUsedCapacity + 1);
+                expectedUsedCredits = Math.min(credits, expectedUsedCredits + 1);
             }
         }
 
-        Assert.assertEquals("Unexpected used capacity before async failing.", expectedUsedCapacity, s.getUsedCapacity());
+        Assert.assertEquals("Unexpected used credits before async failing.", expectedUsedCredits, s.getUsedCredits());
 
         // 1.1. Fail all of those tasks.
         tasks.keySet().forEach(f -> f.completeExceptionally(new IntentionalException()));
@@ -211,7 +210,7 @@ public class AsyncSemaphoreTests {
                 () -> Futures.allOf(tasks.values()).get(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
                 ex -> ex instanceof IntentionalException);
 
-        Assert.assertEquals("Unexpected used capacity after async failing.", 0, s.getUsedCapacity());
+        Assert.assertEquals("Unexpected used credits after async failing.", 0, s.getUsedCredits());
     }
 
     /**
@@ -224,13 +223,13 @@ public class AsyncSemaphoreTests {
         val tasks = new HashMap<CompletableFuture<Integer>, CompletableFuture<Integer>>();
         for (int i = 0; i < 5; i++) {
             CompletableFuture<Integer> task = new CompletableFuture<>();
-            val result = s.acquire(1, () -> task);
+            val result = s.run(() -> task, 1);
             tasks.put(task, result);
         }
 
         s.close();
         Assert.assertTrue("Expecting all queued tasks to have been cancelled.",
                 tasks.values().stream().allMatch(CompletableFuture::isCancelled));
-        Assert.assertEquals("Unexpected final used capacity.", 0, s.getUsedCapacity());
+        Assert.assertEquals("Unexpected final used credits.", 0, s.getUsedCredits());
     }
 }

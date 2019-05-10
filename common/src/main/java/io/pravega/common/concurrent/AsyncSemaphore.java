@@ -18,29 +18,54 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 /**
- * TODO: Javadoc
+ * A synchronization primitive that allows executing arbitrary (concurrent) tasks, where each task requires a well-known
+ * number of credits, subject to a total number of credits being available. Each task's successful execution will "borrow"
+ * its share of credits, and a task cannot execute if the number of credits available is insufficient. Credits may be
+ * restored externally using the {@link #release} method.
+ *
+ * This is similar to {@link java.util.concurrent.Semaphore}, except that this class allows for asynchronous processing
+ * and each task can request an arbitrary numbe of credits. It can be useful in solving problems making use of the
+ * Leaky Bucket Algorithm (https://en.wikipedia.org/wiki/Leaky_bucket).
  */
+@ThreadSafe
 public class AsyncSemaphore implements AutoCloseable {
-    private final int totalCapacity;
+    //region Members
+
+    private final int totalCredits;
     @GuardedBy("queue")
-    private int usedCapacity;
+    private int usedCredits;
     @GuardedBy("queue")
     private final ArrayDeque<DelayedTask> queue;
     @GuardedBy("queue")
     private boolean closed;
 
-    AsyncSemaphore(int usedCapacity, int totalCapacity) {
-        Preconditions.checkArgument(totalCapacity > 0, "totalCapacity must be a positive integer");
-        Preconditions.checkArgument(usedCapacity >= 0, "usedCapacity must be a non-negative integer");
-        this.totalCapacity = totalCapacity;
-        this.usedCapacity = usedCapacity;
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the {@link AsyncSemaphore} class.
+     *
+     * @param totalCredits Total number of available credits.
+     * @param usedCredits  Initial number of used credits.
+     */
+    AsyncSemaphore(int totalCredits, int usedCredits) {
+        Preconditions.checkArgument(totalCredits > 0, "totalCredits must be a positive integer");
+        Preconditions.checkArgument(usedCredits >= 0, "usedCredits must be a non-negative integer");
+        this.totalCredits = totalCredits;
+        this.usedCredits = usedCredits;
         this.queue = new ArrayDeque<>();
         this.closed = false;
     }
+
+    //endregion
+
+    //region AutoCloseable Implementation
 
     @Override
     public void close() {
@@ -49,7 +74,7 @@ public class AsyncSemaphore implements AutoCloseable {
             if (!this.closed) {
                 toCancel = new ArrayList<>(this.queue);
                 this.queue.clear();
-                this.usedCapacity = 0;
+                this.usedCredits = 0;
                 this.closed = true;
             }
         }
@@ -59,44 +84,73 @@ public class AsyncSemaphore implements AutoCloseable {
         }
     }
 
-    public <T> CompletableFuture<T> acquire(int requestedCapacity, @NonNull Supplier<CompletableFuture<T>> task) {
-        Preconditions.checkArgument(requestedCapacity >= 0 && requestedCapacity <= this.totalCapacity,
-                "requestedCapacity must be a non-negative number smaller than or equal to %s.", this.totalCapacity);
+    //endregion
+
+    //region Operations
+
+    /**
+     * Executes the given task which requires the given number of credits.
+     *
+     * If there are sufficient credits available for this task to run, it will be invoked synchronously and the returned
+     * result is directly provided by the given task.
+     *
+     * If there are insufficient credits avaialble for this task to run, it will be queued up and executed when credits
+     * become availble. There is no prioritization of queued tasks - they are triggered in the order in which they
+     * are queued up.
+     *
+     * A task will allocate the requested credits when it is triggered. If the task fails (synchronously or asynchronously),
+     * then the requested credits are automatically released back into the pool. If the task succeeds, the credits will
+     * remain.
+     *
+     * @param task    A {@link Supplier} that, when invoked, will execute the task.
+     * @param credits The number of credits this task requires.
+     * @param <T>     Return type.
+     * @return A CompletableFuture that, when completed, will contain the result of the executed task. If the task failed
+     * or was rejected (i.e., due to {@link AsyncSemaphore} closing), it will be failed with the appropriate exception.
+     */
+    public <T> CompletableFuture<T> run(@NonNull Supplier<CompletableFuture<T>> task, int credits) {
+        Preconditions.checkArgument(credits >= 0 && credits <= this.totalCredits,
+                "credits must be a non-negative number smaller than or equal to %s.", this.totalCredits);
 
         DelayedTask<T> qi;
         synchronized (this.queue) {
             Exceptions.checkNotClosed(this.closed, this);
-            if (canExecute(requestedCapacity)) {
+            if (canExecute(credits)) {
                 qi = null;
-                this.usedCapacity += requestedCapacity;
+                this.usedCredits += credits;
             } else {
-                // Insufficient capacity; need to queue up and execute when more becomes available.
-                qi = new DelayedTask<>(requestedCapacity, task);
+                // Insufficient credits; need to queue up and execute when more becomes available.
+                qi = new DelayedTask<>(credits, task);
                 this.queue.addLast(qi);
             }
 
         }
         if (qi == null) {
-            // We have more capacity than what this task requires. Execute now without queuing.
-            return execute(task, requestedCapacity);
+            // We have more credits than what this task requires. Execute now without queuing.
+            return execute(task, credits);
         } else {
             // This wil be completed when its associated task is executed.
             return qi.result;
         }
     }
 
-    public void release(int releasedCapacity) {
-        Preconditions.checkArgument(releasedCapacity >= 0, "releasedCapacity must be a non-negative number.");
+    /**
+     * Releases a number of credits back into the pool.
+     *
+     * @param credits The number of credits to release.
+     */
+    public void release(int credits) {
+        Preconditions.checkArgument(credits >= 0, "credits must be a non-negative number.");
         synchronized (this.queue) {
             Exceptions.checkNotClosed(this.closed, this);
-            this.usedCapacity = Math.max(0, this.usedCapacity - releasedCapacity);
+            this.usedCredits = Math.max(0, this.usedCredits - credits);
         }
 
         ArrayList<DelayedTask<?>> toExecute = new ArrayList<>();
         synchronized (this.queue) {
-            while (!this.queue.isEmpty() && canExecute(this.queue.peekFirst().requestedCapacity)) {
+            while (!this.queue.isEmpty() && canExecute(this.queue.peekFirst().credits)) {
                 DelayedTask<?> qi = this.queue.removeFirst();
-                this.usedCapacity += qi.requestedCapacity;
+                this.usedCredits += qi.credits;
                 toExecute.add(qi);
             }
         }
@@ -105,7 +159,7 @@ public class AsyncSemaphore implements AutoCloseable {
     }
 
     private <T> void execute(DelayedTask<T> qi) {
-        execute(qi.runTask, qi.requestedCapacity)
+        execute(qi.runTask, qi.credits)
                 .whenComplete((r, ex) -> {
                     if (ex == null) {
                         qi.result.complete(r);
@@ -115,7 +169,7 @@ public class AsyncSemaphore implements AutoCloseable {
                 });
     }
 
-    private <T> CompletableFuture<T> execute(Supplier<CompletableFuture<T>> toExecute, int requestedCapacity) {
+    private <T> CompletableFuture<T> execute(Supplier<CompletableFuture<T>> toExecute, int credits) {
         CompletableFuture<T> result;
         try {
             result = toExecute.get();
@@ -124,27 +178,27 @@ public class AsyncSemaphore implements AutoCloseable {
             result = Futures.failedFuture(ex);
         }
 
-        // If a task failed to execute, then it had no effect; release whatever capacity it reserved.
-        Futures.exceptionListener(result, ex -> release(requestedCapacity));
+        // If a task failed to execute, then it had no effect; release whatever credits it reserved.
+        Futures.exceptionListener(result, ex -> release(credits));
         return result;
     }
 
     @GuardedBy("queue")
-    private boolean canExecute(int requestedCapacity) {
-        return this.usedCapacity + requestedCapacity <= this.totalCapacity;
+    private boolean canExecute(int credits) {
+        return this.usedCredits + credits <= this.totalCredits;
     }
 
     @Override
     public String toString() {
         synchronized (this.queue) {
-            return String.format("Capacity = %d/%d, Tasks = %d", this.usedCapacity, this.totalCapacity, this.queue.size());
+            return String.format("Credits = %d/%d, Tasks = %d", this.usedCredits, this.totalCredits, this.queue.size());
         }
     }
 
     @VisibleForTesting
-    int getUsedCapacity() {
+    int getUsedCredits() {
         synchronized (this.queue) {
-            return this.usedCapacity;
+            return this.usedCredits;
         }
     }
 
@@ -157,8 +211,10 @@ public class AsyncSemaphore implements AutoCloseable {
 
     @RequiredArgsConstructor
     private static class DelayedTask<T> {
-        final int requestedCapacity;
+        final int credits;
         final Supplier<CompletableFuture<T>> runTask;
         final CompletableFuture<T> result = new CompletableFuture<>();
     }
+
+    //endregion
 }
