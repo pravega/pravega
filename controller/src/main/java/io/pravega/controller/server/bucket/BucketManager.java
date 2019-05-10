@@ -39,6 +39,7 @@ import java.util.stream.IntStream;
  */
 @Slf4j
 public abstract class BucketManager extends AbstractService {
+    @Getter(AccessLevel.PACKAGE)
     private final String processId;
     @Getter(AccessLevel.PROTECTED)
     private final BucketStore.ServiceType serviceType;
@@ -62,12 +63,13 @@ public abstract class BucketManager extends AbstractService {
     @Override
     protected void doStart() {
         initializeService()
+                .thenAccept(x -> startBucketOwnershipListener())
                 .thenCompose(s ->
                         Futures.allOf(IntStream.range(0, getBucketCount()).boxed().map(x -> initializeBucket(x)
                                 .thenCompose(v -> tryTakeOwnership(x))).collect(Collectors.toList())))
-                .thenAccept(x -> startBucketOwnershipListener())
                 .whenComplete((r, e) -> {
                     if (e != null) {
+                        log.error("Failed to start bucket Manager");
                         notifyFailed(e);
                     } else {
                         notifyStarted();

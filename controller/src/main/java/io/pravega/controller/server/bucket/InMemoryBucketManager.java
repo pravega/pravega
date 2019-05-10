@@ -33,19 +33,14 @@ public class InMemoryBucketManager extends BucketManager {
     protected int getBucketCount() {
         return bucketStore.getBucketCount();
     }
-
+    
     @Override
-    void startBucketOwnershipListener() {
-
+    CompletableFuture<Void> beforeStart() {
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
-    void stopBucketOwnershipListener() {
-
-    }
-
-    @Override
-    CompletableFuture<Void> initializeService() {
+    CompletableFuture<Void> beforeStop() {
         return CompletableFuture.completedFuture(null);
     }
 

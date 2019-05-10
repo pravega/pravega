@@ -70,7 +70,8 @@ public interface BucketStore {
 
     enum ServiceType {
         // Naming the service id as "buckets" for backward compatibility
-        RetentionService("buckets"),;
+        RetentionService("buckets"),
+        WatermarkingService("watermarks"),;
 
         @Getter
         private final String name;

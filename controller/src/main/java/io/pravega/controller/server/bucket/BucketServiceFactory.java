@@ -55,4 +55,26 @@ public class BucketServiceFactory {
                 throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
         }
     }
+    
+    public BucketManager createWatermarkingService(Duration executionDuration, BucketWork work) {
+        switch (bucketStore.getStoreType()) {
+            case Zookeeper:
+                ZookeeperBucketStore zkBucketStore = (ZookeeperBucketStore) bucketStore;
+                Function<Integer, BucketService> zkSupplier = bucket ->
+                        new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService, bucket, zkBucketStore, executorService,
+                                maxConcurrentExecutions, executionDuration, work);
+
+                return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.WatermarkingService, executorService, zkSupplier);
+            case InMemory:
+                InMemoryBucketStore inMemoryBucketStore = (InMemoryBucketStore) bucketStore;
+                Function<Integer, BucketService> inMemorySupplier = bucket ->
+                        new InMemoryBucketService(BucketStore.ServiceType.WatermarkingService, bucket, inMemoryBucketStore, executorService,
+                                maxConcurrentExecutions, executionDuration, work);
+
+                return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.WatermarkingService, 
+                        executorService, inMemorySupplier);
+            default:
+                throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
+        }
+    }
 }

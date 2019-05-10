@@ -11,6 +11,7 @@ package io.pravega.controller.server.bucket;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import io.pravega.controller.util.RetryHelper;
@@ -44,8 +45,7 @@ public class ZooKeeperBucketManager extends BucketManager {
         return bucketStore.getBucketCount();
     }
 
-    @Override
-    public void startBucketOwnershipListener() {
+    private void startBucketOwnershipListener() {
         PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.computeIfAbsent(getServiceType(),
                 x -> bucketStore.getServiceOwnershipPathChildrenCache(getServiceType()));
 
@@ -56,6 +56,9 @@ public class ZooKeeperBucketManager extends BucketManager {
                     break;
                 case CHILD_REMOVED:
                     int bucketId = Integer.parseInt(ZKPaths.getNodeFromPath(event.getData().getPath()));
+                    // if we are greater than our fair share --> introduce a delay
+                    // TODO: shivesh
+                    Futures.delayedFuture();
                     RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
                             e -> log.warn("{}: exception while attempting to take ownership for bucket {} ", getServiceType(),
                                     bucketId, e.getMessage()), getExecutor());
@@ -81,6 +84,11 @@ public class ZooKeeperBucketManager extends BucketManager {
     }
 
     @Override
+    public CompletableFuture<Void> beforeStop() {
+        stopBucketOwnershipListener();
+        return CompletableFuture.completedFuture();    
+    }
+
     public void stopBucketOwnershipListener() {
         PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.remove(getServiceType());
         if (pathChildrenCache != null) {
@@ -94,8 +102,10 @@ public class ZooKeeperBucketManager extends BucketManager {
     }
 
     @Override
-    public CompletableFuture<Void> initializeService() {
-        return bucketStore.createBucketsRoot(getServiceType());
+    public CompletableFuture<Void> beforeStart() {
+        return bucketStore.createBucketsRoot(getServiceType())
+                          .thenCompose(v -> bucketStore.addBucketManager(getProcessId()))
+                          .thenAccept(v -> startBucketOwnershipListener());
     }
 
     @Override
