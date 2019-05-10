@@ -1226,16 +1226,15 @@ public abstract class PersistentStreamBase implements Stream {
             // exists and this is an idempotent case. DataNotFound can also be thrown because writer's mark was deleted 
             // as we attempted to update an existing record. Note: Delete can be triggered by writer explicitly calling
             // shutdownWriter api. 
-            return Futures.exceptionallyExpecting(getActiveTx(epoch, txId)
-                          .thenCompose(txnRecord -> {
-                              if (txnRecord != null && !Strings.isNullOrEmpty(txnRecord.getObject().getWriterId()) 
-                                      && txnRecord.getObject().getCommitTime() >= 0L && !txnRecord.getObject().getCommitOffsets().isEmpty()) {
-                                  ActiveTxnRecord record = txnRecord.getObject();
-                                  return Futures.toVoid(noteWriterMark(record.getWriterId(), record.getCommitTime(), record.getCommitOffsets()));
-                              } else {
-                                  return CompletableFuture.completedFuture(null);
-                              }
-                          }), DATA_NOT_FOUND_PREDICATE, null);
+            return Futures.exceptionallyExpecting(getActiveTx(epoch, txId).thenCompose(txnRecord -> {
+                if (txnRecord != null && !Strings.isNullOrEmpty(txnRecord.getObject().getWriterId())
+                        && txnRecord.getObject().getCommitTime() >= 0L && !txnRecord.getObject().getCommitOffsets().isEmpty()) {
+                    ActiveTxnRecord record = txnRecord.getObject();
+                    return Futures.toVoid(noteWriterMark(record.getWriterId(), record.getCommitTime(), record.getCommitOffsets()));
+                } else {
+                    return CompletableFuture.completedFuture(null);
+                }
+            }), DATA_NOT_FOUND_PREDICATE, null);
         }).collect(Collectors.toList()));
     }
 
@@ -1545,23 +1544,21 @@ public abstract class PersistentStreamBase implements Stream {
      */
     @VisibleForTesting
     boolean compareWriterPositions(Map<Long, Long> position1, Map<Long, Long> position2) {
-        ArrayList<Map.Entry<Long, Long>> sortedPosition1 = new ArrayList<>(position1.entrySet());
-        sortedPosition1.sort(Collections.reverseOrder(Comparator.comparingLong(Map.Entry::getKey)));
-        ArrayList<Map.Entry<Long, Long>> sortedPosition2 = new ArrayList<>(position2.entrySet());
-        sortedPosition2.sort(Collections.reverseOrder(Comparator.comparingLong(Map.Entry::getKey)));
-
-        long maxInPos2Only = position2.keySet().stream().filter(position1::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
-        long maxInPos1Only = position1.keySet().stream().filter(position2::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
+        long maxInPos2 = position2.keySet().stream().filter(position1::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
+        long maxInPos1 = position1.keySet().stream().filter(position2::containsKey).max(Long::compare).orElse(Long.MIN_VALUE);
         
-        boolean compareMaxes = maxInPos2Only >= maxInPos1Only;
+        boolean compareMaxes = maxInPos2 >= maxInPos1;
         
-        boolean compareOverlaps = position2.entrySet().stream().filter(x -> position1.containsKey(x.getKey()))
-                 .allMatch(x -> {
-                     // for all segments that are present in both, position 2 should have greater than eq 
-                     return x.getValue() >= position1.get(x.getKey());
-                 });
+        if (compareMaxes) {
+            return position2.entrySet().stream().filter(x -> position1.containsKey(x.getKey()))
+                                               .allMatch(x -> {
+                                                   // for all segments that are present in both, position 2 should have 
+                                                   // greater than eq offsets
+                                                   return x.getValue() >= position1.get(x.getKey());
+                                               });
+        } 
         
-        return compareMaxes && compareOverlaps;
+        return compareMaxes;
     }
 
     @Override

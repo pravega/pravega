@@ -986,14 +986,11 @@ public class InMemoryStream extends PersistentStreamBase {
 
     @Override
     public CompletableFuture<Void> removeWriter(String writer) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        
         synchronized (writersLock) {
             writerMarks.remove(writer);
-            result.complete(null);
         }
-        
-        return result;
+
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override

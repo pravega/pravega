@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -330,8 +331,9 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txnId) {
+        long time = Optional.ofNullable(timestamp).orElse(Long.MIN_VALUE);
         return controller
-                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId), writerId, timestamp)
+                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId), writerId, time)
                 .thenApply(x -> null);
     }
 
