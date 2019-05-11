@@ -9,6 +9,9 @@
  */
 package io.pravega.common.auth;
 
+/**
+ * Utility class to set and unset the SSL-related configuration parameters in a Zookeeper client.
+ */
 public class ZKTLSUtils {
 
     public static void setSecureZKClientProperties(String trustStorePath, String trustStorePassword) {

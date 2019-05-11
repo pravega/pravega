@@ -42,9 +42,6 @@ import org.apache.curator.utils.ZookeeperFactory;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.ZooKeeper;
 
-import static org.apache.zookeeper.client.ZKClientConfig.SECURE_CLIENT;
-import static org.apache.zookeeper.client.ZKClientConfig.ZOOKEEPER_CLIENT_CNXN_SOCKET;
-
 /**
  * Starts the Pravega Service.
  */
@@ -114,10 +111,10 @@ public final class ServiceStarter {
         log.info(builderConfig.getConfig(AutoScalerConfig::builder).toString());
 
         this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
-                this.serviceConfig.getListeningPort(), service, tableStoreService,
-                autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
-                tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
-                this.serviceConfig.isReplyWithStackTraceOnError());
+                                                      this.serviceConfig.getListeningPort(), service, tableStoreService,
+                                                      autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
+                                                      tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),
+                                                      this.serviceConfig.isReplyWithStackTraceOnError());
 
         this.listener.startListening();
         log.info("PravegaConnectionListener started successfully.");
@@ -195,11 +192,8 @@ public final class ServiceStarter {
 
     private CuratorFramework createZKClient() {
         if (this.serviceConfig.isSecureZK()) {
-            System.setProperty(SECURE_CLIENT, Boolean.toString(this.serviceConfig.isSecureZK()));
-            System.setProperty(ZOOKEEPER_CLIENT_CNXN_SOCKET, "org.apache.zookeeper.ClientCnxnSocketNetty");
-            // TODO: Check if security parameter should be entirely passed via properties.
-            System.setProperty("zookeeper.ssl.trustStore.location", this.serviceConfig.getZkTrustStore());
-            System.setProperty("zookeeper.ssl.trustStore.password", JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
+            ZKTLSUtils.setSecureZKClientProperties(this.serviceConfig.getZkTrustStore(),
+                    JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
         }
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()
@@ -265,8 +259,8 @@ public final class ServiceStarter {
     //endregion
 
     /**
-     * This custom factory is used to ensure that Zookeeper clients in Curator are always created using the hostname, so
-     * it can be resolved to a new IP in the case of a Zookeeper instance restart.
+     * This custom factory is used to ensure that Zookeeper clients in Curator are always created using the Zookeeper
+     * hostname, so it can be resolved to a new IP in the case of a Zookeeper instance restart.
      */
     static class ZKClientFactory implements ZookeeperFactory {
         private ZooKeeper client;
