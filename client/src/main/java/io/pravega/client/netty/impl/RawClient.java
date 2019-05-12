@@ -63,7 +63,7 @@ public class RawClient implements AutoCloseable {
                 log.info("TableSegmentNotEmpty");
                 closeConnection(new ConnectionFailedException(reply.toString()));
             } else {
-                log.debug("Received reply {}", reply);
+                log.debug("Received reply: {}", reply);
                 reply(reply);
             }
         }
