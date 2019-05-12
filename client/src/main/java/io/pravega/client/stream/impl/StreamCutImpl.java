@@ -53,7 +53,7 @@ import static io.pravega.common.util.ToStringUtils.stringToList;
 @EqualsAndHashCode(callSuper = false)
 public class StreamCutImpl extends StreamCutInternal {
 
-    static final StreamCutSerializer SERIALIZER = new StreamCutSerializer01();
+    static final StreamCutSerializer SERIALIZER = new StreamCutSerializer10();
     private static final int TO_STRING_VERSION = 0;
 
     private final Stream stream;
@@ -187,7 +187,7 @@ public class StreamCutImpl extends StreamCutInternal {
     }
 
     // StreamCut serializer for version 1.
-    public static class StreamCutSerializer01 extends StreamCutSerializer {
+    public static class StreamCutSerializer10 extends StreamCutSerializer {
 
         @Override
         protected byte getWriteVersion() {

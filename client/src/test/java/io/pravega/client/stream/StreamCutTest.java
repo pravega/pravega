@@ -70,7 +70,7 @@ public class StreamCutTest {
         // Obtain version 0 serialized data
         final byte[] bufV0 = new StreamCutImpl.StreamCutSerializer().serialize(sc.asImpl()).array();
         // deserialize it using current version 1 serialization and ensure compatibility.
-        assertEquals(sc, new StreamCutImpl.StreamCutSerializer01().deserialize(bufV0));
+        assertEquals(sc, new StreamCutImpl.StreamCutSerializer10().deserialize(bufV0));
     }
 
     private byte[] serialize(StreamCut sc) throws IOException {
