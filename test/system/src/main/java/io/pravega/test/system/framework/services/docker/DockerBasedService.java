@@ -58,6 +58,10 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     @Override
     public String getID() {
+        return this.serviceName;
+    }
+
+    private String getServiceID() {
         Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
         String serviceId = null;
         try {
@@ -76,7 +80,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     private long getReplicas() {
         long replicas = -1;
-        String serviceId = getID();
+        String serviceId = getServiceID();
         try {
             if (serviceId != null) {
                 replicas = Exceptions.handleInterruptedCall(
@@ -129,7 +133,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
     }
 
     CompletableFuture<Void> waitUntilServiceRunning() {
-        log.debug("IS RUNNING {}", isSynced());
+        log.debug("Service:{} running status is {}", this.serviceName, isSynced());
         return Futures.loop(() -> !isSynced(), //condition
                 () -> Futures.delayedFuture(Duration.ofSeconds(5), executorService),
                 executorService);
@@ -149,7 +153,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
                     log.info("task {}", taskList.get(i).name());
                     if (taskList.get(i).status().state().equals(TaskStatus.TASK_STATE_RUNNING)) {
                         String[] uriArray = taskList.get(i).networkAttachments().get(0).addresses().get(0).split("/");
-                        ImmutableList<PortConfig> numPorts = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(getID()).endpoint().spec().ports());
+                        ImmutableList<PortConfig> numPorts = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(getServiceID()).endpoint().spec().ports());
                         for (int k = 0; k < numPorts.size(); k++) {
                             int port = numPorts.get(k).publishedPort();
                             log.info("Port {}", port);
@@ -173,7 +177,7 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
             Service.Criteria criteria = Service.Criteria.builder().serviceName(this.serviceName).build();
             TaskSpec taskSpec = Exceptions.handleInterruptedCall(() -> dockerClient.listServices(criteria).get(0).spec().taskTemplate());
-            String serviceId = getID();
+            String serviceId = getServiceID();
             EndpointSpec endpointSpec = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceId).spec().endpointSpec());
             Service service = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceId));
             Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), ServiceSpec.builder().endpointSpec(endpointSpec).mode(ServiceMode.withReplicas(instanceCount)).taskTemplate(taskSpec).name(serviceName).networks(service.spec().networks()).build()));
@@ -199,13 +203,13 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     public void start(final boolean wait, final ServiceSpec serviceSpec) {
         try {
-            String serviceId = getID();
+            String serviceId = getServiceID();
             if (serviceId != null) {
                  Service service = Exceptions.handleInterruptedCall(() -> dockerClient.inspectService(serviceId));
                  Exceptions.handleInterrupted(() -> dockerClient.updateService(serviceId, service.version().index(), serviceSpec));
             } else {
                 ServiceCreateResponse serviceCreateResponse = Exceptions.handleInterruptedCall(() -> dockerClient.createService(serviceSpec));
-                assertNotNull(serviceCreateResponse.id());
+                assertNotNull("Service id is null", serviceCreateResponse.id());
             }
             if (wait) {
                 Exceptions.handleInterrupted(() -> waitUntilServiceRunning().get(5, TimeUnit.MINUTES));
