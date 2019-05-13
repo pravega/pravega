@@ -1065,6 +1065,16 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         return handleAttributeException(this.dataSource.sealAttributes(this.metadata.getId(), timeout));
     }
 
+    /**
+     * Deletes the Segment handled by this {@link SegmentAggregator} instance and its Attributes, and updates the internal
+     * Metadata and any other state to reflect the fact. This will also delete any other Segments that have pending Mergers
+     * into this Segment, including any associated Attributes. Upon a successful completion, the internal Metadata and
+     * {@link SegmentAggregator} state will be updated to reflect the Storage deletion.
+     *
+     * @param timer Timer for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate that the Segment and any other Storage
+     * structures associated with it have been deleted.
+     */
     private CompletableFuture<WriterFlushResult> deleteSegment(TimeoutTimer timer) {
         // Delete the Segment from Storage, but also delete any source Segments that had pending mergers. If we do not,
         // we will be left with orphaned Segments in Storage.
@@ -1073,11 +1083,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             // Segment does not exist in Storage.
             deleteFuture = CompletableFuture.completedFuture(null);
         } else {
-            deleteFuture = Futures
-                    .exceptionallyExpecting(
-                            this.storage.delete(this.handle.get(), timer.getRemaining()),
-                            ex -> ex instanceof StreamSegmentNotExistsException,
-                            null);
+            deleteFuture = deleteSegmentAndAttributes(handle.get(), this.metadata, timer);
         }
 
         return deleteFuture
@@ -1093,6 +1099,37 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 }, this.executor);
     }
 
+    /**
+     * Deletes a Segment and its Attributes from Storage. This can be used to delete either the Segment handled by this
+     * instance or any other Segment that has a pending Merge into it.
+     *
+     * This method does not update any metadata or any other in-memory state.
+     *
+     * @param handle   A {@link SegmentHandle} representing the Segment to delete.
+     * @param metadata The {@link SegmentMetadata} for the Segment to delete.
+     * @param timer    Timer for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the given Segment and its Attributes have been
+     * deleted from Storage. This method will not fail if either the Segment or its Attributes do not exist in Storage.
+     */
+    private CompletableFuture<Void> deleteSegmentAndAttributes(SegmentHandle handle, SegmentMetadata metadata, TimeoutTimer timer) {
+        assert handle.getSegmentName().equals(metadata.getName());
+        return CompletableFuture.allOf(
+                Futures.exceptionallyExpecting(
+                        this.storage.delete(handle, timer.getRemaining()),
+                        ex -> ex instanceof StreamSegmentNotExistsException,
+                        null),
+                this.dataSource.deleteAllAttributes(metadata, timer.getRemaining()));
+    }
+
+    /**
+     * Deletes all Segments from Storage that have a pending Merge into the Segment handled by this {@link SegmentAggregator}
+     * instance. This will also delete other Storage structures related to those segments (such as Attributes) and will
+     * update the internal Metadata to reflect the deletion.
+     *
+     * @param timer Timer for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate all Segments with pending mergers have
+     * been deleted from Storage.
+     */
     private CompletableFuture<Void> deleteUnmergedSourceSegments(TimeoutTimer timer) {
         if (this.mergeTransactionCount.get() == 0) {
             return CompletableFuture.completedFuture(null);
@@ -1109,7 +1146,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 toDelete.add(Futures
                         .exceptionallyExpecting(
                                 this.storage.openWrite(m.getName())
-                                            .thenCompose(handle -> this.storage.delete(handle, timer.getRemaining()))
+                                            .thenCompose(handle -> deleteSegmentAndAttributes(handle, m, timer))
                                             .thenAcceptAsync(v -> updateMetadataPostDeletion(m), this.executor),
                                 ex -> ex instanceof StreamSegmentNotExistsException,
                                 null));
