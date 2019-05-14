@@ -52,6 +52,11 @@ public class TableAttributes extends Attributes {
     public static final UUID MIN_UTILIZATION = new UUID(CORE_ATTRIBUTE_ID_PREFIX, TABLE_ATTRIBUTES_START_OFFSET + 5);
 
     /**
+     * Defines an attribute that is used to store the number of unindexed Table Entries in a Table Segment.
+     */
+    public static final UUID UNINDEXED_ENTRY_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, TABLE_ATTRIBUTES_START_OFFSET + 6);
+
+    /**
      * Defines a Map that contains all Table Attributes along with their default values.
      */
     public static final Map<UUID, Long> DEFAULT_VALUES = Collections.unmodifiableMap(

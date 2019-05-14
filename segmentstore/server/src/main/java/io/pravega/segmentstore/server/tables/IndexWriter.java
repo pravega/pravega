@@ -240,6 +240,7 @@ class IndexWriter extends IndexReader {
 
         if (processedCount > 0) {
             update.withAttribute(new AttributeUpdate(TableAttributes.TOTAL_ENTRY_COUNT, AttributeUpdateType.Accumulate, processedCount));
+            update.withAttribute(new AttributeUpdate(TableAttributes.UNINDEXED_ENTRY_COUNT, AttributeUpdateType.Accumulate, -processedCount));
         }
     }
 

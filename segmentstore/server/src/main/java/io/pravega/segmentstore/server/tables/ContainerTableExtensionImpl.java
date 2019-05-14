@@ -303,7 +303,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         assert serializationLength <= MAX_BATCH_SIZE;
         byte[] s = new byte[serializationLength];
         serializer.accept(toCommit, s);
-        return segment.append(s, null, timeout);
+        AttributeUpdate au = new AttributeUpdate(TableAttributes.UNINDEXED_ENTRY_COUNT, AttributeUpdateType.Accumulate, toCommit.size());
+        return segment.append(s, Collections.singleton(au), timeout);
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState,
