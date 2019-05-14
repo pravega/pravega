@@ -292,7 +292,7 @@ public class SegmentHelperTest {
 
         // On receiving TableSegmentNotEmpty WireCommandFailedException is thrown.
         result = helper.deleteTableSegment("", true, "", reqId);
-        factory.rp.process(new WireCommands.TableSegmentNotEmpty(reqId + 3 , getQualifiedStreamSegmentName("", "", 0L), ""));
+        factory.rp.process(new WireCommands.TableSegmentNotEmpty(reqId + 3, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof ConnectionFailedException);
 
