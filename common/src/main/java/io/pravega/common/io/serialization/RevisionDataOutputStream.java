@@ -22,7 +22,7 @@ import java.util.function.ToIntFunction;
 import javax.annotation.concurrent.NotThreadSafe;
 
 /**
- * RevisionDataOutput implementation that makes use of the java.io.DataOutputStream for data encoding.
+ * RevisionDataOutput implementation that makes use of the {@link #DataOutputStream} for data encoding.
  */
 @NotThreadSafe
 abstract class RevisionDataOutputStream extends DataOutputStream implements RevisionDataOutput {
@@ -37,9 +37,9 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
      *
      * @param outputStream The OutputStream to wrap.
      * @return A new instance of a RevisionDataOutputStream sub-class, depending on whether the given OutputStream is a
-     * RandomAccessOutputStream (supports seeking) or not.
-     * @throws IOException If an IO Exception occurred. This is because if the given OutputStream is a RandomAccessOutputStream, this
-     *                     will pre-allocate 4 bytes for the length.
+     * {@link RandomAccessOutputStream} (supports seeking) or not.
+     * @throws IOException If an IO Exception occurred. This is because if the given OutputStream is a {@link RandomAccessOutputStream},
+     *                     this will pre-allocate 4 bytes for the length.
      */
     public static RevisionDataOutputStream wrap(OutputStream outputStream) throws IOException {
         if (outputStream instanceof RandomAccessOutputStream) {
@@ -75,7 +75,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
     @Override
     public int getCompactLongLength(long value) {
         if (value < COMPACT_LONG_MIN || value >= COMPACT_LONG_MAX) {
-            throw new IllegalArgumentException("writeCompactLong can only serialize non-negative longs up to 2^62.");
+            throw new IllegalArgumentException(badArgRange("writeCompactLong", "longs", "[0, 2^62)", value));
         } else if (value > 0x3FFF_FFFF) {
             return 8;
         } else if (value > 0x3FFF) {
@@ -100,7 +100,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
     @Override
     public void writeCompactLong(long value) throws IOException {
         if (value < COMPACT_LONG_MIN || value >= COMPACT_LONG_MAX) {
-            throw new IllegalArgumentException("writeCompactLong can only serialize non-negative longs up to 2^62.");
+            throw new IllegalArgumentException(badArgRange("writeCompactLong", "longs", "[0, 2^62)", value));
         } else if (value > 0x3FFF_FFFF) {
             // All 8 bytes
             writeInt((int) (value >>> 32 | 0xC000_0000));
@@ -118,9 +118,72 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
     }
 
     @Override
+    public int getCompactSignedLongLength(long value) {
+        if (value < COMPACT_SIGNED_LONG_MIN || value >= COMPACT_SIGNED_LONG_MAX) {
+            throw new IllegalArgumentException(badArgRange("writeCompactSignedLong", "longs", "[-2^61, 2^61)", value));
+        }
+
+        if (value < 0) {
+            value = negateSignedNumber(value);
+        }
+
+        if (value > 0x1FFF_FFFF) {
+            return 8;
+        } else if (value > 0x1FFF) {
+            return 4;
+        } else if (value > 0x1F) {
+            return 2;
+        } else {
+            return 1;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     * Encodes the given value as a compact long, using the following scheme (MSB=Most Significant Bits).
+     * * MSB[0] = 1 for negative values and 0 for positive values.
+     * * MSB[1-2] = 00 if abs(value) in [0, 0x1F], with a 1-byte encoding.
+     * * MSB[1-2] = 01 if abs(value) in (0x1F, 0x1FFF], with a 2-byte encoding (3 MSB are reserved, leaving 13 bits usable).
+     * * MSB[1-2] = 10 if abs(value) in (0x1FFF, 0x1FFF_FFFF], with a 4-byte encoding (3 MSB are reserved, leaving 29 bits usable).
+     * * MSB[1-2] = 11 if abs(value) in (0x1FFF_FFFF, 0x1FFF_FFFF_FFFF_FFFFL], with an 8-byte encoding (3 MSB are reserved, leaving 61 bits usable).
+     *
+     * @param value The value to encode.
+     */
+    @Override
+    public void writeCompactSignedLong(long value) throws IOException {
+        if (value < COMPACT_SIGNED_LONG_MIN || value >= COMPACT_SIGNED_LONG_MAX) {
+            throw new IllegalArgumentException(badArgRange("writeCompactSignedLong", "longs", "[-2^61, 2^61)", value));
+        } else {
+            boolean negative = value < 0;
+            if (negative) {
+                // Transform the value into a positive one.
+                value = negateSignedNumber(value);
+            }
+
+            if (value > 0x1FFF_FFFF) {
+                // All 8 bytes
+                writeInt((int) (value >>> 32 | (negative ? 0xE000_0000 : 0x6000_0000)));
+                writeInt((int) value);
+            } else if (value > 0x1FFF) {
+                // Only 4 bytes.
+                writeInt((int) (value | (negative ? 0xC000_0000 : 0x4000_0000)));
+            } else if (value > 0x1F) {
+                // Only 2 bytes.
+                writeShort((short) (value | (negative ? 0xA000 : 0x2000)));
+            } else if (negative) {
+                // 1 byte.
+                writeByte((byte) value | 0x80);
+            } else {
+                // 1 byte.
+                writeByte((byte) value);
+            }
+        }
+    }
+
+    @Override
     public int getCompactIntLength(int value) {
         if (value < COMPACT_INT_MIN || value >= COMPACT_INT_MAX) {
-            throw new IllegalArgumentException("writeCompactInt can only serialize non-negative longs up to 2^30.");
+            throw new IllegalArgumentException(badArgRange("writeCompactInt", "ints", "[0, 2^30)", value));
         } else if (value > 0x3FFF) {
             return 4;
         } else if (value > 0x7F) {
@@ -145,7 +208,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         // MSB: 10 -> 2 bytes with the remaining 6+8 bits
         // MSB: 11 -> 4 bytes with the remaining 6+8+8+8 bits
         if (value < COMPACT_INT_MIN || value >= COMPACT_INT_MAX) {
-            throw new IllegalArgumentException("writeCompactInt can only serialize non-negative longs up to 2^30.");
+            throw new IllegalArgumentException(badArgRange("writeCompactInt", "ints", "[0, 2^30)", value));
         } else if (value > 0x3FFF) {
             // All 4 bytes
             writeInt(value | 0xC000_0000);
@@ -263,6 +326,22 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
             keySerializer.accept(this, e.getKey());
             valueSerializer.accept(this, e.getValue());
         }
+    }
+
+    private <T> String badArgRange(String methodName, String type, String interval, T arg) {
+        return String.format("%s can only serialize %s in the interval %s, given %s.", methodName, type, interval, arg);
+    }
+
+    /**
+     * Transforms a number belonging to a range of [A, B] into an equivalent number in the range [-B-1, -A-1]. This
+     * transformation is reversible (X=negate(negate(X)) and is useful for encoding negative compacted numbers and will
+     * not work for {@link Long#MIN_VALUE}.
+     *
+     * @param value The value to encode.
+     * @return The negated value.
+     */
+    static long negateSignedNumber(long value) {
+        return -value - 1;
     }
 
     //endregion
