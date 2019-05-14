@@ -12,12 +12,17 @@ package io.pravega.client.stream;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.StreamCutImpl;
+import io.pravega.client.stream.impl.StreamCutInternal;
+import io.pravega.common.io.serialization.RevisionDataInput;
+import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.io.serialization.VersionedSerializer;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 
+import java.util.Map;
 import lombok.Cleanup;
 import org.junit.Test;
 
@@ -59,6 +64,32 @@ public class StreamCutTest {
         assertEquals(sc, StreamCut.from(base64));
     }
 
+    // Versioned serializer to simulate version 0 of StreamCutImpl.
+    private static class StreamCutSerializerV0 extends VersionedSerializer.Direct<StreamCutInternal> {
+
+        @Override
+        protected byte getWriteVersion() {
+            return 0;
+        }
+
+        @Override
+        protected void declareVersions() {
+            version(0).revision(0, this::write00, this::read00);
+        }
+
+        // serialize a StreamCut using the format used in Version 0.
+        private void write00(StreamCutInternal cut, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeUTF(cut.getStream().getScopedName());
+            Map<Segment, Long> map = cut.getPositions();
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactLong(s.getSegmentId()),
+                                        (out, offset) -> out.writeCompactLong(offset));
+        }
+
+        private void read00(RevisionDataInput revisionDataInput, StreamCutInternal target) throws IOException {
+            // NOP.
+        }
+    }
+
     @Test
     public void testStreamCutSerializationCompatabilityV0() throws Exception {
         ImmutableMap<Segment, Long> segmentOffsetMap = ImmutableMap.<Segment, Long>builder()
@@ -68,9 +99,9 @@ public class StreamCutTest {
         StreamCut sc = new StreamCutImpl( Stream.of("scope", "stream"), segmentOffsetMap);
 
         // Obtain version 0 serialized data
-        final byte[] bufV0 = new StreamCutImpl.StreamCutSerializer().serialize(sc.asImpl()).array();
+        final byte[] bufV0 = new StreamCutSerializerV0().serialize(sc.asImpl()).array();
         // deserialize it using current version 1 serialization and ensure compatibility.
-        assertEquals(sc, new StreamCutImpl.StreamCutSerializer10().deserialize(bufV0));
+        assertEquals(sc, new StreamCutImpl.StreamCutSerializer().deserialize(bufV0));
     }
 
     private byte[] serialize(StreamCut sc) throws IOException {

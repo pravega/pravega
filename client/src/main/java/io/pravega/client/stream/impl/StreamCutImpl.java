@@ -53,7 +53,7 @@ import static io.pravega.common.util.ToStringUtils.stringToList;
 @EqualsAndHashCode(callSuper = false)
 public class StreamCutImpl extends StreamCutInternal {
 
-    static final StreamCutSerializer SERIALIZER = new StreamCutSerializer10();
+    static final StreamCutSerializer SERIALIZER = new StreamCutSerializer();
     private static final int TO_STRING_VERSION = 0;
 
     private final Stream stream;
@@ -161,12 +161,13 @@ public class StreamCutImpl extends StreamCutInternal {
 
         @Override
         protected byte getWriteVersion() {
-            return 0;
+            return 1;
         }
 
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
+            version(1).revision(0, this::write10, this::read10);
         }
 
         private void read00(RevisionDataInput revisionDataInput, StreamCutBuilder builder) throws IOException {
@@ -183,21 +184,6 @@ public class StreamCutImpl extends StreamCutInternal {
             Map<Segment, Long> map = cut.getPositions();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactLong(s.getSegmentId()),
                                         (out, offset) -> out.writeCompactLong(offset));
-        }
-    }
-
-    // StreamCut serializer for version 1.
-    public static class StreamCutSerializer10 extends StreamCutSerializer {
-
-        @Override
-        protected byte getWriteVersion() {
-            return 1;
-        }
-
-        @Override
-        protected void declareVersions() {
-            super.declareVersions();
-            version(1).revision(0, this::write10, this::read10);
         }
 
         private void read10(RevisionDataInput revisionDataInput, StreamCutBuilder builder) throws IOException {
