@@ -205,7 +205,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             final String[] streamTags = segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0");
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 return MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags) == null
-                        ? 0 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count();
+                        ? -1 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count();
             }, 10000);
 
             String readerGroupName2 = readerGroupName + "2";
@@ -228,7 +228,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 return MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags) == null
-                        ? 0 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count();
+                        ? -1 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count();
             }, 10000);
 
             Map<Double, Double> map = new HashMap<>();
@@ -252,7 +252,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             final String[] streamTags2nd = segmentTags(scope + "/" + STREAM_NAME + "/1.#epoch.1");
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 return MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd) == null
-                        ? 0 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd).count();
+                        ? -1 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd).count();
             }, 10000);
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);
