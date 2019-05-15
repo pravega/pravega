@@ -10,13 +10,13 @@ You may obtain a copy of the License at
 # Pravega Watermarking
   * [Introduction](#introduction)
   * [Overview](#overview)
-  * [API Changes](#api-changes)
-     - [Client Factory Changes](#client-factory-changes)  
+  * [List of API](#list-of-api)
+     - [Client Factory](#client-factory)  
      - [Event Writer API Changes](#event-writer-api-changes)
      - [Event Reader API Changes](#event-reader-api-changes)
  * [Internal Changes](#internal-changes)
      - [Server Changes](#server-changes)
-     - [Client changes](#client-changes)
+     - [Client Changes](#client-changes)
      - [Controller Changes](#controller-changes)
         - [Distributing Streams Across Controller Instances](#distributing-streams-across-controller-instances)
         - [Metadata](#metadata)
@@ -30,23 +30,24 @@ You may obtain a copy of the License at
   * [References](#references)
 
 ## Introduction
-The Goal of watermarking is to provide a time bound from the Writers to the Readers so that they can identify where they are in the Stream. The bound should always be conservative. Meaning that if the Writer’s time is well behaved, the mark should indicate to the Reader that it has received everything before a `timestamp`. (It may well have received more than this.)
+The Goal of watermarking is to provide a time bound from the Writers to the Readers so that they can identify their presence in the Stream. If the Writer’s time bound is well behaved, the mark should indicate to the Reader that it has received everything before a `timestamp`.
 
-This immediately raises the issue of how **time** is defined and what properties does it have. This proposal avoids answering that question by leaving it up to the application. This decision was made for two reasons:
+This immediately raises the issue of how **time** is defined and what properties does it have. This decision was made for two reasons:
 
 1. Different applications may have different requirements for time.
 2. In many applications, meaningful time is necessarily related to the data itself.
 
 ## Overview
-The general approach is add new APIs to allow the Writer to provide time information. This is aggregated by the Controller and stored in a special Segment associated with the Stream. The information stored is `timestamp`, `streamCut` pairs.
+The general approach is add new APIs to allow the Writer to provide time information. This is aggregated by the Controller and stored in a special Segment associated with the Stream. The information stored as `timestamp` and `streamCut` pairs.
 
-The `timestamp` is derived by taking the minimum of the most recently reported `timestamp` across all Writers. The `streamCut` is a location in the Stream at an event boundary that is at least as far into the Stream as the location of the Writers when the `timestamps` were provided.
+- `timestamp` is derived by considering the minimum of the most recently reported `timestamp` across all Writers.
+- `streamCut` is a location in the Stream at an event boundary that is at least as far into the Stream as the location of the Writers when the `timestamps` were provided.
 
-The Readers can read these `streamCut`s and `timestamps` from the special Segment, and use the `ReaderGroupState` to coordinate where they are relative to one another.
+The Readers can read these `streamCut`s and `timestamp`s from the special Segment, and use the `ReaderGroupState` to coordinate where they are relative to one another.
 
-# API Changes
-## Client Factory changes
-When Writers are created a new field would need to be specified `writerId`
+# List of API
+## Client Factory
+When Writers are created, `writerId` would be specified.
 
 ```
 <T> EventStreamWriter<T> createEventWriter(String writerId, String streamName, Serializer<T> s, EventWriterConfig config);
@@ -57,9 +58,11 @@ the same goes for transnational writers:
 <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String writerId, String streamName, Serializer<T> s, EventWriterConfig config);
 
 ```
-This would be a breaking API change. Alternatively we could add `writerId` as an optional parameter and if it is not supplied have `noteTime` (below) throw if invoked.
 
-## Event Writer API Changes
+
+## Event Writer API
+
+Alternatively we could add `writerId` as an optional parameter and if it is not supplied have `noteTime` exception if invoked.
 
 In our public interface we add a new API on `EventStreamWriter`.
 
@@ -95,9 +98,9 @@ On the Transactional writer we would also need to add support. However because u
      */
     void commit(long timestamp) throws TxnFailedException;
 ```
-The `timestamp` is passed to the controller as part of the commit. This way a commit simultaneously commits the data and supplies the corresponding `timestamp`.
+The `timestamp` is passed to the Controller as part of the commit. This way a commit simultaneously commits the data and supplies the corresponding `timestamp`.
 
-## Config Changes
+## Config API
 The `StreamConfiguration` would have the new parameter:
 
 ```
@@ -119,10 +122,10 @@ The `EventWriterConfig` would have the new parameter:
     private final boolean automaticallyNoteTime;
 
 ```
-Because it may take some time for all the Writers to come online, for a new Stream we may also want to add an intentional delay before writing the first mark to the marks Segment. This may or may not be configured on a per-stream basis.
+Because it may take some time for all the Writers to come online, for a new Stream we may also want to add an "intentional delay" before writing the first mark to the marks Segment. This may or may not be configured on a per-stream basis.
 
-## Event Reader API Changes
-On the Reader side, we would add a new method on the `EventStreamReader` to obtain the location of the reader in terms of time:
+## Event Reader API
+On the Reader side, we would add a new method on the `EventStreamReader` to obtain the location of the Reader in terms of time:
 
 ```
 /**
@@ -162,10 +165,10 @@ public class TimeWindow {
 
 Note that the `TimeWindow` that is seen by Readers can be affected by `timestampAggrigationTimeout` in the config above. Different applications may wish to be more or less conservative as to when Writers are 'alive' and need to be considered.
 
-# Internal Changes
+# Internal API
 To support this new API some additional information is needed.
 
-For each Event Stream we add a metadata Segment which contains `timestamps`. (This is referred to below as the ‘marks segment’) It contains records which consist of:
+For each Event Stream we add a metadata Segment which contains `timestamps`. (This is referred below as the ‘marks segment’). It contains records which consist of:
 
 - A `timestamp`
 - A set of writer ids
@@ -187,7 +190,7 @@ To write this data the Controller would need more information supplied to it by 
       */
      CompletableFuture<Void> commitTransaction(final Stream stream, final String writerId, final Long timestamp, final UUID txId);
 ```
-and we would need to add a brand new call to propagate the information obtained from a call to `noteTimestamp()` on `EventStreamWriter`. That would look like:
+and we would need to add a brand new call to propagate the information obtained from a call to `noteTimestamp()` on `EventStreamWriter`.
 
 ```
 /**
@@ -195,7 +198,7 @@ and we would need to add a brand new call to propagate the information obtained 
      * lastWrittenPosition.
      *
      * This is called by writers via {@link EventStreamWriter#noteTime(long)} or
-     * {@link Transaction#commit(long)}. The controller should aggrigate this information and write
+     * {@link Transaction#commit(long)}. The controller should aggregate this information and write
      * it to the stream's marks segment so that it read by readers who will in turn ultimately
      * surface this information through the {@link EventStreamReader#getCurrentTimeWindow()} API.
      *
@@ -216,7 +219,7 @@ and we would need to add a brand new call to propagate the information obtained 
      */
     void writerShutdown(String writerId, Stream stream);
 ```
-In order to supply this Position the `EventStreamWriterImpl` would need to internally track the offsets for the segments it was writing to. To do this we would piggyback this information onto the acks it is already receiving from the server. This would involve making a backwards compatible change to the wire protocol to add a `currentSegmentWriteOffset` to `DataAppended`:
+In order to supply this Position the `EventStreamWriterImpl` would  internally track the offsets for the Segments it was writing to. To do this we would piggyback this information onto the acks it is already receiving from the server. This would involve making a backwards compatible change to the wire protocol to add a `currentSegmentWriteOffset` to `DataAppended`:
 
 ```
 @Data
