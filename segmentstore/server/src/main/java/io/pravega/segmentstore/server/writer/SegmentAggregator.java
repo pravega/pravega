@@ -1080,8 +1080,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         // we will be left with orphaned Segments in Storage.
         CompletableFuture<Void> deleteFuture;
         if (this.handle.get() == null) {
-            // Segment does not exist in Storage.
-            deleteFuture = CompletableFuture.completedFuture(null);
+            // Segment does not exist in Storage (most likely due to no data appended to it). However the Attribute Index
+            // may exist since we may have persisted attribute updates. Make sure it is cleaned up in that case.
+            deleteFuture = this.dataSource.deleteAllAttributes(metadata, timer.getRemaining());
         } else {
             deleteFuture = deleteSegmentAndAttributes(handle.get(), this.metadata, timer);
         }
