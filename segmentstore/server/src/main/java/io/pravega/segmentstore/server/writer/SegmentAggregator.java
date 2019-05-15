@@ -1101,12 +1101,13 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     }
 
     /**
-     * Deletes a Segment and its Attributes from Storage. This can be used to delete either the Segment handled by this
-     * instance or any other Segment that has a pending Merge into it.
+     * Deletes a Segment and its Attributes from Storage. The Segment to delete need not be the same Segment handled by
+     * this SegmentAggregator instance.
      *
      * This method does not update any metadata or any other in-memory state.
      *
      * @param handle   A {@link SegmentHandle} representing the Segment to delete.
+     *                 this SegmentAggregator instance.
      * @param metadata The {@link SegmentMetadata} for the Segment to delete.
      * @param timer    Timer for the operation.
      * @return A CompletableFuture that, when completed, will indicate the given Segment and its Attributes have been
