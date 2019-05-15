@@ -30,7 +30,7 @@ public interface RevisionDataOutput extends DataOutput {
     /**
      * Maximum value that can be encoded using {@link #writeCompactLong).
      */
-    long COMPACT_LONG_MAX = 0x3FFF_FFFF_FFFF_FFFFL;
+    long COMPACT_LONG_MAX = 0x3FFF_FFFF_FFFF_FFFFL - 1;
 
     /**
      * Minimum value that can be encoded using {@link #writeCompactLong}.
@@ -40,7 +40,7 @@ public interface RevisionDataOutput extends DataOutput {
     /**
      * Maximum value that can be encoded using {@link #writeCompactSignedLong}.
      */
-    long COMPACT_SIGNED_LONG_MAX = 0x1FFF_FFFF_FFFF_FFFFL;
+    long COMPACT_SIGNED_LONG_MAX = 0x1FFF_FFFF_FFFF_FFFFL - 1;
 
     /**
      * Minimum value that can be encoded using {@link #writeCompactSignedLong}.
@@ -50,7 +50,7 @@ public interface RevisionDataOutput extends DataOutput {
     /**
      * Maximum value that can be encoded using {@link #writeCompactInt}.
      */
-    int COMPACT_INT_MAX = 0x3FFF_FFFF;
+    int COMPACT_INT_MAX = 0x3FFF_FFFF - 1;
 
     /**
      * Minimum value that can be encoded using {@link #writeCompactInt}.

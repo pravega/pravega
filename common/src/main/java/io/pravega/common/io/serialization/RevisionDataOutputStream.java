@@ -74,7 +74,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
 
     @Override
     public int getCompactLongLength(long value) {
-        if (value < COMPACT_LONG_MIN || value >= COMPACT_LONG_MAX) {
+        if (value < COMPACT_LONG_MIN || value > COMPACT_LONG_MAX) {
             throw new IllegalArgumentException(badArgRange("writeCompactLong", "longs", "[0, 2^62)", value));
         } else if (value > 0x3FFF_FFFF) {
             return 8;
@@ -99,7 +99,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
      */
     @Override
     public void writeCompactLong(long value) throws IOException {
-        if (value < COMPACT_LONG_MIN || value >= COMPACT_LONG_MAX) {
+        if (value < COMPACT_LONG_MIN || value > COMPACT_LONG_MAX) {
             throw new IllegalArgumentException(badArgRange("writeCompactLong", "longs", "[0, 2^62)", value));
         } else if (value > 0x3FFF_FFFF) {
             // All 8 bytes
@@ -119,7 +119,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
 
     @Override
     public int getCompactSignedLongLength(long value) {
-        if (value < COMPACT_SIGNED_LONG_MIN || value >= COMPACT_SIGNED_LONG_MAX) {
+        if (value < COMPACT_SIGNED_LONG_MIN || value > COMPACT_SIGNED_LONG_MAX) {
             throw new IllegalArgumentException(badArgRange("writeCompactSignedLong", "longs", "[-2^61, 2^61)", value));
         }
 
@@ -151,7 +151,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
      */
     @Override
     public void writeCompactSignedLong(long value) throws IOException {
-        if (value < COMPACT_SIGNED_LONG_MIN || value >= COMPACT_SIGNED_LONG_MAX) {
+        if (value < COMPACT_SIGNED_LONG_MIN || value > COMPACT_SIGNED_LONG_MAX) {
             throw new IllegalArgumentException(badArgRange("writeCompactSignedLong", "longs", "[-2^61, 2^61)", value));
         } else {
             boolean negative = value < 0;
@@ -182,7 +182,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
 
     @Override
     public int getCompactIntLength(int value) {
-        if (value < COMPACT_INT_MIN || value >= COMPACT_INT_MAX) {
+        if (value < COMPACT_INT_MIN || value > COMPACT_INT_MAX) {
             throw new IllegalArgumentException(badArgRange("writeCompactInt", "ints", "[0, 2^30)", value));
         } else if (value > 0x3FFF) {
             return 4;
@@ -207,7 +207,7 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
         // MSB: 0  -> 1 byte with the remaining 7 bits
         // MSB: 10 -> 2 bytes with the remaining 6+8 bits
         // MSB: 11 -> 4 bytes with the remaining 6+8+8+8 bits
-        if (value < COMPACT_INT_MIN || value >= COMPACT_INT_MAX) {
+        if (value < COMPACT_INT_MIN || value > COMPACT_INT_MAX) {
             throw new IllegalArgumentException(badArgRange("writeCompactInt", "ints", "[0, 2^30)", value));
         } else if (value > 0x3FFF) {
             // All 4 bytes

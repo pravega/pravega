@@ -150,7 +150,7 @@ class RevisionDataInputStream extends DataInputStream implements RevisionDataInp
                         "Unable to deserialize compact signed long. Unrecognized header value %d.", header));
         }
 
-        if (value >= RevisionDataOutput.COMPACT_SIGNED_LONG_MAX) {
+        if (value > RevisionDataOutput.COMPACT_SIGNED_LONG_MAX) {
             throw new SerializationException(String.format(
                     "Unable to deserialize compact signed long. Resulting value (%d) is outside of permissible bounds.",
                     negative ? RevisionDataOutputStream.negateSignedNumber(value) : value));

@@ -116,7 +116,7 @@ public class RevisionDataStreamCommonTests {
     public void testGetCompactLongLength() throws Exception {
         val expectedValues = ImmutableMap.<Long, Integer>builder()
                 .put(RevisionDataOutput.COMPACT_LONG_MIN - 1, -1)
-                .put(RevisionDataOutput.COMPACT_LONG_MAX, -1)
+                .put(RevisionDataOutput.COMPACT_LONG_MAX + 1, -1)
                 .put(0L, 1).put(0x3FL, 1)
                 .put(0x3FL + 1, 2).put(0x3FFFL, 2)
                 .put(0x3FFFL + 1, 4).put(0x3FFF_FFFFL, 4)
@@ -131,13 +131,13 @@ public class RevisionDataStreamCommonTests {
     public void testGetCompactSignedLongLength() throws Exception {
         val expectedValues = ImmutableMap.<Long, Integer>builder()
                 .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN - 1, -1)
-                .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MAX, -1)
+                .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MAX + 1, -1)
                 .put(-0x1FL - 1, 1).put(0x1FL, 1)
                 .put(-0x1FL - 2, 2).put(0x1FFFL, 2)
                 .put(-0x1FFFL - 2, 4).put(0x1FFF_FFFFL, 4)
                 .put(-0x1FFF_FFFFL - 2, 8).put(0x1FFF_FFFFL + 1, 8)
                 .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN, 8)
-                .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MAX - 1, 8)
+                .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MAX, 8)
                 .put(0L, 1).put(-1L, 1)
                 .build();
         testGetCompactLength(expectedValues, RevisionDataOutputStream::getCompactSignedLongLength, RevisionDataOutputStream::writeCompactSignedLong);
@@ -150,7 +150,7 @@ public class RevisionDataStreamCommonTests {
     public void testGetCompactIntLength() throws Exception {
         val expectedValues = ImmutableMap.<Integer, Integer>builder()
                 .put(RevisionDataOutput.COMPACT_INT_MIN - 1, -1)
-                .put(RevisionDataOutput.COMPACT_INT_MAX, -1)
+                .put(RevisionDataOutput.COMPACT_INT_MAX + 1, -1)
                 .put(0, 1).put(0x7F, 1)
                 .put(0x7F + 1, 2).put(0x3FFF, 2)
                 .put(0x3FFF + 1, 4).build();
@@ -164,13 +164,13 @@ public class RevisionDataStreamCommonTests {
     public void testCompactLong() throws Exception {
         val toTest = new ArrayList<Long>();
         // Boundary tests.
-        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_LONG_MIN, RevisionDataOutput.COMPACT_LONG_MAX - 1,
+        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_LONG_MIN, RevisionDataOutput.COMPACT_LONG_MAX,
                 0x3FL, 0x3FL + 1, 0x3FFFL, 0x3FFFL + 1, 0x3FFF_FFFFL, 0x3FFF_FFFFL + 1));
 
         // We want to test that when we split up the Long into smaller numbers, we won't be tripping over unsigned bytes/shorts/ints.
         toTest.addAll(getAllOneBitNumbers(Long.SIZE - 2));
 
-        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_LONG_MIN - 1, RevisionDataOutput.COMPACT_LONG_MAX);
+        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_LONG_MIN - 1, RevisionDataOutput.COMPACT_LONG_MAX + 1);
         testCompact(RevisionDataOutputStream::writeCompactLong, RevisionDataInputStream::readCompactLong,
                 RevisionDataOutputStream::getCompactLongLength, toTest, shouldFail, Long::equals);
     }
@@ -192,9 +192,9 @@ public class RevisionDataStreamCommonTests {
         toTest.addAll(toTest.stream().mapToLong(l -> -l).boxed().collect(Collectors.toList()));
 
         // Add extremes.
-        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN, RevisionDataOutput.COMPACT_SIGNED_LONG_MAX - 1));
+        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN, RevisionDataOutput.COMPACT_SIGNED_LONG_MAX));
 
-        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN - 1, RevisionDataOutput.COMPACT_SIGNED_LONG_MAX);
+        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN - 1, RevisionDataOutput.COMPACT_SIGNED_LONG_MAX + 1);
         testCompact(RevisionDataOutputStream::writeCompactSignedLong, RevisionDataInputStream::readCompactSignedLong,
                 RevisionDataOutputStream::getCompactSignedLongLength, toTest, shouldFail, Long::equals);
     }
@@ -206,13 +206,13 @@ public class RevisionDataStreamCommonTests {
     public void testCompactInt() throws Exception {
         val toTest = new ArrayList<Integer>();
         // Boundary tests.
-        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN, RevisionDataOutput.COMPACT_INT_MAX - 1,
+        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN, RevisionDataOutput.COMPACT_INT_MAX,
                 0x7F, 0x7F + 1, 0x3FFF, 0x3FFF + 1, 0x3F_FFFF, 0x3F_FFFF + 1));
 
         // We want to test that when we split up the Long into smaller numbers, we won't be tripping over unsigned bytes/shorts/ints.
         getAllOneBitNumbers(Integer.SIZE - 2).forEach(n -> toTest.add((int) (long) n));
 
-        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN - 1, RevisionDataOutput.COMPACT_INT_MAX);
+        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN - 1, RevisionDataOutput.COMPACT_INT_MAX + 1);
         testCompact(RevisionDataOutputStream::writeCompactInt, RevisionDataInputStream::readCompactInt, RevisionDataOutputStream::getCompactIntLength,
                 toTest, shouldFail, Integer::equals);
     }
