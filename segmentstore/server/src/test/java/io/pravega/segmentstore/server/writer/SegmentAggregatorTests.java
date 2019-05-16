@@ -1369,17 +1369,19 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         val sealed = context.transactionAggregators[3];
         val withMergers = context.transactionAggregators[4];
         val withMergerSource = context.transactionAggregators[5];
-        val allAggregators = new SegmentAggregator[]{notCreated, empty, notSealed, sealed, withMergers};
+        val emptyWithAttributes = context.transactionAggregators[6];
+        val allAggregators = new SegmentAggregator[]{notCreated, empty, notSealed, sealed, withMergers, emptyWithAttributes};
 
         // Create the segments that are supposed to exist in Storage.
         Stream.of(empty, notSealed, sealed)
               .forEach(a -> context.storage.create(a.getMetadata().getName(), TIMEOUT).join());
 
-        // Write 1 byte to the non-empty segment.
+        // Write 1 byte to the non-empty segment and add 1 attribute.
         context.storage.openWrite(notSealed.getMetadata().getName())
                        .thenCompose(handle -> context.storage.write(handle, 0, new ByteArrayInputStream(new byte[]{1}), 1, TIMEOUT))
                        .join();
         ((UpdateableSegmentMetadata) notSealed.getMetadata()).setLength(1L);
+        context.dataSource.persistAttributes(notSealed.getMetadata().getId(), Collections.singletonMap(UUID.randomUUID(), 1L), TIMEOUT).join();
 
         // Seal the sealed segment.
         ((UpdateableSegmentMetadata) sealed.getMetadata()).markSealed();
@@ -1389,6 +1391,10 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Create a source segment; we'll verify this was also deleted when its target was.
         context.storage.create(withMergerSource.getMetadata().getName(), TIMEOUT).join();
+        context.dataSource.persistAttributes(withMergerSource.getMetadata().getId(), Collections.singletonMap(UUID.randomUUID(), 2L), TIMEOUT).join();
+
+        // This segment has an attribute index, but no segment has been created yet (since no data has been written to it).
+        context.dataSource.persistAttributes(emptyWithAttributes.getMetadata().getId(), Collections.singletonMap(UUID.randomUUID(), 3L), TIMEOUT).join();
 
         for (val a : allAggregators) {
             // Initialize the Aggregator and add the DeleteSegmentOperation.
@@ -1416,6 +1422,12 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         Assert.assertFalse("Pending merger source segment not deleted.",
                 context.storage.exists(withMergerSource.getMetadata().getName(), TIMEOUT).join());
+        Assert.assertTrue("Attributes not deleted for non-merged segment.",
+                context.dataSource.getPersistedAttributes(notSealed.getMetadata().getId()).isEmpty());
+        Assert.assertTrue("Attributes not deleted for merger source segment.",
+                context.dataSource.getPersistedAttributes(withMergerSource.getMetadata().getId()).isEmpty());
+        Assert.assertTrue("Attributes not deleted for empty segment with attributes.",
+                context.dataSource.getPersistedAttributes(emptyWithAttributes.getMetadata().getId()).isEmpty());
     }
 
     /**
