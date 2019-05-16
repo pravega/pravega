@@ -480,6 +480,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val removedKeys = new ArrayList<ArrayView>();
         val keyVersions = new HashMap<ArrayView, Long>();
         Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(k, TableKey.NOT_EXISTS);
+        long expectedUnindexedCount = 0;
         for (val key : keys) {
             val toUpdate = generateToUpdate.apply(key, createRandomData(MAX_VALUE_LENGTH, context), getKeyVersion.apply(key));
             val updateResult = new AtomicReference<List<Long>>();
@@ -489,10 +490,14 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                     context.segment().getInfo()::getLength);
             Assert.assertEquals("Unexpected result size from update.", 1, updateResult.get().size());
             keyVersions.put(key, updateResult.get().get(0));
+            expectedUnindexedCount++;
+            Assert.assertEquals("Unexpected unindexed count after update.", expectedUnindexedCount, getUnindexedEntryCount(context));
 
             expectedEntries.put(new HashedArray(toUpdate.getKey().getKey()), new HashedArray(toUpdate.getValue()));
             check(expectedEntries, removedKeys, context.ext);
             processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            expectedUnindexedCount--;
+            Assert.assertEquals("Unexpected unindexed count after update-flush.", expectedUnindexedCount, getUnindexedEntryCount(context));
             check(expectedEntries, removedKeys, context.ext);
         }
 
@@ -502,11 +507,15 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         for (val key : keys) {
             val toRemove = generateToRemove.apply(key, getKeyVersion.apply(key));
             addToProcessor(() -> context.ext.remove(SEGMENT_NAME, Collections.singleton(toRemove), TIMEOUT), processor, context.segment().getInfo()::getLength);
+            expectedUnindexedCount++;
+            Assert.assertEquals("Unexpected unindexed count after removal.", expectedUnindexedCount, getUnindexedEntryCount(context));
             removedKeys.add(key);
             expectedEntries.remove(new HashedArray(key));
             keyVersions.remove(key);
             check(expectedEntries, removedKeys, context.ext);
             processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            expectedUnindexedCount--;
+            Assert.assertEquals("Unexpected unindexed count after remove-flush.", expectedUnindexedCount, getUnindexedEntryCount(context));
             check(expectedEntries, removedKeys, context.ext);
         }
 
@@ -539,6 +548,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val keyVersions = new HashMap<ArrayView, Long>();
         Function<ArrayView, Long> getKeyVersion = k -> keyVersions.getOrDefault(k, TableKey.NOT_EXISTS);
         TestBatchData last = null;
+        long expectedUnindexedCount = 0;
         for (val current : data) {
             // Update entries.
             val toUpdate = current.toUpdate
@@ -556,6 +566,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                     processor,
                     context.segment().getInfo()::getLength);
             removedKeys.removeAll(current.toUpdate.keySet());
+            expectedUnindexedCount += toUpdate.size();
+            Assert.assertEquals("Unexpected unindexed count after update.", expectedUnindexedCount, getUnindexedEntryCount(context));
 
             // Remove entries.
             val toRemove = current.toRemove
@@ -569,6 +581,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             Assert.assertTrue("Unexpected result from WriterTableProcessor.mustFlush().", processor.mustFlush());
             processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
             Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+            expectedUnindexedCount -= toUpdate.size();
+            Assert.assertEquals("Unexpected unindexed count after update.", expectedUnindexedCount, getUnindexedEntryCount(context));
 
             // Verify result (from cache).
             checkTable.accept(current.expectedEntries, removedKeys, context.ext);
@@ -751,6 +765,10 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
     private TableKey toUnconditionalKey(ArrayView keyData, long currentVersion) {
         return TableKey.unversioned(keyData);
+    }
+
+    private long getUnindexedEntryCount(TestContext context) {
+        return context.segment().getInfo().getAttributes().getOrDefault(TableAttributes.UNINDEXED_ENTRY_COUNT, -1L);
     }
 
     //region Helper Classes

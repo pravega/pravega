@@ -95,6 +95,17 @@ class IndexReader {
     }
 
     /**
+     * Gets the number of Table Entries in the Segment that have yet to be indexed for the given {@link SegmentProperties}.
+     * This includes all the Entries after {@link TableAttributes#INDEX_OFFSET}.
+     *
+     * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
+     * @return The count.
+     */
+    long getUnindexedEntryCount(SegmentProperties segmentInfo) {
+        return segmentInfo.getAttributes().getOrDefault(TableAttributes.UNINDEXED_ENTRY_COUNT, 0L);
+    }
+
+    /**
      * Gets the number of Table Buckets in the Segment for the given {@link SegmentProperties}.
      *
      * @param segmentInfo A {@link SegmentProperties} from which to extract the information.

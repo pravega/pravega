@@ -12,6 +12,8 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.util.HashedArray;
+import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -22,6 +24,7 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -48,6 +51,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     private static final int REMOVE_BATCH_SIZE = 1000;
     private static final int MAX_KEY_LENGTH = 512;
     private static final long NO_OFFSET = -1L;
+    private static final long INITIAL_UNINDEXED_ATTRIBUTE_COUNT = 1000L;
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -75,6 +79,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                                                  .put(TableAttributes.ENTRY_COUNT, 2345L)
                                                  .put(TableAttributes.TOTAL_ENTRY_COUNT, 4567L)
                                                  .put(TableAttributes.BUCKET_COUNT, 3456L)
+                                                 .put(TableAttributes.UNINDEXED_ENTRY_COUNT, 4567L)
                                                  .build())
                                          .build();
         Assert.assertEquals("Unexpected value for INDEX_OFFSET when attribute present.",
@@ -85,6 +90,8 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                 4567, ir.getTotalEntryCount(si));
         Assert.assertEquals("Unexpected value for BUCKET_COUNT when attribute present.",
                 3456, ir.getBucketCount(si));
+        Assert.assertEquals("Unexpected value for UNINDEXED_ENTRY_COUNT when attribute present.",
+                4567, ir.getUnindexedEntryCount(si));
     }
 
     //endregion
@@ -373,6 +380,9 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
                                        .sorted(Comparator.comparingLong(BucketUpdate.KeyUpdate::getOffset))
                                        .collect(Collectors.toList());
 
+        // Update the UNINDEXED_ENTRY_COUNT attribute - this would have been done externally by the ContainerTableExtension.
+        segment.updateAttributes(Collections.singleton(new AttributeUpdate(TableAttributes.UNINDEXED_ENTRY_COUNT, AttributeUpdateType.Accumulate, keyUpdates.size())), TIMEOUT).join();
+
         // This is the value that we will set TABLE_INDEX_NODE to. It is not any key's offset (and we don't really care what its value is)
         long firstKeyOffset = keyUpdates.get(0).getOffset();
         long postIndexOffset = keyUpdates.get(keyUpdates.size() - 1).getOffset() + 2 * MAX_KEY_LENGTH;
@@ -384,6 +394,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         val oldOffsets = new ArrayList<Long>();
         val entryCount = new AtomicLong(w.getEntryCount(segment.getInfo()));
         long initialTotalEntryCount = w.getTotalEntryCount(segment.getInfo());
+        AssertExtensions.assertGreaterThan("Expecting some unindexed entries to begin with.", 0, w.getUnindexedEntryCount(segment.getInfo()));
         int totalEntryCountDelta = 0;
         val bucketUpdates = new ArrayList<BucketUpdate>();
         for (val builder : builders) {
@@ -490,6 +501,10 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
         Assert.assertEquals("Unexpected total number of entries.", expectedCount, ir.getTotalEntryCount(segment.getInfo()));
     }
 
+    private void checkUnindexedEntryCount(long expectedCount, SegmentMock segment, IndexReader ir) {
+        Assert.assertEquals("Unexpected total number of unindexed entries.", expectedCount, ir.getUnindexedEntryCount(segment.getInfo()));
+    }
+
     private void checkBucketCount(long expectedCount, SegmentMock segment, IndexReader ir) {
         Assert.assertEquals("Unexpected number of buckets.", expectedCount, ir.getBucketCount(segment.getInfo()));
     }
@@ -530,6 +545,7 @@ public class IndexReaderWriterTests extends ThreadPooledTestSuite {
     private SegmentMock newMock() {
         val mock = new SegmentMock(executorService());
         mock.updateAttributes(TableAttributes.DEFAULT_VALUES);
+        mock.updateAttributes(Collections.singletonMap(TableAttributes.UNINDEXED_ENTRY_COUNT, INITIAL_UNINDEXED_ATTRIBUTE_COUNT));
         return mock;
     }
 
