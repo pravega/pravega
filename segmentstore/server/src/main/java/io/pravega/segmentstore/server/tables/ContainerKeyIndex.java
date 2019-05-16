@@ -13,6 +13,7 @@ import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
+import io.pravega.common.concurrent.AsyncSemaphore;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.MultiKeySequentialProcessor;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -55,6 +56,13 @@ import lombok.val;
 @ThreadSafe
 class ContainerKeyIndex implements AutoCloseable {
     //region Members
+    /**
+     * The maximum number of Table Entries that can exist in the Tail Index for a Table Segment at any given time. The
+     * Tail Index is made of recent updates and removals that have not yet been indexed.
+     * This value is used for throttling: once a particular Table Segment has reached this number of unindexed entries,
+     * subsequent updates and removals will be blocked (asynchronously) until the {@link IndexWriter} has caught up.
+     */
+    static final int MAX_UNINDEXED_ENTRY_COUNT = 10000;
 
     @Getter
     private final IndexReader indexReader;
@@ -62,7 +70,7 @@ class ContainerKeyIndex implements AutoCloseable {
     private final ContainerKeyCache cache;
     private final CacheManager cacheManager;
     private final MultiKeySequentialProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
-    private final RecoveryTracker recoveryTracker;
+    private final SegmentTracker segmentTracker;
     private final AtomicBoolean closed;
 
     //endregion
@@ -84,7 +92,7 @@ class ContainerKeyIndex implements AutoCloseable {
         this.executor = executor;
         this.indexReader = new IndexReader(executor);
         this.conditionalUpdateProcessor = new MultiKeySequentialProcessor<>(this.executor);
-        this.recoveryTracker = new RecoveryTracker();
+        this.segmentTracker = new SegmentTracker();
         this.closed = new AtomicBoolean();
     }
 
@@ -98,7 +106,7 @@ class ContainerKeyIndex implements AutoCloseable {
             this.conditionalUpdateProcessor.close();
             this.cacheManager.unregister(this.cache);
             this.cache.close();
-            this.recoveryTracker.close();
+            this.segmentTracker.close();
         }
     }
 
@@ -133,7 +141,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * </ul>
      */
     <T> CompletableFuture<T> executeIfEmpty(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> action, TimeoutTimer timer) {
-        return this.recoveryTracker.waitIfNeeded(segment, () -> this.conditionalUpdateProcessor.addWithFilter(
+        return this.segmentTracker.waitIfNeeded(segment, () -> this.conditionalUpdateProcessor.addWithFilter(
                 conditionKey -> conditionKey.getKey() == segment.getSegmentId(),
                 () -> isTableSegmentEmpty(segment, timer)
                         .thenCompose(isEmpty -> {
@@ -243,7 +251,7 @@ class ContainerKeyIndex implements AutoCloseable {
             return CompletableFuture.completedFuture(result);
         } else {
             // Fetch information for missing hashes.
-            return this.recoveryTracker.waitIfNeeded(segment, () -> getBucketOffsetFromSegment(segment, result, toLookup, timer));
+            return this.segmentTracker.waitIfNeeded(segment, () -> getBucketOffsetFromSegment(segment, result, toLookup, timer));
         }
     }
 
@@ -261,7 +269,7 @@ class ContainerKeyIndex implements AutoCloseable {
      */
     CompletableFuture<Long> getBucketOffsetDirect(DirectSegmentAccess segment, UUID keyHash, TimeoutTimer timer) {
         // Get the bucket offset from the segment, which will update the cache if actually newer.
-        return this.recoveryTracker.waitIfNeeded(segment,
+        return this.segmentTracker.waitIfNeeded(segment,
                 () -> getBucketOffsetFromSegment(segment, Collections.synchronizedMap(new HashMap<>()), Collections.singleton(keyHash), timer)
                         .thenApply(result -> result.get(keyHash)));
     }
@@ -315,7 +323,7 @@ class ContainerKeyIndex implements AutoCloseable {
             return this.indexReader.getBackpointerOffset(segment, offset, timeout);
         } else {
             // Nothing in the tail cache; look it up in the index.
-            return this.recoveryTracker.waitIfNeeded(segment, () -> this.indexReader.getBackpointerOffset(segment, offset, timeout));
+            return this.segmentTracker.waitIfNeeded(segment, () -> this.indexReader.getBackpointerOffset(segment, offset, timeout));
         }
     }
 
@@ -349,6 +357,7 @@ class ContainerKeyIndex implements AutoCloseable {
     CompletableFuture<List<Long>> update(DirectSegmentAccess segment, TableKeyBatch batch, Supplier<CompletableFuture<Long>> persist, TimeoutTimer timer) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
+        Supplier<CompletableFuture<List<Long>>> update;
         if (batch.isConditional()) {
             // Conditional update.
             // Collect all Cache Keys for the Update Items that have a condition on them; we need this on order to
@@ -359,15 +368,18 @@ class ContainerKeyIndex implements AutoCloseable {
 
             // Serialize the execution (queue it up to run only after all other currently queued up conditional updates
             // for touched keys have finished).
-            return this.conditionalUpdateProcessor.add(
+
+            update = () -> this.conditionalUpdateProcessor.add(
                     keys,
                     () -> validateConditionalUpdate(segment, batch, timer)
                             .thenComposeAsync(v -> persist.get(), this.executor)
                             .thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor));
         } else {
             // Unconditional update: persist the entries and update the cache.
-            return persist.get().thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor);
+            update = () -> persist.get().thenApplyAsync(batchOffset -> updateCache(segment, batch, batchOffset), this.executor);
         }
+
+        return this.segmentTracker.throttleIfNeeded(segment, update, batch.getItems().size());
     }
 
     private List<Long> updateCache(DirectSegmentAccess segment, TableKeyBatch batch, long batchOffset) {
@@ -482,13 +494,14 @@ class ContainerKeyIndex implements AutoCloseable {
      * Notifies this ContainerKeyIndex instance that the {@link TableAttributes#INDEX_OFFSET} attribute value for the
      * given Segment has been changed.
      *
-     * @param segmentId   The Id of the Segment whose Index Offset has changed.
-     * @param indexOffset The new value for the Index Offset. A negative value indicates this segment has been evicted
-     *                    from memory and relevant resources can be freed.
+     * @param segmentId           The Id of the Segment whose Index Offset has changed.
+     * @param indexOffset         The new value for the Index Offset. A negative value indicates this segment has been
+     *                            evicted from memory and relevant resources can be freed.
+     * @param processedEntryCount The total number of Entries processed during this update (including duplicates).
      */
-    void notifyIndexOffsetChanged(long segmentId, long indexOffset) {
+    void notifyIndexOffsetChanged(long segmentId, long indexOffset, int processedEntryCount) {
         this.cache.updateSegmentIndexOffset(segmentId, indexOffset);
-        this.recoveryTracker.updateSegmentIndexOffset(segmentId, indexOffset);
+        this.segmentTracker.updateSegmentIndexOffset(segmentId, indexOffset, processedEntryCount);
     }
 
     /**
@@ -501,58 +514,68 @@ class ContainerKeyIndex implements AutoCloseable {
      */
     CompletableFuture<Map<UUID, CacheBucketOffset>> getUnindexedKeyHashes(DirectSegmentAccess segment) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.recoveryTracker.waitIfNeeded(segment,
+        return this.segmentTracker.waitIfNeeded(segment,
                 () -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));
     }
 
     //endregion
 
-    //region RecoveryTracker
+    //region SegmentTracker
 
     /**
-     * Helps keep track of Segment Recovery events.
+     * Helps keep track of Segment-specific state.
      */
     @ThreadSafe
-    private class RecoveryTracker implements AutoCloseable {
+    private class SegmentTracker implements AutoCloseable {
         @GuardedBy("this")
         private final HashSet<Long> recoveredSegments = new HashSet<>();
         @GuardedBy("this")
         private final HashMap<Long, RecoveryTask> recoveryTasks = new HashMap<>();
+        @GuardedBy("this")
+        private final HashMap<Long, AsyncSemaphore> throttlers = new HashMap<>();
 
         @Override
         public void close() {
             List<RecoveryTask> toCancel;
+            List<AsyncSemaphore> toClose;
             synchronized (this) {
                 toCancel = new ArrayList<>(this.recoveryTasks.values());
                 this.recoveryTasks.clear();
+                toClose = new ArrayList<>(this.throttlers.values());
+                this.throttlers.clear();
             }
 
             ObjectClosedException ex = new ObjectClosedException(ContainerKeyIndex.this);
             toCancel.forEach(t -> t.task.completeExceptionally(ex));
+            toClose.forEach(AsyncSemaphore::close);
         }
 
         /**
          * Updates the SegmentIndexOffset for the given Segment and releases any blocked tasks, if appropriate.
          *
-         * @param segmentId   The Segment id.
-         * @param indexOffset The current Index Offset. -1 means it has been evicted and tasks should be cancelled.
+         * @param segmentId           The Segment id.
+         * @param indexOffset         The current Index Offset. -1 means it has been evicted and tasks should be cancelled.
+         * @param processedEntryCount The number of entries processed.
          */
-        void updateSegmentIndexOffset(long segmentId, long indexOffset) {
+        void updateSegmentIndexOffset(long segmentId, long indexOffset, int processedEntryCount) {
             boolean removed = indexOffset < 0;
-            RecoveryTask task;
+            RecoveryTask recoveryTask;
+            AsyncSemaphore throttler;
             synchronized (this) {
                 if (removed) {
                     // Segment evicted. Free resources.
-                    task = this.recoveryTasks.remove(segmentId);
+                    recoveryTask = this.recoveryTasks.remove(segmentId);
                     this.recoveredSegments.remove(segmentId);
+                    throttler = this.throttlers.remove(segmentId);
                 } else {
-                    task = this.recoveryTasks.get(segmentId);
+                    recoveryTask = this.recoveryTasks.get(segmentId);
+                    throttler = this.throttlers.get(segmentId);
                 }
 
-                if (task != null && !removed) {
-                    if (indexOffset < task.triggerIndexOffset) {
+                if (recoveryTask != null && !removed) {
+                    if (indexOffset < recoveryTask.triggerIndexOffset) {
                         // There is a task, but the trigger condition is not met.
-                        task = null;
+                        recoveryTask = null;
                     } else {
                         // Segment is fully recovered.
                         this.recoveryTasks.remove(segmentId);
@@ -561,15 +584,52 @@ class ContainerKeyIndex implements AutoCloseable {
                 }
             }
 
-            if (task != null) {
+            if (recoveryTask != null) {
                 if (removed) {
                     // Normally nobody should be waiting on this, but in case they did, there's nothing we can do about it now.
-                    task.task.cancel(true);
+                    recoveryTask.task.cancel(true);
                 } else {
                     // Notify whoever is waiting that it's all clear to execute.
-                    task.task.complete(null);
+                    recoveryTask.task.complete(null);
                 }
             }
+
+            if (throttler != null) {
+                if (removed) {
+                    // We evicted the segment, so close the throttler.
+                    throttler.close();
+                } else {
+                    // We have made indexing progress. Update the throttler with the count.
+                    throttler.release(Math.max(0, processedEntryCount));
+                }
+            }
+        }
+
+        /**
+         * Determines if the given task can be executed immediately or must be delayed until more items are indexed.
+         * Each Segment can have a maximum number of unindexed updates (defined by {@link #MAX_UNINDEXED_ENTRY_COUNT});
+         * if this limit is reached then the {@link IndexWriter} has fallen too far behind and we need to slow down the
+         * ingestion of new updates (otherwise we risk lengthy delays upon a subsequent recovery).
+         *
+         * @param segment     The Segment to execute the task on.
+         * @param toExecute   A Supplier that, when invoked, will execute a task and return a CompletableFuture which will
+         *                    complete when the task is done.
+         * @param updateCount The number of updates that this task will perform.
+         * @param <T>         Return type.
+         * @return A CompletableFuture that will be completed when the task is done. If executing immediately, this is the
+         * result of toExecute, otherwise it will be a different Future which will be completed when toExecute completes.
+         */
+        <T> CompletableFuture<T> throttleIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute, int updateCount) {
+            AsyncSemaphore throttler;
+            synchronized (this) {
+                throttler = this.throttlers.getOrDefault(segment.getSegmentId(), null);
+                if (throttler == null) {
+                    throttler = new AsyncSemaphore(MAX_UNINDEXED_ENTRY_COUNT, (int) ContainerKeyIndex.this.indexReader.getUnindexedEntryCount(segment.getInfo()));
+                    this.throttlers.put(segment.getSegmentId(), throttler);
+                }
+            }
+
+            return throttler.run(toExecute, updateCount);
         }
 
         /**

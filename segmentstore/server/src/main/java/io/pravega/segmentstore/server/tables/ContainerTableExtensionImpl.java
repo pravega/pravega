@@ -57,6 +57,13 @@ import lombok.val;
 public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
+    /**
+     * The maximum number of updates allowed per batch update/removal.
+     */
+    private static final int MAX_BATCH_UPDATE_COUNT = ContainerKeyIndex.MAX_UNINDEXED_ENTRY_COUNT;
+    /**
+     * The maximum size of an update/removal batch, in bytes.
+     */
     private static final int MAX_BATCH_SIZE = 32 * EntrySerializer.MAX_SERIALIZATION_LENGTH;
     /**
      * The default value to supply to a {@link WriterTableProcessor} to indicate how big compactions need to be.
@@ -293,8 +300,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             batch.add(key, this.hasher.hash(key.getKey()), length);
         }
 
+        Preconditions.checkArgument(batch.getItems().size() <= MAX_BATCH_UPDATE_COUNT,
+                "Update Batch Item Count (%s) exceeds the maximum limit of %s.", batch.getItems().size(), MAX_BATCH_UPDATE_COUNT);
         Preconditions.checkArgument(batch.getLength() <= MAX_BATCH_SIZE,
-                "Update Batch length (%s) exceeds the maximum limit.", MAX_BATCH_SIZE);
+                "Update Batch length (%s) exceeds the maximum limit of %s.", batch.getLength(), MAX_BATCH_SIZE);
         return batch;
     }
 
@@ -378,8 +387,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
         @Override
-        public void notifyIndexOffsetChanged(long lastIndexedOffset) {
-            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), lastIndexedOffset);
+        public void notifyIndexOffsetChanged(long lastIndexedOffset, int processedEntryCount) {
+            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), lastIndexedOffset, processedEntryCount);
         }
 
         @Override
@@ -390,7 +399,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         @Override
         public void close() {
             // Tell the KeyIndex that it's ok to clear any tail-end cache.
-            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), -1L);
+            ContainerTableExtensionImpl.this.keyIndex.notifyIndexOffsetChanged(this.metadata.getId(), -1L, 0);
         }
     }
 

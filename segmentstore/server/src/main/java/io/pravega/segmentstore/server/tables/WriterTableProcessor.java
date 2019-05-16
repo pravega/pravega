@@ -40,7 +40,6 @@ import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -165,7 +164,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                 .getSegment(timer.getRemaining())
                 .thenComposeAsync(segment -> flushWithSingleRetry(segment, timer)
                                 .thenComposeAsync(flushResult -> {
-                                    flushComplete(flushResult.lastIndexedOffset);
+                                    flushComplete(flushResult);
                                     return compactIfNeeded(segment, flushResult.highestCopiedOffset, timer)
                                             .thenApply(v -> flushResult);
                                 }, this.executor),
@@ -262,12 +261,12 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     /**
      * Updates the internal state post flush and notifies the {@link TableWriterConnector} of the fact.
      *
-     * @param lastIndexedOffset The last offset in the Table Segment that was indexed.
+     * @param flushResult The {@link TableWriterFlushResult} that indicates what has been updated.
      */
-    private void flushComplete(long lastIndexedOffset) {
+    private void flushComplete(TableWriterFlushResult flushResult) {
         this.aggregator.reset();
-        this.aggregator.setLastIndexedOffset(lastIndexedOffset);
-        this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
+        this.aggregator.setLastIndexedOffset(flushResult.lastIndexedOffset);
+        this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset(), flushResult.processedEntryCount);
         log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
     }
 
@@ -300,7 +299,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
                                             keyUpdates.getTotalUpdateCount(), timer.getRemaining());
                                 }, this.executor),
                         this.executor)
-                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates.getLastIndexedOffset(), keyUpdates.getHighestCopiedOffset()));
+                .thenApply(ignored -> new TableWriterFlushResult(keyUpdates));
     }
 
     @SneakyThrows(DataCorruptionException.class)
@@ -543,10 +542,17 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
         }
     }
 
-    @RequiredArgsConstructor
+
     private static class TableWriterFlushResult extends WriterFlushResult {
         final long lastIndexedOffset;
         final long highestCopiedOffset;
+        final int processedEntryCount;
+
+        TableWriterFlushResult(KeyUpdateCollection keyUpdates) {
+            this.lastIndexedOffset = keyUpdates.getLastIndexedOffset();
+            this.highestCopiedOffset = keyUpdates.getHighestCopiedOffset();
+            this.processedEntryCount = keyUpdates.getTotalUpdateCount();
+        }
     }
 
     //endregion

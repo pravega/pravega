@@ -54,9 +54,10 @@ interface TableWriterConnector extends AutoCloseable {
      * {@link WriterTableProcessor#flush} which advanced the value of the {@link TableAttributes#INDEX_OFFSET} attribute
      * on the Table Segment this connector refers to.
      *
-     * @param lastIndexedOffset The current value of the {@link TableAttributes#INDEX_OFFSET} attribute.
+     * @param lastIndexedOffset   The current value of the {@link TableAttributes#INDEX_OFFSET} attribute.
+     * @param processedEntryCount The number of Entries processed during this update (including duplicates).
      */
-    void notifyIndexOffsetChanged(long lastIndexedOffset);
+    void notifyIndexOffsetChanged(long lastIndexedOffset, int processedEntryCount);
 
     /**
      * Gets a value representing the maximum length that a Table Segment compaction can process at once.

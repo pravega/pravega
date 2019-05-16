@@ -486,9 +486,9 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             this.random = new Random(0);
             this.sequenceNumber = new AtomicLong(0);
             initializeSegment();
+            this.indexReader = new IndexReader(executorService());
             this.connector = new TableWriterConnectorImpl();
             this.processor = new WriterTableProcessor(connector, executorService());
-            this.indexReader = new IndexReader(executorService());
         }
 
         @Override
@@ -523,6 +523,11 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         private class TableWriterConnectorImpl implements TableWriterConnector {
             private final AtomicInteger notifyCount = new AtomicInteger(0);
             private final AtomicBoolean closed = new AtomicBoolean();
+            private final AtomicLong expectedUnindexedEntryCount = new AtomicLong();
+
+            TableWriterConnectorImpl() {
+                this.expectedUnindexedEntryCount.set(indexReader.getUnindexedEntryCount(metadata));
+            }
 
             @Override
             public SegmentMetadata getMetadata() {
@@ -545,9 +550,16 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
             }
 
             @Override
-            public void notifyIndexOffsetChanged(long lastIndexedOffset) {
+            public void notifyIndexOffsetChanged(long lastIndexedOffset, int processedEntryCount) {
                 Assert.assertEquals("Unexpected value for lastIndexedOffset.",
                         indexReader.getLastIndexedOffset(segmentMock.getInfo()), lastIndexedOffset);
+
+                // Keep track of unindexed entry counts and verify that the value we are being given here is consistent
+                // with whatever is stored in the Table Segment's attributes.
+                AssertExtensions.assertGreaterThanOrEqual("Expecting processedEntryCount to be positive", 0, processedEntryCount);
+                this.expectedUnindexedEntryCount.addAndGet(-processedEntryCount);
+                Assert.assertEquals("Segment's UNINDEXED_ENTRY_COUNT is inconsistent with given processedEntryCount.",
+                        this.expectedUnindexedEntryCount.get(), indexReader.getUnindexedEntryCount(metadata));
                 this.notifyCount.incrementAndGet();
             }
 

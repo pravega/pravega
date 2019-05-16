@@ -54,7 +54,7 @@ public class AsyncSemaphore implements AutoCloseable {
      * @param totalCredits Total number of available credits.
      * @param usedCredits  Initial number of used credits.
      */
-    AsyncSemaphore(int totalCredits, int usedCredits) {
+    public AsyncSemaphore(int totalCredits, int usedCredits) {
         Preconditions.checkArgument(totalCredits > 0, "totalCredits must be a positive integer");
         Preconditions.checkArgument(usedCredits >= 0, "usedCredits must be a non-negative integer");
         this.totalCredits = totalCredits;
@@ -94,7 +94,7 @@ public class AsyncSemaphore implements AutoCloseable {
      * If there are sufficient credits available for this task to run, it will be invoked synchronously and the returned
      * result is directly provided by the given task.
      *
-     * If there are insufficient credits avaialble for this task to run, it will be queued up and executed when credits
+     * If there are insufficient credits available for this task to run, it will be queued up and executed when credits
      * become availble. There is no prioritization of queued tasks - they are triggered in the order in which they
      * are queued up.
      *
