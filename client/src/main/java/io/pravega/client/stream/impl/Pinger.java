@@ -13,15 +13,14 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
-import io.pravega.common.concurrent.ExecutorServiceHelpers;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Synchronized;
@@ -44,34 +43,36 @@ public class Pinger implements AutoCloseable {
     private final Controller controller;
     private final long txnLeaseMillis;
     private final long pingIntervalMillis;
-    private ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(1,
-            "pingTxnThread");
-    private final List<UUID> txnList = Collections.synchronizedList(new ArrayList<>());
+    private final ScheduledExecutorService executor;
+    private final Object lock = new Object();
+    @GuardedBy("lock")
+    private final Set<UUID> txnList = new HashSet<>();
     @Getter(value = AccessLevel.PACKAGE)
     @VisibleForTesting
-    private final LinkedBlockingQueue<UUID> completedTxns = new LinkedBlockingQueue<>();
+    @GuardedBy("lock")
+    private final Set<UUID> completedTxns = new HashSet<>();
     private final AtomicBoolean isStarted = new AtomicBoolean();
+    private ScheduledFuture<?> scheduledFuture;
 
-    Pinger(EventWriterConfig config, Stream stream, Controller controller) {
+    Pinger(EventWriterConfig config, Stream stream, Controller controller, ScheduledExecutorService executor) {
         this.txnLeaseMillis = config.getTransactionTimeoutTime();
         this.pingIntervalMillis = getPingInterval(txnLeaseMillis);
         this.stream = stream;
         this.controller = controller;
-    }
-
-    @VisibleForTesting
-    Pinger(EventWriterConfig config, Stream stream, Controller controller, ScheduledExecutorService executor) {
-      this(config, stream, controller);
-      this.executor = executor;
+        this.executor = executor;
     }
 
     void startPing(UUID txnID) {
-        txnList.add(txnID);
+        synchronized (lock) {
+            txnList.add(txnID);
+        }
         startPeriodicPingTxn();
     }
 
     void stopPing(UUID txnID) {
-        txnList.remove(txnID);
+        synchronized (lock) {
+            txnList.remove(txnID);
+        }
     }
 
     private long getPingInterval(long txnLeaseMillis) {
@@ -87,8 +88,8 @@ public class Pinger implements AutoCloseable {
     private void startPeriodicPingTxn() {
         if (!isStarted.get()) {
             log.info("Starting Pinger at an interval of {}ms ", this.pingIntervalMillis);
-            executor.scheduleAtFixedRate(this::pingTransactions, 10, this.pingIntervalMillis,
-                    TimeUnit.MILLISECONDS);
+            // scheduleAtFixedRate ensure that there are no concurrent executions of the command, pingTransactions()
+            scheduledFuture = executor.scheduleAtFixedRate(this::pingTransactions, 10, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
             isStarted.set(true);
         }
     }
@@ -99,32 +100,34 @@ public class Pinger implements AutoCloseable {
      */
     private void pingTransactions() {
         log.info("Start sending transaction pings.");
-
-        List<UUID> stopPingTxns = new ArrayList<>();
-        completedTxns.drainTo(stopPingTxns);
-        txnList.removeAll(stopPingTxns); // remove completed transactions from the pingable transaction list.
-        txnList.forEach(uuid -> {
-            try {
-                log.debug("Sending ping request for txn ID: {} with lease: {}", uuid, txnLeaseMillis);
-                controller.pingTransaction(stream, uuid, txnLeaseMillis)
-                          .whenComplete((status, e) -> {
-                              if (e != null) {
-                                  log.warn("Ping Transaction for txn ID:{} failed", uuid, unwrap(e));
-                              } else if (Transaction.PingStatus.ABORTED.equals(status) || Transaction.PingStatus.COMMITTED.equals(status)) {
-                                  completedTxns.offer(uuid);
-                              }
-                          });
-            } catch (Exception e) {
-                // Suppressing exception to prevent future pings from not being executed. 
-                log.warn("Encountered exception when attepting to ping transactions", e);
-            }
-        });
+        synchronized (lock) {
+            txnList.removeAll(completedTxns);  // remove completed transactions from the pingable transaction list.
+            completedTxns.clear();
+            txnList.forEach(uuid -> {
+                try {
+                    log.debug("Sending ping request for txn ID: {} with lease: {}", uuid, txnLeaseMillis);
+                    controller.pingTransaction(stream, uuid, txnLeaseMillis)
+                              .whenComplete((status, e) -> {
+                                  if (e != null) {
+                                      log.warn("Ping Transaction for txn ID:{} failed", uuid, unwrap(e));
+                                  } else if (Transaction.PingStatus.ABORTED.equals(status) || Transaction.PingStatus.COMMITTED.equals(status)) {
+                                      completedTxns.add(uuid);
+                                  }
+                              });
+                } catch (Exception e) {
+                    // Suppressing exception to prevent future pings from not being executed.
+                    log.warn("Encountered exception when attempting to ping transactions", e);
+                }
+            });
+        }
         log.trace("Completed sending transaction pings.");
     }
 
     @Override
     public void close() {
         log.info("Closing Pinger periodic task");
-        ExecutorServiceHelpers.shutdown(executor);
+        if (scheduledFuture != null) {
+            scheduledFuture.cancel(false);
+        }
     }
 }

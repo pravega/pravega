@@ -96,7 +96,7 @@ public class PingerTest {
         Pinger pinger = new Pinger(smallTxnLeaseTime, stream, controller, executor);
         pinger.startPing(txnID);
 
-            verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
+        verify(executor, times(1)).scheduleAtFixedRate(any(Runnable.class), anyLong(),
                 eq(SECONDS.toMillis(10)), eq(TimeUnit.MILLISECONDS));
         verify(controller, times(1)).pingTransaction(eq(stream), eq(txnID),
                 eq(smallTxnLeaseTime.getTransactionTimeoutTime()));
