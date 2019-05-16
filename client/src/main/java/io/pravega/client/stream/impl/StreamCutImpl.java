@@ -21,8 +21,6 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ToStringUtils;
-import java.io.DataInput;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.ObjectStreamException;
 import java.io.Serializable;
@@ -191,7 +189,7 @@ public class StreamCutImpl extends StreamCutInternal {
             builder.stream(stream);
             Map<Segment, Long> map = revisionDataInput.readMap(in -> new Segment(stream.getScope(),
                                                                                  stream.getStreamName(), in.readCompactLong()),
-                                                               DataInput::readLong);
+                                                               RevisionDataInput::readCompactSignedLong);
             builder.positions(map);
         }
 
@@ -199,7 +197,7 @@ public class StreamCutImpl extends StreamCutInternal {
             revisionDataOutput.writeUTF(cut.getStream().getScopedName());
             Map<Segment, Long> map = cut.getPositions();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactLong(s.getSegmentId()),
-                                        DataOutput::writeLong);
+                                        RevisionDataOutput::writeCompactSignedLong);
         }
     }
 
