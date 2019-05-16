@@ -201,6 +201,15 @@ public class ReaderGroupImplTest {
                      t -> t instanceof CheckpointFailedException);
     }
 
+    @Test(timeout = 1000)
+    public void getEndSegmentsForStream() {
+        Map<Segment, Long> endSegmentMap = ReaderGroupImpl.getEndSegmentsForStreams(ReaderGroupConfig.builder().stream(Stream.of(SCOPE, "s1"),
+                                                                                                            getStreamCut("s1", 0L, 0),
+                                                                                                            getStreamCut("s1", -1L, 0))
+                                                                                          .build());
+        assertEquals(Long.MAX_VALUE, endSegmentMap.get(new Segment(SCOPE, "s1", 0)).longValue());
+    }
+
     private StreamCut createStreamCut(String streamName, int numberOfSegments) {
         Map<Segment, Long> positions = new HashMap<>();
         IntStream.of(numberOfSegments).forEach(segNum -> positions.put(new Segment(SCOPE, streamName, segNum), 10L));
