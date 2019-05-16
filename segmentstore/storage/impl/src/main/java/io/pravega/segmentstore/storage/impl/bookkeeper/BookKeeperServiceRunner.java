@@ -178,6 +178,8 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         if (this.secureZK) {
             ZKTLSUtils.setSecureZKClientProperties(this.tlsTrustStore, JKSHelper.loadPasswordFrom(this.tLSKeyStorePasswordPath));
+        } else {
+            ZKTLSUtils.unsetSecureZKClientProperties();
         }
 
         @Cleanup
