@@ -80,9 +80,12 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
-        streamManager = StreamManager.create(controllerURI);
+
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
+        streamManager = StreamManager.create(clientConfig);
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                            .clientConfig(ClientConfig.builder().controllerURI(controllerURI).build())
+                                                            .clientConfig(clientConfig)
                                                             .maxBackoffMillis(5000).build(), executor);
 
         // Performance inspection.
@@ -148,6 +151,9 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
     }
 
     private void testCreateSealAndDeleteStreams(String scope) {
+
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
         for (int j = 1; j <= NUM_STREAMS; j++) {
             final String stream = String.valueOf(j);
             StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(j)).build();
@@ -171,7 +177,7 @@ public class StreamsAndScopesManagementTest extends AbstractReadWriteTest {
             if (j % 2 == 0) {
                 log.info("Writing events in stream {}/{}.", scope, stream);
                 @Cleanup
-                EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+                EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
                 writeEvents(clientFactory, stream, NUM_EVENTS);
             }
 

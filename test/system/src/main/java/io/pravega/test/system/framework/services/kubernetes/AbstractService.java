@@ -44,10 +44,12 @@ import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.Exceptions.checkNotNullOrEmpty;
 import static java.util.Collections.singletonList;
 
+@Slf4j
 public abstract class AbstractService implements Service {
 
     public static final int CONTROLLER_GRPC_PORT = 9090;
@@ -97,8 +99,8 @@ public abstract class AbstractService implements Service {
         return id;
     }
 
-    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount) {
-        return k8sClient.createCRD(getPravegaCRD())
+    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
+    return k8sClient.createCRD(getPravegaCRD())
                         .thenCompose(v -> k8sClient.createRole(NAMESPACE, getPravegaOperatorRole()))
                         .thenCompose(v -> k8sClient.createRoleBinding(NAMESPACE, getPravegaOperatorRoleBinding()))
                         //deploy pravega operator.
@@ -111,11 +113,10 @@ public abstract class AbstractService implements Service {
                                                                                 getPravegaDeployment(zkUri.getAuthority(),
                                                                                                    controllerCount,
                                                                                                    segmentStoreCount,
-                                                                                                   bookieCount)));
+                                                                                                   bookieCount, props)));
     }
 
-    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount) {
-
+    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
         // use the latest version of bookkeeper.
@@ -145,13 +146,15 @@ public abstract class AbstractService implements Service {
                 .put("controller.retention.frequencyMinutes", "2")
                 .put("log.level", "DEBUG")
                 .build();
+
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                                                                                       .put("segmentStoreReplicas", segmentStoreCount)
                                                                                       .put("debugLogging", true)
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
-                                                                                      .put("options", options)
+                                                                                      //.put("options", props.getProperties())
+                                                                                      .put("options", props)
                                                                                       .put("image",
-                                                                                           getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME, PRAVEGA_VERSION))
+                                                                                       getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME, PRAVEGA_VERSION))
                                                                                       .put("tier2", tier2Spec())
                                                                                       .build();
         return ImmutableMap.<String, Object>builder()
