@@ -101,10 +101,14 @@ public class StreamCutsTest extends AbstractReadWriteTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
+
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                            .clientConfig( ClientConfig.builder().controllerURI(controllerURI).build())
+                                                            .clientConfig(clientConfig)
                                                             .maxBackoffMillis(5000).build(), executor);
-        streamManager = StreamManager.create(controllerURI);
+        streamManager = StreamManager.create(clientConfig);
+
         assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream one", streamManager.createStream(SCOPE, STREAM_ONE,
                 StreamConfiguration.builder()
@@ -133,10 +137,12 @@ public class StreamCutsTest extends AbstractReadWriteTest {
      */
     @Test
     public void streamCutsTest() {
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURI).build());
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
         readerGroupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder()
                                                                             .stream(Stream.of(SCOPE, STREAM_ONE))
                                                                             .stream(Stream.of(SCOPE, STREAM_TWO)).build());

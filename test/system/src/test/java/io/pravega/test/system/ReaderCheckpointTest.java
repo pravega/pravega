@@ -101,12 +101,14 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
     @Test
     public void readerCheckpointTest() {
         controllerURI = fetchControllerURI();
-        StreamManager streamManager = StreamManager.create(controllerURI);
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
+        StreamManager streamManager = StreamManager.create(clientConfig);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE_1));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_1, STREAM, streamConfig));
 
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_1, controllerURI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_1, clientConfig);
         readerGroupManager.createReaderGroup(READER_GROUP_NAME,
                 ReaderGroupConfig.builder().stream(io.pravega.client.stream.Stream.of(SCOPE_1, STREAM)).build());
         @Cleanup
@@ -155,13 +157,16 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
 
     @Test
     public void generateStreamCutsTest() {
+
         controllerURI = fetchControllerURI();
-        StreamManager streamManager = StreamManager.create(controllerURI);
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
+        StreamManager streamManager = StreamManager.create(clientConfig);
         assertTrue("Creating Scope", streamManager.createScope(SCOPE_2));
         assertTrue("Creating stream", streamManager.createStream(SCOPE_2, STREAM, streamConfig));
 
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, controllerURI);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE_2, clientConfig);
         readerGroupManager.createReaderGroup(READER_GROUP_NAME,
                                              ReaderGroupConfig.builder()
                                                               .stream(io.pravega.client.stream.Stream.of(SCOPE_2, STREAM))
@@ -216,7 +221,9 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         String readerId = "checkPointReader";
         CompletableFuture<Checkpoint> checkpoint = null;
 
-        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_1, ClientConfig.builder().controllerURI(controllerURI).build());
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_1, clientConfig);
              EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP_NAME,
                      new JavaSerializer<Integer>(), readerConfig)) {
 
@@ -235,7 +242,9 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
         String readerId = "streamCut";
         CompletableFuture<Map<io.pravega.client.stream.Stream, StreamCut>> streamCuts = null;
 
-        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_2, ClientConfig.builder().controllerURI(controllerURI).build());
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE_2, clientConfig);
              EventStreamReader<Integer> reader = clientFactory.createReader(readerId, READER_GROUP_NAME,
                                                                             new JavaSerializer<Integer>(), readerConfig)) {
 
@@ -297,7 +306,9 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
     private <T extends Serializable> List<EventRead<T>> readEvents(final String scope, final String readerId) {
         List<EventRead<T>> events = new ArrayList<>();
 
-        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
              EventStreamReader<T> reader = clientFactory.createReader(readerId,
                      READER_GROUP_NAME,
                      new JavaSerializer<T>(),
@@ -326,7 +337,9 @@ public class ReaderCheckpointTest extends AbstractSystemTest {
     }
 
     private <T extends Serializable> void writeEvents(final String scope, final List<T> events) {
-        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, ClientConfig.builder().controllerURI(controllerURI).build());
+
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+        try (EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
              EventStreamWriter<T> writer = clientFactory.createEventWriter(STREAM,
                      new JavaSerializer<T>(),
                      EventWriterConfig.builder().build())) {

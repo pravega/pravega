@@ -818,7 +818,9 @@ project('test:system') {
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
-
+        
+        systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
+       
         maxParallelForks = 1
     }
 
