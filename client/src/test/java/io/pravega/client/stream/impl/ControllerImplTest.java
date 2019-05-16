@@ -396,7 +396,7 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void getSegmentsImmediatlyFollowing(SegmentId request, StreamObserver<SuccessorResponse> responseObserver) {
+            public void getSegmentsImmediatelyFollowing(SegmentId request, StreamObserver<SuccessorResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     Map<SegmentId, Pair<Double, Double>> result = new HashMap<>();
                     if (request.getSegmentId() == 0) {
@@ -1025,7 +1025,7 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testGetSegmentsImmediatlyFollowing() throws Exception {
+    public void testGetSegmentsImmediatelyFollowing() throws Exception {
         CompletableFuture<Map<Segment, List<Long>>> successors;
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0L))
                 .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
