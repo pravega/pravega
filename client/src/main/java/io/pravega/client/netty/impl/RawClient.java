@@ -9,6 +9,7 @@
  */
 package io.pravega.client.netty.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
@@ -177,4 +178,9 @@ public class RawClient implements AutoCloseable {
         closeConnection(new ConnectionClosedException());
     }
 
+    @VisibleForTesting
+    public Long retreiveRequestId(){
+        List<Long> l = new ArrayList<Long>(requests.keySet());
+        return l.get(l.size() - 1);
+    }
 }
