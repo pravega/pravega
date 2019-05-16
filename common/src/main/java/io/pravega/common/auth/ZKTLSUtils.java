@@ -17,10 +17,8 @@ public class ZKTLSUtils {
     public static void setSecureZKClientProperties(String trustStorePath, String trustStorePassword) {
         System.setProperty("zookeeper.client.secure", "true");
         System.setProperty("zookeeper.clientCnxnSocket", "org.apache.zookeeper.ClientCnxnSocketNetty");
-        System.setProperty("zookeeper.ssl.trustStore.location", "/home/raul/Documents/workspace/mine/pravega/config/client.truststore.jks");
-        System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
-        System.setProperty("zookeeper.ssl.keyStore.location", "/home/raul/Documents/workspace/mine/pravega/config/server.keystore.jks");
-        System.setProperty("zookeeper.ssl.keyStore.password", "1111_aaaa");
+        System.setProperty("zookeeper.ssl.trustStore.location", trustStorePath);
+        System.setProperty("zookeeper.ssl.trustStore.password", trustStorePassword);
     }
 
     public static void unsetSecureZKClientProperties() {
@@ -28,8 +26,6 @@ public class ZKTLSUtils {
         System.clearProperty("zookeeper.clientCnxnSocket");
         System.clearProperty("zookeeper.ssl.trustStore.location");
         System.clearProperty("zookeeper.ssl.trustStore.password");
-        System.clearProperty("zookeeper.ssl.keyStore.location");
-        System.clearProperty("zookeeper.ssl.keyStore.password");
     }
 
 }

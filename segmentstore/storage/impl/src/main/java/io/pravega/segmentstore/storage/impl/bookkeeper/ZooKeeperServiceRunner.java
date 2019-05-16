@@ -13,8 +13,12 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.auth.JKSHelper;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.security.KeyManagementException;
@@ -28,7 +32,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -49,7 +52,7 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
     public static final String PROPERTY_ZK_PORT = "zkPort";
     private static final String PROPERTY_SECURE_ZK = "secureZK";
     private static final String PROPERTY_ZK_KEY_STORE = "zkKeyStore";
-    private static final String PROPERTY_ZK_KEY_STORE_PASSWORD = "zkKeyStorePassword";
+    private static final String PROPERTY_ZK_KEY_STORE_PASSWORD_PATH = "zkKeyStorePasswordPath";
     private static final String PROPERTY_ZK_TRUST_STORE = "zkTrustStore";
 
     private static final String LOOPBACK_ADDRESS = "localhost";
@@ -85,11 +88,13 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             //-Dzookeeper.ssl.trustStore.location=/root/zookeeper/ssl/testTrustStore.jks
             //-Dzookeeper.ssl.trustStore.password=testpass
             System.setProperty("zookeeper.serverCnxnFactory", "org.apache.zookeeper.server.NettyServerCnxnFactory");
-            System.setProperty("zookeeper.ssl.keyStore.location", "/home/raul/Documents/workspace/mine/pravega/config/server.keystore.jks");
-            System.setProperty("zookeeper.ssl.keyStore.password", "1111_aaaa");
-            System.setProperty("zookeeper.ssl.trustStore.location", "/home/raul/Documents/workspace/mine/pravega/config/client.truststore.jks");
-            System.setProperty("zookeeper.ssl.trustStore.password", "1111_aaaa");
-            System.setProperty("secureClientPort", String.valueOf(zkPort));
+
+            System.setProperty("zookeeper.ssl.keyStore.location", this.keyStore);
+            System.setProperty("zookeeper.ssl.keyStore.password", JKSHelper.loadPasswordFrom(this.keyStorePasswordPath));
+            System.setProperty("zookeeper.ssl.trustStore.location", this.trustStore);
+            System.setProperty("zookeeper.ssl.trustStore.password", JKSHelper.loadPasswordFrom(this.keyStorePasswordPath));
+            // This is needed to allow ZooKeeperServer to use the auth provider.
+            System.setProperty("zookeeper.authProvider.x509", "org.apache.zookeeper.server.auth.X509AuthenticationProvider");
         }
     }
 
@@ -111,7 +116,8 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         this.serverFactory.get().configure(new InetSocketAddress(LOOPBACK_ADDRESS, this.zkPort), 1000, secureZK);
         this.serverFactory.get().startup(s);
 
-        if (!waitForServerUp(this.zkPort, this.secureZK, this.trustStore, this.keyStore, this.keyStorePasswordPath, this.keyStorePasswordPath)) {
+        if (!waitForServerUp(this.zkPort, this.secureZK, this.keyStore, this.keyStorePasswordPath, this.trustStore,
+                             this.keyStorePasswordPath)) {
             throw new IllegalStateException("ZooKeeper server failed to start");
         }
     }
@@ -148,7 +154,6 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             System.clearProperty("zookeeper.ssl.keyStore.password");
             System.clearProperty("zookeeper.ssl.trustStore.location");
             System.clearProperty("zookeeper.ssl.trustStore.password");
-            System.clearProperty("secureClientPort");
         }
     }
 
@@ -157,20 +162,20 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
      *
      * @param zkPort The ZooKeeper Port.
      * @param secureZk Flag to notify whether the ZK is secure.
-     * @param trustStore Location of the trust store.
      * @param keyStore Location of the key store.
      * @param keyStorePasswordPath Location of password path for key store.
-     *                             Empty string if `secureZk` is false or a password does not exist.
+     *                             Empty string if `secureZk` is false or a password does not exist.     *
+     * @param trustStore Location of the trust store.
      * @param trustStorePasswordPath Location of password path for trust store.
      *                               Empty string if `secureZk` is false or a password does not exist.
      * @return True if ZooKeeper started within a specified timeout, false otherwise.
      */
-    public static boolean waitForServerUp(int zkPort, boolean secureZk, String trustStore, String keyStore,
-                                          String keyStorePasswordPath, String trustStorePasswordPath) {
+    private static boolean waitForServerUp(int zkPort, boolean secureZk, String keyStore, String keyStorePasswordPath,
+                                           String trustStore, String trustStorePasswordPath) {
         val address = LOOPBACK_ADDRESS + ":" + zkPort;
         if (secureZk) {
-            return waitForSSLServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT, trustStore, keyStore,
-                    keyStorePasswordPath, trustStorePasswordPath);
+            return waitForSSLServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT, keyStore, keyStorePasswordPath,
+                    trustStore, trustStorePasswordPath);
         } else {
             return LocalBookKeeper.waitForServerUp(address, LocalBookKeeper.CONNECTION_TIMEOUT);
         }
@@ -180,8 +185,8 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
         return waitForServerUp(zkPort, false, "", "", "", "");
     }
 
-    private static boolean waitForSSLServerUp(String address, long timeout, String trustStore, String keyStore,
-                                              String keyStorePasswdPath, String trustStorePasswordPath) {
+    private static boolean waitForSSLServerUp(String address, long timeout, String keyStore, String keyStorePasswdPath,
+                                              String trustStore, String trustStorePasswordPath) {
         TimeoutTimer timeoutTimer = new TimeoutTimer(Duration.ofMillis(timeout));
         String[] split = address.split(":");
         String host = split[0];
@@ -255,16 +260,16 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
      */
     public static void main(String[] args) throws Exception {
         int zkPort;
-        boolean secureZK = false;
+        boolean secureZK;
         String zkKeyStore;
-        String zkKeyStorePasswdPath = null;
-        String zkTrustStore = null;
+        String zkKeyStorePasswdPath;
+        String zkTrustStore;
         try {
-            zkPort = 2281;
-            secureZK = true;
-            zkKeyStore = "/home/raul/Documents/workspace/mine/pravega/config/server.keystore.jks";
-            zkKeyStorePasswdPath = "/home/raul/Documents/workspace/mine/pravega/config/server.keystore.jks.passwd";
-            zkTrustStore = "/home/raul/Documents/workspace/mine/pravega/config/client.truststore.jks";
+            zkPort = Integer.parseInt(System.getProperty(PROPERTY_ZK_PORT));
+            secureZK = Boolean.parseBoolean(System.getProperty(PROPERTY_SECURE_ZK, "false"));
+            zkKeyStore = System.getProperty(PROPERTY_ZK_KEY_STORE);
+            zkKeyStorePasswdPath = System.getProperty(PROPERTY_ZK_KEY_STORE_PASSWORD_PATH);
+            zkTrustStore = System.getProperty(PROPERTY_ZK_TRUST_STORE);
         } catch (Exception ex) {
             System.out.println(String.format("Invalid or missing arguments (via system properties). Expected: %s(int). (%s)",
                     PROPERTY_ZK_PORT, ex.getMessage()));
@@ -272,7 +277,8 @@ public class ZooKeeperServiceRunner implements AutoCloseable {
             return;
         }
 
-        ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(zkPort, secureZK, zkKeyStore, zkKeyStorePasswdPath, zkTrustStore);
+        ZooKeeperServiceRunner runner = new ZooKeeperServiceRunner(zkPort, secureZK, zkKeyStore, zkKeyStorePasswdPath,
+                zkTrustStore);
         runner.initialize();
         runner.start();
         Thread.sleep(Long.MAX_VALUE);

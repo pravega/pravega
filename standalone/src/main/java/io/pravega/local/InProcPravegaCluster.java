@@ -176,11 +176,10 @@ public class InProcPravegaCluster implements AutoCloseable {
     @Synchronized
     public void start() throws Exception {
 
-        zkPort = secureZK ? 2281 : 2181;
         /*Start the ZK*/
         if (isInProcZK) {
             zkUrl = "localhost:" + zkPort;
-            //startLocalZK();
+            startLocalZK();
         } else {
             URI zkUri = new URI("temp://" + zkUrl);
             zkHost = zkUri.getHost();
