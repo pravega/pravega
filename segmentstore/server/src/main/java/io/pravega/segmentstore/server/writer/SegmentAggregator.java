@@ -1080,8 +1080,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         // we will be left with orphaned Segments in Storage.
         CompletableFuture<Void> deleteFuture;
         if (this.handle.get() == null) {
-            // Segment does not exist in Storage.
-            deleteFuture = CompletableFuture.completedFuture(null);
+            // Segment does not exist in Storage (most likely due to no data appended to it). However the Attribute Index
+            // may exist since we may have persisted attribute updates. Make sure it is cleaned up in that case.
+            deleteFuture = this.dataSource.deleteAllAttributes(metadata, timer.getRemaining());
         } else {
             deleteFuture = deleteSegmentAndAttributes(handle.get(), this.metadata, timer);
         }
@@ -1100,12 +1101,13 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
     }
 
     /**
-     * Deletes a Segment and its Attributes from Storage. This can be used to delete either the Segment handled by this
-     * instance or any other Segment that has a pending Merge into it.
+     * Deletes a Segment and its Attributes from Storage. The Segment to delete need not be the same Segment handled by
+     * this SegmentAggregator instance.
      *
      * This method does not update any metadata or any other in-memory state.
      *
      * @param handle   A {@link SegmentHandle} representing the Segment to delete.
+     *                 this SegmentAggregator instance.
      * @param metadata The {@link SegmentMetadata} for the Segment to delete.
      * @param timer    Timer for the operation.
      * @return A CompletableFuture that, when completed, will indicate the given Segment and its Attributes have been
