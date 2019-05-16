@@ -179,7 +179,7 @@ public class RawClient implements AutoCloseable {
     }
 
     @VisibleForTesting
-    public Long retreiveRequestId(){
+    public Long retreiveRequestId() {
         List<Long> l = new ArrayList<Long>(requests.keySet());
         return l.get(l.size() - 1);
     }
