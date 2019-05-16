@@ -403,7 +403,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         for (int i = initialPoint; i < totalEvents + initialPoint; i++) {
-            writer.writeEvent(String.valueOf(i)).join();
+            writer.writeEvent(String.format("%03d", i)).join(); // this ensures the event size is constant.
             log.debug("Writing event: {} to stream {}.", streamName + String.valueOf(i), streamName);
         }
     }
@@ -484,7 +484,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }
     }
 
-    private <T> void closeReader(EventStreamReader<T> reader) {
+    protected <T> void closeReader(EventStreamReader<T> reader) {
         try {
             log.info("Closing reader");
             reader.close();
