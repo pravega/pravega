@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.tables;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
@@ -59,8 +60,13 @@ class ContainerKeyIndex implements AutoCloseable {
     /**
      * The maximum number of Table Entries that can exist in the Tail Index for a Table Segment at any given time. The
      * Tail Index is made of recent updates and removals that have not yet been indexed.
+     *
      * This value is used for throttling: once a particular Table Segment has reached this number of unindexed entries,
      * subsequent updates and removals will be blocked (asynchronously) until the {@link IndexWriter} has caught up.
+     *
+     * This value should not be put in a user-configurable location, such as a config file. It is tuned based on the
+     * performance of the {@link IndexWriter}and {@link WriterTableProcessor} to handle indexing tasks and should be updated
+     * as those two classes are improved to enhance indexing speed.
      */
     static final int MAX_UNINDEXED_ENTRY_COUNT = 10000;
 
@@ -518,6 +524,17 @@ class ContainerKeyIndex implements AutoCloseable {
                 () -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));
     }
 
+    /**
+     * When overridden in a derived class, this will return the maximum allowed number of unindexed entries per segment.
+     * Refer to {@link #MAX_UNINDEXED_ENTRY_COUNT} for more details.
+     *
+     * @return The maximum allowed number of unindexed entries per segment.
+     */
+    @VisibleForTesting
+    protected int getMaxUnindexedEntryCount() {
+        return MAX_UNINDEXED_ENTRY_COUNT;
+    }
+
     //endregion
 
     //region SegmentTracker
@@ -607,7 +624,7 @@ class ContainerKeyIndex implements AutoCloseable {
 
         /**
          * Determines if the given task can be executed immediately or must be delayed until more items are indexed.
-         * Each Segment can have a maximum number of unindexed updates (defined by {@link #MAX_UNINDEXED_ENTRY_COUNT});
+         * Each Segment can have a maximum number of unindexed updates (defined by {@link #getMaxUnindexedEntryCount});
          * if this limit is reached then the {@link IndexWriter} has fallen too far behind and we need to slow down the
          * ingestion of new updates (otherwise we risk lengthy delays upon a subsequent recovery).
          *
@@ -624,7 +641,7 @@ class ContainerKeyIndex implements AutoCloseable {
             synchronized (this) {
                 throttler = this.throttlers.getOrDefault(segment.getSegmentId(), null);
                 if (throttler == null) {
-                    throttler = new AsyncSemaphore(MAX_UNINDEXED_ENTRY_COUNT, (int) ContainerKeyIndex.this.indexReader.getUnindexedEntryCount(segment.getInfo()));
+                    throttler = new AsyncSemaphore(getMaxUnindexedEntryCount(), (int) ContainerKeyIndex.this.indexReader.getUnindexedEntryCount(segment.getInfo()));
                     this.throttlers.put(segment.getSegmentId(), throttler);
                 }
             }

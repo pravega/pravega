@@ -112,25 +112,25 @@ public class AsyncSemaphore implements AutoCloseable {
         Preconditions.checkArgument(credits >= 0 && credits <= this.totalCredits,
                 "credits must be a non-negative number smaller than or equal to %s.", this.totalCredits);
 
-        DelayedTask<T> qi;
+        DelayedTask<T> dt;
         synchronized (this.queue) {
             Exceptions.checkNotClosed(this.closed, this);
             if (canExecute(credits)) {
-                qi = null;
+                dt = null;
                 this.usedCredits += credits;
             } else {
                 // Insufficient credits; need to queue up and execute when more becomes available.
-                qi = new DelayedTask<>(credits, task);
-                this.queue.addLast(qi);
+                dt = new DelayedTask<>(credits, task);
+                this.queue.addLast(dt);
             }
 
         }
-        if (qi == null) {
+        if (dt == null) {
             // We have more credits than what this task requires. Execute now without queuing.
             return execute(task, credits);
         } else {
             // This wil be completed when its associated task is executed.
-            return qi.result;
+            return dt.result;
         }
     }
 

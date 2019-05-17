@@ -23,8 +23,10 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -45,6 +47,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.Getter;
+import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
@@ -574,6 +578,64 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         empty2.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Tests the ability to throttle calls to {@link ContainerKeyIndex#update} based on the size of the update batch
+     * and the maximum value of {@link ContainerKeyIndex#getMaxUnindexedEntryCount()}.
+     */
+    @Test
+    public void testThrottling() throws Exception {
+        final int maxUnindexed = 10;
+        final int initialUnindexed = maxUnindexed / 2;
+        final int smallBatchSize = 1;
+        final int largeBatchSize = maxUnindexed / 2 + 2;
+
+        @Cleanup
+        val context = new TestContext(maxUnindexed);
+
+        // Simulate that we are recovering a segment which still had indexing to be done.
+        context.segment.updateAttributes(Collections.singletonMap(TableAttributes.UNINDEXED_ENTRY_COUNT, (long) initialUnindexed));
+
+        // 1. Generate one key and ensure it can be updated (as there is sufficient capacity).
+        val keys1 = generateUnversionedKeys(smallBatchSize, context);
+        val updateBatch1 = toUpdateBatch(keys1.stream().map(k -> TableKey.notExists(k.getKey())).collect(Collectors.toList()));
+        val update1 = context.index.update(context.segment, updateBatch1, () -> CompletableFuture.completedFuture(0L), context.timer);
+        update1.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS); // This should execute right away.
+
+        // 2. Generate more keys which would exceed the max capacity and verify throttling is performed.
+        val keys2 = generateUnversionedKeys(largeBatchSize, context);
+        val updateBatch2 = toUpdateBatch(keys2.stream().map(k -> TableKey.notExists(k.getKey())).collect(Collectors.toList()));
+        val isReleased = new AtomicBoolean(false);
+        val update2 = context.index.update(context.segment, updateBatch2, () -> {
+            Assert.assertTrue("Not expecting persist invocation for throttle-blocked update.", isReleased.get());
+            return CompletableFuture.completedFuture(1L);
+        }, context.timer);
+        Assert.assertFalse("Not expecting a throttled update to be completed yet.", update2.isDone());
+
+        // Notify that we processed some entries, but insufficient for now.
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), 0L, updateBatch1.getItems().size());
+        Assert.assertFalse("Not expecting a throttled update to be completed yet.", update2.isDone());
+
+        // Notify that we processed enough entries to release the second update.
+        isReleased.set(true);
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), 0L, initialUnindexed);
+        update2.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS); // This should be unblocked now.
+
+        // 3. Verify that failed updates do not count towards the quota.
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), 0L, updateBatch2.getItems().size());
+        val keys3 = generateUnversionedKeys(largeBatchSize, context);
+        val updateBatch3 = toUpdateBatch(keys3.stream().map(k -> TableKey.notExists(k.getKey())).collect(Collectors.toList()));
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expecting update to fail.",
+                () -> context.index.update(context.segment, updateBatch3, () -> Futures.failedFuture(new IntentionalException()), context.timer),
+                ex -> ex instanceof IntentionalException);
+
+        // This update should succeed right away since the previous one should not have allocated anything.
+        val keys4 = generateUnversionedKeys(largeBatchSize, context);
+        val updateBatch4 = toUpdateBatch(keys4.stream().map(k -> TableKey.notExists(k.getKey())).collect(Collectors.toList()));
+        val update4 = context.index.update(context.segment, updateBatch4, () -> CompletableFuture.completedFuture(0L), context.timer);
+        update4.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS); // This should execute right away.
+    }
+
     private void checkKeyOffsets(List<UUID> allHashes, Map<UUID, KeyWithOffset> offsets, Map<UUID, Long> bucketOffsets) {
         Assert.assertEquals("Unexpected number of results found.", allHashes.size(), bucketOffsets.size());
         for (int i = 0; i < allHashes.size(); i++) {
@@ -736,10 +798,14 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         final Random random;
 
         TestContext() {
+            this(ContainerKeyIndex.MAX_UNINDEXED_ENTRY_COUNT);
+        }
+
+        TestContext(int maxUnindexedEntryCount) {
             this.cacheFactory = new InMemoryCacheFactory();
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
             this.segment = new SegmentMock(executorService());
-            this.index = new ContainerKeyIndex(CONTAINER_ID, this.cacheFactory, this.cacheManager, executorService());
+            this.index = new TestContainerKeyIndex(maxUnindexedEntryCount, this.cacheFactory, this.cacheManager);
             this.timer = new TimeoutTimer(TIMEOUT);
             this.random = new Random(0);
         }
@@ -749,6 +815,16 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             this.index.close();
             this.cacheManager.close();
             this.cacheFactory.close();
+        }
+    }
+
+    private class TestContainerKeyIndex extends ContainerKeyIndex {
+        @Getter
+        private final int maxUnindexedEntryCount;
+
+        TestContainerKeyIndex(int maxUnindexedEntryCount, @NonNull CacheFactory cacheFactory, @NonNull CacheManager cacheManager) {
+            super(CONTAINER_ID, cacheFactory, cacheManager, executorService());
+            this.maxUnindexedEntryCount = maxUnindexedEntryCount;
         }
     }
 
