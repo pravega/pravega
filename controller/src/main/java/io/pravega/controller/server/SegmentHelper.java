@@ -31,11 +31,18 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.TagLogger;
-
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
+import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.shared.protocol.netty.WireCommandType;
+import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.FailingReplyProcessor;
+import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.ConnectionFailedException;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -48,24 +55,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
-import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommandType;
-import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.Reply;
-import io.pravega.shared.protocol.netty.FailingReplyProcessor;
-import io.pravega.shared.protocol.netty.ReplyProcessor;
-import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
-
+import javax.annotation.concurrent.GuardedBy;
 
 import lombok.Getter;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.LoggerFactory;
-
-import javax.annotation.concurrent.GuardedBy;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.controller.server.SegmentStoreConnectionManager.ConnectionWrapper;
