@@ -84,7 +84,7 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
-        streamManager = StreamManager.create(controllerURI);
+        streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
@@ -105,18 +105,19 @@ public class OffsetTruncationTest extends AbstractReadWriteTest {
     public void offsetTruncationTest() {
         final int totalEvents = 200;
         final int truncatedEvents = 50;
+
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                                           .clientConfig(ClientConfig.builder()
-                                                                           .controllerURI(controllerURI).build()).build(),
+                                                                           .clientConfig(clientConfig).build(),
                                                                            connectionFactory.getInternalExecutor());
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, new ConnectionFactoryImpl(clientConfig));
         log.info("Invoking offsetTruncationTest test with Controller URI: {}", controllerURI);
 
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM)).build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
