@@ -151,36 +151,8 @@ public class BatchClientTest {
     //endregion
 
     @Test
-    public void testBatchClient() throws InterruptedException, ExecutionException {
-        @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
-        createTestStreamWithEvents(clientFactory);
-        log.info("Done creating test event stream with test events");
-
-        @Cleanup
-        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
-
-        // List out all the segments in the stream.
-        ArrayList<SegmentRange> segments = Lists.newArrayList(batchClient.getSegments(Stream.of(SCOPE, STREAM), null, null).getIterator());
-        assertEquals("Expected number of segments", 6, segments.size());
-
-        // Batch read all events from stream.
-        List<String> batchEventList = new ArrayList<>();
-        segments.forEach(segInfo -> {
-            @Cleanup
-            SegmentIterator<String> segmentIterator = batchClient.readSegment(segInfo, serializer);
-            batchEventList.addAll(Lists.newArrayList(segmentIterator));
-        });
-        assertEquals("Event count", 9, batchEventList.size());
-
-        // Read from a given offset.
-        Segment seg0 = new Segment(SCOPE, STREAM, 0);
-        SegmentRange seg0Info = SegmentRangeImpl.builder().segment(seg0).startOffset(60).endOffset(90).build();
-        @Cleanup
-        SegmentIterator<String> seg0Iterator = batchClient.readSegment(seg0Info, serializer);
-        ArrayList<String> dataAtOffset = Lists.newArrayList(seg0Iterator);
-        assertEquals(1, dataAtOffset.size());
-        assertEquals(DATA_OF_SIZE_30, dataAtOffset.get(0));
+    public void testListAndReadUsingBatchClient() throws InterruptedException, ExecutionException {
+        listAndReadSegmentsUsingBatchClient();
     }
 
     @Test
@@ -260,6 +232,44 @@ public class BatchClientTest {
 
     //region Private helper methods
 
+    private void listAndReadSegmentsUsingBatchClient() throws InterruptedException, ExecutionException {
+        listAndReadSegmentsUsingBatchClient(SCOPE, STREAM, clientConfig);
+    }
+
+    protected void listAndReadSegmentsUsingBatchClient(String scopeName, String streamName, ClientConfig config)
+            throws InterruptedException, ExecutionException {
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scopeName, config);
+        createTestStreamWithEvents(clientFactory);
+        log.info("Done creating test event stream with test events");
+
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(scopeName, config);
+
+        // List out all the segments in the stream.
+        ArrayList<SegmentRange> segments = Lists.newArrayList(
+                batchClient.getSegments(Stream.of(scopeName, streamName), null, null).getIterator());
+        assertEquals("Expected number of segments", 6, segments.size());
+
+        // Batch read all events from stream.
+        List<String> batchEventList = new ArrayList<>();
+        segments.forEach(segInfo -> {
+            @Cleanup
+            SegmentIterator<String> segmentIterator = batchClient.readSegment(segInfo, serializer);
+            batchEventList.addAll(Lists.newArrayList(segmentIterator));
+        });
+        assertEquals("Event count", 9, batchEventList.size());
+
+        // Read from a given offset.
+        Segment seg0 = new Segment(scopeName, streamName, 0);
+        SegmentRange seg0Info = SegmentRangeImpl.builder().segment(seg0).startOffset(60).endOffset(90).build();
+        @Cleanup
+        SegmentIterator<String> seg0Iterator = batchClient.readSegment(seg0Info, serializer);
+        ArrayList<String> dataAtOffset = Lists.newArrayList(seg0Iterator);
+        assertEquals(1, dataAtOffset.size());
+        assertEquals(DATA_OF_SIZE_30, dataAtOffset.get(0));
+    }
+
     private void validateSegmentCountAndEventCount(BatchClientFactory batchClient, ArrayList<SegmentRange> segmentsPostTruncation) {
         //expected segments = 1+ 3 + 2 = 6
         assertEquals("Expected number of segments post truncation", 6, segmentsPostTruncation.size());
@@ -276,7 +286,7 @@ public class BatchClientTest {
      * Create a test stream with 1 segment which is scaled-up to 3 segments and later scaled-down to 2 segments.
      * Events of constant size are written to the stream before and after scale operation.
      */
-    private void createTestStreamWithEvents(EventStreamClientFactory clientFactory) throws InterruptedException, ExecutionException {
+    protected void createTestStreamWithEvents(EventStreamClientFactory clientFactory) throws InterruptedException, ExecutionException {
         createStream();
         @Cleanup
         EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM, serializer,

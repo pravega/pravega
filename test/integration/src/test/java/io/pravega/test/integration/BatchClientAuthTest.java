@@ -18,12 +18,17 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
 import io.pravega.test.integration.demo.ControllerWrapper;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.AfterClass;
+import org.junit.Test;
 
 import java.io.File;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Base64;
+import java.util.concurrent.ExecutionException;
 
 /**
  * The tests in this class are intended to verify whether Batch Client works with a Pravega cluster
@@ -32,7 +37,8 @@ import java.security.spec.InvalidKeySpecException;
  * This class inherits the tests of the parent class. Some of the test methods of the parent are reproduced here as
  * handles, to enable running an individual test interactively (for debugging purposes).
  */
-public class BatchClientWithAuthTest extends BatchClientTest {
+@Slf4j
+public class BatchClientAuthTest extends BatchClientTest {
 
     private static final File PASSWORD_AUTHHANDLER_INPUT = createAuthFile();
 
@@ -72,6 +78,33 @@ public class BatchClientWithAuthTest extends BatchClientTest {
                 true, PASSWORD_AUTHHANDLER_INPUT.getPath(), "secret");
     }
 
+    @Test
+    public void testAuthWithParamsSpecifiedAsSystemProperties() throws ExecutionException, InterruptedException {
+
+        // Set up client credentials via system properties.
+        //
+        // Note: setting system properties here is safe for now, even if the tests are run in parallel. Here's why:
+        //   - The properties being set here will not override the Credentials specified in ClientConfig object used
+        //     in other tests, owing to the resolution order used in ClientConfig (read '>' as overrides):
+        //          supplied credentials object > system properties > environment variables
+        //     See the respective comments in class ClientConfig.
+        //
+        //   - There is no other test here that sets a different set of credentials via system properties.
+        //
+        //  Should either of these assumptions change, this test will need to be revisited to avoid any side effects for
+        //  other tests.
+        setClientAuthProperties("admin", "1111_aaaa");
+
+        ClientConfig config = ClientConfig.builder()
+                .controllerURI(URI.create(this.controllerUri()))
+                .build();
+
+        this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config);
+
+        // Cleanup auth system properties
+        unsetClientAuthProperties();
+    }
+
     private static File createAuthFile() {
         PasswordAuthHandlerInput result = new PasswordAuthHandlerInput("BatchClientAuth", ".txt");
 
@@ -83,5 +116,19 @@ public class BatchClientWithAuthTest extends BatchClientTest {
             throw new RuntimeException(e);
         }
         return result.getFile();
+    }
+
+    private void setClientAuthProperties(String userName, String password) {
+        // Prepare the token to be used for basic authentication
+        String plainToken = userName + ":" + password;
+        String base66EncodedToken = Base64.getEncoder().encodeToString(plainToken.getBytes(StandardCharsets.UTF_8));
+
+        System.setProperty("pravega.client.auth.method", "Basic");
+        System.setProperty("pravega.client.auth.token", base66EncodedToken);
+    }
+
+    private void unsetClientAuthProperties()  {
+        System.clearProperty("pravega.client.auth.method");
+        System.clearProperty("pravega.client.auth.token");
     }
 }
