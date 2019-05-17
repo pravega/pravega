@@ -218,6 +218,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
+    /* This deprecated call should be removed once we address: https://github.com/pravega/pravega/issues/3760 */
+    @Deprecated
+    @Override
+    public void getSegmentsImmediatlyFollowing(SegmentId segmentId, StreamObserver<SuccessorResponse> responseObserver) {
+        log.info("getSegmentsImmediatlyFollowing called for segment {} ", segmentId);
+        getSegmentsImmediatelyFollowing(segmentId, responseObserver);
+    }
+
     @Override
     public void getSegmentsBetween(Controller.StreamCutRange request, StreamObserver<Controller.StreamCutRangeResponse> responseObserver) {
         log.info("getSegmentsBetweenStreamCuts called for stream {} for cuts from {} to {}", request.getStreamInfo(), request.getFromMap(), request.getToMap());
