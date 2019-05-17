@@ -20,10 +20,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.Exceptions.unwrap;
@@ -52,7 +52,7 @@ public class Pinger implements AutoCloseable {
     @GuardedBy("lock")
     private final Set<UUID> completedTxns = new HashSet<>();
     private final AtomicBoolean isStarted = new AtomicBoolean();
-    private ScheduledFuture<?> scheduledFuture;
+    private final AtomicReference<ScheduledFuture<?>> scheduledFuture = new AtomicReference<>();
 
     Pinger(EventWriterConfig config, Stream stream, Controller controller, ScheduledExecutorService executor) {
         this.txnLeaseMillis = config.getTransactionTimeoutTime();
@@ -84,13 +84,11 @@ public class Pinger implements AutoCloseable {
         return Math.max(MINIMUM_PING_INTERVAL_MS, (long) pingInterval);
     }
 
-    @Synchronized
     private void startPeriodicPingTxn() {
-        if (!isStarted.get()) {
+        if (!isStarted.getAndSet(true)) {
             log.info("Starting Pinger at an interval of {}ms ", this.pingIntervalMillis);
             // scheduleAtFixedRate ensure that there are no concurrent executions of the command, pingTransactions()
-            scheduledFuture = executor.scheduleAtFixedRate(this::pingTransactions, 10, this.pingIntervalMillis, TimeUnit.MILLISECONDS);
-            isStarted.set(true);
+            scheduledFuture.set(executor.scheduleAtFixedRate(this::pingTransactions, 10, this.pingIntervalMillis, TimeUnit.MILLISECONDS));
         }
     }
 
@@ -126,8 +124,9 @@ public class Pinger implements AutoCloseable {
     @Override
     public void close() {
         log.info("Closing Pinger periodic task");
-        if (scheduledFuture != null) {
-            scheduledFuture.cancel(false);
+        ScheduledFuture<?> future = scheduledFuture.getAndSet(null);
+        if (future != null) {
+            future.cancel(false);
         }
     }
 }

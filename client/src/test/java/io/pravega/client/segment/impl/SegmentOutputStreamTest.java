@@ -306,7 +306,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
     }
 
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
-            ByteBuffer data, int    num) throws SegmentSealedException, ConnectionFailedException {
+            ByteBuffer data, int num) throws SegmentSealedException, ConnectionFailedException {
         CompletableFuture<Void> acked = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked));
         verify(connection).send(new Append(SEGMENT, cid, num, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
