@@ -70,12 +70,6 @@ public class RawClient implements AutoCloseable {
         }
 
         @Override
-        public void tableSegmentNotEmpty(WireCommands.TableSegmentNotEmpty tableSegmentNotEmpty) {
-            log.warn("deleteTableSegment:  TableSegmentNotEmpty.");
-            closeConnection(new ConnectionFailedException("TableSegmentNotEmpty"));
-        }
-
-        @Override
         public void connectionDropped() {
             closeConnection(new ConnectionFailedException());
         }
