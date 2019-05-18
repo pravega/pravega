@@ -219,7 +219,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     /* This deprecated call should be removed once we address: https://github.com/pravega/pravega/issues/3760 */
-    @Deprecated
     @Override
     public void getSegmentsImmediatlyFollowing(SegmentId segmentId, StreamObserver<SuccessorResponse> responseObserver) {
         log.info("getSegmentsImmediatlyFollowing called for segment {} ", segmentId);
