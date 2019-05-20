@@ -1634,6 +1634,51 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
     //region Unknown outcome operation reconciliation
 
     /**
+     * Tests the ability of the SegmentAggregator to recover from situations when a Segment did not exist in Storage
+     * when {@link SegmentAggregator#initialize} was invoked, but exists when the first byte needs to be appended.
+     * This can happen when there are concurrent instances of the same Segment Container running at the same time and
+     * one of the managed to create the Segment in Storage after the other one was initialized; when the second one tries
+     * to do the same, it must gracefully recover from that situation.
+     */
+    @Test
+    public void testReconcileCreateIfEmpty() throws Exception {
+        final WriterConfig config = DEFAULT_CONFIG;
+        final int appendCount = 1;
+
+        @Cleanup
+        TestContext context = new TestContext(config);
+
+        // Initialize the Segment Aggregator, but do not yet create the segment.
+        context.segmentAggregator.initialize(TIMEOUT).join();
+
+        // Write one operation.
+        @Cleanup
+        ByteArrayOutputStream writtenData = new ByteArrayOutputStream();
+        StorageOperation appendOp = generateAppendAndUpdateMetadata(0, SEGMENT_ID, context);
+        context.segmentAggregator.add(appendOp);
+        getAppendData(appendOp, writtenData, context);
+
+        // Create the segment in Storage.
+        context.storage.create(SEGMENT_NAME, TIMEOUT).join();
+
+        // Flush the data. The SegmentAggregator thinks the Segment does not exist in Storage, so this verifies that it
+        // handles this situation elegantly.
+        context.increaseTime(config.getFlushThresholdTime().toMillis() + 1); // Force a flush by incrementing the time by a lot.
+        Assert.assertTrue("Expecting mustFlush() == true.", context.segmentAggregator.mustFlush());
+        val flushResult = context.segmentAggregator.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        Assert.assertEquals("Unexpected number of flushed bytes.", writtenData.size(), flushResult.getFlushedBytes());
+
+        // Verify data.
+        byte[] expectedData = writtenData.toByteArray();
+        byte[] actualData = new byte[expectedData.length];
+        long storageLength = context.storage.getStreamSegmentInfo(context.segmentAggregator.getMetadata().getName(), TIMEOUT).join().getLength();
+        Assert.assertEquals("Unexpected number of bytes flushed to Storage.", expectedData.length, storageLength);
+        context.storage.read(readHandle(context.segmentAggregator.getMetadata().getName()), 0, actualData, 0, actualData.length, TIMEOUT).join();
+        checkAttributes(context);
+        Assert.assertArrayEquals("Unexpected data written to storage.", expectedData, actualData);
+    }
+
+    /**
      * Tests the ability of the SegmentAggregator to reconcile AppendOperations (Cached/NonCached).
      */
     @Test
