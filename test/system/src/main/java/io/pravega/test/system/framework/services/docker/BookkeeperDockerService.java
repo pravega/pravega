@@ -21,6 +21,7 @@ import com.spotify.docker.client.messages.swarm.RestartPolicy;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
+import io.pravega.common.hash.RandomFactory;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -84,7 +85,7 @@ public class BookkeeperDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder().restartPolicy(RestartPolicy.builder().maxAttempts(1).condition(RESTART_POLICY_ANY).build())
                 .containerSpec(ContainerSpec.builder()
-                        .hostname("{{.Task.Name}}-{{.Node.ID}}-{{.Service.Name}}")
+                        .hostname(serviceName + "-" + RandomFactory.getSeed())
                         .labels(labels)
                         .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
