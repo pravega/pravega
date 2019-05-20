@@ -38,6 +38,7 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentTruncateOperation;
 import io.pravega.segmentstore.server.logs.operations.UpdateAttributesOperation;
 import io.pravega.segmentstore.storage.SegmentHandle;
+import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
@@ -63,6 +64,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
@@ -232,6 +234,49 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
      */
     @Test
     public void testWithStorageCorruptionErrors() throws Exception {
+        AtomicBoolean corruptionHappened = new AtomicBoolean();
+        Function<TestContext, ErrorInjector<Exception>> createErrorInjector = context -> {
+            byte[] corruptionData = "foo".getBytes();
+            SegmentHandle corruptedSegmentHandle = InMemoryStorage.newHandle(context.metadata.getStreamSegmentMetadata(0).getName(), false);
+            Supplier<Exception> exceptionSupplier = () -> {
+                // Corrupt data. We use an internal method (append) to atomically write data at the end of the segment.
+                // GetLength+Write would not work well because there may be concurrent writes that modify the data between
+                // requesting the length and attempting to write, thus causing the corruption to fail.
+                // NOTE: this is a synchronous call, but append() is also a sync method. If append() would become async,
+                // care must be taken not to block a thread while waiting for it.
+                context.storage.append(corruptedSegmentHandle, new ByteArrayInputStream(corruptionData), corruptionData.length);
+
+                // Return some other kind of exception.
+                return new TimeoutException("Intentional");
+            };
+            return new ErrorInjector<>(c -> !corruptionHappened.getAndSet(true), exceptionSupplier);
+        };
+
+        testWithStorageCriticalErrors(createErrorInjector, ex -> ex instanceof ReconciliationFailureException);
+    }
+
+    /**
+     * Tests the StorageWriter in a Scenario where the Storage component reports that it is no longer the primary owner
+     * of a particular segment (it was fenced out).
+     */
+    @Test
+    public void testWithStorageNotPrimaryErrors() throws Exception {
+        testWithStorageCriticalErrors(
+                context -> new ErrorInjector<>(c -> true, () -> new StorageNotPrimaryException("intentional")),
+                ex -> ex instanceof StorageNotPrimaryException);
+    }
+
+    /**
+     * Tests the StorageWriter in a configurable scenarion where the Storage component throws a critical (container-stopper)
+     * exception and verifies its handling of the situation.
+     *
+     * @param createErrorInjector          Creates an ErrorInjector that will cause the Storage component to enter an
+     *                                     errored state and throw an exception back at the StorageWriter.
+     * @param validatePostFailureException Validates that the {@link StorageWriter#failureCause()} is set correctly after
+     *                                     the StorageWriter terminates with failure.
+     */
+    private void testWithStorageCriticalErrors(Function<TestContext, ErrorInjector<Exception>> createErrorInjector,
+                                               Predicate<Throwable> validatePostFailureException) throws Exception {
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG);
 
@@ -242,29 +287,12 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         HashMap<Long, ByteArrayOutputStream> segmentContents = new HashMap<>();
         appendDataBreadthFirst(segmentIds, segmentContents, context);
 
-        // Corrupt (one segment should suffice).
-        byte[] corruptionData = "foo".getBytes();
-        SegmentHandle corruptedSegmentHandle = InMemoryStorage.newHandle(context.metadata.getStreamSegmentMetadata(segmentIds.get(0)).getName(), false);
-        Supplier<Exception> exceptionSupplier = () -> {
-            // Corrupt data. We use an internal method (append) to atomically write data at the end of the segment.
-            // GetLength+Write would not work well because there may be concurrent writes that modify the data between
-            // requesting the length and attempting to write, thus causing the corruption to fail.
-            // NOTE: this is a synchronous call, but append() is also a sync method. If append() would become async,
-            // care must be taken not to block a thread while waiting for it.
-            context.storage.append(corruptedSegmentHandle, new ByteArrayInputStream(corruptionData), corruptionData.length);
-
-            // Return some other kind of exception.
-            return new TimeoutException("Intentional");
-        };
-
         // We only try to corrupt data once.
-        AtomicBoolean corruptionHappened = new AtomicBoolean();
-        context.storage.setWriteAsyncErrorInjector(new ErrorInjector<>(c -> !corruptionHappened.getAndSet(true), exceptionSupplier));
-
+        context.storage.setWriteAsyncErrorInjector(createErrorInjector.apply(context));
         AssertExtensions.assertThrows(
-                "StorageWriter did not fail when a fatal data corruption error occurred.",
+                "StorageWriter did not fail when critical error occurred.",
                 () -> {
-                    // The Corruption may happen early enough so the "awaitRunning" isn't complete yet. In that case,
+                    // The critical error may happen early enough so the "awaitRunning" isn't complete yet. In that case,
                     // the writer will never reach its 'Running' state. As such, we need to make sure at least one of these
                     // will throw (either start or, if the failure happened after start, make sure it eventually fails and shuts down).
                     context.writer.startAsync().awaitRunning();
@@ -273,7 +301,9 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalStateException);
 
         ServiceListeners.awaitShutdown(context.writer, TIMEOUT, false);
-        Assert.assertTrue("Unexpected failure cause for StorageWriter.", Exceptions.unwrap(context.writer.failureCause()) instanceof ReconciliationFailureException);
+        System.out.println(context.writer.failureCause());
+        Assert.assertTrue("Unexpected failure cause for StorageWriter.",
+                validatePostFailureException.test(Exceptions.unwrap(context.writer.failureCause())));
     }
 
     /**
