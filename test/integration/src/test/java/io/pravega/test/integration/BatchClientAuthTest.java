@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
@@ -16,9 +17,11 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.AfterClass;
 import org.junit.Test;
 
@@ -27,8 +30,12 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * The tests in this class are intended to verify whether Batch Client works with a Pravega cluster
@@ -41,6 +48,10 @@ import java.util.concurrent.ExecutionException;
 public class BatchClientAuthTest extends BatchClientTest {
 
     private static final File PASSWORD_AUTHHANDLER_INPUT = createAuthFile();
+
+    // We use this to ensure that the tests that depend on system properties are run one at a time, in order to avoid
+    // one test causing side effects in another.
+    Lock sequential = new ReentrantLock();
 
     @AfterClass
     public static void classTearDown() {
@@ -78,31 +89,41 @@ public class BatchClientAuthTest extends BatchClientTest {
                 true, PASSWORD_AUTHHANDLER_INPUT.getPath(), "secret");
     }
 
-    @Test
-    public void testAuthWithParamsSpecifiedAsSystemProperties() throws ExecutionException, InterruptedException {
+    @Test(timeout = 50000)
+    public void testAuthWithAuthorizedAcctSpecifiedViaSystemProperties() throws ExecutionException, InterruptedException {
+        // Using a lock to prevent concurrent execution of tests that set system properties.
+        sequential.lock();
 
-        // Set up client credentials via system properties.
-        //
-        // Note: setting system properties here is safe for now, even if the tests are run in parallel. Here's why:
-        //   - The properties being set here will not override the Credentials specified in ClientConfig object used
-        //     in other tests, owing to the resolution order used in ClientConfig (read '>' as overrides):
-        //          supplied credentials object > system properties > environment variables
-        //     See the respective comments in class ClientConfig.
-        //
-        //   - There is no other test here that sets a different set of credentials via system properties.
-        //
-        //  Should either of these assumptions change, this test will need to be revisited to avoid any side effects for
-        //  other tests.
-        setClientAuthProperties("admin", "1111_aaaa");
+        try {
+            setClientAuthProperties("appaccount", "1111_aaaa");
+            ClientConfig config = ClientConfig.builder()
+                    .controllerURI(URI.create(this.controllerUri()))
+                    .build();
+            this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config);
+            unsetClientAuthProperties();
+        } finally {
+            sequential.unlock();
+        }
+    }
 
-        ClientConfig config = ClientConfig.builder()
-                .controllerURI(URI.create(this.controllerUri()))
-                .build();
+    @Test(timeout = 250000)
+    public void testAuthWithUnauthorizedAcctSpecifiedViaSystemProperties() {
+        // Using a lock to prevent concurrent execution of tests that set system properties.
+        sequential.lock();
 
-        this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config);
+        try {
+            setClientAuthProperties("unauthorized", "1111_aaaa");
+            ClientConfig config = ClientConfig.builder()
+                    .controllerURI(URI.create(this.controllerUri()))
+                    .build();
 
-        // Cleanup auth system properties
-        unsetClientAuthProperties();
+            AssertExtensions.assertThrows("Auth exception did not occur.",
+                    () -> this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config),
+                    e -> hasAuthExceptionAsRootCause(e));
+            unsetClientAuthProperties();
+        } finally {
+            sequential.unlock();
+        }
     }
 
     private static File createAuthFile() {
@@ -111,7 +132,13 @@ public class BatchClientAuthTest extends BatchClientTest {
         StrongPasswordProcessor passwordProcessor = StrongPasswordProcessor.builder().build();
         try {
             String encryptedPassword = passwordProcessor.encryptPassword("1111_aaaa");
-            result.postEntry(PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "*,READ_UPDATE;"));
+
+            List<PasswordAuthHandlerInput.Entry> entries = Arrays.asList(
+                    PasswordAuthHandlerInput.Entry.of("admin", encryptedPassword, "*,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("appaccount", encryptedPassword, "*,READ_UPDATE;"),
+                    PasswordAuthHandlerInput.Entry.of("unauthorizeduser", encryptedPassword, "")
+            );
+            result.postEntries(entries);
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
             throw new RuntimeException(e);
         }
@@ -130,5 +157,15 @@ public class BatchClientAuthTest extends BatchClientTest {
     private void unsetClientAuthProperties()  {
         System.clearProperty("pravega.client.auth.method");
         System.clearProperty("pravega.client.auth.token");
+    }
+
+    private boolean hasAuthExceptionAsRootCause(Throwable e) {
+        Throwable innermostException = ExceptionUtils.getRootCause(e);
+
+        // Depending on an exception message for determining whether the given exception represents auth failure
+        // is not a good thing to do, but we have no other choice here because auth failures are represented as the
+        // overly general io.grpc.StatusRuntimeException.
+        return innermostException instanceof StatusRuntimeException &&
+                innermostException.getMessage().toUpperCase().contains("UNAUTHENTICATED");
     }
 }
