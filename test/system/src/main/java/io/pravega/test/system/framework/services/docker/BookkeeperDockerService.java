@@ -75,7 +75,7 @@ public class BookkeeperDockerService extends DockerBasedService {
         String env2 = "ZK=" + zk;
         String env3 = "bookiePort=" + String.valueOf(BK_PORT);
         String env4 = "DLOG_EXTRA_OPTS=-Xms512m";
-        String env5 = "BK_useHostNameAsBookieID=true";
+        String env5 = "BK_useHostNameAsBookieID=false";
         stringList.add(env1);
         stringList.add(env2);
         stringList.add(env3);
@@ -85,7 +85,7 @@ public class BookkeeperDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder().restartPolicy(RestartPolicy.builder().maxAttempts(1).condition(RESTART_POLICY_ANY).build())
                 .containerSpec(ContainerSpec.builder()
-                        .hostname(serviceName + "-" + RandomFactory.getSeed())
+                        .hostname(serviceName + "-" + Math.abs(RandomFactory.getSeed()))
                         .labels(labels)
                         .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
