@@ -90,7 +90,7 @@ public class BatchClientAuthTest extends BatchClientTest {
     }
 
     @Test(timeout = 50000)
-    public void testAuthWithAuthorizedAcctSpecifiedViaSystemProperties() throws ExecutionException, InterruptedException {
+    public void testListAndReadSegmentsWithClientCredentialsViaSystemProperties() throws ExecutionException, InterruptedException {
         // Using a lock to prevent concurrent execution of tests that set system properties.
         sequential.lock();
 
@@ -107,14 +107,37 @@ public class BatchClientAuthTest extends BatchClientTest {
     }
 
     @Test(timeout = 250000)
-    public void testAuthWithUnauthorizedAcctSpecifiedViaSystemProperties() {
+    public void testListAndReadSegmentsWithNoClientCredentials() {
+        ClientConfig config = ClientConfig.builder()
+                .controllerURI(URI.create(this.controllerUri()))
+                .build();
+
+        AssertExtensions.assertThrows("Auth exception did not occur.",
+                () -> this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config),
+                e -> hasAuthExceptionAsRootCause(e));
+    }
+
+    @Test(timeout = 250000)
+    public void testListAndReadSegmentsWithInvalidClientCredentials() {
+        ClientConfig config = ClientConfig.builder()
+                .controllerURI(URI.create(this.controllerUri()))
+                .credentials(new DefaultCredentials("wrong-password", "admin"))
+                .build();
+
+        AssertExtensions.assertThrows("Auth exception did not occur.",
+                () -> this.listAndReadSegmentsUsingBatchClient("testScope", "testBatchStream", config),
+                e -> hasAuthExceptionAsRootCause(e));
+    }
+
+    @Test(timeout = 250000)
+    public void testListAndReadSegmentsWithUnauthorizedAccountViaSystemProperties() {
         // Using a lock to prevent concurrent execution of tests that set system properties.
         sequential.lock();
-
         try {
-            setClientAuthProperties("unauthorized", "1111_aaaa");
+            setClientAuthProperties("unauthorizeduser", "1111_aaaa");
             ClientConfig config = ClientConfig.builder()
                     .controllerURI(URI.create(this.controllerUri()))
+                    .credentials(new DefaultCredentials("1111_aaaa", "unauthorizeduser"))
                     .build();
 
             AssertExtensions.assertThrows("Auth exception did not occur.",
