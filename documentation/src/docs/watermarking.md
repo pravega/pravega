@@ -8,16 +8,17 @@ You may obtain a copy of the License at
 -->
 
 # Pravega Watermarking
+
   * [Introduction](#introduction)
   * [Overview](#overview)
   * [List of API](#list-of-api)
      - [Client Factory](#client-factory)  
      - [Event Writer API Changes](#event-writer-api-changes)
      - [Event Reader API Changes](#event-reader-api-changes)
- * [Internal Changes](#internal-changes)
-     - [Server Changes](#server-changes)
-     - [Client Changes](#client-changes)
-     - [Controller Changes](#controller-changes)
+ * [Internal API Changes](#internal-api-changes)
+     - [Server API Changes](#server-api-changes)
+     - [Client API Changes](#client-api-changes)
+     - [Controller API Changes](#controller-api-changes)
         - [Distributing Streams Across Controller Instances](#distributing-streams-across-controller-instances)
         - [Metadata](#metadata)
         - [In-memory State](#in-memory-state)
@@ -46,6 +47,7 @@ The general approach is add new APIs to allow the Writer to provide time informa
 The Readers can read these `streamCut`s and `timestamp`s from the special Segment, and use the `ReaderGroupState` to coordinate where they are relative to one another.
 
 # List of API
+
 ## Client Factory
 When Writers are created, `writerId` would be specified.
 
@@ -125,7 +127,7 @@ The `EventWriterConfig` would have the new parameter:
 Because it may take some time for all the Writers to come online, for a new Stream we may also want to add an "intentional delay" before writing the first mark to the marks Segment. This may or may not be configured on a per-stream basis.
 
 ## Event Reader API
-On the Reader side, we would add a new method on the `EventStreamReader` to obtain the location of the Reader in terms of time:
+On the Reader side, a new method is added on the `EventStreamReader` to obtain the location of the Reader in terms of time:
 
 ```
 /**
@@ -165,13 +167,13 @@ public class TimeWindow {
 
 Note that the `TimeWindow` that is seen by Readers can be affected by `timestampAggrigationTimeout` in the config above. Different applications may wish to be more or less conservative as to when Writers are 'alive' and need to be considered.
 
-# Internal API
+# Internal API Changes
 To support this new API some additional information is needed.
 
 For each Event Stream we add a metadata Segment which contains `timestamps`. (This is referred below as the ‘marks segment’). It contains records which consist of:
 
 - A `timestamp`
-- A set of writer ids
+- A set of `writerId`
 - A `streamCut`
 
 To write this data the Controller would need more information supplied to it by the client and the service. On the Controller interface on the client we would need to add the `writerId` and the `timestamp` to a transaction commit call:
@@ -246,21 +248,21 @@ public static final class SegmentsMerged implements Reply, WireCommand {
 
 This would expand the size of each of these messages by 8 bytes. It would be compatible because the absence of the field can be detected.
 
-## Server Changes
-Besides returning the current offsets on merge and ack there are no changes required. In the event that a `SegmentMerged` is lost and the client reconnects to see the segment is already merged, the client can synthesize a valid if conservative offset by calling `getSegmentLength()`.
+## Server API Changes
+Besides returning the current offsets on merge and ack there are no changes required. In the event that a `SegmentMerged` is lost and the client reconnects to see the Segment is already merged, the client can synthesize a valid if conservative offset by calling `getSegmentLength()`.
 
-## Client Changes
-Internally the writer needs to collect the offsets returned in the Acks it is receiving from the server. When `noteTime` is invoked it sends the `timestamp` provided along with the latest offsets it has for the Segments it is writing to are sent to the Controller’s `noteTimestampFromWriter` method.
+## Client API Changes
+Internally the writer needs to collect the offsets returned in the acks it is receiving from the server. When `noteTime` is invoked it sends the `timestamp` provided along with the latest offsets it has for the Segments it is writing to are sent to the Controller’s `noteTimestampFromWriter` method.
 
 For a transactional writer, it just passes the `timestamp` specified on commit to the Controller.
 
-Each reader needs to read from the mark Segment and compare its position to the `streamCuts`. In the Reader Group state, a new Map needs to be added from Reader to `timestamp`. Every time a Reader advances beyond a `streamCut` (counting as its own any unassigned Segments) it updates its entry in the Reader Group state providing the `timestamp` it just passed. If a Reader loses its last Segment it removes itself from the Map.
+Each Reader needs to read from the mark Segment and compare its position to the `streamCuts`. In the Reader Group state, a new Map needs to be added from Reader to `timestamp`. Every time a Reader advances beyond a `streamCut` (counting as its own any unassigned Segments) it updates its entry in the Reader Group state providing the `timestamp` it just passed. If a Reader loses its last Segment it removes itself from the Map.
 
 When the `getCurrentTimeWindow` method is called on the Reader or the Reader Group state, the minimum time in the Map in the Reader Group state for each Stream is returned. (i.e. The result is a `TimeWindow` where the value is the greatest lower bound of the writer times.)
 
 When `getCheckpoint` or `getStreamCut` is called on the Reader Group, it will have to include the not just the offsets in the normal Segments, but also the minimum offset where the Readers are in the special Segment.
 
-## Controller Changes
+## Controller API Changes
 The role of the Controller is to take the `timestamps` from all of the Writers on the Stream and write out a `streamCut` that is greater than or equal to the maximum of all writer’s positions and a `timestamp` that is the minimum of all of the Writers.
 
 A call to `noteTimestampFromWriter` or `commitTransaction` updates a structure with the position of the Writer (or where the Transaction committed) and the `timestamp` provided. In the case of commit the Controller will need to obtain the position information itself, where as in the case of `noteTimestampFromWriter` it is explicitly provided by the client.
@@ -271,17 +273,17 @@ In the event that a Controller instance crashes, the in memory structure will be
 
 There are two main objectives we want to achieve while designing this scheme:
 
-1. We do not want any affinity requirements for writers while interacting with Controller instances.
-2. We want workload of computing watermarks for different stream to be fairly distributed across available Controller instances.
+1. We do not need any affinity requirements for writers while interacting with Controller instances.
+2. We require workload of computing watermarks for different stream to be fairly distributed across available Controller instances.
 
-To achieve above stated goals, we break down the work into two categories:
+To achieve the above stated goals, we break down the work into two categories:
 
-1. Recording Writer marks
+1. Recording Writer marks.
 2. Generating consolidated watermarks.
 
 Writers may contact any arbitrary Controller instance and report their `timestamps` and `Positions`. This Controller conditionally persists the reported value in the shared metadata store. For generating watermarks, all available Controller instances divide ownership of Streams amongst themselves such that each Controller instance is exclusively responsible for computing watermarks for only a subset of Streams. So for any Stream there is exactly one Controller instance which is periodically generating marks by consolidating all the individual Writer marks which could be processed by any arbitrary Controller instance.
 
-### Distributing Streams across Controller instances:
+### Distributing Streams across Controller instances
 As a Stream is created, a reference to it is added to one of the fixed number of "buckets" by computing a hash of its fully qualified name. Each Controller instance contests with others to acquire ownership of each bucket individually. So every Controller instance will be able to acquire ownership for a subset of buckets whereby becoming leader process for all Streams that fall into the bucket. For each bucket that Controller owns, it schedules a periodic background watermarking workflow for each stream within this bucket. It also registers for bucket change notifications and adds (or cancels) this scheduled work as Streams are added (or removed). It is important to note that exactly one Controller instance will be responsible for running background workflow for any given Stream. We will refer to this Controller instance as the "leader" when we talk in context of watermark processing for that Stream.
 
 The watermarking workflow for the Stream will be invoked periodically on the leader Controller instance and in each cycle it will collect the mark as reported by Writers from the shared metadata store. All marks across all available Writers are consolidated into an in-memory data structure and once marks from all known Writers has been received, a new watermark can be emitted for the Stream.
@@ -408,15 +410,15 @@ Another possible improvement is to use the time information to help with reader 
 Because it becomes part of our API, time is necessarily defined in terms of a long. For some applications this may not be desirable as it does not represent the application's notion of progress.
 
 ## Applications reading from multiple streams
-This proposal focuses on a single Stream, there are applications that process multiple Streams. Enrichment joins are a good example for the case in which the time is aligned for the multiple Streams.
+This document focuses on a applications reading from single Stream, there are applications that process multiple Streams. Enrichment joins are a good example for the case in which the time is aligned for the multiple Streams.
 
-For the case in which time is not aligned, it does not make sense to talk about watermarking. The contract of watermarks is that once the operator receives a watermark for time _T_, all events with   `timestamp` _T_ or earlier have been received. With Streams with data corresponding to time epochs that might not even overlap, such a contract is meaningless.
+For the case in which time is not aligned, it does not make sense to talk about watermarking. The contract of watermarks is that once the operator receives a watermark for time _T_, all events with `timestamp` _T_ or earlier have been received. With Streams with data corresponding to time epochs that might not even overlap, such a contract is meaningless.
 
 ## Time window bounds may not be tight
 
-The upper bound provided for time may be quite far behind if one Writer had not noted the time for a while when the data was being written. Similarly if a connection is dropped after a Segment is merged the offsets for that Segment may be behind.
+The **upper bound** provided for time may be quite far behind if one Writer had not noted the time for a while when the data was being written. Similarly if a connection is dropped after a Segment is merged the offsets for that Segment may be behind.
 
-The lower bound is also slack in the event that clocks are not well synchronized. Similarly if committing Transactions has a very high latency, it will add to the uncertainty in the lower bound.
+The **lower bound** is also slack in the event that clocks are not well synchronized. Similarly if committing Transactions has a very high latency, it will add to the uncertainty in the lower bound.
 
 # Discarded Approaches
 
@@ -424,10 +426,10 @@ The lower bound is also slack in the event that clocks are not well synchronized
 This could provide a very similar API to the one proposed, and eliminate much of the work done on the Controller. However it requires significant changes on the server side and does not work with Transactional writers.
 
 ## Only supporting ingestion time
-Ingestion time has a lot of nice properties, like you don’t actually need to know or hear from all the Writers to advance time. However it just doesn’t work for all use cases. Particularly historical data could be a problem.
+Ingestion time has a lot of properties, like you don’t actually need to know or hear from all the Writers to advance time. However it cannot be applied to all the use cases. Particularly historical data could be a problem.
 
 ## Using extended attributes instead of a index segment
-If the Segment Store could provide API like `findNextAttributeFollowing(Key)` and could scale to very large numbers of attributes, this could be an alternative to the Index Segment. This requires a lot of work server side and would be less compact in terms of storage. The advantage it would have is that creating a new Reader Group based on a `timestamp` would be faster. However this is a rarely performed operation that is not performance critical.
+If the Segment Store could provide API like `findNextAttributeFollowing(Key)` and could scale to very large numbers of attributes, this could be an alternative to the Index Segment. This requires a lot of work Server side and would be less compact in terms of storage. The advantage it would have is that creating a new Reader Group based on a `timestamp` would be faster. However this is a rarely performed operation that is not performance critical.
 
 # References
 Watermarking in other systems:
