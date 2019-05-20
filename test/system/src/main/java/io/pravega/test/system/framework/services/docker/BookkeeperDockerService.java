@@ -66,9 +66,6 @@ public class BookkeeperDockerService extends DockerBasedService {
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.service.name", serviceName);
 
-        Mount mount2 = Mount.builder().type("volume").source("bookkeeper-logs")
-                .target("/opt/dl_all/distributedlog-service/logs/")
-                .build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<String> stringList = new ArrayList<>();
         String env1 = "ZK_URL=" + zk;
@@ -89,7 +86,6 @@ public class BookkeeperDockerService extends DockerBasedService {
                         .labels(labels)
                         .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
-                        .mounts(Arrays.asList(mount2))
                         .env(stringList).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
