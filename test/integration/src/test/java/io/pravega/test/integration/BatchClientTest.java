@@ -51,7 +51,6 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
@@ -59,9 +58,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.Timeout;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
@@ -73,9 +70,6 @@ public class BatchClientTest {
     private static final String SCOPE = "testScope";
     private static final String STREAM = "testBatchStream";
     private static final String DATA_OF_SIZE_30 = "data of size 30"; // data length = 22 bytes , header = 8 bytes
-
-    @Rule
-    public final Timeout globalTimeout = new Timeout(50, TimeUnit.SECONDS);
 
     protected final int controllerPort = TestUtils.getAvailableListenPort();
     protected final String serviceHost = "localhost";
@@ -150,12 +144,12 @@ public class BatchClientTest {
 
     //endregion
 
-    @Test
+    @Test(timeout = 50000)
     public void testListAndReadUsingBatchClient() throws InterruptedException, ExecutionException {
         listAndReadSegmentsUsingBatchClient();
     }
 
-    @Test
+    @Test(timeout = 50000)
     @SuppressWarnings("deprecation")
     public void testBatchClientWithStreamTruncation() throws InterruptedException, ExecutionException {
         StreamManager streamManager = StreamManager.create(clientConfig);
@@ -184,7 +178,7 @@ public class BatchClientTest {
         validateSegmentCountAndEventCount(batchClient, segmentsPostTruncation2);
     }
 
-    @Test(expected = TruncatedDataException.class)
+    @Test(expected = TruncatedDataException.class, timeout = 50000)
     public void testBatchClientWithStreamTruncationPostGetSegments() throws InterruptedException, ExecutionException {
 
         @Cleanup
@@ -217,7 +211,7 @@ public class BatchClientTest {
         eventList.addAll(Lists.newArrayList(segmentIterator));
     }
 
-    @Test
+    @Test(timeout = 50000)
     public void testGetStreamInfoOfImplementation() throws InterruptedException {
         createStream();
 
