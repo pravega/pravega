@@ -267,7 +267,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
     }
 
     /**
-     * Tests the StorageWriter in a configurable scenarion where the Storage component throws a critical (container-stopper)
+     * Tests the StorageWriter in a configurable scenario where the Storage component throws a critical (container-stopper)
      * exception and verifies its handling of the situation.
      *
      * @param createErrorInjector          Creates an ErrorInjector that will cause the Storage component to enter an
@@ -301,7 +301,6 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof IllegalStateException);
 
         ServiceListeners.awaitShutdown(context.writer, TIMEOUT, false);
-        System.out.println(context.writer.failureCause());
         Assert.assertTrue("Unexpected failure cause for StorageWriter.",
                 validatePostFailureException.test(Exceptions.unwrap(context.writer.failureCause())));
     }
