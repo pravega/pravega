@@ -1637,13 +1637,12 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
      * Tests the ability of the SegmentAggregator to recover from situations when a Segment did not exist in Storage
      * when {@link SegmentAggregator#initialize} was invoked, but exists when the first byte needs to be appended.
      * This can happen when there are concurrent instances of the same Segment Container running at the same time and
-     * one of the managed to create the Segment in Storage after the other one was initialized; when the second one tries
+     * one of them managed to create the Segment in Storage after the other one was initialized; when the second one tries
      * to do the same, it must gracefully recover from that situation.
      */
     @Test
     public void testReconcileCreateIfEmpty() throws Exception {
         final WriterConfig config = DEFAULT_CONFIG;
-        final int appendCount = 1;
 
         @Cleanup
         TestContext context = new TestContext(config);
