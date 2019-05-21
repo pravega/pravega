@@ -58,7 +58,6 @@ public class RawClient implements AutoCloseable {
                     closeConnection(new IllegalStateException("Incompatible wire protocol versions " + hello));
                 }
             } else if (reply instanceof WireCommands.WrongHost) {
-                log.info("WrongHost");
                 closeConnection(new ConnectionFailedException(reply.toString()));
             } else {
                 log.debug("Received reply {}", reply);
@@ -167,11 +166,5 @@ public class RawClient implements AutoCloseable {
     @Override
     public void close() {
         closeConnection(new ConnectionClosedException());
-    }
-
-    @VisibleForTesting
-    public Long retreiveRequestId() {
-        List<Long> l = new ArrayList<Long>(requests.keySet());
-        return l.get(l.size() - 1);
     }
 }
