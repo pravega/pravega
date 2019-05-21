@@ -9,7 +9,6 @@
  */
 package io.pravega.client.netty.impl;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthenticationException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.ConnectionClosedException;
