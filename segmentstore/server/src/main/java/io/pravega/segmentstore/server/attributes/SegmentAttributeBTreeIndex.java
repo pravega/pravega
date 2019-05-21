@@ -360,6 +360,11 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         return this.handle.get();
     }
 
+    @Override
+    public String toString() {
+        return this.traceObjectId;
+    }
+
     /**
      * Executes the given Index Operation with retries. Retries are only performed in case of conditional update failures,
      * represented by BadOffsetException.
