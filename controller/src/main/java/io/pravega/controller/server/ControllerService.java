@@ -19,6 +19,7 @@ import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.StoreException;
@@ -68,6 +69,7 @@ import org.apache.commons.lang3.tuple.Pair;
 public class ControllerService {
 
     private final StreamMetadataStore streamStore;
+    private final BucketStore bucketStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final SegmentHelper segmentHelper;
@@ -76,10 +78,11 @@ public class ControllerService {
     private final StreamMetrics streamMetrics;
     private final TransactionMetrics transactionMetrics;
 
-    public ControllerService(StreamMetadataStore streamStore, StreamMetadataTasks streamMetadataTasks,
+    public ControllerService(StreamMetadataStore streamStore, BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
                              StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
                              Executor executor, Cluster cluster) {
         this.streamStore = streamStore;
+        this.bucketStore = bucketStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.segmentHelper = segmentHelper;
@@ -511,7 +514,8 @@ public class ControllerService {
     }
 
     public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writer, long timestamp, Map<Long, Long> streamCut) {
-        return streamStore.noteWriterMark(scope, stream, writer, timestamp, streamCut, null, executor)
+        return bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor)
+                   .thenCompose(v -> streamStore.noteWriterMark(scope, stream, writer, timestamp, streamCut, null, executor))
                 .handle((r, e) -> {
                     Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
                     if (e != null) {

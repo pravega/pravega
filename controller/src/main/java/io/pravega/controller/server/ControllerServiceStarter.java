@@ -12,6 +12,7 @@ package io.pravega.controller.server;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AbstractIdleService;
 import io.pravega.client.ClientConfig;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.common.LoggerHelpers;
@@ -30,6 +31,7 @@ import io.pravega.controller.server.bucket.BucketServiceFactory;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.bucket.PeriodicRetention;
+import io.pravega.controller.server.bucket.PeriodicWatermarking;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
@@ -78,12 +80,14 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private ScheduledExecutorService controllerExecutor;
     private ScheduledExecutorService retentionExecutor;
+    private ScheduledExecutorService watermarkingExecutor;
 
     private ConnectionFactory connectionFactory;
     private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private BucketManager retentionService;
+    private BucketManager watermarkingService;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
 
@@ -143,6 +147,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
                                                                                "retentionpool");
+
+            watermarkingExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.WATERMARKING_THREAD_POOL_SIZE,
+                                                                               "watermarkingpool");
             
             log.info("Creating the bucket store");
             bucketStore = StreamStoreFactory.createBucketStore(storeClient, controllerExecutor);
@@ -195,15 +202,24 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
             
-            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000, retentionExecutor);
-            Duration executionDuration = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
-
+            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
+            
+            Duration executionDurationRetention = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
-            retentionService = bucketServiceFactory.createRetentionService(executionDuration, retentionWork::retention);
+            retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
 
             log.info("starting background periodic service for retention");
             retentionService.startAsync();
             retentionService.awaitRunning();
+
+            Duration executionDurationWatermarking = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
+            PeriodicWatermarking watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore, clientConfig, watermarkingExecutor);
+            watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
+                    watermarkingWork::watermark, watermarkingExecutor);
+
+            log.info("starting background periodic service for watermarking");
+            watermarkingService.startAsync();
+            watermarkingService.awaitRunning();
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -225,7 +241,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             streamMetrics = new StreamMetrics();
             transactionMetrics = new TransactionMetrics();
-            controllerService = new ControllerService(streamStore, streamMetadataTasks,
+            controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
@@ -329,6 +345,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 retentionService.stopAsync();
             }
 
+            if (watermarkingService != null) {
+                log.info("Stopping watermarking service");
+                watermarkingService.stopAsync();
+            }
+
             log.info("Closing stream metadata tasks");
             streamMetadataTasks.close();
 
@@ -365,6 +386,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting termination of auto retention");
                 retentionService.awaitTerminated();
             }
+
+            if (watermarkingService != null) {
+                log.info("Awaiting termination of watermarking service");
+                watermarkingService.awaitTerminated();
+            }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
             throw e;
@@ -374,7 +400,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Next stop all executors
             log.info("Stopping controller executor");
-            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor);
+            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor);
 
             if (cluster != null) {
                 log.info("Closing controller cluster instance");

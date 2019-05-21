@@ -101,8 +101,13 @@ public final class Config {
 
     // Retention Configuration
     public static final int MINIMUM_RETENTION_FREQUENCY_IN_MINUTES;
-    public static final int BUCKET_COUNT;
+    public static final int RETENTION_BUCKET_COUNT;
     public static final int RETENTION_THREAD_POOL_SIZE;
+
+    // Watermarking Configuration
+    public static final int MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS;
+    public static final int WATERMARKING_BUCKET_COUNT;
+    public static final int WATERMARKING_THREAD_POOL_SIZE;
 
     // Request Stream Configuration
     public static final String SCALE_STREAM_NAME;
@@ -163,10 +168,14 @@ public final class Config {
     private static final Property<Integer> PROPERTY_RETENTION_FREQUENCY_MINUTES = Property.named("retention.frequencyMinutes", 30);
     private static final Property<Integer> PROPERTY_RETENTION_BUCKET_COUNT = Property.named("retention.bucketCount", 1);
     private static final Property<Integer> PROPERTY_RETENTION_THREAD_COUNT = Property.named("retention.threadCount", 1);
-
+    
     private static final Property<Integer> PROPERTY_TXN_MIN_LEASE = Property.named("transaction.minLeaseValue", 10000);
     private static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named("transaction.maxLeaseValue", 120000);
     private static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named("transaction.ttlHours", 24);
+
+    private static final Property<Integer> PROPERTY_WATERMARKING_FREQUENCY_SECONDS = Property.named("watermarking.frequencySeconds", 30);
+    private static final Property<Integer> PROPERTY_WATERMARKING_BUCKET_COUNT = Property.named("watermarking.bucketCount", 100);
+    private static final Property<Integer> PROPERTY_WATERMARKING_THREAD_COUNT = Property.named("watermarking.threadCount", 10);
 
     private static final Property<String> PROPERTY_SCALE_STREAM_NAME = Property.named("scale.streamName", "_requeststream");
     private static final Property<String> PROPERTY_SCALE_READER_GROUP = Property.named("scale.ReaderGroup", "scaleGroup");
@@ -220,8 +229,11 @@ public final class Config {
         MAX_LEASE_VALUE = p.getInt(PROPERTY_TXN_MAX_LEASE);
         COMPLETED_TRANSACTION_TTL_IN_HOURS = p.getInt(PROPERTY_TXN_TTL_HOURS);
         MINIMUM_RETENTION_FREQUENCY_IN_MINUTES = p.getInt(PROPERTY_RETENTION_FREQUENCY_MINUTES);
-        BUCKET_COUNT = p.getInt(PROPERTY_RETENTION_BUCKET_COUNT);
+        RETENTION_BUCKET_COUNT = p.getInt(PROPERTY_RETENTION_BUCKET_COUNT);
         RETENTION_THREAD_POOL_SIZE = p.getInt(PROPERTY_RETENTION_THREAD_COUNT);
+        MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS = p.getInt(PROPERTY_WATERMARKING_FREQUENCY_SECONDS);
+        WATERMARKING_BUCKET_COUNT = p.getInt(PROPERTY_WATERMARKING_BUCKET_COUNT);
+        WATERMARKING_THREAD_POOL_SIZE = p.getInt(PROPERTY_WATERMARKING_THREAD_COUNT);
         SCALE_STREAM_NAME = p.get(PROPERTY_SCALE_STREAM_NAME);
         SCALE_READER_GROUP = p.get(PROPERTY_SCALE_READER_GROUP);
         DUMP_STACK_ON_SHUTDOWN = p.getBoolean(PROPERTY_DUMP_STACK_ON_SHUTDOWN);

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -21,6 +22,7 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.utils.ZKPaths;
 
 import java.util.Base64;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -30,13 +32,12 @@ import java.util.stream.Collectors;
 public class ZookeeperBucketStore implements BucketStore {
     private static final String ROOT_PATH = "/";
     private static final String OWNERSHIP_CHILD_PATH = "ownership";
-    @Getter
-    private final int bucketCount;
+    private final ImmutableMap<ServiceType, Integer> bucketCountMap;
     @Getter
     private final ZKStoreHelper storeHelper;
 
-    ZookeeperBucketStore(int bucketCount, CuratorFramework client, Executor executor) {
-        this.bucketCount = bucketCount;
+    ZookeeperBucketStore(ImmutableMap<ServiceType, Integer> bucketCountMap, CuratorFramework client, Executor executor) {
+        this.bucketCountMap = bucketCountMap;
         storeHelper = new ZKStoreHelper(client, executor);
     }
 
@@ -45,6 +46,11 @@ public class ZookeeperBucketStore implements BucketStore {
         return StoreType.Zookeeper;
     }
 
+    @Override
+    public int getBucketCount(ServiceType serviceType) {
+        return bucketCountMap.get(serviceType);
+    }
+    
     public CompletableFuture<Void> createBucketsRoot(ServiceType serviceType) {
         String bucketRootPath = getBucketRootPath(serviceType);
         String bucketOwnershipPath = getBucketOwnershipPath(serviceType);
@@ -69,6 +75,7 @@ public class ZookeeperBucketStore implements BucketStore {
     @Override
     public CompletableFuture<Void> addStreamToBucketStore(final ServiceType serviceType, final String scope, final String stream,
                                                           final Executor executor) {
+        int bucketCount = bucketCountMap.get(serviceType);
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
         String bucketPath = getBucketPath(serviceType, bucket);
         String streamPath = ZKPaths.makePath(bucketPath, encodedScopedStreamName(scope, stream));
@@ -79,6 +86,7 @@ public class ZookeeperBucketStore implements BucketStore {
     @Override
     public CompletableFuture<Void> removeStreamFromBucketStore(final ServiceType serviceType, final String scope, 
                                                                final String stream, final Executor executor) {
+        int bucketCount = bucketCountMap.get(serviceType);
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
         String bucketPath = getBucketPath(serviceType, bucket);
         String streamPath = ZKPaths.makePath(bucketPath, encodedScopedStreamName(scope, stream));

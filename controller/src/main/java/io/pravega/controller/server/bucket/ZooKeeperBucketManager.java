@@ -45,7 +45,8 @@ public class ZooKeeperBucketManager extends BucketManager {
         return bucketStore.getBucketCount();
     }
 
-    private void startBucketOwnershipListener() {
+    @Override
+    public void startBucketOwnershipListener() {
         PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.computeIfAbsent(getServiceType(),
                 x -> bucketStore.getServiceOwnershipPathChildrenCache(getServiceType()));
 
@@ -84,11 +85,6 @@ public class ZooKeeperBucketManager extends BucketManager {
     }
 
     @Override
-    public CompletableFuture<Void> beforeStop() {
-        stopBucketOwnershipListener();
-        return CompletableFuture.completedFuture();    
-    }
-
     public void stopBucketOwnershipListener() {
         PathChildrenCache pathChildrenCache = bucketOwnershipCacheMap.remove(getServiceType());
         if (pathChildrenCache != null) {
@@ -102,10 +98,8 @@ public class ZooKeeperBucketManager extends BucketManager {
     }
 
     @Override
-    public CompletableFuture<Void> beforeStart() {
-        return bucketStore.createBucketsRoot(getServiceType())
-                          .thenCompose(v -> bucketStore.addBucketManager(getProcessId()))
-                          .thenAccept(v -> startBucketOwnershipListener());
+    public CompletableFuture<Void> initializeService() {
+        return bucketStore.createBucketsRoot(getServiceType());
     }
 
     @Override

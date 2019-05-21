@@ -34,7 +34,7 @@ public interface BucketStore {
      *
      * @return number of buckets.
      */
-    int getBucketCount();
+    int getBucketCount(ServiceType serviceType);
     
     /**
      * Return all streams in the bucket.

@@ -24,17 +24,14 @@ public class BucketServiceFactory {
     private final String hostId;
     private final BucketStore bucketStore;
     private final int maxConcurrentExecutions;
-    private final ScheduledExecutorService executorService;
 
-    public BucketServiceFactory(@NonNull String hostId, @NonNull BucketStore bucketStore, int maxConcurrentExecutions, 
-                                @NonNull ScheduledExecutorService executorService) {
+    public BucketServiceFactory(@NonNull String hostId, @NonNull BucketStore bucketStore, int maxConcurrentExecutions) {
         this.hostId = hostId;
         this.bucketStore = bucketStore;
         this.maxConcurrentExecutions = maxConcurrentExecutions;
-        this.executorService = executorService;
     }
 
-    public BucketManager createRetentionService(Duration executionDuration, BucketWork work) {
+    public BucketManager createRetentionService(Duration executionDuration, BucketWork work, ScheduledExecutorService executorService) {
         switch (bucketStore.getStoreType()) {
             case Zookeeper:
                 ZookeeperBucketStore zkBucketStore = (ZookeeperBucketStore) bucketStore;
@@ -56,7 +53,7 @@ public class BucketServiceFactory {
         }
     }
     
-    public BucketManager createWatermarkingService(Duration executionDuration, BucketWork work) {
+    public BucketManager createWatermarkingService(Duration executionDuration, BucketWork work, ScheduledExecutorService executorService) {
         switch (bucketStore.getStoreType()) {
             case Zookeeper:
                 ZookeeperBucketStore zkBucketStore = (ZookeeperBucketStore) bucketStore;
