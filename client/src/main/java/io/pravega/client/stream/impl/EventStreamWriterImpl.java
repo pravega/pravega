@@ -35,6 +35,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
@@ -81,7 +82,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
     private final Pinger pinger;
     
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool) {
+                          Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool,
+                          ScheduledExecutorService internalExecutor) {
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
@@ -90,7 +92,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
         this.retransmitPool = Preconditions.checkNotNull(retransmitPool);
-        this.pinger = new Pinger(config, stream, controller);
+        this.pinger = new Pinger(config, stream, controller, internalExecutor);
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
     }
