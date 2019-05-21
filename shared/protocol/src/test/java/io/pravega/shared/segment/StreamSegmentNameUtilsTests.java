@@ -134,4 +134,83 @@ public class StreamSegmentNameUtilsTests {
         AssertExtensions.assertThrows("No tokens supplied", () -> StreamSegmentNameUtils.getQualifiedTableName("scope"), 
                 e -> e instanceof IllegalArgumentException);
     }
+
+    @Test
+    public void testGetAttributeSegmentName() {
+       String name = StreamSegmentNameUtils.getAttributeSegmentName("foo");
+        AssertExtensions.assertThrows(
+                "getAttributeSegmentName did not add the attribute suffix",
+                () -> StreamSegmentNameUtils.getAttributeSegmentName(name),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testGetHeaderSegmentName() {
+        String name = StreamSegmentNameUtils.getHeaderSegmentName("foo");
+        AssertExtensions.assertThrows(
+                "getAttributeSegmentName did not add the header suffix",
+                () -> StreamSegmentNameUtils.getHeaderSegmentName(name),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testGetSegmentNameFromHeader() {
+        String name = StreamSegmentNameUtils.getSegmentNameFromHeader(StreamSegmentNameUtils.getHeaderSegmentName("foo"));
+        AssertExtensions.assertThrows(
+                "getAttributeSegmentName did not add the attribute suffix",
+                () -> StreamSegmentNameUtils.getSegmentNameFromHeader("foo"),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testGetSegmentNameChunkName() {
+        String name = StreamSegmentNameUtils.getSegmentChunkName("foo", 0);
+        AssertExtensions.assertThrows(
+                "getAttributeSegmentName did not add the attribute suffix",
+                () -> StreamSegmentNameUtils.getSegmentChunkName(name, 0),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testGetScopedStreamName() {
+        String name = StreamSegmentNameUtils.getScopedStreamName("scope", "stream");
+        Assert.assertTrue(name.equals("scope/stream"));
+        name = StreamSegmentNameUtils.getScopedStreamName("", "stream");
+        Assert.assertTrue(name.equals("stream"));
+        name = StreamSegmentNameUtils.getScopedStreamName(null, "stream");
+        Assert.assertTrue(name.equals("stream"));
+    }
+
+    @Test
+    public void testComputeSegmentId() {
+        long sid = StreamSegmentNameUtils.computeSegmentId(1, 1);
+        Assert.assertEquals(sid, (long) (0x1L << 32) + 1);
+
+        AssertExtensions.assertThrows(
+                "Accepted a negative epoch",
+                () -> StreamSegmentNameUtils.computeSegmentId(1, -1),
+                ex -> ex instanceof IllegalArgumentException);
+    }
+
+    @Test
+    public void testExtractSegmentTokens() {
+        String name  = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream", 0);
+        List<String> tokens = StreamSegmentNameUtils.extractSegmentTokens(name);
+        Assert.assertEquals(tokens.size(), 3);
+        Assert.assertTrue(tokens.get(0).equals("scope"));
+        Assert.assertTrue(tokens.get(1).equals("stream"));
+        Assert.assertTrue(tokens.get(2).equals("0"));
+
+        name  = StreamSegmentNameUtils.getQualifiedStreamSegmentName("", "stream", 0);
+        tokens = StreamSegmentNameUtils.extractSegmentTokens(name);
+        Assert.assertEquals(tokens.size(), 2);
+        Assert.assertTrue(tokens.get(0).equals("stream"));
+        Assert.assertTrue(tokens.get(1).equals("0"));
+
+        name  = StreamSegmentNameUtils.getQualifiedStreamSegmentName(null, "stream", 0);
+        tokens = StreamSegmentNameUtils.extractSegmentTokens(name);
+        Assert.assertEquals(tokens.size(), 2);
+        Assert.assertTrue(tokens.get(0).equals("stream"));
+        Assert.assertTrue(tokens.get(1).equals("0"));
+    }
 }
