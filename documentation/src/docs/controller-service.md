@@ -7,7 +7,7 @@ You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 -->
-<span id="_Toc506543504" class="anchor"><span id="_Toc506545512" class="anchor"></span></span>Pravega Controller Service
+<span id="_Toc506543504_" class="anchor"><span id="_Toc506545512_" class="anchor"></span></span>Pravega Controller Service
 ========================================================================================================================
 *  [Introduction](#introduction)
 *  [Architecture](#architecture)
