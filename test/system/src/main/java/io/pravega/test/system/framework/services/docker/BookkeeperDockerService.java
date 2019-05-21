@@ -10,7 +10,6 @@
 package io.pravega.test.system.framework.services.docker;
 
 import com.spotify.docker.client.messages.ContainerConfig;
-import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
 import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
@@ -21,17 +20,15 @@ import com.spotify.docker.client.messages.swarm.RestartPolicy;
 import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
-import io.pravega.common.hash.RandomFactory;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 import static com.spotify.docker.client.messages.swarm.RestartPolicy.RESTART_POLICY_ANY;
+import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 
 @Slf4j
 public class BookkeeperDockerService extends DockerBasedService {
@@ -72,7 +69,7 @@ public class BookkeeperDockerService extends DockerBasedService {
         String env2 = "ZK=" + zk;
         String env3 = "bookiePort=" + String.valueOf(BK_PORT);
         String env4 = "DLOG_EXTRA_OPTS=-Xms512m";
-        String env5 = "BK_useHostNameAsBookieID=true";
+        String env5 = "BK_useHostNameAsBookieID=false";
         stringList.add(env1);
         stringList.add(env2);
         stringList.add(env3);
@@ -82,7 +79,7 @@ public class BookkeeperDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder().restartPolicy(RestartPolicy.builder().maxAttempts(1).condition(RESTART_POLICY_ANY).build())
                 .containerSpec(ContainerSpec.builder()
-                        .hostname(serviceName + "-" + Math.abs(RandomFactory.getSeed()))
+                        .hostname(serviceName)
                         .labels(labels)
                         .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
