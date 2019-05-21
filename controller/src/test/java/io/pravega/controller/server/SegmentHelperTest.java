@@ -81,8 +81,7 @@ public class SegmentHelperTest {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
         CompletableFuture<Boolean> retVal = helper.createSegment("", "",
-                0, ScalingPolicy.fixed(2), "", 0);
-
+                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
@@ -90,7 +89,7 @@ public class SegmentHelperTest {
         );
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createSegment("", "",
-                0, ScalingPolicy.fixed(2), "", 0);
+                0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
         validateProcessingFailureCFE(factory, futureSupplier);
         testConnectionFailure(factory, futureSupplier);
     }
@@ -554,7 +553,7 @@ public class SegmentHelperTest {
 
     private void validateAuthTokenCheckFailed(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
         CompletableFuture<?> future = futureSupplier.get();
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0L, "SomeException"));
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("", future::join,
                                       t -> {
                                           Throwable ex = unwrap(t);
@@ -671,7 +670,7 @@ public class SegmentHelperTest {
         @Getter
         private ReplyProcessor rp;
         private ClientConnection connection;
-
+        
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
             if (failConnection.get()) {

@@ -60,11 +60,8 @@ public class RawClient implements AutoCloseable {
             } else if (reply instanceof WireCommands.WrongHost) {
                 log.info("WrongHost");
                 closeConnection(new ConnectionFailedException(reply.toString()));
-            } else if (reply instanceof WireCommands.TableSegmentNotEmpty) {
-                log.info("TableSegmentNotEmpty");
-                closeConnection(new ConnectionFailedException(reply.toString()));
             } else {
-                log.debug("Received reply: {}", reply);
+                log.debug("Received reply {}", reply);
                 reply(reply);
             }
         }
