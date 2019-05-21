@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.server;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
@@ -56,8 +55,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.annotation.concurrent.GuardedBy;
-import lombok.Getter;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -78,13 +75,7 @@ public class SegmentHelper implements AutoCloseable {
     private final SegmentStoreConnectionManager connectionManager;
     private final HostControllerStore hostStore;
     private final ConnectionFactory connectionFactory;
-
     private final Object lock = new Object();
-
-    @Getter
-    @VisibleForTesting
-    @GuardedBy("lock")
-    private RawClient client = null;
 
     public SegmentHelper(final ConnectionFactory clientCF, HostControllerStore hostStore) {
         connectionManager = new SegmentStoreConnectionManager(clientCF);
@@ -104,16 +95,7 @@ public class SegmentHelper implements AutoCloseable {
         return Controller.NodeUri.newBuilder().setEndpoint(host.getIpAddr()).setPort(host.getPort()).build();
     }
 
-    RawClient getConnection(PravegaNodeUri nodeUri) {
-        synchronized (lock) {
-            if (client == null || client.isClosed()) {
-                client = new RawClient(nodeUri, connectionFactory);
-            }
-            return client;
-        }
-    }
-
-    private void closeConnection(Reply reply) {
+    private void closeConnection(Reply reply, RawClient client) {
         log.info("Closing connection as a result of receiving: {}", reply);
         RawClient c;
         synchronized (lock) {
@@ -139,12 +121,12 @@ public class SegmentHelper implements AutoCloseable {
     }
 
     @SneakyThrows(ConnectionFailedException.class)
-    private Boolean transformReplyToBoolean(Reply reply, Class[] classArray) {
+    private Boolean transformReplyToBoolean(Reply reply, Class[] classArray, RawClient client) {
         if (isReplyWanted(reply, classArray)) {
             return true;
         }
 
-        closeConnection(reply);
+        closeConnection(reply, client);
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
         } else if (reply instanceof WireCommands.WrongHost) {
@@ -164,7 +146,7 @@ public class SegmentHelper implements AutoCloseable {
         final String qualifiedStreamSegmentName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
 
-        RawClient connection = getConnection(ModelHelper.encode(uri));
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
@@ -173,7 +155,7 @@ public class SegmentHelper implements AutoCloseable {
 
         return connection.sendRequest(requestId, new WireCommands.CreateSegment(requestId, qualifiedStreamSegmentName,
                 extracted.getLeft(), extracted.getRight(), controllerToken))
-                .thenApply(r -> transformReplyToBoolean(r, expectedArray));
+                .thenApply(r -> transformReplyToBoolean(r, expectedArray, connection));
     }
 
     public CompletableFuture<Boolean> truncateSegment(final String scope,
@@ -184,13 +166,13 @@ public class SegmentHelper implements AutoCloseable {
                                                       final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
-        RawClient connection = getConnection(ModelHelper.encode(uri));
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
 
         Class[] expectedReply = {WireCommands.SegmentTruncated.class,
                 WireCommands.SegmentIsTruncated.class};
         return connection.sendRequest(requestId, new WireCommands.TruncateSegment(requestId, qualifiedName, offset, delegationToken))
-                .thenApply(r -> transformReplyToBoolean(r, expectedReply));
+                .thenApply(r -> transformReplyToBoolean(r, expectedReply, connection));
     }
 
     public CompletableFuture<Boolean> deleteSegment(final String scope,
@@ -200,11 +182,11 @@ public class SegmentHelper implements AutoCloseable {
                                                     final long clientRequestId) {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
-        RawClient connection = getConnection(ModelHelper.encode(uri));
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
         Class[] expectedReply = {WireCommands.SegmentDeleted.class};
         return connection.sendRequest(requestId, new WireCommands.DeleteSegment(requestId, qualifiedName, delegationToken))
-                .thenApply(r -> transformReplyToBoolean(r, expectedReply));
+                .thenApply(r -> transformReplyToBoolean(r, expectedReply, connection));
     }
 
     /**
@@ -231,12 +213,12 @@ public class SegmentHelper implements AutoCloseable {
                                                    final Controller.NodeUri uri,
                                                    final String delegationToken,
                                                    long clientRequestId) {
-        RawClient connection = getConnection(ModelHelper.encode(uri));
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
         Class[] expectedReply = {WireCommands.SegmentSealed.class,
                 WireCommands.SegmentIsSealed.class};
         return connection.sendRequest(requestId, new WireCommands.SealSegment(requestId, qualifiedName, delegationToken))
-                .thenApply(r -> transformReplyToBoolean(r, expectedReply));
+                .thenApply(r -> transformReplyToBoolean(r, expectedReply, connection));
     }
 
     public CompletableFuture<UUID> createTransaction(final String scope,
@@ -537,12 +519,12 @@ public class SegmentHelper implements AutoCloseable {
                                                          final long clientRequestId) {
 
         final Controller.NodeUri uri = getTableUri(tableName);
-        RawClient connection = getConnection(ModelHelper.encode(uri));
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
         Class[] classArray = {WireCommands.SegmentCreated.class,
                 WireCommands.SegmentAlreadyExists.class};
         return connection.sendRequest(requestId, new WireCommands.CreateTableSegment(requestId, tableName, delegationToken))
-                .thenApply(rpl -> transformReplyToBoolean(rpl, classArray));
+                .thenApply(rpl -> transformReplyToBoolean(rpl, classArray, connection));
     }
 
     /**
@@ -561,12 +543,12 @@ public class SegmentHelper implements AutoCloseable {
                                                          String delegationToken,
                                                          final long clientRequestId) {
         final Controller.NodeUri uri = getTableUri(tableName);
-        RawClient connection = getConnection(ModelHelper.encode(uri));
+        RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
         Class[] expectedClasses = {WireCommands.SegmentDeleted.class,
                 WireCommands.NoSuchSegment.class};
         return connection.sendRequest(requestId, new WireCommands.DeleteTableSegment(requestId, tableName, mustBeEmpty, delegationToken))
-                .thenApply(rpl -> transformReplyToBoolean(rpl, expectedClasses));
+                .thenApply(rpl -> transformReplyToBoolean(rpl, expectedClasses, connection));
     }
 
     /**
