@@ -77,7 +77,7 @@ public class BookkeeperDockerService extends DockerBasedService {
         stringList.add(env5);
 
         final TaskSpec taskSpec = TaskSpec
-                .builder().restartPolicy(RestartPolicy.builder().maxAttempts(1).condition(RESTART_POLICY_ANY).build())
+                .builder().restartPolicy(RestartPolicy.builder().maxAttempts(3).condition(RESTART_POLICY_ANY).build())
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
                         .labels(labels)
