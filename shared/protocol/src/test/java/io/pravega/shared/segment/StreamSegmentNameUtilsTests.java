@@ -139,7 +139,7 @@ public class StreamSegmentNameUtilsTests {
     public void testGetAttributeSegmentName() {
        String name = StreamSegmentNameUtils.getAttributeSegmentName("foo");
         AssertExtensions.assertThrows(
-                "getAttributeSegmentName did not fail to add attribute suffix.",
+                "getAttributeSegmentName did not fail to add the attribute suffix.",
                 () -> StreamSegmentNameUtils.getAttributeSegmentName(name),
                 ex -> ex instanceof IllegalArgumentException);
     }
