@@ -16,33 +16,14 @@ import org.junit.Test;
 public class ScaleTypeTests {
 
     @Test
-    public void testToValue() {
-        ScaleType noScaling = ScaleType.NoScaling;
-        ScaleType throughput = ScaleType.Throughput;
-        ScaleType eventRate = ScaleType.EventRate;
-
-        Assert.assertTrue(noScaling.name().equals(ScaleType.NoScaling.name()));
-        Assert.assertTrue(throughput.name().equals(ScaleType.Throughput.name()));
-        Assert.assertTrue(eventRate.name().equals(ScaleType.EventRate.name()));
-
-        Assert.assertTrue(noScaling.getValue() == ScaleType.NoScaling.getValue());
-        Assert.assertTrue(throughput.getValue() == ScaleType.Throughput.getValue());
-        Assert.assertTrue(eventRate.getValue() == ScaleType.EventRate.getValue());
-    }
-
-    @Test
     public void testFromValue() {
         ScaleType noScaling = ScaleType.fromValue(ScaleType.NoScaling.getValue());
         ScaleType throughput = ScaleType.fromValue(ScaleType.Throughput.getValue());
         ScaleType eventRate = ScaleType.fromValue(ScaleType.EventRate.getValue());
 
-        Assert.assertTrue(noScaling.name().equals(ScaleType.NoScaling.name()));
-        Assert.assertTrue(throughput.name().equals(ScaleType.Throughput.name()));
-        Assert.assertTrue(eventRate.name().equals(ScaleType.EventRate.name()));
-
-        Assert.assertTrue(noScaling.getValue() == ScaleType.NoScaling.getValue());
-        Assert.assertTrue(throughput.getValue() == ScaleType.Throughput.getValue());
-        Assert.assertTrue(eventRate.getValue() == ScaleType.EventRate.getValue());
+        Assert.assertEquals(noScaling, ScaleType.NoScaling);
+        Assert.assertEquals(throughput, ScaleType.Throughput);
+        Assert.assertEquals(eventRate, ScaleType.EventRate);
     }
 
 }

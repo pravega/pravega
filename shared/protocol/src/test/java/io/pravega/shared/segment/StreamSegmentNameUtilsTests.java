@@ -148,7 +148,7 @@ public class StreamSegmentNameUtilsTests {
     public void testGetHeaderSegmentName() {
         String name = StreamSegmentNameUtils.getHeaderSegmentName("foo");
         AssertExtensions.assertThrows(
-                "getAttributeSegmentName did not add the header suffix",
+                "getHeaderSegmentName did not add the header suffix",
                 () -> StreamSegmentNameUtils.getHeaderSegmentName(name),
                 ex -> ex instanceof IllegalArgumentException);
     }
@@ -157,7 +157,7 @@ public class StreamSegmentNameUtilsTests {
     public void testGetSegmentNameFromHeader() {
         String name = StreamSegmentNameUtils.getSegmentNameFromHeader(StreamSegmentNameUtils.getHeaderSegmentName("foo"));
         AssertExtensions.assertThrows(
-                "getAttributeSegmentName did not add the attribute suffix",
+                "getSegmentNameFromHeader did not remove the header suffix",
                 () -> StreamSegmentNameUtils.getSegmentNameFromHeader("foo"),
                 ex -> ex instanceof IllegalArgumentException);
     }
@@ -166,7 +166,7 @@ public class StreamSegmentNameUtilsTests {
     public void testGetSegmentNameChunkName() {
         String name = StreamSegmentNameUtils.getSegmentChunkName("foo", 0);
         AssertExtensions.assertThrows(
-                "getAttributeSegmentName did not add the attribute suffix",
+                "getSegmentChunkName did not concatenate segment name and suffix",
                 () -> StreamSegmentNameUtils.getSegmentChunkName(name, 0),
                 ex -> ex instanceof IllegalArgumentException);
     }
