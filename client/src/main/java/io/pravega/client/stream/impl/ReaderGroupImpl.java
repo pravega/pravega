@@ -222,7 +222,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                          .flatMap(map -> map.entrySet().stream())
                          .collect(Collectors.toMap(Entry::getKey,
                                                    // A value of -1L implies read until the end of the segment.
-                                                   entry -> (entry.getValue() == -1L) ? Long.MAX_VALUE : entry.getValue()));
+                                                   entry -> (entry.getValue() == -1L) ? (Long) Long.MAX_VALUE : entry.getValue()));
     }
 
     @Override
