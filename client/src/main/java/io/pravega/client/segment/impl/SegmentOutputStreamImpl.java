@@ -283,7 +283,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final class ResponseProcessor extends FailingReplyProcessor {
         @Override
         public void connectionDropped() {
-            failConnection(new ConnectionFailedException());
+            failConnection(new ConnectionFailedException("Connection dropped for writer " + writerId));
         }
         
         @Override
@@ -363,6 +363,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     if (e == null) {
                         state.connectionSetupComplete(connection);
                     } else {
+                        log.debug("Error while sending inflight during setup append for writer " + writerId, e);
                         failConnection(e);
                     }
                 });
@@ -537,13 +538,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              retrySchedule.getMaxDelay(),
                                              t -> log.warn(writerId + " Failed to connect: ", t))
                  .runAsync(() -> {
-                     log.debug("Running reconnect for segment:{} writerID: {}", segmentName, writerId);
+                     log.debug("Running reconnect for segment {} writer {}", segmentName, writerId);
                      if (state.isClosed() || state.needSuccessors.get()) {
                          // stop reconnect when writer is closed or resend inflight to successors has been triggered.
                          return CompletableFuture.completedFuture(null);
                      }
                      Preconditions.checkState(state.getConnection() == null);
-                     log.info("Fetching endpoint for segment {}, writerID: {}", segmentName, writerId);
+                     log.info("Fetching endpoint for segment {}, writer {}", segmentName, writerId);
                      return controller.getEndpointForSegment(segmentName).thenComposeAsync((PravegaNodeUri uri) -> {
                          log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
                          return connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);

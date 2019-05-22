@@ -393,7 +393,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @Override
     public void append(Append append) {
-        log.trace("Processing append received from client {}", append);
+        log.debug("Processing append received from client {}", append);
         UUID id = append.getWriterId();
         synchronized (lock) {
             Long lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), id));
