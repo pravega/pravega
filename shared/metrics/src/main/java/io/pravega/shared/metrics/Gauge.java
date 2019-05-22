@@ -9,8 +9,17 @@
  */
 package io.pravega.shared.metrics;
 
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
+
 /**
  * Defines a Gauge, which will wrap a gauge instance and its name.
  */
 public interface Gauge extends Metric {
+
+    /**
+     * Return an AtomicReference pointing to the supplier of gauge value.
+     * @return an AtomicReference pointing to the Supplier of gauge value.
+     */
+    AtomicReference<Supplier<Number>> supplierReference();
 }

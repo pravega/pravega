@@ -11,6 +11,7 @@ package io.pravega.shared.metrics;
 
 import java.time.Duration;
 import java.util.EnumMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import io.micrometer.core.instrument.Meter.Id;
 
@@ -40,13 +41,18 @@ public class NullStatsLogger implements StatsLogger {
         }
 
         @Override
+        public AtomicReference<Supplier<Number>> supplierReference() {
+            return new AtomicReference<>();
+        }
+
+        @Override
         public void close() {
             // nop
         }
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
+    public Gauge registerGauge(String name, Supplier<Number> value, String... tags) {
         return NULLGAUGE;
     }
 

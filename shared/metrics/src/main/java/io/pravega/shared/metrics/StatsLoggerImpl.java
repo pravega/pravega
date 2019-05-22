@@ -11,6 +11,7 @@ package io.pravega.shared.metrics;
 
 import com.google.common.base.Preconditions;
 
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -54,9 +55,9 @@ public class StatsLoggerImpl implements StatsLogger {
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(final String statName, Supplier<T> valueSupplier, String... tags) {
+    public Gauge registerGauge(final String statName, final Supplier<Number> valueSupplier, String... tags) {
         try {
-            return new GaugeImpl<>(statName, valueSupplier, tags);
+            return new GaugeImpl<>(statName, Preconditions.checkNotNull(valueSupplier), tags);
         } catch (Exception e) {
             log.warn("registerGauge failure: {}", statName, e);
             return NULLGAUGE;
@@ -123,12 +124,19 @@ public class StatsLoggerImpl implements StatsLogger {
     private class GaugeImpl<T extends Number> implements Gauge {
         @Getter
         private final Id id;
+        @Getter
+        private final AtomicReference<Supplier<Number>> supplierReference = new AtomicReference<>();
 
-        GaugeImpl(String statName, Supplier<T> value, String... tagPairs) {
+        GaugeImpl(String statName, Supplier<Number> valueSupplier, String... tagPairs) {
             io.micrometer.core.instrument.Tags tags = io.micrometer.core.instrument.Tags.of(tagPairs);
             this.id = new Id(statName, tags, null, null, io.micrometer.core.instrument.Meter.Type.GAUGE);
-            metrics.remove(this.id);
-            metrics.gauge(statName, tags, value, obj -> obj.get().doubleValue());
+            this.supplierReference.set(valueSupplier);
+            metrics.gauge(statName, tags, this.supplierReference, obj -> obj.get().get().doubleValue());
+        }
+
+        @Override
+        public AtomicReference<Supplier<Number>> supplierReference() {
+            return supplierReference;
         }
 
         @Override

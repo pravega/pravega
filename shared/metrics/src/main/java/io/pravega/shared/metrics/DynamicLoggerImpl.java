@@ -136,27 +136,18 @@ public class DynamicLoggerImpl implements DynamicLogger {
     public <T extends Number> void reportGaugeValue(String name, T value, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(value);
-        Gauge newGauge = null;
         MetricsNames.MetricKey keys = metricKey(name, tags);
 
-        if (value instanceof Float) {
-            newGauge = underlying.registerGauge(keys.getRegistryKey(), value::floatValue, tags);
-        } else if (value instanceof Double) {
-            newGauge = underlying.registerGauge(keys.getRegistryKey(), value::doubleValue, tags);
-        } else if (value instanceof Byte) {
-            newGauge = underlying.registerGauge(keys.getRegistryKey(), value::byteValue, tags);
-        } else if (value instanceof Short) {
-            newGauge = underlying.registerGauge(keys.getRegistryKey(), value::shortValue, tags);
-        } else if (value instanceof Integer) {
-            newGauge = underlying.registerGauge(keys.getRegistryKey(), value::intValue, tags);
-        } else if (value instanceof Long) {
-            newGauge = underlying.registerGauge(keys.getRegistryKey(), value::longValue);
-        }
-
-        if (null == newGauge) {
-            log.error("Unsupported Number type: {}.", value.getClass().getName());
+        Gauge gauge = gaugesCache.getIfPresent(keys.getCacheKey());
+        if (gauge == null) {
+            Gauge newGauge = underlying.registerGauge(keys.getRegistryKey(), value::doubleValue, tags);
+            if (newGauge == null) {
+                log.error("Unsupported Number type: {}.", value.getClass().getName());
+            } else {
+                gaugesCache.put(keys.getCacheKey(), newGauge);
+            }
         } else {
-            gaugesCache.put(keys.getCacheKey(), newGauge);
+            gauge.supplierReference().set(value::doubleValue);
         }
     }
 

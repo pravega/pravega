@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.Getter;
@@ -138,7 +139,7 @@ public class StatsLoggerProxyTest {
         }
 
         @Override
-        public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
+        public Gauge registerGauge(String name, Supplier<Number> supplier, String... tags) {
             return create(name, tags);
         }
 
@@ -234,6 +235,13 @@ public class StatsLoggerProxyTest {
 
         }
 
+        @Override
+        public AtomicReference<Supplier<Number>> supplierReference() {
+            AtomicReference<Supplier<Number>> reference = new AtomicReference<>();
+            Supplier<Number> supplier = () -> 5;
+            reference.set(supplier);
+            return reference;
+        }
         //endregion
     }
 }

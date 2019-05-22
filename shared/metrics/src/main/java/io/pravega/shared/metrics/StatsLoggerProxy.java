@@ -37,7 +37,7 @@ public class StatsLoggerProxy implements StatsLogger {
         this.opStatsLoggers.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().createStats(v.getProxyName())));
         this.counters.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().createCounter(v.getProxyName())));
         this.meters.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().createMeter(v.getProxyName())));
-        this.gauges.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().registerGauge(v.getProxyName(), v.getValueSupplier())));
+        this.gauges.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().registerGauge(v.getProxyName(), v.supplierReference().get())));
     }
 
     @Override
@@ -59,10 +59,10 @@ public class StatsLoggerProxy implements StatsLogger {
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
+    public Gauge registerGauge(String name, Supplier<Number> supplier, String... tags) {
         return getOrSet(this.gauges, name,
-                metricName -> this.statsLoggerRef.get().registerGauge(metricName, value, tags),
-                (metric, proxyName, c) -> new GaugeProxy(metric, proxyName, value, c), tags);
+                metricName -> this.statsLoggerRef.get().registerGauge(metricName, supplier, tags),
+                (metric, proxyName, c) -> new GaugeProxy(metric, proxyName, c), tags);
     }
 
     @Override
