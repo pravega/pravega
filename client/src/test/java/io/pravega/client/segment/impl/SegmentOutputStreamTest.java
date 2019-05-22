@@ -177,8 +177,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), SEGMENT, "SomeException", -1L));
-        CompletableFuture<ClientConnection> connectionFuture = output.getConnection();
-        assertThrows(NoSuchSegmentException.class, () -> Futures.getThrowingException(connectionFuture));
+        assertThrows(SegmentSealedException.class, () -> Futures.getThrowingException(output.getConnection()));
         assertTrue(callbackInvoked.get());
     }
 
