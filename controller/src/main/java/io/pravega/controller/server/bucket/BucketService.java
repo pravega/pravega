@@ -215,18 +215,16 @@ abstract class BucketService extends AbstractService {
             Stream stream = element.getStream();
             
             bucketWork.doWork(stream).handle((r, e) -> {
-                if (isRunning()) {
-                    long nextRun = System.currentTimeMillis() + executionPeriod.toMillis();
-                    synchronized (lock) {
-                        // if known stream contains this stream, add the work back into the queue with next run time 
-                        if (knownStreams.contains(stream)) {
-                            workQueue.add(new QueueElement(stream, nextRun));
-                        }
-                        // add the slot back
-                        availableSlots++;
+                long nextRun = System.currentTimeMillis() + executionPeriod.toMillis();
+                synchronized (lock) {
+                    // if known stream contains this stream, add the work back into the queue with next run time 
+                    if (knownStreams.contains(stream)) {
+                        workQueue.add(new QueueElement(stream, nextRun));
                     }
+                    // add the slot back
+                    availableSlots++;
+                    return null;
                 }
-                return null;
             });
         } 
         

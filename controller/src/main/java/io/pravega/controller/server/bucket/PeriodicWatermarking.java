@@ -9,9 +9,11 @@
  */
 package io.pravega.controller.server.bucket;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.SynchronizerClientFactory;
@@ -24,6 +26,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
+import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.watermarks.Watermark;
@@ -36,17 +40,25 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+
+import static java.util.AbstractMap.*;
 
 public class PeriodicWatermarking {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicWatermarking.class));
@@ -73,7 +85,16 @@ public class PeriodicWatermarking {
                                                     }
                                                 });
     }
-    
+
+    /**
+     * This method computes and emits a new watermark for the given stream. 
+     * It collects all the known writers for the given stream and includes only writers that are active (have reported 
+     * their marks recently). If all active writers have reported marks greater than the previously emitted watermark, 
+     * then new watermark is computed and emitted. If not, the window for considering writers as active is progressed.  
+     * @param stream stream for which watermark should be computed. 
+     * @return Returns a completableFuture which when completed will have completed another iteration of periodic watermark
+     * computation. 
+     */
     public CompletableFuture<Void> watermark(Stream stream) {
         String scope = stream.getScope();
         String streamName = stream.getStreamName();
@@ -81,14 +102,13 @@ public class PeriodicWatermarking {
 
         log.debug("Periodic background processing for watermarking called for stream {}/{}",
                 scope, streamName);
-
-        // TODO: shivesh
-        WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
-        watermarkClient.reinitialize();
         
         return Futures.exceptionallyExpecting(streamMetadataStore.getAllWritersMarks(scope, streamName, context, executor),
                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyMap())
                            .thenCompose(writers -> {
+                               WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
+                               watermarkClient.reinitialize();
+
                                // 1. filter writers that are active.
                                List<Map.Entry<String, WriterMark>> activeWriters = new ArrayList<>();
                                AtomicBoolean allActiveAreParticipating = new AtomicBoolean(true);
@@ -109,59 +129,196 @@ public class PeriodicWatermarking {
                                            scope, streamName, executor);
                                } 
 
+                               CompletableFuture<Watermark> watermarkFuture;
                                if (!allActiveAreParticipating.get()) {
                                    // there are active writers that have not reported their marks. We should wait 
-                                   // until they either report or become inactive. So we will complete this iteration and
-                                   // check if these writers have made progress. 
-                                   watermarkClient.complete(null);
-                                   return CompletableFuture.completedFuture(null);
+                                   // until they either report or become inactive. So we will complete this iteration without 
+                                   // emitting any watermark (null) and in subsequent iterations if these writers have made progress
+                                   // we will emit watermark or evict writers from watermark computation. 
+                                   watermarkFuture = CompletableFuture.completedFuture(null);
                                } else {
                                    // compute new mark
-                                   return computeWatermark(activeWriters).thenAccept(watermarkClient::complete);
+                                   watermarkFuture = computeWatermark(scope, streamName, context, activeWriters, 
+                                           watermarkClient.getPreviousWatermark());
                                }
+                               
+                               return watermarkFuture.thenAccept(watermarkClient::complete);
                            })
                 .exceptionally(e -> {
-                    // TODO: shivesh
-                    // log and ignore. watermarking will be attempted in the next iteration. 
+                    log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e); 
                     return null;
                 });
     }
 
-    private CompletableFuture<Watermark> computeWatermark(List<Map.Entry<String, WriterMark>> activeWriters) {
+    /**
+     * This method takes marks (time + position) of active writers and finds greatest lower bound on time and 
+     * least upper bound on positions and returns the watermark object composed of the two. 
+     * The least upper bound computed from positions may not result in a consistent and complete stream cut. 
+     * So, a positional upper bound is then converted into a stream cut by including segments from higher epoch. 
+     * Also, it is possible that in an effort to fill missing range, we may end up creating an upper bound that 
+     * is composed of segments from highest epoch. In next iteration, from new writer positions, we may be able to 
+     * compute a tighter upper bound. But since watermark has to advance position and time, we will take the upper bound
+     * of previous stream cut and new stream cut. 
+     * 
+     * @param scope scope
+     * @param streamName stream name
+     * @param context operation context
+     * @param activeWriters marks for all active writers. 
+     * @param previousWatermark previous watermark that was emitted. 
+     * @return CompletableFuture which when completed will contain watermark to be emitted. 
+     */
+    @VisibleForTesting
+    CompletableFuture<Watermark> computeWatermark(String scope, String streamName, OperationContext context,
+                                                  List<Map.Entry<String, WriterMark>> activeWriters, Watermark previousWatermark) {
         Watermark.WatermarkBuilder builder = Watermark.builder();
-        Map<StreamSegmentRecord, Long> upperBound = new HashMap<>();
+        ConcurrentHashMap<StreamSegmentRecord, Long> upperBound = new ConcurrentHashMap<>();
         
         AtomicLong lowestTime = new AtomicLong(Long.MAX_VALUE);
-        activeWriters.stream().forEach(x -> {
-            // take the lower bound on time on all writers
-            if (x.getValue().getTimestamp() < lowestTime.get()) {
-                lowestTime.set(x.getValue().getTimestamp());
-            }
+        if (lowestTime.get() > previousWatermark.getTimestamp()) {
+            CompletableFuture<List<Map<StreamSegmentRecord, Long>>> positionsFuture = Futures.allOfWithResults(
+                    activeWriters.stream().map(x -> {
+                        // In one pass find lowest bound on time and convert all segment ids to segmentRecord objects. 
+                        if (x.getValue().getTimestamp() < lowestTime.get()) {
+                            lowestTime.set(x.getValue().getTimestamp());
+                        }
+
+                        return Futures.keysAllOfWithResults(
+                                x.getValue().getPosition().entrySet().stream()
+                                 .collect(Collectors.toMap(y -> streamMetadataStore.getSegment(scope, streamName, y.getKey(), context, executor),
+                                         Entry::getValue)));
+                    }).collect(Collectors.toList()));
             
-            x.getValue().getPosition().entrySet().stream().forEach(entry -> {
-                if (currentOffsets.containsKey(entry.getKey())) {
-                    
-                }
-            });
-            
-        });
-                           
-                           
+            return positionsFuture.thenAccept(listOfPositions -> listOfPositions.forEach(position -> {
+                // add writer positions to upperBound map. 
+                addToUpperBound(position, upperBound);
+            })).thenCompose(v -> computeStreamCut(scope, streamName, context, upperBound, previousWatermark)
+                    .thenApply(streamCut -> builder.timestamp(lowestTime.get()).streamCut(ImmutableMap.copyOf(streamCut)).build()));
+        } else {
+            // new time is not advanced. No watermark to be emitted. 
+            return CompletableFuture.completedFuture(null);
+        }
     }
 
-    void addToUpperBound(Map<StreamSegmentRecord, Long> segmentOffsetMap, Map<StreamSegmentRecord, Long> upperBound) {
-        for (Entry<Segment, Long> entry : segmentOffsetMap) {
-            Segment s = entry.key;
-            Long offset = entry.value;
-            if (upperBound.containsKey(s)) { // update offset if the segment is already present. 
-                long newOffset = Math.max(p.getOffsetFor(s), upperBound.get(s));
-                upperBound.put(s, newOffset);
-            } else if (!hasSuccessors(s, upperBound.keys)) { // only include segment if it doesnt have a successor already included in the set. 
-                list<Segment> toReplace = findPredecessors(s, upperBound.keys()); // replace any predecessor segments from the result set. 
-                upperBound.removeAllKeys(toReplace);
-                currentOffsets.put(s, offset);
+    /**
+     * Method that updates the supplied upperBound by comparing it with supplied position such that resultant upperbound
+     * is an upper bound on current position and all previously considered positions. 
+     * This method should be called with each writer's position iteratively and it will update the upperBound accordingly. 
+     * Note: This method is not thread safe, even though upperBound is a concurrent hash map. 
+     * This method looks at the state in the map and then either adds or removes entries from the map. 
+     * If this was called concurrently, then the behaviour is unpredictable. 
+     * @param position position be included while computing new upper bound
+     * @param upperBound existing upper bound
+     */
+    @VisibleForTesting
+    void addToUpperBound(Map<StreamSegmentRecord, Long> position, Map<StreamSegmentRecord, Long> upperBound) {
+        for (Map.Entry<StreamSegmentRecord, Long> writerPos : position.entrySet()) {
+            StreamSegmentRecord segment = writerPos.getKey();
+            long offset = writerPos.getValue();
+            if (upperBound.containsKey(segment)) { // update offset if the segment is already present. 
+                long newOffset = Math.max(offset, upperBound.get(segment));
+                upperBound.put(segment, newOffset);
+            } else if (!hasSuccessors(segment, upperBound.keySet())) { // only include segment if it doesnt have a successor already included in the set. 
+                Set<StreamSegmentRecord> included = upperBound.keySet();
+                included.forEach(x -> {
+                    // remove all predecessors of `segment` from upper bound. 
+                    if (segment.overlaps(segment) && segment.segmentId() > x.segmentId()) {
+                        upperBound.remove(x);     
+                    }
+                });
+                // add segment to upperBound. 
+                upperBound.put(segment, offset);
             }
         }
+    }
+
+    private boolean hasSuccessors(StreamSegmentRecord segment, Set<StreamSegmentRecord> included) {
+        return included.stream().anyMatch(x -> segment.overlaps(x) && segment.segmentId() < x.segmentId());
+    }
+
+    /**
+     * This method fills in missing ranges in the upper bound such that it composes a consistent and complete streamcut. 
+     * The segments from highest epoch are included to fill in missing ranges. This could result in exclusion of segments
+     * from upper bound if incoming segment also covers range from an existing segment. This could result in new missing 
+     * ranges being created. So this method loops until all missing ranges are filled up. 
+     * In worst case, all segments from highest epoch will end up being included in the final stream cut which is a correct
+     * but not the tightest upper bound. 
+     * 
+     * @param scope scope
+     * @param stream stream name
+     * @param context operation context
+     * @param upperBound upper bound of writer positions. 
+     * @param previousWatermark previous watermark
+     * @return CompletableFuture which when completed will contain a stream cut which completes missing ranges from upper bound
+     * if any.  
+     */
+    @VisibleForTesting
+    CompletableFuture<Map<Long, Long>> computeStreamCut(String scope, String stream, OperationContext context,
+                                                        Map<StreamSegmentRecord, Long> upperBound, Watermark previousWatermark) {
+        ConcurrentHashMap<StreamSegmentRecord, Long> streamCut = new ConcurrentHashMap<>(upperBound);
+        AtomicReference<Map<Double, Double>> missingRanges = new AtomicReference<>(findMissingRanges(streamCut));
+
+        CompletableFuture<Map<StreamSegmentRecord, Long>> previousFuture;
+        if (previousWatermark != null && !previousWatermark.equals(Watermark.EMPTY)) {
+            previousFuture = Futures.keysAllOfWithResults(
+                    previousWatermark.getStreamCut().entrySet().stream()
+                                     .collect(Collectors.toMap(x -> streamMetadataStore.getSegment(scope, stream, x.getKey(), context, executor),
+                                             Entry::getValue)));
+        } else {
+            previousFuture = CompletableFuture.completedFuture(Collections.emptyMap());
+        }
+
+        return previousFuture.thenCompose(previous -> Futures.doWhileLoop(() -> {
+            int highestEpoch = streamCut.keySet().stream().mapToInt(StreamSegmentRecord::getCreationEpoch).max().orElse(-1);
+            assert highestEpoch >= 0;
+            
+            return streamMetadataStore.getEpoch(scope, stream, highestEpoch, context, executor)
+                                       .thenApply(epochRecord -> {
+                                           missingRanges.get().entrySet().forEach(missingRange -> {
+                                               List<StreamSegmentRecord> replacement = findSegmentsForMissingRange(epochRecord, missingRange);
+                                               Map<StreamSegmentRecord, Long> replacementSegmentOffsetMap =
+                                                       replacement.stream().collect(Collectors.toMap(x -> x, x -> 0L));
+                                               addToUpperBound(replacementSegmentOffsetMap, streamCut);
+                                           });
+
+                                           missingRanges.set(findMissingRanges(streamCut));
+                                           return missingRanges.get();
+                                       });
+        }, Map::isEmpty, executor)
+                .thenApply(v -> {
+                    // TODO: shivesh: compare the stream cut with previous
+                    // if there is overlap and previous is ahead of current on any key range, reject current. 
+                    return streamCut.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), Map.Entry::getValue));
+                }));
+    }
+
+    private List<StreamSegmentRecord> findSegmentsForMissingRange(EpochRecord epochRecord, Map.Entry<Double, Double> missingRange) {
+        return epochRecord.getSegments().stream().filter(x -> x.overlaps(missingRange.getKey(), missingRange.getValue()))
+                .collect(Collectors.toList());
+    }
+
+    private Map<Double, Double> findMissingRanges(Map<StreamSegmentRecord, Long> streamCut) {
+        Map<Double, Double> missingRanges = new HashMap<>();
+        List<Map.Entry<StreamSegmentRecord, Long>> sorted = streamCut
+                .entrySet().stream().sorted(Comparator.comparingDouble(x -> x.getKey().getKeyStart())).collect(Collectors.toList());
+        Map.Entry<StreamSegmentRecord, Long> previous = sorted.get(0);
+        
+        if (previous.getKey().getKeyStart() > 0.0) {
+            missingRanges.put(0.0, previous.getKey().getKeyStart());
+        }
+        
+        for (int i = 1; i < sorted.size(); i++) {
+            Map.Entry<StreamSegmentRecord, Long> next = sorted.get(i);
+            if (previous.getKey().getKeyEnd() != next.getKey().getKeyStart()) {
+                missingRanges.put(previous.getKey().getKeyEnd(), next.getKey().getKeyStart());
+            }
+            previous = next;
+        }
+
+        if (previous.getKey().getKeyEnd() < 1.0) {
+            missingRanges.put(previous.getKey().getKeyEnd(), 1.0);
+        }
+
+        return missingRanges;
     }
 
     static class WatermarkClient {
@@ -182,8 +339,14 @@ public class PeriodicWatermarking {
         }
 
         @Synchronized
-        private Map.Entry<Revision, Watermark> getLatestWatermark() {
+        private Map.Entry<Revision, Watermark> getLatestEntry() {
             return entries.isEmpty() ? null : entries.get(entries.size() - 1);
+        }
+
+        @Synchronized
+        Watermark getPreviousWatermark() {
+            Map.Entry<Revision, Watermark> watermark = getLatestEntry();
+            return watermark == null ? Watermark.EMPTY : watermark.getValue(); 
         }
 
         @Synchronized
@@ -242,7 +405,7 @@ public class PeriodicWatermarking {
          * @param newWatermark
          */
         void complete(Watermark newWatermark) {
-            Map.Entry<Revision, Watermark> latest = getLatestWatermark();
+            Map.Entry<Revision, Watermark> latest = getLatestEntry();
             Revision newRevision;
             if (newWatermark != null) {
                 // conditional update
@@ -299,7 +462,7 @@ public class PeriodicWatermarking {
         }
 
         boolean isWriterParticipating(long time) {
-            Map.Entry<Revision, Watermark> latest = getLatestWatermark();
+            Map.Entry<Revision, Watermark> latest = getLatestEntry();
             
             if (latest == null) {
                 return true;
