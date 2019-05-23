@@ -10,6 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -58,7 +59,10 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         store = new ZKStreamMetadataStore(cli, executor, Duration.ofSeconds(1));
-        bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+
+        bucketStore = StreamStoreFactory.createZKBucketStore(map, cli, executor);
     }
 
     @Override

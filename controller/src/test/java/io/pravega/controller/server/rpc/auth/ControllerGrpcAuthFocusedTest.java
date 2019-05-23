@@ -169,7 +169,7 @@ public class ControllerGrpcAuthFocusedTest {
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
 
         ControllerServiceGrpc.ControllerServiceImplBase controllerServiceImplBase = new ControllerServiceImpl(
-                new ControllerService(streamStore,
+                new ControllerService(streamStore, bucketStore, 
                                       streamMetadataTasks,
                                       streamTransactionMetadataTasks,
                                       segmentHelper,
