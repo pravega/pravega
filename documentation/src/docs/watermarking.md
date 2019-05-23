@@ -16,7 +16,7 @@ You may obtain a copy of the License at
      - [Event Writer API Changes](#event-writer-api-changes)
      - [Event Reader API Changes](#event-reader-api-changes)
  *  [Controller and Watermarking](#controller-and-watermarking)
-        - [Writer Marks](#writer-marks)
+     - [Writer Marks](#writer-marks)
   * [References](#references)
 
 ## Introduction
