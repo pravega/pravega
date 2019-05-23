@@ -1021,5 +1021,16 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         releaseCallbackLatch.release();
         // Verify no further reconnection attempts.
         order.verifyNoMoreInteractions();
+        // Trigger a reconnect again and verify if any new connections are initiated.
+        output.reconnect();
+
+        // Reconnect operation will be executed on the executor service.
+        ScheduledExecutorService service = executorService();
+        service.shutdown();
+        // Wait until all the tasks for reconnect have been completed.
+        service.awaitTermination(10, TimeUnit.SECONDS);
+
+        // Verify no further reconnection attempts again.
+        order.verifyNoMoreInteractions();
     }
 }
