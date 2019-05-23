@@ -114,16 +114,25 @@ public class SegmentHelper implements AutoCloseable {
         return false;
     }
 
+    /**
+     * This method handle reply returned from RawClient.sendRequest.
+     *
+     * @param reply               actual reply received
+     * @param expectedReplies     set of the expected replies
+     * @param client              RawClient for sending request
+     * @return true if reply is in the expected reply set or throw exception.
+     */
     private Boolean transformReply(Reply reply, Class[] expectedReplies, RawClient client) {
         if (isReplyWanted(reply, expectedReplies)) {
             return true;
         } else {
-            throw handleUnexpectedReply(reply, expectedReplies);
+            throw handleUnexpectedReply(reply, expectedReplies, client);
         }
     }
 
     @SneakyThrows(ConnectionFailedException.class)
-    private RuntimeException handleUnexpectedReply(Reply reply, Class[] expectedReplies) {
+    private RuntimeException handleUnexpectedReply(Reply reply, Class[] expectedReplies, RawClient client) {
+        closeConnection(reply, client);
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
         } else if (reply instanceof WireCommands.WrongHost) {
