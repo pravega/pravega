@@ -177,8 +177,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), SEGMENT, "SomeException", -1L));
-        CompletableFuture<ClientConnection> connectionFuture = output.getConnection();
-        assertThrows(NoSuchSegmentException.class, () -> Futures.getThrowingException(connectionFuture));
+        assertThrows(SegmentSealedException.class, () -> Futures.getThrowingException(output.getConnection()));
         assertTrue(callbackInvoked.get());
     }
 
@@ -965,5 +964,73 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
 
         // Closing the Segment writer should cause a SegmentSealedException.
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.close());
+    }
+
+    @Test(timeout = 10000)
+    public void testSegmentSealedFollowedbyConnectionDrop() throws Exception {
+
+        @Cleanup("shutdownNow")
+        ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(2, "netty-callback");
+
+        // Segment sealed callback will finish execution only when the releaseCallbackLatch is released;
+        ReusableLatch releaseCallbackLatch = new ReusableLatch(false);
+        ReusableLatch callBackInvokedLatch = new ReusableLatch(false);
+        final Consumer<Segment> segmentSealedCallback = segment ->  Exceptions.handleInterrupted(() -> {
+            callBackInvokedLatch.release();
+            releaseCallbackLatch.await();
+        });
+
+        // Setup mocks.
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+
+        // Create a Segment writer.
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
+
+        // trigger establishment of connection.
+        output.reconnect();
+
+        // Verify if SetupAppend is sent over the connection.
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+
+        // Write an event and ensure inflight has an event.
+        ByteBuffer data = getBuffer("test");
+        CompletableFuture<Void> ack = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, data, ack));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
+        assertFalse(ack.isDone());
+
+        // Simulate a SegmentIsSealed WireCommand from SegmentStore.
+        executor.submit(() -> cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1)));
+        // Wait until callback invocation has been triggered, but has not completed.
+        // If the callback is not invoked the test will fail due to a timeout.
+        callBackInvokedLatch.await();
+
+        // Now trigger a connection drop call back from netty.
+        executor.submit(() -> cf.getProcessor(uri).connectionDropped());
+        // Verify no further reconnection attempts.
+        order.verifyNoMoreInteractions();
+        // Release latch to ensure the callback is completed.
+        releaseCallbackLatch.release();
+        // Verify no further reconnection attempts.
+        order.verifyNoMoreInteractions();
+        // Trigger a reconnect again and verify if any new connections are initiated.
+        output.reconnect();
+
+        // Reconnect operation will be executed on the executor service.
+        ScheduledExecutorService service = executorService();
+        service.shutdown();
+        // Wait until all the tasks for reconnect have been completed.
+        service.awaitTermination(10, TimeUnit.SECONDS);
+
+        // Verify no further reconnection attempts again.
+        order.verifyNoMoreInteractions();
     }
 }
