@@ -510,8 +510,8 @@ public class ControllerService {
         }
     }
 
-    public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writer, long timestamp, Map<Long, Long> streamCut) {
-        return streamStore.noteWriterMark(scope, stream, writer, timestamp, streamCut, null, executor)
+    public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writerId, long timestamp, Map<Long, Long> streamCut) {
+        return streamStore.noteWriterMark(scope, stream, writerId, timestamp, streamCut, null, executor)
                 .handle((r, e) -> {
                     Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
                     if (e != null) {

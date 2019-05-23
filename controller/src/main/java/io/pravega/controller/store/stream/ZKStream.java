@@ -470,7 +470,7 @@ class ZKStream extends PersistentStreamBase {
                                       });
                     });
     }
-    
+
     @Override
     public CompletableFuture<Map<UUID, ActiveTxnRecord>> getTxnInEpoch(int epoch) {
         VersionedMetadata<ActiveTxnRecord> empty = getEmptyData();

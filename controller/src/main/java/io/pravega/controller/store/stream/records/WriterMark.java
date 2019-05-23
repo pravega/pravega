@@ -22,6 +22,12 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+/**
+ * This is a data class that represents a writer's mark. 
+ * A writer sends a time and its position corresponding to the time.
+ * This is data object where the information sent by the writer is recorded and serialized to be stored in underlying 
+ * metadata store. 
+ */
 @Data
 public class WriterMark {
     public static final WriterMarkSerializer SERIALIZER = new WriterMarkSerializer();

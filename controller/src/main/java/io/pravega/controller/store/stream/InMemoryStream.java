@@ -968,20 +968,17 @@ public class InMemoryStream extends PersistentStreamBase {
 
     @Override
     CompletableFuture<Void> createWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position) {
-        CompletableFuture<Void> result = new CompletableFuture<>();
         WriterMark mark = new WriterMark(timestamp, position);
 
         synchronized (writersLock) {
             VersionedMetadata<WriterMark> existing = writerMarks.get(writer);
             if (existing != null) {
-                result.completeExceptionally(StoreException.create(StoreException.Type.DATA_EXISTS, "writer mark exists"));
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_EXISTS, "writer mark exists"));
             } else {
                 writerMarks.put(writer, new VersionedMetadata<>(mark, new Version.IntVersion(0)));
-                result.complete(null);
+                return CompletableFuture.completedFuture(null);
             }
         }
-        
-        return result;
     }
 
     @Override
