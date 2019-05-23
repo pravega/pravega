@@ -40,7 +40,7 @@ public class AsyncSemaphore implements AutoCloseable {
     @GuardedBy("queue")
     private int usedCredits;
     @GuardedBy("queue")
-    private final ArrayDeque<DelayedTask> queue;
+    private final ArrayDeque<PendingTask> queue;
     @GuardedBy("queue")
     private boolean closed;
 
@@ -69,7 +69,7 @@ public class AsyncSemaphore implements AutoCloseable {
 
     @Override
     public void close() {
-        List<DelayedTask> toCancel = null;
+        List<PendingTask> toCancel = null;
         synchronized (this.queue) {
             if (!this.closed) {
                 toCancel = new ArrayList<>(this.queue);
@@ -112,32 +112,34 @@ public class AsyncSemaphore implements AutoCloseable {
         Preconditions.checkArgument(credits >= 0 && credits <= this.totalCredits,
                 "credits must be a non-negative number smaller than or equal to %s.", this.totalCredits);
 
-        DelayedTask<T> dt;
+        PendingTask<T> pt;
         synchronized (this.queue) {
             Exceptions.checkNotClosed(this.closed, this);
             if (canExecute(credits)) {
-                dt = null;
+                pt = null;
                 this.usedCredits += credits;
             } else {
                 // Insufficient credits; need to queue up and execute when more becomes available.
-                dt = new DelayedTask<>(credits, task);
-                this.queue.addLast(dt);
+                pt = new PendingTask<>(credits, task);
+                this.queue.addLast(pt);
             }
 
         }
-        if (dt == null) {
+        if (pt == null) {
             // We have more credits than what this task requires. Execute now without queuing.
             return execute(task, credits);
         } else {
             // This wil be completed when its associated task is executed.
-            return dt.result;
+            return pt.result;
         }
     }
 
     /**
-     * Releases a number of credits back into the pool.
+     * Releases a number of credits back into the pool and initiates the execution of any pending tasks that are now
+     * eligible to run.
      *
-     * @param credits The number of credits to release.
+     * @param credits The number of credits to release. This number will be capped at the number of currently used
+     *                credits ({@link #getUsedCredits()}).
      */
     public void release(int credits) {
         Preconditions.checkArgument(credits >= 0, "credits must be a non-negative number.");
@@ -146,10 +148,10 @@ public class AsyncSemaphore implements AutoCloseable {
             this.usedCredits = Math.max(0, this.usedCredits - credits);
         }
 
-        ArrayList<DelayedTask<?>> toExecute = new ArrayList<>();
+        ArrayList<PendingTask<?>> toExecute = new ArrayList<>();
         synchronized (this.queue) {
             while (!this.queue.isEmpty() && canExecute(this.queue.peekFirst().credits)) {
-                DelayedTask<?> qi = this.queue.removeFirst();
+                PendingTask<?> qi = this.queue.removeFirst();
                 this.usedCredits += qi.credits;
                 toExecute.add(qi);
             }
@@ -158,7 +160,7 @@ public class AsyncSemaphore implements AutoCloseable {
         toExecute.forEach(this::execute);
     }
 
-    private <T> void execute(DelayedTask<T> qi) {
+    private <T> void execute(PendingTask<T> qi) {
         execute(qi.runTask, qi.credits)
                 .whenComplete((r, ex) -> {
                     if (ex == null) {
@@ -210,7 +212,7 @@ public class AsyncSemaphore implements AutoCloseable {
     }
 
     @RequiredArgsConstructor
-    private static class DelayedTask<T> {
+    private static class PendingTask<T> {
         final int credits;
         final Supplier<CompletableFuture<T>> runTask;
         final CompletableFuture<T> result = new CompletableFuture<>();
