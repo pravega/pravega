@@ -363,7 +363,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     if (e == null) {
                         state.connectionSetupComplete(connection);
                     } else {
-                        log.debug("Error while sending inflight during setup append for writer " + writerId, e);
                         failConnection(e);
                     }
                 });
@@ -506,7 +505,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     log.info("Exception observed while obtaining connection during flush. Details: {} ", e.getMessage());
                 }
             } catch (Exception e) {
-                log.warn("Exception observed while obtaining connection during flush", e);
                 failConnection(e);
             }
             state.waitForInflight();
