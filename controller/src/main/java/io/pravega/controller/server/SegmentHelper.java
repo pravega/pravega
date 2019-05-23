@@ -75,7 +75,6 @@ public class SegmentHelper implements AutoCloseable {
     private final SegmentStoreConnectionManager connectionManager;
     private final HostControllerStore hostStore;
     private final ConnectionFactory connectionFactory;
-    private final Object lock = new Object();
 
     public SegmentHelper(final ConnectionFactory clientCF, HostControllerStore hostStore) {
         connectionManager = new SegmentStoreConnectionManager(clientCF);
@@ -97,22 +96,17 @@ public class SegmentHelper implements AutoCloseable {
 
     private void closeConnection(Reply reply, RawClient client) {
         log.info("Closing connection as a result of receiving: {}", reply);
-        RawClient c;
-        synchronized (lock) {
-            c = client;
-            client = null;
-        }
-        if (c != null) {
+        if (client != null) {
             try {
-                c.close();
+                client.close();
             } catch (Exception e) {
                 log.warn("Exception tearing down connection: ", e);
             }
         }
     }
 
-    private boolean isReplyWanted(Reply reply, Class[] classArray) {
-        for (Class<?> c : classArray) {
+    private boolean isReplyWanted(Reply reply, Class[] expectedReplies) {
+        for (Class<?> c : expectedReplies) {
             if (c.isAssignableFrom(reply.getClass())) {
                 return true;
             }
@@ -120,20 +114,23 @@ public class SegmentHelper implements AutoCloseable {
         return false;
     }
 
-    @SneakyThrows(ConnectionFailedException.class)
-    private Boolean transformReplyToBoolean(Reply reply, Class[] classArray, RawClient client) {
-        if (isReplyWanted(reply, classArray)) {
+    private Boolean transformReply(Reply reply, Class[] expectedReplies, RawClient client) {
+        if (isReplyWanted(reply, expectedReplies)) {
             return true;
+        } else {
+            throw handleUnexpectedReply(reply, expectedReplies);
         }
+    }
 
-        closeConnection(reply, client);
+    @SneakyThrows(ConnectionFailedException.class)
+    private RuntimeException handleUnexpectedReply(Reply reply, Class[] expectedReplies) {
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
         } else if (reply instanceof WireCommands.WrongHost) {
             throw new ConnectionFailedException(reply.toString());
         } else {
             throw new ConnectionFailedException("Unexpected reply of " + reply + " when expecting a "
-                    + classArray[0].getName());
+                    + expectedReplies[0].getName());
         }
     }
 
@@ -150,12 +147,11 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().getNextSequenceNumber();
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        Class[] expectedArray = {WireCommands.SegmentCreated.class,
+        Class[] expectedReplies = {WireCommands.SegmentCreated.class,
                 WireCommands.SegmentAlreadyExists.class};
-
         return connection.sendRequest(requestId, new WireCommands.CreateSegment(requestId, qualifiedStreamSegmentName,
-                extracted.getLeft(), extracted.getRight(), controllerToken))
-                .thenApply(r -> transformReplyToBoolean(r, expectedArray, connection));
+            extracted.getLeft(), extracted.getRight(), controllerToken))
+            .thenApply(r -> transformReply(r, expectedReplies, connection));
     }
 
     public CompletableFuture<Boolean> truncateSegment(final String scope,
@@ -169,10 +165,10 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
 
-        Class[] expectedReply = {WireCommands.SegmentTruncated.class,
+        Class[] expectedReplies = {WireCommands.SegmentTruncated.class,
                 WireCommands.SegmentIsTruncated.class};
         return connection.sendRequest(requestId, new WireCommands.TruncateSegment(requestId, qualifiedName, offset, delegationToken))
-                .thenApply(r -> transformReplyToBoolean(r, expectedReply, connection));
+                .thenApply(r -> transformReply(r, expectedReplies, connection));
     }
 
     public CompletableFuture<Boolean> deleteSegment(final String scope,
@@ -184,9 +180,10 @@ public class SegmentHelper implements AutoCloseable {
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
-        Class[] expectedReply = {WireCommands.SegmentDeleted.class};
+        Class[] expectedReplies = {WireCommands.SegmentDeleted.class,
+                WireCommands.NoSuchSegment.class};
         return connection.sendRequest(requestId, new WireCommands.DeleteSegment(requestId, qualifiedName, delegationToken))
-                .thenApply(r -> transformReplyToBoolean(r, expectedReply, connection));
+                .thenApply(r -> transformReply(r, expectedReplies, connection));
     }
 
     /**
@@ -215,10 +212,10 @@ public class SegmentHelper implements AutoCloseable {
                                                    long clientRequestId) {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
-        Class[] expectedReply = {WireCommands.SegmentSealed.class,
+        Class[] expectedReplies = {WireCommands.SegmentSealed.class,
                 WireCommands.SegmentIsSealed.class};
         return connection.sendRequest(requestId, new WireCommands.SealSegment(requestId, qualifiedName, delegationToken))
-                .thenApply(r -> transformReplyToBoolean(r, expectedReply, connection));
+                .thenApply(r -> transformReply(r, expectedReplies, connection));
     }
 
     public CompletableFuture<UUID> createTransaction(final String scope,
@@ -521,10 +518,10 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getTableUri(tableName);
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
-        Class[] classArray = {WireCommands.SegmentCreated.class,
+        Class[] expectedReplies = {WireCommands.SegmentCreated.class,
                 WireCommands.SegmentAlreadyExists.class};
         return connection.sendRequest(requestId, new WireCommands.CreateTableSegment(requestId, tableName, delegationToken))
-                .thenApply(rpl -> transformReplyToBoolean(rpl, classArray, connection));
+                .thenApply(rpl -> transformReply(rpl, expectedReplies, connection));
     }
 
     /**
@@ -545,10 +542,10 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getTableUri(tableName);
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
-        Class[] expectedClasses = {WireCommands.SegmentDeleted.class,
+        Class[] expectedReplies = {WireCommands.SegmentDeleted.class,
                 WireCommands.NoSuchSegment.class};
         return connection.sendRequest(requestId, new WireCommands.DeleteTableSegment(requestId, tableName, mustBeEmpty, delegationToken))
-                .thenApply(rpl -> transformReplyToBoolean(rpl, expectedClasses, connection));
+                .thenApply(rpl -> transformReply(rpl, expectedReplies, connection));
     }
 
     /**

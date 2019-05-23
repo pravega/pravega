@@ -84,7 +84,8 @@ public class SegmentHelperTest {
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
         CompletableFuture<Boolean> retVal = helper.createSegment("", "",
                 0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
                 ex -> ex instanceof AuthenticationException
