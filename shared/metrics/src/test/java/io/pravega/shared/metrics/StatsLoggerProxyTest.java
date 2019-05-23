@@ -13,7 +13,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.Getter;
@@ -236,11 +235,13 @@ public class StatsLoggerProxyTest {
         }
 
         @Override
-        public AtomicReference<Supplier<Number>> supplierReference() {
-            AtomicReference<Supplier<Number>> reference = new AtomicReference<>();
-            Supplier<Number> supplier = () -> 5;
-            reference.set(supplier);
-            return reference;
+        public Supplier<Number> getSupplier() {
+            return () -> 5;
+        }
+
+        @Override
+        public void setSupplier(Supplier<Number> supplier) {
+
         }
         //endregion
     }

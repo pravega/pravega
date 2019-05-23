@@ -37,7 +37,7 @@ public class StatsLoggerProxy implements StatsLogger {
         this.opStatsLoggers.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().createStats(v.getProxyName())));
         this.counters.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().createCounter(v.getProxyName())));
         this.meters.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().createMeter(v.getProxyName())));
-        this.gauges.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().registerGauge(v.getProxyName(), v.supplierReference().get())));
+        this.gauges.values().forEach(v -> v.updateInstance(this.statsLoggerRef.get().registerGauge(v.getProxyName(), v.getSupplier())));
     }
 
     @Override

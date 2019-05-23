@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.metrics;
 
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -20,7 +19,12 @@ class GaugeProxy extends MetricProxy<Gauge> implements Gauge {
     }
 
     @Override
-    public AtomicReference<Supplier<Number>> supplierReference() {
-        return getInstance().supplierReference();
+    public void setSupplier(Supplier<Number> supplier) {
+        getInstance().setSupplier(supplier);
+    }
+
+    @Override
+    public Supplier<Number> getSupplier() {
+        return getInstance().getSupplier();
     }
 }

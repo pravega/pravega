@@ -135,8 +135,13 @@ public class StatsLoggerImpl implements StatsLogger {
         }
 
         @Override
-        public AtomicReference<Supplier<Number>> supplierReference() {
-            return supplierReference;
+        public void setSupplier(Supplier<Number> supplier) {
+            supplierReference.set(supplier);
+        }
+
+        @Override
+        public Supplier<Number> getSupplier() {
+            return supplierReference.get();
         }
 
         @Override
