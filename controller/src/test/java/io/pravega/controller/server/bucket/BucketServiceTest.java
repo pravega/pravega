@@ -45,7 +45,8 @@ import static org.junit.Assert.assertEquals;
 public abstract class BucketServiceTest {
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;
-    BucketManager service;
+    BucketManager retentionService;
+    BucketManager watermarkingService;
     ScheduledExecutorService executor;
     StreamMetadataTasks streamMetadataTasks;
     private ConnectionFactoryImpl connectionFactory;
@@ -67,19 +68,25 @@ public abstract class BucketServiceTest {
 
         streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, taskMetadataStore, 
                 segmentHelper, executor, hostId, AuthHelper.getDisabledAuthHelper(), requestTracker);
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2, executor);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore, 2);
         PeriodicRetention periodicRetention = new PeriodicRetention(streamMetadataStore, streamMetadataTasks, executor, requestTracker);
-        service = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention);
-        service.startAsync();
-        service.awaitRunning();
+        retentionService = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention, executor);
+        retentionService.startAsync();
+        retentionService.awaitRunning();
+
+        ClientConfig clientConfig = ClientConfig.builder().build();
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, clientConfig, executor);
+        retentionService = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention, executor);
+        retentionService.startAsync();
+        retentionService.awaitRunning();
     }
 
     @After
     public void tearDown() throws Exception {
         streamMetadataTasks.close();
         streamMetadataStore.close();
-        service.stopAsync();
-        service.awaitTerminated();
+        retentionService.stopAsync();
+        retentionService.awaitTerminated();
         connectionFactory.close();
         ExecutorServiceHelpers.shutdown(executor);
     }
@@ -90,16 +97,16 @@ public abstract class BucketServiceTest {
 
     @Test(timeout = 10000)
     public void testRetentionService() {
-        Map<Integer, BucketService> bucketServices = service.getBucketServices();
+        Map<Integer, BucketService> bucketServices = retentionService.getBucketServices();
                                           
         assertNotNull(bucketServices);
         assertEquals(3, bucketServices.size());
-        assertTrue(service.takeBucketOwnership(0, hostId, executor).join());
-        assertTrue(service.takeBucketOwnership(1, hostId, executor).join());
-        assertTrue(service.takeBucketOwnership(2, hostId, executor).join());
-        AssertExtensions.assertThrows("", () -> service.takeBucketOwnership(3, hostId, executor).join(),
+        assertTrue(retentionService.takeBucketOwnership(0, hostId, executor).join());
+        assertTrue(retentionService.takeBucketOwnership(1, hostId, executor).join());
+        assertTrue(retentionService.takeBucketOwnership(2, hostId, executor).join());
+        AssertExtensions.assertThrows("", () -> retentionService.takeBucketOwnership(3, hostId, executor).join(),
                 e -> e instanceof IllegalArgumentException);
-        service.tryTakeOwnership(0).join();
+        retentionService.tryTakeOwnership(0).join();
 
         String scope = "scope";
         String streamName = "stream";
@@ -118,6 +125,42 @@ public abstract class BucketServiceTest {
         assertTrue(bucketService.getKnownStreams().contains(stream));
 
         bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, scope, streamName, executor).join();
+        AtomicBoolean removed = new AtomicBoolean(false);
+        RetryHelper.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
+                .thenAccept(x -> removed.set(bucketService.getKnownStreams().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertEquals(0, bucketService.getKnownStreams().size());
+    }
+
+    @Test(timeout = 10000)
+    public void testWatermarkingService() {
+        Map<Integer, BucketService> bucketServices = watermarkingService.getBucketServices();
+                                          
+        assertNotNull(bucketServices);
+        assertEquals(3, bucketServices.size());
+        assertTrue(watermarkingService.takeBucketOwnership(0, hostId, executor).join());
+        assertTrue(watermarkingService.takeBucketOwnership(1, hostId, executor).join());
+        assertTrue(watermarkingService.takeBucketOwnership(2, hostId, executor).join());
+        AssertExtensions.assertThrows("", () -> watermarkingService.takeBucketOwnership(3, hostId, executor).join(),
+                e -> e instanceof IllegalArgumentException);
+        watermarkingService.tryTakeOwnership(0).join();
+
+        String scope = "scope";
+        String streamName = "stream";
+        Stream stream = new StreamImpl(scope, streamName);
+        
+        bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, streamName, executor).join();
+
+        // verify that at least one of the buckets got the notification
+        int bucketId = BucketStore.getBucket(scope, streamName, 3);
+        Set<String> streams = bucketStore.getStreamsForBucket(BucketStore.ServiceType.WatermarkingService, bucketId, executor).join();
+        
+        BucketService bucketService = bucketServices.get(bucketId);
+        AtomicBoolean added = new AtomicBoolean(false);
+        RetryHelper.loopWithDelay(() -> !added.get(), () -> CompletableFuture.completedFuture(null)
+                .thenAccept(x -> added.set(bucketService.getKnownStreams().size() > 0)), Duration.ofSeconds(1).toMillis(), executor).join();
+        assertTrue(bucketService.getKnownStreams().contains(stream));
+
+        bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.WatermarkingService, scope, streamName, executor).join();
         AtomicBoolean removed = new AtomicBoolean(false);
         RetryHelper.loopWithDelay(() -> !removed.get(), () -> CompletableFuture.completedFuture(null)
                 .thenAccept(x -> removed.set(bucketService.getKnownStreams().size() == 0)), Duration.ofSeconds(1).toMillis(), executor).join();

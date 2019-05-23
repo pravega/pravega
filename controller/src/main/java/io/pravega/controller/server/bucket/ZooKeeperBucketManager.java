@@ -11,7 +11,6 @@ package io.pravega.controller.server.bucket;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.ZookeeperBucketStore;
 import io.pravega.controller.util.RetryHelper;
@@ -42,7 +41,7 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     @Override
     protected int getBucketCount() {
-        return bucketStore.getBucketCount();
+        return bucketStore.getBucketCount(getServiceType());
     }
 
     @Override
@@ -57,9 +56,6 @@ public class ZooKeeperBucketManager extends BucketManager {
                     break;
                 case CHILD_REMOVED:
                     int bucketId = Integer.parseInt(ZKPaths.getNodeFromPath(event.getData().getPath()));
-                    // if we are greater than our fair share --> introduce a delay
-                    // TODO: shivesh
-                    Futures.delayedFuture();
                     RetryHelper.withIndefiniteRetriesAsync(() -> tryTakeOwnership(bucketId),
                             e -> log.warn("{}: exception while attempting to take ownership for bucket {} ", getServiceType(),
                                     bucketId, e.getMessage()), getExecutor());
@@ -104,14 +100,14 @@ public class ZooKeeperBucketManager extends BucketManager {
 
     @Override
     public CompletableFuture<Void> initializeBucket(int bucket) {
-        Preconditions.checkArgument(bucket < bucketStore.getBucketCount());
+        Preconditions.checkArgument(bucket < bucketStore.getBucketCount(getServiceType()));
         
         return bucketStore.createBucket(getServiceType(), bucket);
     }
 
     @Override
     public CompletableFuture<Boolean> takeBucketOwnership(int bucket, String processId, Executor executor) {
-        Preconditions.checkArgument(bucket < bucketStore.getBucketCount());
+        Preconditions.checkArgument(bucket < bucketStore.getBucketCount(getServiceType()));
         return bucketStore.takeBucketOwnership(getServiceType(), bucket, processId);
     }
 }

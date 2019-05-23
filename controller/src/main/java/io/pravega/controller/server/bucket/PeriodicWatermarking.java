@@ -27,7 +27,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.EpochRecord;
-import io.pravega.controller.store.stream.records.RecordHelper;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.watermarks.Watermark;
@@ -40,7 +39,6 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.annotation.concurrent.GuardedBy;
 import java.nio.ByteBuffer;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -56,6 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.AbstractMap.*;
@@ -71,6 +70,11 @@ public class PeriodicWatermarking {
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                 ClientConfig clientConfig, ScheduledExecutorService executor) {
+        this(streamMetadataStore, bucketStore, stream -> new WatermarkClient(stream, clientConfig), executor);
+    }
+
+    public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
+                                Function<Stream, WatermarkClient> watermarkClientSupplier, ScheduledExecutorService executor) {
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
         this.executor = executor;
@@ -81,7 +85,7 @@ public class PeriodicWatermarking {
                                                     @ParametersAreNonnullByDefault
                                                     @Override
                                                     public WatermarkClient load(final Stream stream) {
-                                                        return new WatermarkClient(stream, clientConfig);
+                                                        return watermarkClientSupplier.apply(stream);
                                                     }
                                                 });
     }
@@ -257,14 +261,17 @@ public class PeriodicWatermarking {
         ConcurrentHashMap<StreamSegmentRecord, Long> streamCut = new ConcurrentHashMap<>(upperBound);
         AtomicReference<Map<Double, Double>> missingRanges = new AtomicReference<>(findMissingRanges(streamCut));
 
-        CompletableFuture<Map<StreamSegmentRecord, Long>> previousFuture;
+        CompletableFuture<Void> previousFuture;
         if (previousWatermark != null && !previousWatermark.equals(Watermark.EMPTY)) {
+            // super impose previous watermark on the computed upper bound so that we take greatest upper bound which
+            // is greater than or equal to previous watermark. 
             previousFuture = Futures.keysAllOfWithResults(
                     previousWatermark.getStreamCut().entrySet().stream()
                                      .collect(Collectors.toMap(x -> streamMetadataStore.getSegment(scope, stream, x.getKey(), context, executor),
-                                             Entry::getValue)));
+                                             Entry::getValue)))
+                    .thenAccept(previous -> addToUpperBound(previous, streamCut));
         } else {
-            previousFuture = CompletableFuture.completedFuture(Collections.emptyMap());
+            previousFuture = CompletableFuture.completedFuture(null);
         }
 
         return previousFuture.thenCompose(previous -> Futures.doWhileLoop(() -> {
@@ -284,11 +291,7 @@ public class PeriodicWatermarking {
                                            return missingRanges.get();
                                        });
         }, Map::isEmpty, executor)
-                .thenApply(v -> {
-                    // TODO: shivesh: compare the stream cut with previous
-                    // if there is overlap and previous is ahead of current on any key range, reject current. 
-                    return streamCut.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), Map.Entry::getValue));
-                }));
+                .thenApply(v -> streamCut.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), Entry::getValue))));
     }
 
     private List<StreamSegmentRecord> findSegmentsForMissingRange(EpochRecord epochRecord, Map.Entry<Double, Double> missingRange) {
@@ -331,7 +334,11 @@ public class PeriodicWatermarking {
         private final int windowSize;
 
         WatermarkClient(Stream stream, ClientConfig clientConfig) {
-            SynchronizerClientFactory clientFactory = SynchronizerClientFactory.withScope(stream.getScope(), clientConfig);
+            this(stream, SynchronizerClientFactory.withScope(stream.getScope(), clientConfig));
+        }
+        
+        @VisibleForTesting
+        WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory) {
             this.client =  clientFactory.createRevisionedStreamClient(stream.getScopedName(), 
                     new WatermarkSerializer(), SynchronizerConfig.builder().build());
             this.windowStart = new AtomicInteger();

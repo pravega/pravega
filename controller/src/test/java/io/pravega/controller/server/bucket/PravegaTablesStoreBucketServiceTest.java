@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.bucket;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
@@ -20,9 +21,11 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
-public class PravegaTablesStoreRetentionTest extends BucketServiceTest {
+public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
 
@@ -56,6 +59,8 @@ public class PravegaTablesStoreRetentionTest extends BucketServiceTest {
 
     @Override
     BucketStore createBucketStore(int bucketCount) {
-        return StreamStoreFactory.createZKBucketStore(bucketCount, zkClient, executor);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, bucketCount,
+                BucketStore.ServiceType.WatermarkingService, bucketCount);
+        return StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
     }
 }

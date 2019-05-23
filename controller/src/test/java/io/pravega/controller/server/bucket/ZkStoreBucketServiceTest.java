@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.bucket;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
@@ -48,7 +49,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class ZkStoreRetentionTest extends BucketServiceTest {
+public class ZkStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
 
@@ -81,13 +82,16 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
 
     @Override
     BucketStore createBucketStore(int bucketCount) {
-        return StreamStoreFactory.createZKBucketStore(bucketCount, zkClient, executor);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, bucketCount,
+                BucketStore.ServiceType.WatermarkingService, bucketCount);
+
+        return StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
     }
 
     @Test(timeout = 10000)
     public void testBucketOwnership() throws Exception {
         // verify that ownership is not taken up by another host
-        assertFalse(service.takeBucketOwnership(0, "", executor).join());
+        assertFalse(retentionService.takeBucketOwnership(0, "", executor).join());
 
         // Introduce connection failure error
         zkClient.getZookeeperClient().close();
@@ -107,7 +111,7 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         Stream stream = new StreamImpl(scope, streamName);
 
         // verify that at least one of the buckets got the notification
-        Map<Integer, BucketService> bucketServices = service.getBucketServices();
+        Map<Integer, BucketService> bucketServices = retentionService.getBucketServices();
 
         int bucketId = BucketStore.getBucket(scope, streamName, 3);
         BucketService bucketService = bucketServices.get(bucketId);
@@ -129,8 +133,8 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         @Cleanup("shutdownNow")
         ScheduledExecutorService executor2 = Executors.newScheduledThreadPool(10);
         String hostId = UUID.randomUUID().toString();
-
-        BucketStore bucketStore2 = StreamStoreFactory.createZKBucketStore(1, zkClient2, executor2);
+        
+        BucketStore bucketStore2 = StreamStoreFactory.createZKBucketStore(ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1), zkClient2, executor2);
         StreamMetadataStore streamMetadataStore2 = StreamStoreFactory.createZKStore(zkClient2, executor2);
 
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createInMemoryStore(executor2);
@@ -149,9 +153,9 @@ public class ZkStoreRetentionTest extends BucketServiceTest {
         String streamName2 = "stream2";
         bucketStore2.addStreamToBucketStore(BucketStore.ServiceType.RetentionService, scope2, streamName2, executor2).join();
 
-        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, 5, executor);
+        BucketServiceFactory bucketStoreFactory = new BucketServiceFactory(hostId, bucketStore2, 5);
 
-        BucketManager service2 = bucketStoreFactory.createRetentionService(Duration.ofMillis(5000), stream -> CompletableFuture.completedFuture(null));
+        BucketManager service2 = bucketStoreFactory.createRetentionService(Duration.ofMillis(5000), stream -> CompletableFuture.completedFuture(null), executor2);
         service2.startAsync();
         service2.awaitRunning();
 
