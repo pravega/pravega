@@ -84,7 +84,7 @@ public class RawClient implements AutoCloseable {
 
     public RawClient(PravegaNodeUri uri, ConnectionFactory connectionFactory) {
         this.segmentId = null;
-        this.connection = connectionFactory.establishConnection(uri, responseProcessor);
+        this.connection = connectionFactory.establishConnection(flow, uri, responseProcessor);
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -107,17 +107,9 @@ public class RawClient implements AutoCloseable {
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
         if (closed.get() || exceptionToInflightRequests instanceof ConnectionClosedException) {
-            if (segmentId != null) {
-                log.debug("Closing connection to segment {} with exception {}", this.segmentId, exceptionToInflightRequests);
-            } else {
-                log.debug("Closing connection with exception {}", exceptionToInflightRequests);
-            }
+            log.debug("Closing connection with exception {}", exceptionToInflightRequests);
         } else {
-            if (segmentId != null) {
-                log.warn("Closing connection to segment {} with exception: {}", this.segmentId, exceptionToInflightRequests);
-            } else {
-                log.warn("Closing connection with exception: {}", exceptionToInflightRequests);
-            }
+            log.warn("Closing connection with exception: {}", exceptionToInflightRequests);
         }
         if (closed.compareAndSet(false, true)) {
             connection.thenAccept(c -> {
