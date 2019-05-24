@@ -987,7 +987,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
-        // Mock client connection that i`s returned for every invocation of ConnectionFactory#establishConnection.
+        // Mock client connection that is returned for every invocation of ConnectionFactory#establishConnection.
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -1015,7 +1015,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         // If the callback is not invoked the test will fail due to a timeout.
         callBackInvokedLatch.await();
 
-        // Now trigger a connection drop call back from netty and wait until it is executed.
+        // Now trigger a connection drop netty callback and wait until it is executed.
         executor.submit(() -> cf.getProcessor(uri).connectionDropped()).get();
         // close is invoked on the connection.
         order.verify(connection).close();
