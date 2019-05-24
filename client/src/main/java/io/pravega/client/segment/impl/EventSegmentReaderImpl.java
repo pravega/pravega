@@ -10,7 +10,6 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.WireCommandType;
@@ -18,7 +17,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.Getter;
 import lombok.Synchronized;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -32,14 +30,10 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     @GuardedBy("$lock")
     private final ByteBuffer headerReadingBuffer = ByteBuffer.allocate(WireCommands.TYPE_PLUS_LENGTH_SIZE);
-    @Getter
-    private final SegmentWithRange segmentWithRange;
     private final SegmentInputStream in;
 
-    EventSegmentReaderImpl(SegmentWithRange segment, SegmentInputStream input) {
+    EventSegmentReaderImpl(SegmentInputStream input) {
         Preconditions.checkNotNull(input);
-        Preconditions.checkNotNull(segment);
-        this.segmentWithRange = segment;
         this.in = input;
     }
 
@@ -122,5 +116,9 @@ class EventSegmentReaderImpl implements EventSegmentReader {
         return bytesInBuffer >= WireCommands.TYPE_PLUS_LENGTH_SIZE || bytesInBuffer < 0;
     }
 
+    @Override
+    public Segment getSegmentId() {
+        return in.getSegmentId();
+    }
 
 }

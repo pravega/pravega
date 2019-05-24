@@ -395,15 +395,15 @@ public final class ModelHelper {
     }
 
     /**
-     * Builds a stream cut, mapping the segments of a stream to their offsets from a position object.
+     * Builds a stream cut, mapping the segments of a stream to their offsets from a writer position object.
      * 
      * @param stream The stream the cut is on.
      * @param position The position object to take the offsets from.
      * @return a StreamCut.
      */
-    public static StreamCut createStreamCut(Stream stream, PositionInternal position) {
+    public static StreamCut createStreamCut(Stream stream, WriterPosition position) {
         StreamCut.Builder builder = StreamCut.newBuilder().setStreamInfo(createStreamInfo(stream.getScope(), stream.getStreamName()));
-        for (Entry<Segment, Long> entry : position.getOwnedSegmentsWithOffsets().entrySet()) {
+        for (Entry<Segment, Long> entry : position.getSegmentsWithOffsets().entrySet()) {
             builder.putCut(entry.getKey().getSegmentId(), entry.getValue());
         }
         return builder.build();

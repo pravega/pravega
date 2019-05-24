@@ -12,7 +12,6 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -20,7 +19,6 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -309,7 +307,7 @@ public interface Controller extends AutoCloseable {
      * @param timestamp The new timestamp for the writer on the stream.
      * @param lastWrittenPosition The position the writer was at when it noted the time.
      */
-    CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, Position lastWrittenPosition);
+    CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition);
 
     /**
      * Notifies the controller that the specified writer is shutting down gracefully and no longer

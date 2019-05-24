@@ -153,12 +153,12 @@ public class ReaderGroupStateManager {
      * 
      * @return true if the completed segment was released successfully.
      */
-    boolean handleEndOfSegment(Segment segmentCompleted) throws ReaderNotInReaderGroupException {
-        final Map<Segment, List<Long>> segmentToPredecessor;
-        if (sync.getState().getEndSegments().containsKey(segmentCompleted)) {
+    boolean handleEndOfSegment(SegmentWithRange segmentCompleted) throws ReaderNotInReaderGroupException {
+        final Map<SegmentWithRange, List<Long>> segmentToPredecessor;
+        if (sync.getState().getEndSegments().containsKey(segmentCompleted.getSegment())) {
             segmentToPredecessor = Collections.emptyMap();
         } else {
-            val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
+            val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted.getSegment()), RuntimeException::new);
             segmentToPredecessor = successors.getSegmentToPredecessor();
         }
 
@@ -341,14 +341,14 @@ public class ReaderGroupStateManager {
             if (toAcquire == 0) {
                 return Collections.<SegmentWithRange, Long>emptyMap();
             }
-            Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
+            Map<SegmentWithRange, Long> unassignedSegments = state.getUnassignedSegments();
             Map<SegmentWithRange, Long> acquired = new HashMap<>(toAcquire);
-            Iterator<Entry<Segment, Long>> iter = unassignedSegments.entrySet().iterator();
+            Iterator<Entry<SegmentWithRange, Long>> iter = unassignedSegments.entrySet().iterator();
             for (int i = 0; i < toAcquire; i++) {
                 assert iter.hasNext();
-                Entry<Segment, Long> segment = iter.next();
+                Entry<SegmentWithRange, Long> segment = iter.next();
                 acquired.put(segment.getKey(), segment.getValue());
-                updates.add(new AcquireSegment(readerId, segment.getKey()));
+                updates.add(new AcquireSegment(readerId, segment.getKey().getSegment()));
             }
             updates.add(new UpdateDistanceToTail(readerId, timeLag));
             return acquired;

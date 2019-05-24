@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Position;
+import io.pravega.client.stream.impl.SegmentWithRange.Range;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -26,7 +27,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Builder;
-import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.SneakyThrows;
 
@@ -36,12 +36,6 @@ public class PositionImpl extends PositionInternal {
     private static final PositionSerializer SERIALIZER = new PositionSerializer();
     private final Map<Segment, Long> ownedSegments;
     private final Map<Segment, Range> segmentRanges;
-    
-    @Data
-    private static final class Range {
-        private final double low;
-        private final double high;
-    }
 
     /**
      * Instantiates Position with current and future owned segments.
@@ -54,7 +48,7 @@ public class PositionImpl extends PositionInternal {
         for (Entry<SegmentWithRange, Long> entry : segments.entrySet()) {
             SegmentWithRange s = entry.getKey();
             this.ownedSegments.put(s.getSegment(), entry.getValue());
-            this.segmentRanges.put(s.getSegment(), new Range(s.getLow(), s.getHigh()));
+            this.segmentRanges.put(s.getSegment(), s.getRange());
         }
     }
     
@@ -146,7 +140,7 @@ public class PositionImpl extends PositionInternal {
         private void write01(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
             Map<Segment, Range> map = position.segmentRanges;
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
-                                        (out, range) -> { out.writeDouble(range.low); out.writeDouble(range.high); });
+                                        (out, range) -> { out.writeDouble(range.getLow()); out.writeDouble(range.getHigh()); });
         }
         
         private Range readRange(RevisionDataInput dataInput) throws IOException {

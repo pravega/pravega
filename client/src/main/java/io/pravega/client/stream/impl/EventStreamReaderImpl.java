@@ -219,7 +219,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void releaseSealedSegments() throws ReaderNotInReaderGroupException {
         for (Iterator<SegmentWithRange> iterator = sealedSegments.iterator(); iterator.hasNext();) {
             SegmentWithRange oldSegment = iterator.next();
-            if (groupState.handleEndOfSegment(oldSegment.getSegment())) {
+            if (groupState.handleEndOfSegment(oldSegment)) {
                 iterator.remove();
             } else {
                 break;

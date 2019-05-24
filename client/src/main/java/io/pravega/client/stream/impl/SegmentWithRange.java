@@ -52,5 +52,13 @@ public class SegmentWithRange {
             return Pair.of(low, high);
         }
     }
+
+//    public double getLow() {
+//        return range.low;
+//    }
+//    
+//    public double getHigh() {
+//        return range.high;
+//    }
     
 }
