@@ -47,6 +47,7 @@ import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -301,7 +302,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 callback.complete(null);
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.any(List.class), Mockito.any(CompletedCallback.class));
+        }).when(connection).sendAsync(ArgumentMatchers.<List<Append>>any(), Mockito.any(CompletedCallback.class));
     }
 
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
@@ -781,7 +782,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 }
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.any(List.class), Mockito.any(CompletedCallback.class));
+        }).when(connection).sendAsync(ArgumentMatchers.<List<Append>>any(), Mockito.any(CompletedCallback.class));
 
         doAnswer(new Answer<Void>() {
             @Override
@@ -986,6 +987,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
         cf.setExecutor(executorService());
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        // Mock client connection that is returned for every invocation of ConnectionFactory#establishConnection.
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
@@ -1013,13 +1015,16 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         // If the callback is not invoked the test will fail due to a timeout.
         callBackInvokedLatch.await();
 
-        // Now trigger a connection drop call back from netty.
-        executor.submit(() -> cf.getProcessor(uri).connectionDropped());
-        // Verify no further reconnection attempts.
+        // Now trigger a connection drop netty callback and wait until it is executed.
+        executor.submit(() -> cf.getProcessor(uri).connectionDropped()).get();
+        // close is invoked on the connection.
+        order.verify(connection).close();
+
+        // Verify no further reconnection attempts which involves sending of SetupAppend wire command.
         order.verifyNoMoreInteractions();
         // Release latch to ensure the callback is completed.
         releaseCallbackLatch.release();
-        // Verify no further reconnection attempts.
+        // Verify no further reconnection attempts which involves sending of SetupAppend wire command.
         order.verifyNoMoreInteractions();
         // Trigger a reconnect again and verify if any new connections are initiated.
         output.reconnect();
@@ -1030,7 +1035,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         // Wait until all the tasks for reconnect have been completed.
         service.awaitTermination(10, TimeUnit.SECONDS);
 
-        // Verify no further reconnection attempts again.
+        // Verify no further reconnection attempts which involves sending of SetupAppend wire command.
         order.verifyNoMoreInteractions();
     }
 }
