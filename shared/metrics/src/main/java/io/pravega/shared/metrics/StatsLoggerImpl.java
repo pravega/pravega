@@ -135,7 +135,7 @@ public class StatsLoggerImpl implements StatsLogger {
 
         @Override
         public void setSupplier(Supplier<Number> supplier) {
-            supplierReference.set(supplier);
+            supplierReference.set(Preconditions.checkNotNull(supplier));
         }
 
         @Override
