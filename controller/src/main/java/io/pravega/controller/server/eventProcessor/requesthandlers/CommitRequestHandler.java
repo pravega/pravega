@@ -291,6 +291,10 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // primary id is taken for creation of txn-segment name and secondary part is erased and replaced with
                     // transaction's epoch.
                     // And we are creating duplicates of txn epoch keeping the primary same.
+                    // After committing transactions, we collect the current sizes of segments and update the offset 
+                    // at which the transaction was committed into ActiveTxnRecord in an idempotent fashion. 
+                    // Note: if its a rerun, transaction commit offsets may have been updated already in previous iteration
+                    // so this will not update/modify it. 
                     .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId))
                     .thenCompose(v -> streamMetadataTasks.getCurrentSegmentsSize(scope, stream, segments))
                     .thenCompose(map -> streamMetadataStore.recordCommitOffsets(scope, stream, txnId, map, context, executor));

@@ -797,7 +797,7 @@ public class StreamMetadataTasks extends TaskBase {
         return Futures.toVoid(withRetries(() -> segmentHelper.truncateSegment(scope, stream, segmentCut.getKey(),
                 segmentCut.getValue(), delegationToken, requestId), executor));
     }
-    
+
     public CompletableFuture<Map<Long, Long>> getSealedSegmentsSize(String scope, String stream, List<Long> segments, String delegationToken) {
         return Futures.allOfWithResults(
                 segments

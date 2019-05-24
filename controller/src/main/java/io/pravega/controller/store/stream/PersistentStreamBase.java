@@ -1183,8 +1183,9 @@ public abstract class PersistentStreamBase implements Stream {
     @Override
     public CompletableFuture<Void> recordCommitOffsets(final UUID txnId, final Map<Long, Long> commitOffsets) {
         // The transaction may already have been committed and its record removed and this could be an idempotent run. 
-        // So ignore any data not found exceptions. 
-        // This methods updates the commit offsets if they are empty. Otherwise it ignores them. 
+        // So this method will ignore any data not found exceptions that are thrown while trying to retrieve active 
+        // transaction record. 
+        // This method updates the commit offsets if they are empty. Otherwise it ignores them. 
         int epoch = RecordHelper.getTransactionEpoch(txnId);
         return Futures.exceptionallyExpecting(getActiveTx(epoch, txnId)
                 .thenCompose(txnRecord -> {
@@ -1226,7 +1227,7 @@ public abstract class PersistentStreamBase implements Stream {
             // exists and this is an idempotent case. DataNotFound can also be thrown because writer's mark was deleted 
             // as we attempted to update an existing record. Note: Delete can be triggered by writer explicitly calling
             // shutdownWriter api. 
-            return Futures.exceptionallyExpecting(getActiveTx(epoch, txId).thenCompose(txnRecord -> {
+            CompletableFuture<Void> future = getActiveTx(epoch, txId).thenCompose(txnRecord -> {
                 if (txnRecord != null && !Strings.isNullOrEmpty(txnRecord.getObject().getWriterId())
                         && txnRecord.getObject().getCommitTime() >= 0L && !txnRecord.getObject().getCommitOffsets().isEmpty()) {
                     ActiveTxnRecord record = txnRecord.getObject();
@@ -1234,7 +1235,9 @@ public abstract class PersistentStreamBase implements Stream {
                 } else {
                     return CompletableFuture.completedFuture(null);
                 }
-            }), DATA_NOT_FOUND_PREDICATE, null);
+            });
+            
+            return Futures.exceptionallyExpecting(future, DATA_NOT_FOUND_PREDICATE, null);
         }).collect(Collectors.toList()));
     }
 
@@ -1503,9 +1506,10 @@ public abstract class PersistentStreamBase implements Stream {
                         // In this case, we may have found mark to be inexistent when we did a get but it may have been created 
                         // when we attempt to create it. So immediately after attempting a create, if we get DataExists, 
                         // we will call noteWriterMark recursively. 
-                        return Futures.exceptionallyComposeExpecting(
-                                createWriterMarkRecord(writer, timestamp, newPosition)
-                                        .thenApply(v -> WriterTimestampResponse.SUCCESS),
+                        CompletableFuture<WriterTimestampResponse> future = createWriterMarkRecord(writer, timestamp, newPosition)
+                                .thenApply(v -> WriterTimestampResponse.SUCCESS);
+                        
+                        return Futures.exceptionallyComposeExpecting(future,
                                 e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, 
                                 () -> noteWriterMark(writer, timestamp, position));
                     } else {
@@ -1534,7 +1538,7 @@ public abstract class PersistentStreamBase implements Stream {
      * This method simply checks if position 2 has a higher max segment number than position 1. 
      * If those are equal, then it simply checks the offsets in each segment in position 2 to be ahead of same segment in 
      * position 1. 
-     * It doesnt deal with complex cases where in a position 1 there could be both predecessor and successor while position 2 
+     * It doesn't deal with complex cases where in a position 1 there could be both predecessor and successor while position 2 
      * only contains successor. There can be many such complex checks which will require looking up ranges of segments involved
      * which we will avoid in this method. 
      * 
@@ -1550,12 +1554,13 @@ public abstract class PersistentStreamBase implements Stream {
         boolean compareMaxes = maxInPos2 >= maxInPos1;
         
         if (compareMaxes) {
-            return position2.entrySet().stream().filter(x -> position1.containsKey(x.getKey()))
-                                               .allMatch(x -> {
-                                                   // for all segments that are present in both, position 2 should have 
-                                                   // greater than eq offsets
-                                                   return x.getValue() >= position1.get(x.getKey());
-                                               });
+            return position2.entrySet().stream()
+                            .filter(x -> position1.containsKey(x.getKey()))
+                            .allMatch(x -> {
+                                // for all segments that are present in both, position 2 should have 
+                                // greater than eq offsets
+                                return x.getValue() >= position1.get(x.getKey());
+                            });
         } 
         
         return compareMaxes;

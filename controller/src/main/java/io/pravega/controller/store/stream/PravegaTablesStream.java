@@ -198,7 +198,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                 .thenCompose(x -> Futures.toVoid(updateCommittingTxnRecord(new VersionedMetadata<>(CommittingTransactionsRecord.EMPTY,
                         record.getVersion()))));
     }
-    
+
     @Override
     CompletableFuture<Void> createStreamMetadata() {
         return getId().thenCompose(id -> {

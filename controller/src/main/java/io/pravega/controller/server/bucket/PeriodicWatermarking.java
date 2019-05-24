@@ -73,6 +73,7 @@ public class PeriodicWatermarking {
         this(streamMetadataStore, bucketStore, stream -> new WatermarkClient(stream, clientConfig), executor);
     }
 
+    @VisibleForTesting
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
                                 Function<Stream, WatermarkClient> watermarkClientSupplier, ScheduledExecutorService executor) {
         this.streamMetadataStore = streamMetadataStore;
