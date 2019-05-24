@@ -131,9 +131,9 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         log.info("Creating writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
-        ThreadPoolExecutor executor = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
+        ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());
-        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, executor);
+        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, retransmitPool, connectionFactory.getInternalExecutor());
     }
     
     @Override
@@ -141,7 +141,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         log.info("Creating transactional writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
-        return new TransactionalEventStreamWriterImpl<T>(stream, controller, outFactory, s, config);
+        return new TransactionalEventStreamWriterImpl<T>(stream, controller, outFactory, s, config, connectionFactory.getInternalExecutor());
     }
 
     @Override

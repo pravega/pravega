@@ -1165,17 +1165,29 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         if (this.handle.get() == null) {
             // No handle so, the segment must not exist yet. Attempt to create it, then run what we wanted to.
             assert this.metadata.getStorageLength() == 0 : "no handle yet but metadata indicates Storage Segment not empty";
-            long rolloverSize = this.metadata.getAttributes().getOrDefault(Attributes.ROLLOVER_SIZE, -1L);
-            SegmentRollingPolicy rollingPolicy = rolloverSize < 0 ? SegmentRollingPolicy.NO_ROLLING : new SegmentRollingPolicy(rolloverSize);
+            long rolloverSize = this.metadata.getAttributes().getOrDefault(Attributes.ROLLOVER_SIZE, SegmentRollingPolicy.NO_ROLLING.getMaxLength());
             return Futures
-                    .exceptionallyExpecting(
-                            this.storage.create(this.metadata.getName(), rollingPolicy, timeout),
+                    .exceptionallyComposeExpecting(
+                            this.storage.create(this.metadata.getName(), new SegmentRollingPolicy(rolloverSize), timeout),
                             ex -> ex instanceof StreamSegmentExistsException,
-                            null)
+                            () -> {
+                                // This happens if we have more than one concurrent instances of the owning SegmentContainer
+                                // running at the same time. Both SegmentAggregator instances were initialized when the Segment
+                                // did not exist, and both knew about an append that would eventually make it to Storage. One
+                                // of them managed to create the Segment (and write something to it), but the other still assumed
+                                // the Segment did not exist - so we end up in here. We need to get a handle of the segment
+                                // and continue with whatever we were doing. If there is a mismatch (length, sealed, etc.),
+                                // then the normal reconciliation algorithm will kick in once it is discovered and if the
+                                // segment has already been fenced out, openWrite() will throw the appropriate exception
+                                // which will be handled upstream.
+                                log.info("{}: Segment did not exist in Storage when initialized() was called, but does now.", this.traceObjectId);
+                                return this.storage.openWrite(this.metadata.getName());
+                            })
                     .thenComposeAsync(handle -> {
                         this.handle.set(handle);
                         return toRun.get();
-                    });
+                    }, this.executor);
+
         } else {
             // Segment already exists. Execute what we were supposed to.
             return toRun.get();
