@@ -124,7 +124,6 @@ public class StatsLoggerImpl implements StatsLogger {
     private class GaugeImpl<T extends Number> implements Gauge {
         @Getter
         private final Id id;
-        @Getter
         private final AtomicReference<Supplier<Number>> supplierReference = new AtomicReference<>();
 
         GaugeImpl(String statName, Supplier<Number> valueSupplier, String... tagPairs) {
