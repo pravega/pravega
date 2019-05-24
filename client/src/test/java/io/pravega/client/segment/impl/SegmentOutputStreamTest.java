@@ -47,6 +47,7 @@ import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
@@ -301,7 +302,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 callback.complete(null);
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.any(List.class), Mockito.any(CompletedCallback.class));
+        }).when(connection).sendAsync(ArgumentMatchers.<List<Append>>any(), Mockito.any(CompletedCallback.class));
     }
 
     private void sendAndVerifyEvent(UUID cid, ClientConnection connection, SegmentOutputStreamImpl output,
@@ -781,7 +782,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 }
                 return null;
             }
-        }).when(connection).sendAsync(Mockito.any(List.class), Mockito.any(CompletedCallback.class));
+        }).when(connection).sendAsync(ArgumentMatchers.<List<Append>>any(), Mockito.any(CompletedCallback.class));
 
         doAnswer(new Answer<Void>() {
             @Override
