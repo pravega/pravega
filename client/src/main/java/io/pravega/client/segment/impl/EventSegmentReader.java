@@ -10,7 +10,6 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.impl.SegmentWithRange;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
@@ -23,7 +22,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface EventSegmentReader extends AutoCloseable {
     
-    SegmentWithRange getSegmentWithRange();
+    Segment getSegmentId();
     
     /**
      * Sets the offset for reading from the segment.
