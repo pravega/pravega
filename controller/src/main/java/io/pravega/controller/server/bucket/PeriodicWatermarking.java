@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.cache.RemovalListener;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.pravega.client.ClientConfig;
@@ -20,8 +21,8 @@ import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.stream.BucketStore;
@@ -29,6 +30,7 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
@@ -38,7 +40,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import javax.annotation.concurrent.GuardedBy;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -82,6 +83,9 @@ public class PeriodicWatermarking {
         this.watermarkClientCache = CacheBuilder.newBuilder()
                                                 .maximumSize(MAX_CACHE_SIZE)
                                                 .expireAfterAccess(10, TimeUnit.MINUTES)
+                                                .removalListener((RemovalListener<Stream, WatermarkClient>) notification -> {
+                                                    notification.getValue().client.close();
+                                                })
                                                 .build(new CacheLoader<Stream, WatermarkClient>() {
                                                     @ParametersAreNonnullByDefault
                                                     @Override
@@ -147,7 +151,7 @@ public class PeriodicWatermarking {
                                            watermarkClient.getPreviousWatermark());
                                }
                                
-                               return watermarkFuture.thenAccept(watermarkClient::complete);
+                               return watermarkFuture.thenAccept(watermarkClient::completeIteration);
                            })
                 .exceptionally(e -> {
                     log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e); 
@@ -340,7 +344,8 @@ public class PeriodicWatermarking {
         
         @VisibleForTesting
         WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory) {
-            this.client =  clientFactory.createRevisionedStreamClient(stream.getScopedName(), 
+            this.client = clientFactory.createRevisionedStreamClient(
+                    StreamSegmentNameUtils.getMarkSegmentForStream(stream.getScope(), stream.getStreamName()), 
                     new WatermarkSerializer(), SynchronizerConfig.builder().build());
             this.windowStart = new AtomicInteger();
             windowSize = WINDOW_SIZE;
@@ -400,8 +405,8 @@ public class PeriodicWatermarking {
             // to MIN_VALUE
             int index = entries.isEmpty() || revision == null ? Integer.MIN_VALUE : 0;
             
-            if (entries.size() >= windowSize) {
-                index = entries.size() - windowSize;
+            if (entries.size() > windowSize) {
+                index = entries.size() - windowSize - 1;
             }
             
             windowStart.set(index);
@@ -412,7 +417,7 @@ public class PeriodicWatermarking {
          * if watermark is emitted, progress window. 
          * @param newWatermark
          */
-        void complete(Watermark newWatermark) {
+        void completeIteration(Watermark newWatermark) {
             Map.Entry<Revision, Watermark> latest = getLatestEntry();
             Revision newRevision;
             if (newWatermark != null) {
@@ -443,7 +448,7 @@ public class PeriodicWatermarking {
                 }
 
                 if (start >= 0 && entries.size() - start >= windowSize) {
-                    nextIndex = entries.size() - start;
+                    nextIndex = entries.size() - windowSize;
                 }
             } else {
                 // no watermark is emitted. We should progress window.
@@ -477,19 +482,6 @@ public class PeriodicWatermarking {
             }
             
             return time >= latest.getValue().getTimestamp();
-        }
-    }
-    
-    static class WatermarkSerializer implements Serializer<Watermark> {
-
-        @Override
-        public ByteBuffer serialize(Watermark value) {
-            return value.toByteBuf();
-        }
-
-        @Override
-        public Watermark deserialize(ByteBuffer serializedValue) {
-            return Watermark.fromByteBuf(serializedValue);
         }
     }
 }

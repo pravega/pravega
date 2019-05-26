@@ -14,6 +14,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -81,5 +82,4 @@ public class Watermark {
             return Watermark.builder();
         }
     }
-
 }

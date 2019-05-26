@@ -366,4 +366,15 @@ public final class StreamSegmentNameUtils {
         return tokens[1].equals(TABLES);
     }
     // endregion
+    
+    // region watermark
+    public static String getMarkSegmentForStream(String scope, String stream) {
+        StringBuffer sb = new StringBuffer();
+        if (!Strings.isNullOrEmpty(scope)) {
+            sb.append(scope);
+            sb.append("/_Mark");
+        }
+        sb.append(stream);
+        return sb.toString();
+    }
 }
