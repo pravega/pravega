@@ -15,7 +15,10 @@ import io.grpc.stub.StreamObserver;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
+import io.pravega.common.Exceptions;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.controller.store.client.StoreClient;
+import io.pravega.controller.store.task.*;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -36,14 +39,22 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.task.TaskData;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.NotImplementedException;
+import org.apache.curator.framework.CuratorFramework;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -61,6 +72,7 @@ import static org.junit.Assert.assertTrue;
  * <p>
  * Every test is run twice for both streamStore (Zookeeper and InMemory) types.
  */
+@Slf4j
 public abstract class ControllerServiceImplTest {
 
     protected static final String SCOPE1 = "scope1";
@@ -292,6 +304,26 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void testCreateStreamThrowsLockFailed() {
+        // Check that concurrent calls to create a stream throw FailedLockingException
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+        ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
+        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
+        this.blockCriticalSection();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, "locking", configuration), result1);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, "locking", configuration), result2);
+        this.unblockCriticalSection();
+        AssertExtensions.assertThrows(
+                "Concurrent call to create stream did not fail to lock or has thrown something else.",
+                () -> {
+                    result1.get();
+                    result2.get();
+                },
+                ex -> ex.getCause() instanceof LockFailedException);
+    }
+
+    @Test
     public void updateStreamTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
 
@@ -437,7 +469,7 @@ public abstract class ControllerServiceImplTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateStreamStatus.getStatus());
     }
 
-        @Test
+    @Test
     public void sealStreamTests() {
         CreateScopeStatus createScopeStatus;
         CreateStreamStatus createStreamStatus;
@@ -728,4 +760,16 @@ public abstract class ControllerServiceImplTest {
             }
         }
     }
+
+    /**
+     * Blocks call inside a critical section started with
+     * {@link TaskMetadataStore#lock(Resource, TaskData, String, String, String, String)} to force a concurrent
+     * execution.
+     */
+    abstract void blockCriticalSection();
+
+    /**
+     * Unblocks critical section blocked with {@link ControllerServiceImplTest#blockCriticalSection()}.
+     */
+    abstract void unblockCriticalSection();
 }

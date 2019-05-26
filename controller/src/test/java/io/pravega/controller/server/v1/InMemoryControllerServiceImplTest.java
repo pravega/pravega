@@ -31,7 +31,8 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
-import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.store.task.TaskStoreFactoryForTests;
+import io.pravega.controller.store.task.TaskStoreFactoryForTests.InMemoryTaskMetadataStoreForTests;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import java.util.Collections;
@@ -58,7 +59,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
     @Override
     public void setup() throws Exception {
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
-        taskMetadataStore = TaskStoreFactory.createInMemoryStore(executorService);
+        taskMetadataStore = TaskStoreFactoryForTests.createInMemoryStore(executorService);
         streamStore = StreamStoreFactory.createInMemoryStore(executorService);
         BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         requestTracker = new RequestTracker(true);
@@ -97,5 +98,15 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
             streamTransactionMetadataTasks.close();
         }
         streamStore.close();
+    }
+
+    @Override
+    void blockCriticalSection() {
+        ((InMemoryTaskMetadataStoreForTests) taskMetadataStore).blockCriticalSection();
+    }
+
+    @Override
+    void unblockCriticalSection() {
+        ((InMemoryTaskMetadataStoreForTests) taskMetadataStore).unblockCriticalSection();
     }
 }

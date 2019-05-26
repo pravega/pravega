@@ -34,6 +34,7 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
+import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -49,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -442,6 +444,23 @@ public abstract class ControllerServiceWithStreamTest {
         assertEquals(5, segments.size());
         assertTrue(segments.stream().allMatch(x -> x.segmentId() == segmentIds.get(0) || x.segmentId() == segmentIds.get(1) ||
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(6)));
+    }
+
+    @Test
+    public void testLockFailedForCreateStream() throws Exception {
+        final StreamConfiguration configuration = StreamConfiguration.builder()
+                .scalingPolicy(ScalingPolicy.fixed(1)).build();
+        long start = System.currentTimeMillis();
+
+        Controller.CreateScopeStatus scopeStatus = consumer.createScope("scope").join();
+        consumer.createStream("scope", "stream", configuration, start);
+        consumer.createStream("scope", "stream", configuration, start);
+
+        AssertExtensions.assertThrows(
+                "Second attempt to create stream did not throw.",
+                () -> consumer.createStream("scope", "stream", configuration, start).get(),
+                ex -> ex instanceof LockFailedException);
+
     }
 
     private void scale(long start, List<Long> segmentsToSeal, Map<Double, Double> keyRanges) throws InterruptedException, ExecutionException {

@@ -40,7 +40,8 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
-import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.store.task.TaskStoreFactoryForTests;
+import io.pravega.controller.store.task.TaskStoreFactoryForTests.ZKTaskMetadataStoreForTests;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -67,6 +68,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private StoreClient storeClient;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamRequestHandler streamRequestHandler;
+    private TaskMetadataStore taskMetadataStore;
 
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
@@ -76,7 +78,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     @Override
     public void setup() throws Exception {
         final HostControllerStore hostStore;
-        final TaskMetadataStore taskMetadataStore;
+        //final TaskMetadataStore taskMetadataStore;
         final SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         final RequestTracker requestTracker = new RequestTracker(true);
 
@@ -88,7 +90,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
         storeClient = StoreClientFactory.createZKStoreClient(zkClient);
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
-        taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
+        taskMetadataStore = TaskStoreFactoryForTests.createStore(storeClient, executorService);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
@@ -139,6 +141,16 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         storeClient.close();
         zkClient.close();
         zkServer.close();
+    }
+
+    @Override
+    void blockCriticalSection() {
+        ((ZKTaskMetadataStoreForTests) taskMetadataStore).blockCriticalSection();
+    }
+
+    @Override
+    void unblockCriticalSection() {
+        ((ZKTaskMetadataStoreForTests) taskMetadataStore).unblockCriticalSection();
     }
 
     @Test

@@ -450,10 +450,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             result.whenComplete(
                     (value, ex) -> {
                         log.debug("result =  {}", value);
-                        logAndUntrackRequestTag(requestTag);
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
-                            logError(cause);
+                            logError(requestTag, cause);
                             String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
                             streamObserver.onError(Status.INTERNAL
                                     .withCause(cause)
@@ -463,6 +462,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             streamObserver.onNext(value);
                             streamObserver.onCompleted();
                         }
+                        logAndUntrackRequestTag(requestTag);
                     });
         } catch (Exception e) {
             log.error("Controller api failed with authenticator error", e);
@@ -485,11 +485,13 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         }
     }
 
-    private void logError(Throwable cause) {
+    private void logError(RequestTag requestTag, Throwable cause) {
         if (cause instanceof LockFailedException) {
-            log.warn("Controller API failed with: {}", cause.getMessage());
+            log.warn("Controller API call with tag {} failed with: {}",
+                    requestTag.getRequestDescriptor(), cause.getMessage());
         } else {
-            log.error("Controller API failed with error: ", cause);
+            log.error("Controller API call with tag {} failed with error: ",
+                    requestTag.getRequestDescriptor(), cause);
         }
     }
 }
