@@ -446,23 +446,6 @@ public abstract class ControllerServiceWithStreamTest {
                 x.segmentId() == segmentIds.get(2) || x.segmentId() == segmentIds.get(3) || x.segmentId() == segmentIds.get(6)));
     }
 
-    @Test
-    public void testLockFailedForCreateStream() throws Exception {
-        final StreamConfiguration configuration = StreamConfiguration.builder()
-                .scalingPolicy(ScalingPolicy.fixed(1)).build();
-        long start = System.currentTimeMillis();
-
-        Controller.CreateScopeStatus scopeStatus = consumer.createScope("scope").join();
-        consumer.createStream("scope", "stream", configuration, start);
-        consumer.createStream("scope", "stream", configuration, start);
-
-        AssertExtensions.assertThrows(
-                "Second attempt to create stream did not throw.",
-                () -> consumer.createStream("scope", "stream", configuration, start).get(),
-                ex -> ex instanceof LockFailedException);
-
-    }
-
     private void scale(long start, List<Long> segmentsToSeal, Map<Double, Double> keyRanges) throws InterruptedException, ExecutionException {
         Controller.ScaleResponse scaleStatus = consumer.scale(SCOPE, STREAM, segmentsToSeal, keyRanges, start)
                                                        .get();
