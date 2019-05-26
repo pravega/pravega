@@ -1,19 +1,35 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.controller.server.bucket;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.impl.RevisionImpl;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
+import io.pravega.controller.store.stream.VersionedMetadata;
+import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.NonNull;
@@ -27,19 +43,21 @@ import org.junit.Test;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 public class WatermarkWorkflowTest {
@@ -49,7 +67,6 @@ public class WatermarkWorkflowTest {
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;
     ScheduledExecutorService executor;
-    PeriodicWatermarking periodicWatermarking;
     
     @Before
     public void setUp() throws Exception {
@@ -67,9 +84,6 @@ public class WatermarkWorkflowTest {
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 3,
                 BucketStore.ServiceType.WatermarkingService, 3);
         bucketStore = StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
-
-        Function<Stream, PeriodicWatermarking.WatermarkClient> supplier = null;
-        periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, supplier, executor);
     }
     
     @After
@@ -110,8 +124,8 @@ public class WatermarkWorkflowTest {
         assertEquals(revisionedClient.watermarks.size(), 1);
         assertEquals(client.getPreviousWatermark(), first);
         assertTrue(client.isWriterActive(0L));
-        assertFalse(client.isWriterParticipating(0L));
-        assertTrue(client.isWriterParticipating(1L));
+        assertFalse(client.isWriterParticipating(1L));
+        assertTrue(client.isWriterParticipating(2L));
         
         // emit second watermark
         Watermark second = new Watermark(2L, ImmutableMap.of());
@@ -126,8 +140,8 @@ public class WatermarkWorkflowTest {
         assertEquals(2, revisionedClient.watermarks.size());
         assertEquals(client.getPreviousWatermark(), second);
         assertTrue(client.isWriterActive(0L));
-        assertFalse(client.isWriterParticipating(1L));
-        assertTrue(client.isWriterParticipating(2L));
+        assertFalse(client.isWriterParticipating(2L));
+        assertTrue(client.isWriterParticipating(3L));
 
         // dont emit a watermark but complete this iteration. 
         // This should proceed to shrink the active window.
@@ -140,10 +154,10 @@ public class WatermarkWorkflowTest {
         assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(0).getKey());
         assertEquals(revisionedClient.watermarks.size(), 2);
         assertEquals(client.getPreviousWatermark(), second);
-        assertFalse(client.isWriterActive(0L));
-        assertTrue(client.isWriterActive(1L));
-        assertFalse(client.isWriterParticipating(1L));
-        assertTrue(client.isWriterParticipating(2L));
+        assertFalse(client.isWriterActive(1L));
+        assertTrue(client.isWriterActive(2L));
+        assertFalse(client.isWriterParticipating(2L));
+        assertTrue(client.isWriterParticipating(3L));
 
         // dont emit a watermark but complete this iteration. This should shrink the window again. 
         client.completeIteration(null);
@@ -155,10 +169,10 @@ public class WatermarkWorkflowTest {
         assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(1).getKey());
         assertEquals(revisionedClient.watermarks.size(), 2);
         assertEquals(client.getPreviousWatermark(), second);
-        assertFalse(client.isWriterActive(1L));
-        assertTrue(client.isWriterActive(2L));
-        assertFalse(client.isWriterParticipating(1L));
-        assertTrue(client.isWriterParticipating(2L));
+        assertFalse(client.isWriterActive(2L));
+        assertTrue(client.isWriterActive(3L));
+        assertFalse(client.isWriterParticipating(2L));
+        assertTrue(client.isWriterParticipating(3L));
         // emit third watermark
         Watermark third = new Watermark(3L, ImmutableMap.of());
         client.completeIteration(third);
@@ -169,10 +183,10 @@ public class WatermarkWorkflowTest {
         assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(1).getKey());
         assertEquals(revisionedClient.watermarks.size(), 3);
         assertEquals(client.getPreviousWatermark(), third);
-        assertFalse(client.isWriterActive(1L));
-        assertTrue(client.isWriterActive(2L));
-        assertFalse(client.isWriterParticipating(2L));
-        assertTrue(client.isWriterParticipating(3L));
+        assertFalse(client.isWriterActive(2L));
+        assertTrue(client.isWriterActive(3L));
+        assertFalse(client.isWriterParticipating(3L));
+        assertTrue(client.isWriterParticipating(4L));
         
         // emit fourth watermark
         Watermark fourth = new Watermark(4L, ImmutableMap.of());
@@ -184,10 +198,10 @@ public class WatermarkWorkflowTest {
         assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(1).getKey());
         assertEquals(revisionedClient.watermarks.size(), 4);
         assertEquals(client.getPreviousWatermark(), fourth);
-        assertFalse(client.isWriterActive(1L));
-        assertTrue(client.isWriterActive(2L));
-        assertFalse(client.isWriterParticipating(3L));
-        assertTrue(client.isWriterParticipating(4L));
+        assertFalse(client.isWriterActive(2L));
+        assertTrue(client.isWriterActive(3L));
+        assertFalse(client.isWriterParticipating(4L));
+        assertTrue(client.isWriterParticipating(5L));
 
         // emit fifth watermark
         Watermark fifth = new Watermark(5L, ImmutableMap.of());
@@ -199,30 +213,188 @@ public class WatermarkWorkflowTest {
         assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(2).getKey());
         assertEquals(revisionedClient.watermarks.size(), 5);
         assertEquals(client.getPreviousWatermark(), fifth);
-        assertFalse(client.isWriterActive(2L));
-        assertTrue(client.isWriterActive(3L));
-        assertFalse(client.isWriterParticipating(4L));
-        assertTrue(client.isWriterParticipating(5L));
+        assertFalse(client.isWriterActive(3L));
+        assertTrue(client.isWriterActive(4L));
+        assertFalse(client.isWriterParticipating(5L));
+        assertTrue(client.isWriterParticipating(6L));
     }
 
     @Test
     public void testWatermarkingWorkflow() {
-        // 1. create stream
-        // 2. note writer1, writer2, writer3 marks
-        // 3. run watermarking workflow. When there is no previous watermark for the stream, the workflow will emit a watermark.
+        SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
+
+        ConcurrentHashMap<String, MockRevisionedStreamClient> revisionedStreamClientMap = new ConcurrentHashMap<>();
+
+        doAnswer(x -> {
+            String streamName = x.getArgument(0);
+            return revisionedStreamClientMap.compute(streamName, (s, rsc) -> {
+                if (rsc != null) {
+                    return rsc;
+                } else {
+                    return new MockRevisionedStreamClient();
+                }
+            });
+        }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
+
+        ConcurrentHashMap<Stream, PeriodicWatermarking.WatermarkClient> watermarkClientMap = new ConcurrentHashMap<>();
         
-        // report writer marks for writer1, writer2, writer3 
-        // watermark 2 is generated. 
-        // now report partial positions. 
+        Function<Stream, PeriodicWatermarking.WatermarkClient> supplier = stream -> {
+            return watermarkClientMap.compute(stream, (s, wc) -> {
+               if (wc != null) {
+                   return wc;
+               } else {
+                   return new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
+               }
+            });
+        };
+        
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, supplier, executor);
+
+        String streamName = "stream";
+        String scope = "scope";
+        streamMetadataStore.createScope(scope).join();
+        streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).build(), 
+                System.currentTimeMillis(), null, executor).join();
+
+        streamMetadataStore.setState(scope, streamName, State.ACTIVE, null, executor).join();
+        
+        // 2. note writer1, writer2, writer3 marks
+        // writer 1 reports segments 0, 1. 
+        // writer 2 reports segments 1, 2, 
+        // writer 3 reports segment 0, 2
+        String writer1 = "writer1";
+        Map<Long, Long> map1 = ImmutableMap.of(0L, 100L, 1L, 200L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer1, 100L, map1, null, executor).join();
+        String writer2 = "writer2";
+        Map<Long, Long> map2 = ImmutableMap.of(1L, 100L, 2L, 200L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer2, 101L, map2, null, executor).join();
+        String writer3 = "writer3";
+        Map<Long, Long> map3 = ImmutableMap.of(2L, 100L, 0L, 200L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer3, 102L, map3, null, executor).join();
+        
+        // 3. run watermarking workflow. 
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        periodicWatermarking.watermark(stream).join();
+        
+        // verify that a watermark has been emitted. 
+        // this should emit a watermark that contains all three segments with offsets = 200L
+        // and timestamp = 100L
+        MockRevisionedStreamClient revisionedClient = revisionedStreamClientMap.get(StreamSegmentNameUtils.getMarkSegmentForStream(scope, streamName));
+        assertEquals(revisionedClient.watermarks.size(), 1);
+        Watermark watermark = revisionedClient.watermarks.get(0).getValue();
+        assertEquals(watermark.getTimestamp(), 100L);
+        assertEquals(watermark.getStreamCut().size(), 3);
+        assertEquals(watermark.getStreamCut().get(0L).longValue(), 200L);
+        assertEquals(watermark.getStreamCut().get(1L).longValue(), 200L);
+        assertEquals(watermark.getStreamCut().get(2L).longValue(), 200L);
+        
+        // send positions only on segment 1 and segment 2. nothing on segment 0.
+        map1 = ImmutableMap.of(1L, 300L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer1, 200L, map1, null, executor).join();
+        map2 = ImmutableMap.of(1L, 100L, 2L, 300L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer2, 201L, map2, null, executor).join();
+        map3 = ImmutableMap.of(2L, 300L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer3, 202L, map3, null, executor).join();
+
+        // run watermark workflow. this will emit a watermark with time = 200L and streamcut = 0 -> 200L, 1 -> 300L, 2 -> 300L
+        periodicWatermarking.watermark(stream).join();
+
+        assertEquals(revisionedClient.watermarks.size(), 2);
+        watermark = revisionedClient.watermarks.get(1).getValue();
+        assertEquals(watermark.getTimestamp(), 200L);
+        assertEquals(watermark.getStreamCut().size(), 3);
+        assertEquals(watermark.getStreamCut().get(0L).longValue(), 200L);
+        assertEquals(watermark.getStreamCut().get(1L).longValue(), 300L);
+        assertEquals(watermark.getStreamCut().get(2L).longValue(), 300L);
+
+        // scale stream 0, 1, 2 -> 3, 4
+        scaleStream(streamName, scope);
+
+        // writer 1 reports segments 0, 1. 
+        // writer 2 reports segments 1, 2 
+        // writer 3 reports segment 3
+        map1 = ImmutableMap.of(0L, 300L, 1L, 400L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer1, 302L, map1, null, executor).join();
+        map2 = ImmutableMap.of(1L, 100L, 2L, 400L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer2, 301L, map2, null, executor).join();
+        long segment3 = StreamSegmentNameUtils.computeSegmentId(3, 1);
+        long segment4 = StreamSegmentNameUtils.computeSegmentId(4, 1);
+        map3 = ImmutableMap.of(segment3, 100L);
+        // writer 3 has lowest reported time. 
+        streamMetadataStore.noteWriterMark(scope, streamName, writer3, 300L, map3, null, executor).join();
+
+        // run watermark workflow. this will emit a watermark with time = 300L and streamcut = 3 -> 100L, 4 -> 0L
+        periodicWatermarking.watermark(stream).join();
+
+        assertEquals(revisionedClient.watermarks.size(), 3);
+        watermark = revisionedClient.watermarks.get(2).getValue();
+        assertEquals(watermark.getTimestamp(), 300L);
+        assertEquals(watermark.getStreamCut().size(), 2);
+        assertEquals(watermark.getStreamCut().get(segment3).longValue(), 100L);
+        assertEquals(watermark.getStreamCut().get(segment4).longValue(), 0L);
+
+        // report complete positions from writers. 
+        // writer 1 reports 0, 1, 2
+        // writer 2 reports 0, 1, 2
+        // writer 3 doesnt report. 
+        map1 = ImmutableMap.of(0L, 400L, 1L, 400L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer1, 400L, map1, null, executor).join();
+        map2 = ImmutableMap.of(1L, 100L, 2L, 400L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer2, 401L, map2, null, executor).join();
+
+        // run watermark workflow. there shouldnt be a watermark emitted until writer 3 times out and is excluded 
+        // from computation. That will happen for two iterations because our window size is 2. Third iteration will
+        // exclude writer 3 from watermark computation. 
+        periodicWatermarking.watermark(stream).join();
+        assertEquals(revisionedClient.watermarks.size(), 3);
+        periodicWatermarking.watermark(stream).join();
+        assertEquals(revisionedClient.watermarks.size(), 3);
+        
+        // now a watermark should be generated. Time should be advanced. But watermark's stream cut is already ahead of writer's 
+        // positions so stream cut should not advance. 
+        periodicWatermarking.watermark(stream).join();
+        assertEquals(revisionedClient.watermarks.size(), 4);
+        watermark = revisionedClient.watermarks.get(3).getValue();
+        assertEquals(watermark.getTimestamp(), 400L);
+        assertEquals(watermark.getStreamCut().size(), 2);
+        assertEquals(watermark.getStreamCut().get(segment3).longValue(), 100L);
+        assertEquals(watermark.getStreamCut().get(segment4).longValue(), 0L);
+
+        // writer 1, 2 and 3 report marks. With writer 3 reporting mark on segment 4
+        map1 = ImmutableMap.of(0L, 500L, 1L, 500L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer1, 500L, map1, null, executor).join();
+        map2 = ImmutableMap.of(1L, 100L, 2L, 500L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer2, 501L, map2, null, executor).join();
+        map3 = ImmutableMap.of(segment4, 500L);
+        streamMetadataStore.noteWriterMark(scope, streamName, writer3, 502L, map3, null, executor).join();
+
+        // run watermarking workflow. It should generate watermark that includes segments 3 -> 100L and 4 -> 500L with time 500L
+        periodicWatermarking.watermark(stream).join();
+        assertEquals(revisionedClient.watermarks.size(), 5);
+        watermark = revisionedClient.watermarks.get(4).getValue();
+        assertEquals(watermark.getTimestamp(), 500L);
+        assertEquals(watermark.getStreamCut().size(), 2);
+        assertEquals(watermark.getStreamCut().get(segment3).longValue(), 100L);
+        assertEquals(watermark.getStreamCut().get(segment4).longValue(), 500L);
     }
 
-    @Test
-    public void testComputeWatermarkMethods() {
-        // TODO: test various cases cases where watermark is computed. 
-        // 1. incomplete positions. 
-        // 2. incorporating previous watermarks. 
+    private void scaleStream(String streamName, String scope) {
+        long scaleTs = System.currentTimeMillis();
+        AbstractMap.SimpleEntry<Double, Double> segment1 = new AbstractMap.SimpleEntry<>(0.0, 0.5);
+        AbstractMap.SimpleEntry<Double, Double> segment2 = new AbstractMap.SimpleEntry<>(0.5, 1.0);
+        List<Long> sealedSegments = Lists.newArrayList(0L, 1L, 2L);
+        VersionedMetadata<EpochTransitionRecord> response = streamMetadataStore.submitScale(scope, streamName, sealedSegments, Arrays.asList(segment1, segment2), scaleTs, null, null, executor).join();
+        VersionedMetadata<State> state = streamMetadataStore.getVersionedState(scope, streamName, null, executor).join();
+        state = streamMetadataStore.updateVersionedState(scope, streamName, State.SCALING, state, null, executor).join();
+        response = streamMetadataStore.startScale(scope, streamName, false, response, state, null, executor).join();
+        streamMetadataStore.scaleCreateNewEpochs(scope, streamName, response, null, executor).join();
+        streamMetadataStore.scaleSegmentsSealed(scope, streamName, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response,
+                null, executor).join();
+        streamMetadataStore.completeScale(scope, streamName, response, null, executor).join();
+        streamMetadataStore.setState(scope, streamName
+                , State.ACTIVE, null, executor).join();
     }
-
+    
     class MockRevisionedStreamClient implements RevisionedStreamClient<Watermark> {
         private final AtomicInteger revCounter = new AtomicInteger(0);
         private Revision mark;
