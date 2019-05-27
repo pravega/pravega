@@ -231,7 +231,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         log.info("getSegmentsBetweenStreamCuts called for stream {} for cuts from {} to {}", request.getStreamInfo(), request.getFromMap(), request.getToMap());
         String scope = request.getStreamInfo().getScope();
         String stream = request.getStreamInfo().getStream();
-        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.getSegmentsBetweenStreamCuts(request)
                         .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
@@ -465,7 +465,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         logAndUntrackRequestTag(requestTag);
                     });
         } catch (Exception e) {
-            log.error("Controller api failed with authenticator error", e);
+            log.error(e.getMessage(), e);
             logAndUntrackRequestTag(requestTag);
             streamObserver.onError(Status.UNAUTHENTICATED
                     .withDescription("Authentication failed")

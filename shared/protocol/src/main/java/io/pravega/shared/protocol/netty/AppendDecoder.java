@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 
@@ -33,6 +34,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  *
  * @see CommandEncoder For details about handling of PartialEvents
  */
+@Slf4j
 public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
 
     private final HashMap<UUID, Segment> appendingSegments = new HashMap<>();
@@ -61,6 +63,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
     @VisibleForTesting
     public Request processCommand(WireCommand command) throws Exception {
         if (currentBlock != null && command.getType() != WireCommandType.APPEND_BLOCK_END) {
+            log.warn("Invalid message received {}. CurrentBlock {}", command, currentBlock);
             throw new InvalidMessageException("Unexpected " + command.getType() + " following a append block.");
         }
         Request result;
@@ -99,6 +102,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         case APPEND_BLOCK_END:
             WireCommands.AppendBlockEnd blockEnd = (WireCommands.AppendBlockEnd) command;
             if (currentBlock == null) {
+                log.warn("Received AppendBlockEnd {} without AppendBlock", blockEnd);
                 throw new InvalidMessageException("AppendBlockEnd without AppendBlock.");
             }
             UUID writerId = blockEnd.getWriterId();
