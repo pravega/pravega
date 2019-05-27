@@ -78,7 +78,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     @Override
     public void setup() throws Exception {
         final HostControllerStore hostStore;
-        //final TaskMetadataStore taskMetadataStore;
         final SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         final RequestTracker requestTracker = new RequestTracker(true);
 

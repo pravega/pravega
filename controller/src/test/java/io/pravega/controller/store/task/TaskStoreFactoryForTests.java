@@ -87,11 +87,7 @@ public class TaskStoreFactoryForTests {
                                             final String oldOwner,
                                             final String oldTag) {
             CompletableFuture<Void> future = super.lock(resource, taskData, owner, tag, oldOwner, oldTag);
-            try {
-                this.latch.get().get();
-            } catch (Throwable e) {
-                throw new CompletionException(e);
-            }
+            this.latch.get().join();
 
             return future;
         }
@@ -129,11 +125,7 @@ public class TaskStoreFactoryForTests {
                                             final String oldOwner,
                                             final String oldTag) {
             CompletableFuture<Void> future = super.lock(resource, taskData, owner, tag, oldOwner, oldTag);
-            try {
-                this.latch.get().get();
-            } catch (Throwable e) {
-                throw new CompletionException(e);
-            }
+            this.latch.get().join();
 
             return future;
         }
