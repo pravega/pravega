@@ -16,7 +16,6 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.apache.curator.framework.CuratorFramework;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 
