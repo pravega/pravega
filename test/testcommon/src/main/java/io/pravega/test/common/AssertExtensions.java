@@ -45,8 +45,14 @@ public class AssertExtensions {
     public static <T> void assertEventuallyEquals(T expected, Callable<T> eval, long timeout) throws Exception {
         long endTime = System.currentTimeMillis() + timeout;
         while (endTime > System.currentTimeMillis()) {
-            if (expected == eval.call()) {
-                return;
+            if (expected == null) {
+                if (eval.call() == null) {
+                    return;
+                }
+            } else {
+                if (expected.equals(eval.call())) {
+                    return;
+                }
             }
             Thread.sleep(10);
         }

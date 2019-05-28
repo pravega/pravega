@@ -100,7 +100,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
         MetricsConfig metricsConfig = MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
-        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(5));
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(3));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
@@ -206,7 +206,10 @@ public class MetricsTest extends ThreadPooledTestSuite {
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 return MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags) == null
                         ? -1 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count();
-            }, 10000);
+            }, 2000);
+
+            //Wait for cache eviction to happen
+            Thread.sleep(5000);
 
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
@@ -229,7 +232,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 return MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags) == null
                         ? -1 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count();
-            }, 10000);
+            }, 1000);
 
             Map<Double, Double> map = new HashMap<>();
             map.put(0.0, 1.0);
@@ -253,7 +256,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
                 return MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd) == null
                         ? -1 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd).count();
-            }, 10000);
+            }, 1000);
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);
             readerGroupManager.deleteReaderGroup(readerGroupName2);
