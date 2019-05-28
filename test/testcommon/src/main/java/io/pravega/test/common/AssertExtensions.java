@@ -49,10 +49,8 @@ public class AssertExtensions {
                 if (eval.call() == null) {
                     return;
                 }
-            } else {
-                if (expected.equals(eval.call())) {
-                    return;
-                }
+            } else if (expected.equals(eval.call())) {
+                return;
             }
             Thread.sleep(10);
         }
