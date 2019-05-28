@@ -20,17 +20,21 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
 import lombok.NonNull;
 import lombok.Synchronized;
@@ -349,9 +353,22 @@ public class WatermarkWorkflowTest {
         assertEquals(revisionedClient.watermarks.size(), 3);
         periodicWatermarking.watermark(stream).join();
         assertEquals(revisionedClient.watermarks.size(), 3);
-        
+
+        // even though writer3 is excluded from computation, its mark is still not removed because it isnt explicitly 
+        // shutdown. 
+        WriterMark writer3Mark = streamMetadataStore.getWriterMark(scope, streamName, writer3, null, executor).join();
+        assertTrue(writer3Mark.isAlive());
+        assertEquals(writer3Mark.getTimestamp(), 300L);
+
+        // report shutdown of writer 3
+        streamMetadataStore.shutdownWriter(scope, streamName, writer3, null, executor).join();
+        writer3Mark = streamMetadataStore.getWriterMark(scope, streamName, writer3, null, executor).join();
+        assertFalse(writer3Mark.isAlive());
+        assertEquals(writer3Mark.getTimestamp(), 300L);
+
         // now a watermark should be generated. Time should be advanced. But watermark's stream cut is already ahead of writer's 
-        // positions so stream cut should not advance. 
+        // positions so stream cut should not advance.
+        // Also writer 3 being inactive and shutdown, should be removed. 
         periodicWatermarking.watermark(stream).join();
         assertEquals(revisionedClient.watermarks.size(), 4);
         watermark = revisionedClient.watermarks.get(3).getValue();
@@ -360,7 +377,11 @@ public class WatermarkWorkflowTest {
         assertEquals(watermark.getStreamCut().get(segment3).longValue(), 100L);
         assertEquals(watermark.getStreamCut().get(segment4).longValue(), 0L);
 
-        // writer 1, 2 and 3 report marks. With writer 3 reporting mark on segment 4
+        AssertExtensions.assertFutureThrows("Writer 3 should have been removed from store",
+                streamMetadataStore.getWriterMark(scope, streamName, writer3, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        
+        // writer 1, 2 and 3 report marks. With writer 3 reporting mark on segment 4. Writer3 will get added again
         map1 = ImmutableMap.of(0L, 500L, 1L, 500L);
         streamMetadataStore.noteWriterMark(scope, streamName, writer1, 500L, map1, null, executor).join();
         map2 = ImmutableMap.of(1L, 100L, 2L, 500L);

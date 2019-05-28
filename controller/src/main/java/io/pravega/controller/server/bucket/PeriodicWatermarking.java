@@ -118,7 +118,8 @@ public class PeriodicWatermarking {
                                watermarkClient.reinitialize();
 
                                // 1. filter writers that are active.
-                               List<Map.Entry<String, WriterMark>> activeWriters = new ArrayList<>();
+                               List<Entry<String, WriterMark>> activeWriters = new ArrayList<>();
+                               List<Entry<String, WriterMark>> stoppedAndInactive = new ArrayList<>();
                                AtomicBoolean allActiveAreParticipating = new AtomicBoolean(true);
                                writers.entrySet().forEach(x -> {
                                    if (watermarkClient.isWriterActive(x.getValue().getTimestamp())) {
@@ -126,15 +127,27 @@ public class PeriodicWatermarking {
                                        if (!watermarkClient.isWriterParticipating(x.getValue().getTimestamp())) {
                                            allActiveAreParticipating.set(false);
                                        }
+                                   } else if (!x.getValue().isAlive()){
+                                       stoppedAndInactive.add(x);
                                    }
                                });
 
+                               // Stop all inactive writers that have been shutdown.
+                               CompletableFuture<List<Void>> removeStoppedAndInactiveWriters = 
+                                       Futures.allOfWithResults(stoppedAndInactive.stream().map(x ->
+                                               Futures.exceptionallyExpecting(
+                                                       streamMetadataStore.removeWriter(scope, streamName, x.getKey(),
+                                                       x.getValue(), context, executor), 
+                                                       e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null))
+                                                                                  .collect(Collectors.toList()));
+                               
                                if (activeWriters.isEmpty()) {
                                    // this will prevent the periodic cycles being spent in running watermarking workflow for a silent stream. 
                                    // as soon as any writer reports its mark, stream will be added to bucket and background 
-                                   // periodic processing will resume. 
-                                   return bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.WatermarkingService,
-                                           scope, streamName, executor);
+                                   // periodic processing will resume.
+                                   return removeStoppedAndInactiveWriters
+                                           .thenCompose(v -> bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.WatermarkingService,
+                                                   scope, streamName, executor));
                                } 
 
                                CompletableFuture<Watermark> watermarkFuture;
@@ -149,8 +162,9 @@ public class PeriodicWatermarking {
                                    watermarkFuture = computeWatermark(scope, streamName, context, activeWriters, 
                                            watermarkClient.getPreviousWatermark());
                                }
-                               
-                               return watermarkFuture.thenAccept(watermarkClient::completeIteration);
+
+                               // we will compute watermark and remove inactive writers concurrently
+                               return CompletableFuture.allOf(removeStoppedAndInactiveWriters, watermarkFuture.thenAccept(watermarkClient::completeIteration));
                            })
                 .exceptionally(e -> {
                     log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e); 
