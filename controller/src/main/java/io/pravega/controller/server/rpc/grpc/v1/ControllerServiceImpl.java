@@ -486,12 +486,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     private void logError(RequestTag requestTag, Throwable cause) {
+        String tag = requestTag == null ? "none" : requestTag.getRequestDescriptor();
+
         if (cause instanceof LockFailedException) {
-            log.warn("Controller API call with tag {} failed with: {}",
-                    requestTag == null ? "none" : requestTag.getRequestDescriptor(), cause.getMessage());
+            log.warn("Controller API call with tag {} failed with: {}", tag, cause.getMessage());
         } else {
-            log.error("Controller API call with tag {} failed with error: ",
-                    requestTag == null ? "none" : requestTag.getRequestDescriptor(), cause);
+            log.error("Controller API call with tag {} failed with error: ", tag, cause);
         }
     }
 }

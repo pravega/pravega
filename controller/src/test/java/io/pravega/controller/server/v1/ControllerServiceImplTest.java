@@ -238,6 +238,14 @@ public abstract class ControllerServiceImplTest {
         deleteScopeStatus = result6.get();
         assertEquals("Delete non existent scope", DeleteScopeStatus.Status.SCOPE_NOT_FOUND,
                      deleteScopeStatus.getStatus());
+
+        // Delete empty scope, should throw
+        ResultObserver<DeleteScopeStatus> result8 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Call to delete scope did not throw on empty scope",
+                () ->  this.controllerService.deleteScope(ModelHelper.createScopeInfo(""), result8),
+                ex -> ex instanceof IllegalArgumentException);
+
     }
 
     @Test
@@ -667,6 +675,18 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.isSegmentValid(ModelHelper.createSegmentId(SCOPE1, STREAM1, 3), result2);
         final SegmentValidityResponse isValid2 = result2.get();
         Assert.assertEquals(false, isValid2.getResponse());
+
+        ResultObserver<SegmentValidityResponse> result3 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Failed to throw when validating segment." ,
+                () ->  this.controllerService.isSegmentValid(ModelHelper.createSegmentId("", STREAM1, 3), result3),
+                ex -> ex instanceof IllegalArgumentException);
+
+        ResultObserver<SegmentValidityResponse> result4 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Failed to throw when validating segment." ,
+                () -> this.controllerService.isSegmentValid(ModelHelper.createSegmentId(SCOPE1, "", 3), result4),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
