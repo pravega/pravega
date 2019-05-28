@@ -1416,13 +1416,27 @@ public abstract class StreamMetadataStoreTest {
 
         // update writer record
         store.noteWriterMark(scope, stream, writer1, 1L, Collections.singletonMap(0L, 2L), null, executor).join();
-        store.getWriterMark(scope, stream, writer1, null, executor).join();
+        WriterMark writerMark = store.getWriterMark(scope, stream, writer1, null, executor).join();
+        assertTrue(writerMark.isAlive());
 
         Map<String, WriterMark> marks = store.getAllWritersMarks(scope, stream, null, executor).join();
         assertTrue(marks.containsKey(writer1));
 
+        store.shutdownWriter(scope, stream, writer1, null, executor).join();
+        writerMark = store.getWriterMark(scope, stream, writer1, null, executor).join();
+        assertFalse(writerMark.isAlive());
+
+        // note a mark after a writer has been shutdown. It should become alive again. 
+        store.noteWriterMark(scope, stream, writer1, 2L, Collections.singletonMap(0L, 2L), null, executor).join();
+        writerMark = store.getWriterMark(scope, stream, writer1, null, executor).join();
+        assertTrue(writerMark.isAlive());
+
         // remove writer
-        store.removeWriter(scope, stream, writer1, null, executor).join();
+        AssertExtensions.assertFutureThrows("Mismatched writer mark did not throw exception",
+                store.removeWriter(scope, stream, writer1, WriterMark.EMPTY, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+
+        store.removeWriter(scope, stream, writer1, writerMark, null, executor).join();
         AssertExtensions.assertFutureThrows("", store.getWriterMark(scope, stream, writer1, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 

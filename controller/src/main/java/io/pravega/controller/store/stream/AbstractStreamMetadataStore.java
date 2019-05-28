@@ -780,9 +780,15 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Void> removeWriter(String scope, String stream, String writer,
+    public CompletableFuture<Void> shutdownWriter(String scope, String stream, String writer,
                                                        OperationContext context, Executor executor) {
-        return withCompletion(getStream(scope, stream, context).removeWriter(writer), executor);
+        return withCompletion(getStream(scope, stream, context).shutdownWriter(writer), executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriter(String scope, String stream, String writer, WriterMark writerMark,
+                                                OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).removeWriter(writer, writerMark), executor);
     }
 
     @Override

@@ -919,7 +919,7 @@ public class StreamMetadataTasks extends TaskBase {
                 this.retrieveDelegationToken()), executor);
     }
 
-    public CompletableFuture<Map<Long, Long>> getCurrentSegmentsSize(String scope, String stream, List<Long> segments) {
+    public CompletableFuture<Map<Long, Long>> getCurrentSegmentSizes(String scope, String stream, List<Long> segments) {
         return Futures.allOfWithResults(segments.stream().collect(
                 Collectors.toMap(x -> x, x -> getSegmentOffset(scope, stream, x, this.retrieveDelegationToken()))));
     }

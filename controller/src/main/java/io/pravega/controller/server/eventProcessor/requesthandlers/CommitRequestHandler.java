@@ -293,7 +293,7 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     // Note: if its a rerun, transaction commit offsets may have been updated already in previous iteration
                     // so this will not update/modify it. 
                     .thenCompose(v -> streamMetadataTasks.notifyTxnCommit(scope, stream, segments, txnId))
-                    .thenCompose(v -> streamMetadataTasks.getCurrentSegmentsSize(scope, stream, segments))
+                    .thenCompose(v -> streamMetadataTasks.getCurrentSegmentSizes(scope, stream, segments))
                     .thenCompose(map -> streamMetadataStore.recordCommitOffsets(scope, stream, txnId, map, context, executor));
         }
         return future;

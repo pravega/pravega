@@ -905,9 +905,9 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> removeWriter(String writer) {
+    public CompletableFuture<Void> removeWriterRecord(String writer, Version version) {
         return getWritersTable()
-                .thenCompose(table -> storeHelper.removeEntry(table, writer));
+                .thenCompose(table -> storeHelper.removeEntry(table, writer, version));
     }
 
     @Override
@@ -917,8 +917,9 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, Version version) {
-        WriterMark mark = new WriterMark(timestamp, position);
+    CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, 
+                                                   boolean isAlive, Version version) {
+        WriterMark mark = new WriterMark(timestamp, position, isAlive);
         return Futures.toVoid(getWritersTable()
                 .thenCompose(table -> storeHelper.updateEntry(table, writer, mark.toBytes(), version)));
     }

@@ -22,23 +22,30 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
-/**
- * This is a data class that represents a writer's mark. 
- * A writer sends a time and its position corresponding to the time.
- * This is data object where the information sent by the writer is recorded and serialized to be stored in underlying 
- * metadata store. 
+/* This is a data class that represents a writer mark. Writers send mark information
+ * for watermarking purposes, containing time and position.  A data object of this
+ * class records such writer information to be serialized and and store in the
+ * underlying metadata store.
  */
 @Data
 public class WriterMark {
     public static final WriterMarkSerializer SERIALIZER = new WriterMarkSerializer();
-    public static final WriterMark EMPTY = new WriterMark(Long.MIN_VALUE, ImmutableMap.of());
+    public static final WriterMark EMPTY = new WriterMark(Long.MIN_VALUE, ImmutableMap.of(), false);
     private final long timestamp;
     private final ImmutableMap<Long, Long> position;
-
-    @Builder
+    private final boolean isAlive;
+    
     public WriterMark(long timestamp, ImmutableMap<Long, Long> position) {
         this.timestamp = timestamp;
         this.position = position;
+        this.isAlive = true;
+    }
+
+    @Builder
+    public WriterMark(long timestamp, ImmutableMap<Long, Long> position, boolean isAlive) {
+        this.timestamp = timestamp;
+        this.position = position;
+        this.isAlive = isAlive;
     }
 
     public static class WriterMarkBuilder implements ObjectBuilder<WriterMark> {
@@ -74,11 +81,13 @@ public class WriterMark {
             ImmutableMap.Builder<Long, Long> mapBuilder = ImmutableMap.builder();
             revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, mapBuilder);
             builder.position(mapBuilder.build());
+            builder.isAlive(revisionDataInput.readBoolean());
         }
         
         private void write00(WriterMark writerMark, RevisionDataOutput revisionDataOutput) throws IOException {
             revisionDataOutput.writeLong(writerMark.timestamp);
             revisionDataOutput.writeMap(writerMark.position, DataOutput::writeLong, DataOutput::writeLong);
+            revisionDataOutput.writeBoolean(writerMark.isAlive);
         }
 
         @Override

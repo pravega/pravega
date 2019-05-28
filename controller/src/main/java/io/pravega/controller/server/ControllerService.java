@@ -537,12 +537,12 @@ public class ControllerService {
     }
  
     public CompletableFuture<Controller.WriterShutdownResponse> shutdownWriter(String scope, String stream, String writer) {
-        return streamStore.removeWriter(scope, stream, writer, null, executor)
+        return streamStore.shutdownWriter(scope, stream, writer, null, executor)
                 .handle((r, e) -> {
                     Controller.WriterShutdownResponse.Builder response = Controller.WriterShutdownResponse.newBuilder();
                     if (e != null) {
                         if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                            response.setResult(Controller.WriterShutdownResponse.Status.STREAM_DOES_NOT_EXIST);
+                            response.setResult(Controller.WriterShutdownResponse.Status.UNKNOWN_WRITER);
                         } else {
                             response.setResult(Controller.WriterShutdownResponse.Status.INTERNAL_ERROR);
                         }

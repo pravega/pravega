@@ -303,9 +303,22 @@ public class PravegaTablesStoreHelper {
      * It ignores DataNotFound exception. 
      */
     public CompletableFuture<Void> removeEntry(String tableName, String key) {
-        log.trace("remove entry called for : {} key : {}", tableName, key);
+        return removeEntry(tableName, key, null);
+    }
 
-        List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), null));
+    /**
+     * Method to remove entry from the store. 
+     * @param tableName tableName
+     * @param key key
+     * @param ver version for conditional removal
+     * @return CompletableFuture which when completed will indicate successful deletion of entry from the table. 
+     * It ignores DataNotFound exception. 
+     */
+    public CompletableFuture<Void> removeEntry(String tableName, String key, Version ver) {
+        log.trace("remove entry called for : {} key : {}", tableName, key);
+        KeyVersionImpl version = ver == null ? null : new KeyVersionImpl(ver.asLongVersion().getLongValue());
+
+        List<TableKey<byte[]>> keys = Collections.singletonList(new TableKeyImpl<>(key.getBytes(Charsets.UTF_8), version));
         return expectingDataNotFound(withRetries(() -> segmentHelper.removeTableKeys(
                 tableName, keys, authToken.get(), RequestTag.NON_EXISTENT_ID), 
                 () -> String.format("remove entry: key: %s table: %s", key, tableName)), null)

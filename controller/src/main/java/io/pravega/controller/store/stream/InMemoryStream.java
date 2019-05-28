@@ -717,7 +717,7 @@ public class InMemoryStream extends PersistentStreamBase {
                     activeTxns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, x -> x.getValue().getObject()))));
         }
     }
-    
+
     @Override
     CompletableFuture<List<Map.Entry<UUID, ActiveTxnRecord>>> getOrderedCommittingTxnInLowestEpoch() {
         List<Long> toPurge = new ArrayList<>();
@@ -982,12 +982,16 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> removeWriter(String writer) {
+    public CompletableFuture<Void> removeWriterRecord(String writer, Version version) {
         synchronized (writersLock) {
-            writerMarks.remove(writer);
+            VersionedMetadata<WriterMark> existing = writerMarks.get(writer);
+            if (existing != null && !Objects.equals(existing.getVersion(), version)) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "writer mark version mismatch"));
+            } else {
+                writerMarks.remove(writer);
+                return CompletableFuture.completedFuture(null);
+            }
         }
-
-        return CompletableFuture.completedFuture(null);
     }
 
     @Override
@@ -1016,9 +1020,10 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, Version version) {
+    CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, 
+                                                   boolean isAlive, Version version) {
         CompletableFuture<Void> result = new CompletableFuture<>();
-        VersionedMetadata<WriterMark> updatedCopy = updatedCopy(new VersionedMetadata<>(new WriterMark(timestamp, position), version));
+        VersionedMetadata<WriterMark> updatedCopy = updatedCopy(new VersionedMetadata<>(new WriterMark(timestamp, position, isAlive), version));
         synchronized (writersLock) {
             VersionedMetadata<WriterMark> existing = writerMarks.get(writer);
             if (existing == null) {

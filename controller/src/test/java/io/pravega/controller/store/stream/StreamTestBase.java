@@ -1423,7 +1423,7 @@ public abstract class StreamTestBase {
         assertEquals(marks.size(), 1);
         mark = stream.getWriterMarkRecord(writer).join();
         assertNotEquals(mark.getVersion(), version);
-        verify(stream, times(1)).updateWriterMarkRecord(anyString(), anyLong(), any(), any());
+        verify(stream, times(1)).updateWriterMarkRecord(anyString(), anyLong(), any(), anyBoolean(), any());
 
         AssertExtensions.assertFutureThrows("", stream.createWriterMarkRecord(writer, timestamp, immutablePos),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException);
@@ -1431,17 +1431,19 @@ public abstract class StreamTestBase {
         // update 
         mark = stream.getWriterMarkRecord(writer).join();
 
-        stream.updateWriterMarkRecord(writer, timestamp, immutablePos, mark.getVersion()).join();
+        stream.updateWriterMarkRecord(writer, timestamp, immutablePos, true, mark.getVersion()).join();
 
         // verify bad version on update
-        AssertExtensions.assertFutureThrows("", stream.updateWriterMarkRecord(writer, timestamp, immutablePos, mark.getVersion()),
+        AssertExtensions.assertFutureThrows("", stream.updateWriterMarkRecord(writer, timestamp, immutablePos, true, mark.getVersion()),
                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
 
+        mark = stream.getWriterMarkRecord(writer).join();
+
         // update deleted writer --> data not found
-        stream.removeWriter(writer).join();
+        stream.removeWriter(writer, mark.getObject()).join();
         marks = stream.getAllWritersMarks().join();
         assertEquals(marks.size(), 0);
-        AssertExtensions.assertFutureThrows("", stream.updateWriterMarkRecord(writer, timestamp, immutablePos, mark.getVersion()),
+        AssertExtensions.assertFutureThrows("", stream.updateWriterMarkRecord(writer, timestamp, immutablePos, true, mark.getVersion()),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
         // create writer record
