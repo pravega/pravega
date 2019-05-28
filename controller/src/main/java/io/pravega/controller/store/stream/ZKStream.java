@@ -680,9 +680,9 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Void> removeWriter(String writer) {
+    public CompletableFuture<Void> removeWriterRecord(String writer, Version version) {
         String writerPath = getWriterPath(writer);
-        return store.deletePath(writerPath, false);
+        return store.deleteNode(writerPath, version);
     }
 
     @Override
@@ -692,9 +692,10 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, Version version) {
+    CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position,
+                                                   boolean isAlive, Version version) {
         String writerPath = getWriterPath(writer);
-        WriterMark mark = new WriterMark(timestamp, position);
+        WriterMark mark = new WriterMark(timestamp, position, isAlive);
 
         return Futures.toVoid(store.setData(writerPath, mark.toBytes(), version));
     }

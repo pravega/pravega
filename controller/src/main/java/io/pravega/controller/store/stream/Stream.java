@@ -581,11 +581,21 @@ interface Stream {
     CompletableFuture<WriterTimestampResponse> noteWriterMark(String writer, long timestamp, Map<Long, Long> position);
 
     /**
-     * Method to remove writer specific metadata from the metadata store. Remove method is idempotent. 
+     * Method to set a writer to be shutting down for its writer mark record.
+     * 
      * @param writer writer id
+     * @return A completableFuture, which when completed, will have shutdown the writer.  
+     */
+    CompletableFuture<Void> shutdownWriter(String writer);
+
+    /**
+     * Method to remove writer specific metadata from the metadata store if existing writermark matches given writermark. 
+     * Remove method is idempotent. So if writer doesnt exist, this method will declare success. 
+     * @param writer writer id
+     * @param writerMark writer mark
      * @return A completableFuture, which when completed, will have removed writer metadata. 
      */
-    CompletableFuture<Void> removeWriter(String writer);
+    CompletableFuture<Void> removeWriter(String writer, WriterMark writerMark);
 
     /**
      * Method to retrieve writer's latest recorded mark.  

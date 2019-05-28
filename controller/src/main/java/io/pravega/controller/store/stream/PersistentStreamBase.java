@@ -1500,8 +1500,8 @@ public abstract class PersistentStreamBase implements Stream {
                     if (record == null) {
                         // Attempt to create a new record. It is possible that while we are attempting to create the record, 
                         // a concurrent request could have created it. 
-                        // For example: a writer sends a request to one of controller instances to note writer mark and 
-                        // the connection is dropped. It could then send the request to noteTime to a different controller 
+                        // For example: a writer sends a request to one controller instance to note a writer mark and the 
+                        // connection drops before it receives a confirmation. It could then send the request to noteTime to a different controller 
                         // instance. So two controller instances could attempt concurrent creation of mark for the said writer.
                         // In this case, we may have found mark to be inexistent when we did a get but it may have been created 
                         // when we attempt to create it. So immediately after attempting a create, if we get DataExists, 
@@ -1524,12 +1524,36 @@ public abstract class PersistentStreamBase implements Stream {
                         }
                         
                         // its a valid mark, update it
-                        return updateWriterMarkRecord(writer, timestamp, newPosition, record.getVersion())
+                        return updateWriterMarkRecord(writer, timestamp, newPosition, true, record.getVersion())
                                 .thenApply(v -> WriterTimestampResponse.SUCCESS);
                     }
                 });
     }
 
+    @Override
+    public CompletableFuture<Void> shutdownWriter(String writer) {
+        return getWriterMarkRecord(writer)
+               .thenCompose(record -> updateWriterMarkRecord(writer, record.getObject().getTimestamp(), record.getObject().getPosition(), 
+                       false, record.getVersion()));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriter(String writer, WriterMark writerMark) {
+        return Futures.exceptionallyExpecting(getWriterMarkRecord(writer), DATA_NOT_FOUND_PREDICATE, null)
+                      .thenCompose(record -> {
+                          if (record == null) {
+                              // do nothing
+                              return CompletableFuture.completedFuture(null);
+                          } else {
+                              if (writerMark.equals(record.getObject())) {
+                                  return removeWriterRecord(writer, record.getVersion());
+                              } else {
+                                  throw StoreException.create(StoreException.Type.WRITE_CONFLICT, 
+                                          "Writer mark supplied for removal doesn't match stored writer mark");
+                              }
+                          }
+                      });
+    }
 
     /**
      * Compares two given positions and returns true if position 2 is ahead of position 1. 
@@ -2032,7 +2056,9 @@ public abstract class PersistentStreamBase implements Stream {
 
     abstract CompletableFuture<VersionedMetadata<WriterMark>> getWriterMarkRecord(String writer);
 
-    abstract CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, Version version);
+    abstract CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, boolean isAlive, Version version);
+    
+    abstract CompletableFuture<Void> removeWriterRecord(String writer, Version version);
     // endregion
     // endregion
 }

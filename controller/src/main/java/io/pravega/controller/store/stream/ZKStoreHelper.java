@@ -84,6 +84,24 @@ public class ZKStoreHelper {
         return result;
     }
 
+    CompletableFuture<Void> deleteNode(final String path, final Version version) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            client.delete().withVersion(version.asIntVersion().getIntValue()).inBackground(
+                    callback(x -> result.complete(null),
+                            e -> {
+                                if (e instanceof StoreException.DataNotFoundException) { // deleted already
+                                    result.complete(null);
+                                } else {
+                                    result.completeExceptionally(e);
+                                }
+                            }, path), executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+        return result;
+    }
+
     // region curator client store access
 
     CompletableFuture<Void> deletePath(final String path, final boolean deleteEmptyContainer) {

@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
@@ -84,6 +85,17 @@ public class ZKStoreHelperTest {
         zkServer.stop();
         AssertExtensions.assertFutureThrows("Should throw UnknownException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.StoreConnectionException);
+    }
+    
+    @Test
+    public void testDeleteConditionally() {
+        String path = "/test/test/deleteConditionally";
+        zkStoreHelper.createZNode(path, new byte[0]).join();
+        VersionedMetadata<byte[]> data = zkStoreHelper.getData(path, x -> x).join();
+        zkStoreHelper.setData(path, data.getObject(), data.getVersion()).join();
+        AssertExtensions.assertFutureThrows("delete version mismatch",
+                zkStoreHelper.deleteNode(path, data.getVersion()),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
     }
 
     @Test
