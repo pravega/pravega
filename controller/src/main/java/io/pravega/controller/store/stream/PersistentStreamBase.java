@@ -1503,15 +1503,17 @@ public abstract class PersistentStreamBase implements Stream {
                         // For example: a writer sends a request to one controller instance to note a writer mark and the 
                         // connection drops before it receives a confirmation. It could then send the request to noteTime to a different controller 
                         // instance. So two controller instances could attempt concurrent creation of mark for the said writer.
-                        // In this case, we may have found mark to be inexistent when we did a get but it may have been created 
+                        // In this case, we may have found mark to be non existent when we did a get but it may have been created 
                         // when we attempt to create it. So immediately after attempting a create, if we get DataExists, 
-                        // we will call noteWriterMark recursively. 
-                        CompletableFuture<WriterTimestampResponse> future = createWriterMarkRecord(writer, timestamp, newPosition)
+                        // we will translate it to writeConflict and let the caller deal with it.
+                        return createWriterMarkRecord(writer, timestamp, newPosition)
+                                .exceptionally(e -> {
+                                    if (Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
+                                        throw StoreException.create(StoreException.Type.WRITE_CONFLICT, "writer mark exists");
+                                    }
+                                    throw new CompletionException(e);
+                                })
                                 .thenApply(v -> WriterTimestampResponse.SUCCESS);
-                        
-                        return Futures.exceptionallyComposeExpecting(future,
-                                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, 
-                                () -> noteWriterMark(writer, timestamp, position));
                     } else {
                         // sanity check and update
                         if (record.getObject().getTimestamp() > timestamp) {
