@@ -9,7 +9,6 @@
  */
 package io.pravega.controller.task.Stream;
 
-import com.google.common.collect.ImmutableMap;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;

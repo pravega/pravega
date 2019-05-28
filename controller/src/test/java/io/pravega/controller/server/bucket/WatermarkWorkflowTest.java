@@ -412,8 +412,7 @@ public class WatermarkWorkflowTest {
         streamMetadataStore.scaleSegmentsSealed(scope, streamName, sealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), response,
                 null, executor).join();
         streamMetadataStore.completeScale(scope, streamName, response, null, executor).join();
-        streamMetadataStore.setState(scope, streamName
-                , State.ACTIVE, null, executor).join();
+        streamMetadataStore.setState(scope, streamName, State.ACTIVE, null, executor).join();
     }
     
     class MockRevisionedStreamClient implements RevisionedStreamClient<Watermark> {
@@ -513,7 +512,7 @@ public class WatermarkWorkflowTest {
 
         @Override
         public int compareTo(@NonNull Revision o) {
-            return Integer.compare(id, ((MockRevision)o).id);
+            return Integer.compare(id, ((MockRevision) o).id);
         }
     }
 }

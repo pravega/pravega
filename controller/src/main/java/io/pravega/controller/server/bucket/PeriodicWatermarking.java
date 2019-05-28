@@ -62,7 +62,6 @@ import static java.util.AbstractMap.*;
 public class PeriodicWatermarking {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicWatermarking.class));
     private static final int MAX_CACHE_SIZE = 1000;
-    public static final long DELAY = 30000L;
     private final StreamMetadataStore streamMetadataStore;
     private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
@@ -127,7 +126,7 @@ public class PeriodicWatermarking {
                                        if (!watermarkClient.isWriterParticipating(x.getValue().getTimestamp())) {
                                            allActiveAreParticipating.set(false);
                                        }
-                                   } else if (!x.getValue().isAlive()){
+                                   } else if (!x.getValue().isAlive()) {
                                        stoppedAndInactive.add(x);
                                    }
                                });

@@ -12,7 +12,6 @@ package io.pravega.controller.store.stream;
 import com.google.common.collect.ImmutableMap;
 import io.netty.util.internal.ConcurrentSet;
 import io.pravega.controller.store.client.StoreType;
-import lombok.Getter;
 
 import java.util.Collections;
 import java.util.Set;

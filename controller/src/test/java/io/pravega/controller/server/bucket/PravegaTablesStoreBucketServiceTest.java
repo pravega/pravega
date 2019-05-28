@@ -22,7 +22,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {

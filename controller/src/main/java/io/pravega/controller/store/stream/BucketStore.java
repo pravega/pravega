@@ -31,7 +31,7 @@ public interface BucketStore {
     
     /**
      * Method to get count of buckets in the store.
-     *
+     * @param serviceType service type
      * @return number of buckets.
      */
     int getBucketCount(ServiceType serviceType);
