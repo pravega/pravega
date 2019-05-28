@@ -173,6 +173,18 @@ public class MetricsProviderTest {
      */
     @Test
     public void testGauge() {
+
+        // test gauge value supplier
+        String[] tags1 = {"tagKey", "tagValue"};
+        Gauge gauge1 = statsLogger.registerGauge("testGaugeFunctionNoTag", () -> 23);
+        Gauge gauge2 = statsLogger.registerGauge("testGaugeFunction", () -> 52, tags1);
+        assertEquals(23, (int) MetricRegistryUtils.getGauge("testGaugeFunctionNoTag").value());
+        assertEquals(52, (int) MetricRegistryUtils.getGauge("testGaugeFunction", tags1).value());
+        gauge1.setSupplier(() -> 32);
+        gauge2.setSupplier(() -> 25);
+        assertEquals(32, (int) MetricRegistryUtils.getGauge("testGaugeFunctionNoTag").value());
+        assertEquals(25, (int) MetricRegistryUtils.getGauge("testGaugeFunction", tags1).value());
+
         AtomicInteger value = new AtomicInteger(1);
         AtomicInteger value1 = new AtomicInteger(100);
         AtomicInteger value2 = new AtomicInteger(200);

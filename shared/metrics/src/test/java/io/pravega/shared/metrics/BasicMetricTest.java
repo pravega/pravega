@@ -77,8 +77,16 @@ public class BasicMetricTest {
     }
 
     @Test (expected = Exception.class)
-    public void testGaugeCreationException() {
-        statsLogger.registerGauge("testGauge", () -> 5, "tagName1", "tagValue1", "tagName2");
+    public void testGaugeCreationTagException() {
+        statsLogger.registerGauge("testGauge", () -> 5, "tagKey1", "tagValue1", "tagKey2");
+    }
+
+    @Test
+    public void testGaugeCreationFunctionException() {
+        Gauge noopGauge = statsLogger.registerGauge("testGauge", null, "tagKey", "tagValue");
+        assertTrue(noopGauge.getId() == null);
+        noopGauge.close();
+
     }
 
     @Test

@@ -47,13 +47,12 @@ public interface StatsLogger {
      * Register gauge.
      * <i>value</i> is usually get of Number: AtomicInteger::get, AtomicLong::get
      *
-     * @param <T>   the type of value
-     * @param name  the name of gauge
-     * @param tags  the tags associated with the Gauge.
-     * @param value the supplier to provide value through get()
+     * @param name          the name of gauge
+     * @param tags          the tags associated with the Gauge.
+     * @param valueSupplier the supplier to provide value through get()
      */
-    <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags);
-
+    Gauge registerGauge(String name, Supplier<Number> valueSupplier, String... tags);
+    
     /**
      * Create the stats logger under scope <i>scope</i>.
      *
