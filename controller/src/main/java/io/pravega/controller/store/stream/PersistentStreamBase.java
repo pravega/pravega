@@ -1503,15 +1503,17 @@ public abstract class PersistentStreamBase implements Stream {
                         // For example: a writer sends a request to one controller instance to note a writer mark and the 
                         // connection drops before it receives a confirmation. It could then send the request to noteTime to a different controller 
                         // instance. So two controller instances could attempt concurrent creation of mark for the said writer.
-                        // In this case, we may have found mark to be inexistent when we did a get but it may have been created 
+                        // In this case, we may have found mark to be non existent when we did a get but it may have been created 
                         // when we attempt to create it. So immediately after attempting a create, if we get DataExists, 
-                        // we will call noteWriterMark recursively. 
-                        CompletableFuture<WriterTimestampResponse> future = createWriterMarkRecord(writer, timestamp, newPosition)
+                        // we will translate it to writeConflict and let the caller deal with it.
+                        return createWriterMarkRecord(writer, timestamp, newPosition)
+                                .exceptionally(e -> {
+                                    if (Exceptions.unwrap(e) instanceof StoreException.DataExistsException) {
+                                        throw StoreException.create(StoreException.Type.WRITE_CONFLICT, "writer mark exists");
+                                    }
+                                    throw new CompletionException(e);
+                                })
                                 .thenApply(v -> WriterTimestampResponse.SUCCESS);
-                        
-                        return Futures.exceptionallyComposeExpecting(future,
-                                e -> Exceptions.unwrap(e) instanceof StoreException.DataExistsException, 
-                                () -> noteWriterMark(writer, timestamp, position));
                     } else {
                         // sanity check and update
                         if (record.getObject().getTimestamp() > timestamp) {
@@ -2052,12 +2054,41 @@ public abstract class PersistentStreamBase implements Stream {
     // endregion
 
     // region watermarking
+    /**
+     * Method to create new writer mark record. 
+     * @param writer writer id
+     * @param timestamp timestamp
+     * @param position position
+     * @return CompletableFuture which when completed will have writer mark created.  
+     * Implementation should throw DataExistsException if data exists
+     */
     abstract CompletableFuture<Void> createWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position);
 
+    /**
+     * Method to get writer mark record. 
+     * @param writer writer id
+     * @return CompletableFuture which when completed will contain writer's last reported mark.  
+     */
     abstract CompletableFuture<VersionedMetadata<WriterMark>> getWriterMarkRecord(String writer);
 
+    /**
+     * Method to update existing writer mark record. 
+     * @param writer writer id
+     * @param timestamp timestamp
+     * @param position position
+     * @param isAlive whether writer is shutdown or not
+     * @param version version of last record
+     * @return CompletableFuture which when completed will have writer mark updated.  
+     */
     abstract CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, boolean isAlive, Version version);
-    
+
+    /**
+     * Method to delete existing writer mark record conditionally. 
+     * @param writer writer id
+     * @param version version of last record
+     * @return CompletableFuture which when completed will have writer mark deleted.
+     * Can throw Write Conflict if delete version mismatches.
+     */
     abstract CompletableFuture<Void> removeWriterRecord(String writer, Version version);
     // endregion
     // endregion
