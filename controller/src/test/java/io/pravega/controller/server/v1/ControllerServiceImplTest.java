@@ -678,13 +678,13 @@ public abstract class ControllerServiceImplTest {
 
         ResultObserver<SegmentValidityResponse> result3 = new ResultObserver<>();
         AssertExtensions.assertThrows(
-                "Failed to throw when validating segment." ,
+                "Failed to throw when validating segment.",
                 () ->  this.controllerService.isSegmentValid(ModelHelper.createSegmentId("", STREAM1, 3), result3),
                 ex -> ex instanceof IllegalArgumentException);
 
         ResultObserver<SegmentValidityResponse> result4 = new ResultObserver<>();
         AssertExtensions.assertThrows(
-                "Failed to throw when validating segment." ,
+                "Failed to throw when validating segment.",
                 () -> this.controllerService.isSegmentValid(ModelHelper.createSegmentId(SCOPE1, "", 3), result4),
                 ex -> ex instanceof IllegalArgumentException);
     }
