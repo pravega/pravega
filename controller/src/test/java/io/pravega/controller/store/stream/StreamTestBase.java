@@ -1463,8 +1463,8 @@ public abstract class StreamTestBase {
         timestamp = 1L;
         position = Collections.singletonMap(0L, 2L);
 
-        stream.noteWriterMark(writer, timestamp, position).join();
-
+        AssertExtensions.assertFutureThrows("Expecting WriteConflict", stream.noteWriterMark(writer, timestamp, position),
+            e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
     }
 
     @Test(timeout = 30000L)

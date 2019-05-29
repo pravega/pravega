@@ -1209,7 +1209,9 @@ public abstract class PersistentStreamBase implements Stream {
 
     /**
      * This method takes the list of transactions in the committing transactions record, and tries to report marks
-     * for writers for these transactions, if they exist. 
+     * for writers for these transactions, if the information about writer is present in the record. The information 
+     * about writer and commit time is optionally provided by the client. A client not interested in watermarking may not 
+     * report writer id and time during commit request. Similarly older clients will not report writer id and time either.  
      * WriterId, commit time and commit offsets are recorded in ActiveTxnRecord for each transaction. 
      * For transactions where above fields are present, a mark is recorded for them. 
      * This method will ignore any INVALID_TIME or INVALID_POSITION related failures in noting marks for writers.
@@ -1589,7 +1591,7 @@ public abstract class PersistentStreamBase implements Stream {
                             });
         } 
         
-        return compareMaxes;
+        return false;
     }
 
     @Override
