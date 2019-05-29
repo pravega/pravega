@@ -32,6 +32,7 @@ import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
+import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
@@ -1423,9 +1424,14 @@ public class DurableLogTests extends OperationLogTestBase {
         for (int i = 0; i < expected.size(); i++) {
             Operation expectedItem = expected.get(i);
             Operation actualItem = actual.get(i);
-            OperationComparer.DEFAULT.assertEquals(
-                    String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
-                    expectedItem, actualItem);
+            if (expectedItem instanceof CheckpointOperationBase) {
+                Assert.assertNull("Recovered Checkpoint Operation did not have contents cleared up.", ((CheckpointOperationBase) actualItem).getContents());
+                Assert.assertEquals(" Unexpected Sequence Number", expectedItem.getSequenceNumber(), actualItem.getSequenceNumber());
+            } else {
+                OperationComparer.DEFAULT.assertEquals(
+                        String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
+                        expectedItem, actualItem);
+            }
         }
     }
 
