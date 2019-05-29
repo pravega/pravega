@@ -80,7 +80,7 @@ public class TaskStoreFactoryForTests {
             CompletableFuture<Void> future = super.lock(resource, taskData, owner, tag, oldOwner, oldTag);
 
             CompletableFuture<Void> lf = latch.get();
-            if(lf != null && first.getAndSet(false)) {
+            if (lf != null && first.getAndSet(false)) {
                 lf.join();
             } else if (lf != null) {
                 lf.complete(null);
@@ -119,7 +119,7 @@ public class TaskStoreFactoryForTests {
             CompletableFuture<Void> future = super.lock(resource, taskData, owner, tag, oldOwner, oldTag);
 
             CompletableFuture<Void> lf = latch.get();
-            if(lf != null && first.getAndSet(false)) {
+            if (lf != null && first.getAndSet(false)) {
                 lf.join();
             } else if (lf != null) {
                 lf.complete(null);
