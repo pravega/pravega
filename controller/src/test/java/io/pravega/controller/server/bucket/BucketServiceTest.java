@@ -74,11 +74,16 @@ public abstract class BucketServiceTest {
         retentionService.startAsync();
         retentionService.awaitRunning();
 
-        ClientConfig clientConfig = ClientConfig.builder().build();
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, clientConfig, executor);
         retentionService = bucketStoreFactory.createRetentionService(Duration.ofMillis(5), periodicRetention::retention, executor);
         retentionService.startAsync();
         retentionService.awaitRunning();
+
+        ClientConfig clientConfig = ClientConfig.builder().build();
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, clientConfig, executor);
+        watermarkingService = bucketStoreFactory.createWatermarkingService(Duration.ofMillis(5), periodicWatermarking::watermark, executor);
+
+        watermarkingService.startAsync();
+        watermarkingService.awaitRunning();
     }
 
     @After
