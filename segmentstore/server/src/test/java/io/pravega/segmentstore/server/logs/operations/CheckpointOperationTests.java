@@ -10,8 +10,11 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.util.ByteArraySegment;
+import io.pravega.test.common.AssertExtensions;
 import java.util.Random;
+import lombok.val;
 import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for all classes derived from the CheckpointOperationBase class.
@@ -46,5 +49,21 @@ public abstract class CheckpointOperationTests extends OperationTestsBase<Checkp
         } else if (isPreSerializationConfigRequired(operation)) {
             Assert.fail("isPreSerializationConfigRequired returned true but there is nothing to be done.");
         }
+    }
+
+    @Test
+    public void testSetClearContents() {
+        val rnd = new Random(0);
+        val op = createOperation(rnd);
+        byte[] data = new byte[10245];
+        rnd.nextBytes(data);
+        op.setContents(new ByteArraySegment(data));
+        AssertExtensions.assertThrows(
+                "setContents() allowed double-setting the contents.",
+                () -> op.setContents(new ByteArraySegment(data)),
+                ex -> ex instanceof IllegalStateException);
+        Assert.assertNotNull("setContents() did not set contents.", op.getContents());
+        op.clearContents();
+        Assert.assertNull("clearContents() did not clear the contents.", op.getContents());
     }
 }
