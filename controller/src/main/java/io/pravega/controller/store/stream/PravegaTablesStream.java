@@ -925,7 +925,7 @@ class PravegaTablesStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<String, WriterMark>> getAllWritersMarks() {
+    public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks() {
         Map<String, WriterMark> result = new ConcurrentHashMap<>();
 
         return getWritersTable()

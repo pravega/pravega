@@ -608,7 +608,7 @@ interface Stream {
      * Method to retrieve latest recorded mark for all known writers.  
      * @return A completableFuture, which when completed, will contain map of writer to respective marks.  
      */
-    CompletableFuture<Map<String, WriterMark>> getAllWritersMarks();
+    CompletableFuture<Map<String, WriterMark>> getAllWriterMarks();
 
     /**
      * Refresh the stream object. Typically to be used to invalidate any caches.
