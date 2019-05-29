@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -28,6 +29,7 @@ import io.pravega.segmentstore.server.SegmentMetadataComparer;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -979,8 +981,9 @@ public class ContainerMetadataUpdateTransactionTests {
         MetadataCheckpointOperation checkpoint2 = createMetadataCheckpoint();
 
         // Checkpoint 1 Should have original metadata.
-        processOperation(checkpoint1, txn, seqNo::incrementAndGet);
-        UpdateableContainerMetadata checkpointedMetadata = getCheckpointedMetadata(checkpoint1);
+        val checkpoint1Contents = processCheckpointOperation(checkpoint1, txn, seqNo::incrementAndGet);
+        Assert.assertNull("Expecting checkpoint contents to be cleared after processing.", checkpoint1.getContents());
+        UpdateableContainerMetadata checkpointedMetadata = getCheckpointedMetadata(checkpoint1Contents);
         assertMetadataSame("Unexpected metadata before any operation.", metadata, checkpointedMetadata);
 
         // Map another StreamSegment, and add an append
@@ -996,11 +999,12 @@ public class ContainerMetadataUpdateTransactionTests {
         val coreAttributeUpdates = Collections.singletonList(new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Replace, 1));
         processOperation(new StreamSegmentAppendOperation(mapOp.getStreamSegmentId(), DEFAULT_APPEND_DATA, coreAttributeUpdates),
                 txn, seqNo::incrementAndGet);
-        processOperation(checkpoint2, txn, seqNo::incrementAndGet);
+        val checkpoint2Contents = processCheckpointOperation(checkpoint2, txn, seqNo::incrementAndGet);
+        Assert.assertNull("Expecting checkpoint contents to be cleared after processing.", checkpoint2.getContents());
 
         // Checkpoint 2 should have Checkpoint 1 + New StreamSegment + Append.
         txn.commit(metadata);
-        checkpointedMetadata = getCheckpointedMetadata(checkpoint2);
+        checkpointedMetadata = getCheckpointedMetadata(checkpoint2Contents);
 
         // Checkpointing will remove all Extended Attributes. In order to facilitate the comparison, we should remove those
         // too, from the original metadata (after we've serialized the checkpoint).
@@ -1035,16 +1039,17 @@ public class ContainerMetadataUpdateTransactionTests {
         segmentMetadata1.markSealed(); // Need to mark segment sealed before being able to set sealed in storage.
 
         // Take a full snapshot of the metadata before making any changes.
-        val fullCheckpoint1 = createMetadataCheckpoint();
-        processOperation(fullCheckpoint1, txn1, seqNo::incrementAndGet);
+        val checkpointOperation1 = createMetadataCheckpoint();
+        val fullCheckpoint = processCheckpointOperation(checkpointOperation1, txn1, seqNo::incrementAndGet);
 
         // Update the storage state for this segment: increment its length and mark it as sealed in storage.
         segmentMetadata1.setStorageLength(segmentMetadata1.getStorageLength() + 1);
         segmentMetadata1.markSealedInStorage();
 
         // Take a storage checkpoint.
-        val storageCheckpoint = createStorageMetadataCheckpoint();
-        processOperation(storageCheckpoint, txn1, seqNo::incrementAndGet);
+        val checkpointOperation2 = createStorageMetadataCheckpoint();
+        val storageCheckpoint = processCheckpointOperation(checkpointOperation2, txn1, seqNo::incrementAndGet);
+        Assert.assertNull("Expected storage checkpoint operation contents to be null after processing.", checkpointOperation2.getContents());
 
         // Apply current metadata.
         txn1.commit(metadata1);
@@ -1053,8 +1058,9 @@ public class ContainerMetadataUpdateTransactionTests {
         val metadata2 = createBlankMetadata();
         metadata2.enterRecoveryMode();
         val txn2 = createUpdateTransaction(metadata2);
-        processOperation(fullCheckpoint1, txn2, () -> 1L);
-        txn2.preProcessOperation(storageCheckpoint);
+        processOperation(createCheckpoint(MetadataCheckpointOperation::new, fullCheckpoint, checkpointOperation1.getSequenceNumber()), txn2, () -> 1L);
+
+        txn2.preProcessOperation(createCheckpoint(StorageMetadataCheckpointOperation::new, storageCheckpoint, checkpointOperation2.getSequenceNumber()));
         txn2.commit(metadata2);
         metadata2.exitRecoveryMode();
 
@@ -1075,8 +1081,8 @@ public class ContainerMetadataUpdateTransactionTests {
         // Create a non-empty metadata.
         UpdateableContainerMetadata metadata = createMetadata();
         val txn = createUpdateTransaction(metadata);
-        MetadataCheckpointOperation checkpointedMetadata = createMetadataCheckpoint();
-        processOperation(checkpointedMetadata, txn, seqNo::incrementAndGet);
+        MetadataCheckpointOperation op1 = createMetadataCheckpoint();
+        val checkpoint1 = processCheckpointOperation(op1, txn, seqNo::incrementAndGet);
 
         // Create a blank metadata, and add an operation to the updater (which would result in mapping a new StreamSegment).
         metadata = createBlankMetadata();
@@ -1087,7 +1093,9 @@ public class ContainerMetadataUpdateTransactionTests {
         processOperation(mapOp, txn2, seqNo::incrementAndGet);
 
         // Now try to process the checkpoint
-        processOperation(checkpointedMetadata, txn2, seqNo::incrementAndGet);
+        MetadataCheckpointOperation op2 = createCheckpoint(MetadataCheckpointOperation::new, checkpoint1, op1.getSequenceNumber());
+        processOperation(op2, txn2, seqNo::incrementAndGet);
+        Assert.assertNull("Expected checkpoint operation contents to be null after processing.", op2.getContents());
         txn2.commit(metadata);
 
         // Verify the checkpointed metadata hasn't been applied
@@ -1479,6 +1487,13 @@ public class ContainerMetadataUpdateTransactionTests {
         return new StorageMetadataCheckpointOperation();
     }
 
+    private <T extends CheckpointOperationBase> T createCheckpoint(Supplier<T> constructor, ByteArraySegment contents, long sequenceNumber) {
+        val op = constructor.get();
+        op.setSequenceNumber(sequenceNumber);
+        op.setContents(contents);
+        return op;
+    }
+
     private void processOperation(Operation operation, ContainerMetadataUpdateTransaction txn, Supplier<Long> getSeqNo) throws Exception {
         txn.preProcessOperation(operation);
         if (operation.getSequenceNumber() < 0) {
@@ -1488,10 +1503,24 @@ public class ContainerMetadataUpdateTransactionTests {
         txn.acceptOperation(operation);
     }
 
-    private UpdateableContainerMetadata getCheckpointedMetadata(MetadataCheckpointOperation operation) throws Exception {
+    private ByteArraySegment processCheckpointOperation(CheckpointOperationBase operation, ContainerMetadataUpdateTransaction txn, Supplier<Long> getSeqNo) throws Exception {
+        txn.preProcessOperation(operation);
+        if (operation.getSequenceNumber() < 0) {
+            operation.setSequenceNumber(getSeqNo.get());
+        }
+
+        ByteArraySegment contents = operation.getContents();
+        txn.acceptOperation(operation);
+        return contents;
+    }
+
+    private UpdateableContainerMetadata getCheckpointedMetadata(ByteArraySegment metadataCheckpointContents) throws Exception {
         UpdateableContainerMetadata metadata = createBlankMetadata();
         metadata.enterRecoveryMode();
         val txn = createUpdateTransaction(metadata);
+        val operation = new MetadataCheckpointOperation();
+        operation.setSequenceNumber(1L);
+        operation.setContents(metadataCheckpointContents);
         processOperation(operation, txn, () -> 1L);
         txn.commit(metadata);
         return metadata;
