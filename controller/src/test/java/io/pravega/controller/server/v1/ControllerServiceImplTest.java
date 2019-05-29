@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -314,12 +315,11 @@ public abstract class ControllerServiceImplTest {
         this.blockCriticalSection();
         this.controllerService.createStream(ModelHelper.decode(SCOPE1, "locking", configuration), result1);
         this.controllerService.createStream(ModelHelper.decode(SCOPE1, "locking", configuration), result2);
-        this.unblockCriticalSection();
         AssertExtensions.assertThrows(
                 "Concurrent call to create stream did not fail to lock or has thrown something else.",
                 () -> {
-                    result1.get();
                     result2.get();
+                    result1.get();
                 },
                 ex -> ex.getCause() instanceof LockFailedException);
     }
@@ -781,8 +781,4 @@ public abstract class ControllerServiceImplTest {
      */
     abstract void blockCriticalSection();
 
-    /**
-     * Unblocks critical section blocked with {@link ControllerServiceImplTest#blockCriticalSection()}.
-     */
-    abstract void unblockCriticalSection();
 }

@@ -17,6 +17,7 @@ import org.apache.curator.framework.CuratorFramework;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -49,11 +50,6 @@ public class TaskStoreFactoryForTests {
          * Blocks a critical section
          */
         void blockCriticalSection();
-
-        /**
-         * Unblocks a critical section
-         */
-        void unblockCriticalSection();
     }
 
     /**
@@ -61,21 +57,17 @@ public class TaskStoreFactoryForTests {
      */
     public static class ZKTaskMetadataStoreForTests extends ZKTaskMetadataStore implements TaskMetadataStoreExtensions {
 
-        private final AtomicReference<CompletableFuture<Void>> latch = new AtomicReference<>(new CompletableFuture<Void>());
+        private final AtomicReference<CompletableFuture<Void>> latch = new AtomicReference<>(null);
+        private final AtomicBoolean first = new AtomicBoolean();
 
         ZKTaskMetadataStoreForTests(CuratorFramework client, ScheduledExecutorService executor) {
             super(client, executor);
-            this.latch.get().complete(null);
         }
 
         @Override
         public void blockCriticalSection() {
-            latch.set(new CompletableFuture<>());
-        }
-
-        @Override
-        public void unblockCriticalSection() {
-            latch.get().complete(null);
+            this.latch.set(new CompletableFuture<>());
+            this.first.set(true);
         }
 
         @Override
@@ -86,7 +78,13 @@ public class TaskStoreFactoryForTests {
                                             final String oldOwner,
                                             final String oldTag) {
             CompletableFuture<Void> future = super.lock(resource, taskData, owner, tag, oldOwner, oldTag);
-            this.latch.get().join();
+
+            CompletableFuture<Void> lf = latch.get();
+            if(lf != null && first.getAndSet(false)) {
+                lf.join();
+            } else if (lf != null) {
+                lf.complete(null);
+            }
 
             return future;
         }
@@ -98,22 +96,17 @@ public class TaskStoreFactoryForTests {
     public static class InMemoryTaskMetadataStoreForTests extends InMemoryTaskMetadataStore
             implements TaskMetadataStoreExtensions {
 
-        private final AtomicReference<CompletableFuture<Void>> latch =
-                new AtomicReference<>(new CompletableFuture<Void>());
+        private final AtomicReference<CompletableFuture<Void>> latch = new AtomicReference<>(null);
+        private final AtomicBoolean first = new AtomicBoolean();
 
         InMemoryTaskMetadataStoreForTests(ScheduledExecutorService executor) {
             super(executor);
-            this.latch.get().complete(null);
         }
 
         @Override
         public void blockCriticalSection() {
-            latch.set(new CompletableFuture<>());
-        }
-
-        @Override
-        public void unblockCriticalSection() {
-            latch.get().complete(null);
+            this.latch.set(new CompletableFuture<>());
+            this.first.set(true);
         }
 
         @Override
@@ -124,7 +117,13 @@ public class TaskStoreFactoryForTests {
                                             final String oldOwner,
                                             final String oldTag) {
             CompletableFuture<Void> future = super.lock(resource, taskData, owner, tag, oldOwner, oldTag);
-            this.latch.get().join();
+
+            CompletableFuture<Void> lf = latch.get();
+            if(lf != null && first.getAndSet(false)) {
+                lf.join();
+            } else if (lf != null) {
+                lf.complete(null);
+            }
 
             return future;
         }
