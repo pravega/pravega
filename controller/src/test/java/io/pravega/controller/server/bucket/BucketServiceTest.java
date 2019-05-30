@@ -79,7 +79,7 @@ public abstract class BucketServiceTest {
         retentionService.awaitRunning();
 
         ClientConfig clientConfig = ClientConfig.builder().build();
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, clientConfig, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, streamMetadataTasks, clientConfig, executor);
         watermarkingService = bucketStoreFactory.createWatermarkingService(Duration.ofMillis(5), periodicWatermarking::watermark, executor);
 
         watermarkingService.startAsync();

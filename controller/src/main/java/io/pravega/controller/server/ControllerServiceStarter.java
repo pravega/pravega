@@ -36,6 +36,7 @@ import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.client.StoreClient;
@@ -168,7 +169,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             Host host = new Host(hostName, getPort(), UUID.randomUUID().toString());
 
             // Create a RequestTracker instance to trace client requests end-to-end.
-            RequestTracker requestTracker = new RequestTracker(serviceConfig.getGRPCServerConfig().get().isRequestTracingEnabled());
+            GRPCServerConfig grpcServerConfig = serviceConfig.getGRPCServerConfig().get();
+            RequestTracker requestTracker = new RequestTracker(grpcServerConfig.isRequestTracingEnabled());
 
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
@@ -180,17 +182,17 @@ public class ControllerServiceStarter extends AbstractIdleService {
             }
 
             ClientConfig clientConfig = ClientConfig.builder()
-                                                    .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
-                                                                          "tls://" : "tcp://") + "localhost"))
-                                                    .trustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
+                                                    .controllerURI(URI.create((grpcServerConfig.isTlsEnabled() ?
+                                                                          "tls://" : "tcp://") + "localhost:" + grpcServerConfig.getPort()))
+                                                    .trustStore(grpcServerConfig.getTlsTrustStore())
                                                     .validateHostName(false)
                                                     .build();
 
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
             segmentHelperRef.compareAndSet(null, new SegmentHelper(connectionFactory, hostStore));
 
-            AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
+            AuthHelper authHelper = new AuthHelper(grpcServerConfig.isAuthorizationEnabled(),
+                    grpcServerConfig.getTokenSigningKey());
             
             SegmentHelper segmentHelper = segmentHelperRef.get();
             log.info("Creating the stream store");
@@ -211,8 +213,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
             retentionService.startAsync();
             retentionService.awaitRunning();
 
-            Duration executionDurationWatermarking = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
-            PeriodicWatermarking watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore, clientConfig, watermarkingExecutor);
+            Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
+            PeriodicWatermarking watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
+                    streamMetadataTasks, clientConfig, watermarkingExecutor);
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
 
@@ -244,8 +247,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
-            setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey()));
+            setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
+                    grpcServerConfig.getTokenSigningKey()));
 
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 // Create ControllerEventProcessor object.
@@ -279,7 +282,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
-                grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get(), requestTracker);
+                grpcServer = new GRPCServer(controllerService, grpcServerConfig, requestTracker);
                 grpcServer.startAsync();
                 log.info("Awaiting start of rpc server");
                 grpcServer.awaitRunning();

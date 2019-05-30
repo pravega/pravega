@@ -22,6 +22,7 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
@@ -32,6 +33,9 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.VersionedMetadata;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.stream.api.grpc.v1.Controller;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
@@ -51,6 +55,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -60,6 +65,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -70,6 +76,8 @@ public class WatermarkWorkflowTest {
 
     StreamMetadataStore streamMetadataStore;
     BucketStore bucketStore;
+    StreamMetadataTasks streamMetadataTasks;
+
     ScheduledExecutorService executor;
     
     @Before
@@ -88,6 +96,10 @@ public class WatermarkWorkflowTest {
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 3,
                 BucketStore.ServiceType.WatermarkingService, 3);
         bucketStore = StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
+
+        streamMetadataTasks = new StreamMetadataTasks(streamMetadataStore, bucketStore, TaskStoreFactory.createInMemoryStore(executor),
+                SegmentHelperMock.getSegmentHelperMock(), executor, "hostId", AuthHelper.getDisabledAuthHelper(), new RequestTracker(false));
+
     }
     
     @After
@@ -251,8 +263,8 @@ public class WatermarkWorkflowTest {
                }
             });
         };
-        
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, supplier, executor);
+
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, streamMetadataTasks, supplier, executor);
 
         String streamName = "stream";
         String scope = "scope";
@@ -283,7 +295,7 @@ public class WatermarkWorkflowTest {
         // verify that a watermark has been emitted. 
         // this should emit a watermark that contains all three segments with offsets = 200L
         // and timestamp = 100L
-        MockRevisionedStreamClient revisionedClient = revisionedStreamClientMap.get(StreamSegmentNameUtils.getMarkSegmentForStream(scope, streamName));
+        MockRevisionedStreamClient revisionedClient = revisionedStreamClientMap.get(StreamSegmentNameUtils.getMarkForStream(streamName));
         assertEquals(revisionedClient.watermarks.size(), 1);
         Watermark watermark = revisionedClient.watermarks.get(0).getValue();
         assertEquals(watermark.getTimestamp(), 100L);

@@ -173,7 +173,7 @@ public final class Config {
     private static final Property<Integer> PROPERTY_TXN_MAX_LEASE = Property.named("transaction.maxLeaseValue", 120000);
     private static final Property<Integer> PROPERTY_TXN_TTL_HOURS = Property.named("transaction.ttlHours", 24);
 
-    private static final Property<Integer> PROPERTY_WATERMARKING_FREQUENCY_SECONDS = Property.named("watermarking.frequencySeconds", 30);
+    private static final Property<Integer> PROPERTY_WATERMARKING_FREQUENCY_SECONDS = Property.named("watermarking.frequencySeconds", 10);
     private static final Property<Integer> PROPERTY_WATERMARKING_BUCKET_COUNT = Property.named("watermarking.bucketCount", 100);
     private static final Property<Integer> PROPERTY_WATERMARKING_THREAD_COUNT = Property.named("watermarking.threadCount", 10);
 

@@ -70,6 +70,7 @@ public final class StreamSegmentNameUtils {
      * This is used in composing table names as `scope`/_tables
      */
     private static final String TABLES = "_tables";
+    private static final String MARK = "_MARK";
 
     //endregion
 
@@ -368,12 +369,9 @@ public final class StreamSegmentNameUtils {
     // endregion
     
     // region watermark
-    public static String getMarkSegmentForStream(String scope, String stream) {
+    public static String getMarkForStream(String stream) {
         StringBuffer sb = new StringBuffer();
-        if (!Strings.isNullOrEmpty(scope)) {
-            sb.append(scope);
-            sb.append("/_Mark");
-        }
+        sb.append(MARK);
         sb.append(stream);
         return sb.toString();
     }

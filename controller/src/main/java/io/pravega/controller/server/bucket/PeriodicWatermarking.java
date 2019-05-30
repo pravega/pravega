@@ -21,7 +21,9 @@ import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -30,6 +32,7 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
+import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.common.tracing.TagLogger;
@@ -57,25 +60,28 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.AbstractMap.*;
+import static java.util.AbstractMap.SimpleEntry;
+import static java.util.Map.Entry;
 
 public class PeriodicWatermarking {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicWatermarking.class));
     private static final int MAX_CACHE_SIZE = 1000;
     private final StreamMetadataStore streamMetadataStore;
+    private final StreamMetadataTasks streamMetadataTasks;
     private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
     private final LoadingCache<Stream, WatermarkClient> watermarkClientCache;
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
-                                ClientConfig clientConfig, ScheduledExecutorService executor) {
-        this(streamMetadataStore, bucketStore, stream -> new WatermarkClient(stream, clientConfig), executor);
+                                StreamMetadataTasks streamMetadataTasks, ClientConfig clientConfig, ScheduledExecutorService executor) {
+        this(streamMetadataStore, bucketStore, streamMetadataTasks, stream -> new WatermarkClient(stream, clientConfig), executor);
     }
 
     @VisibleForTesting
-    public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
+    public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
                                 Function<Stream, WatermarkClient> watermarkClientSupplier, ScheduledExecutorService executor) {
         this.streamMetadataStore = streamMetadataStore;
+        this.streamMetadataTasks = streamMetadataTasks;
         this.bucketStore = bucketStore;
         this.executor = executor;
         this.watermarkClientCache = CacheBuilder.newBuilder()
@@ -110,10 +116,37 @@ public class PeriodicWatermarking {
         log.debug("Periodic background processing for watermarking called for stream {}/{}",
                 scope, streamName);
         
-        return Futures.exceptionallyExpecting(streamMetadataStore.getAllWritersMarks(scope, streamName, context, executor),
+        return Futures.exceptionallyExpecting(streamMetadataStore.getAllWriterMarks(scope, streamName, context, executor),
                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyMap())
                            .thenCompose(writers -> {
                                WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
+                               CompletableFuture<Void> future;
+                               if (watermarkClient.isStreamCreated()) {
+                                   future = CompletableFuture.completedFuture(null);
+                               } else {
+                                   // create the stream first time
+                                   future = streamMetadataTasks.createStream(scope, StreamSegmentNameUtils.getMarkForStream(streamName), 
+                                           StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis())
+                                           .thenAccept(status -> {
+                                               switch (status) {
+                                                   case SUCCESS:
+                                                   case STREAM_EXISTS:
+                                                       watermarkClient.setStreamCreated();
+                                                       break;
+                                                   default:
+                                                       throw new RuntimeException("Failed to create mark segment. " +
+                                                               "Will be retried in subsequent watermarking iteration");
+                                               }
+                                           });
+                               }
+
+                               return future.thenApply(v -> new SimpleEntry<>(watermarkClient, writers));
+                                
+                           })
+                           .thenCompose(pair -> {
+                               WatermarkClient watermarkClient = pair.getKey();
+                               Map<String, WriterMark> writers = pair.getValue();
+                               
                                watermarkClient.reinitialize();
 
                                // 1. filter writers that are active.
@@ -342,9 +375,11 @@ public class PeriodicWatermarking {
     static class WatermarkClient {
         private static final int WINDOW_SIZE = 2;
         private final RevisionedStreamClient<Watermark> client;
+        private final AtomicBoolean streamCreated = new AtomicBoolean(false);
         
         @GuardedBy("$Lock")
         private List<Map.Entry<Revision, Watermark>> entries;
+        private final AtomicReference<Revision> markRevision = new AtomicReference<>();
         private AtomicInteger windowStart;
         private final int windowSize;
 
@@ -355,12 +390,20 @@ public class PeriodicWatermarking {
         @VisibleForTesting
         WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory) {
             this.client = clientFactory.createRevisionedStreamClient(
-                    StreamSegmentNameUtils.getMarkSegmentForStream(stream.getScope(), stream.getStreamName()), 
+                    StreamSegmentNameUtils.getMarkForStream(stream.getStreamName()), 
                     new WatermarkSerializer(), SynchronizerConfig.builder().build());
             this.windowStart = new AtomicInteger();
             windowSize = WINDOW_SIZE;
         }
 
+        private void setStreamCreated() {
+            streamCreated.set(true);    
+        }
+
+        private boolean isStreamCreated() {
+            return streamCreated.get();    
+        }
+        
         @Synchronized
         private Map.Entry<Revision, Watermark> getLatestEntry() {
             return entries.isEmpty() ? null : entries.get(entries.size() - 1);
@@ -409,11 +452,17 @@ public class PeriodicWatermarking {
         void reinitialize() {
             Revision revision = client.getMark();
             // revision can be null if no window has been set yet. 
+            if (revision == null) {
+                revision = client.fetchOldestRevision();                
+            }
+            
+            markRevision.set(revision);
+            
             entries = Lists.newArrayList(client.readFrom(revision));
             
             // If there are no watermarks or there is no previous window recorded, in either case we set watermark start 
             // to MIN_VALUE
-            int index = entries.isEmpty() || revision == null ? Integer.MIN_VALUE : 0;
+            int index = entries.isEmpty() ? Integer.MIN_VALUE : 0;
             
             if (entries.size() > windowSize) {
                 index = entries.size() - windowSize - 1;
@@ -432,7 +481,7 @@ public class PeriodicWatermarking {
             Revision newRevision;
             if (newWatermark != null) {
                 // conditional update
-                Revision revision = latest == null ? null : latest.getKey();
+                Revision revision = latest == null ? markRevision.get() : latest.getKey();
                 newRevision = client.writeConditionally(revision, newWatermark);
                 if (newRevision == null) {
                     return;
