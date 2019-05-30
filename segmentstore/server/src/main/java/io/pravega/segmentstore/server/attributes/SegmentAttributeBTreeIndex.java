@@ -26,6 +26,7 @@ import io.pravega.common.util.btree.PageEntry;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
@@ -56,6 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -139,12 +141,12 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                                .build();
 
         this.cacheEntries = new HashMap<>();
-        this.traceObjectId = String.format("AttributeIndex[%s]", this.segmentMetadata.getId());
+        this.traceObjectId = String.format("AttributeIndex[%d-%d]", this.segmentMetadata.getContainerId(), this.segmentMetadata.getId());
         this.closed = new AtomicBoolean();
     }
 
     /**
-     * Initializes the SegmentAttributeIndex by inspecting the AttributeSegmentFile and creating it if needed.
+     * Initializes the SegmentAttributeIndex.
      *
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the operation has succeeded.
@@ -154,19 +156,21 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         Preconditions.checkState(!this.index.isInitialized(), "SegmentAttributeIndex is already initialized.");
         String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
 
-        // Attempt to open the Attribute Segment; if it does not exist yet then create it.
+        // Attempt to open the Attribute Segment; if it does not exist do not create it now. It will be created when we
+        // make the first write.
         return Futures
-                .exceptionallyComposeExpecting(
+                .exceptionallyExpecting(
                         this.storage.openWrite(attributeSegmentName).thenAccept(this.handle::set),
                         ex -> ex instanceof StreamSegmentNotExistsException,
-                        () -> this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timer.getRemaining()).thenAccept(this.handle::set))
+                        null)
                 .thenComposeAsync(v -> this.index.initialize(timer.getRemaining()), this.executor)
                 .thenRun(() -> log.debug("{}: Initialized.", this.traceObjectId))
                 .exceptionally(this::handleIndexOperationException);
     }
 
     /**
-     * Deletes all the Attribute data associated with the given Segment.
+     * Deletes all the Attribute data associated with the given Segment. This operation will have no effect if the
+     * Attribute Segment associated with the given Segment does not exist.
      *
      * @param segmentName The name of the Segment whose attribute data should be deleted.
      * @param storage     A Storage Adapter to execute the deletion on.
@@ -334,8 +338,14 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     @Override
     public CompletableFuture<Void> seal(@NonNull Duration timeout) {
         ensureInitialized();
+        SegmentHandle handle = this.handle.get();
+        if (handle == null) {
+            // Empty Attribute Index. There is no point in sealing since we won't be allowed to update anything new from now on.
+            return CompletableFuture.completedFuture(null);
+        }
+
         return Futures.exceptionallyExpecting(
-                this.storage.seal(this.handle.get(), timeout)
+                this.storage.seal(handle, timeout)
                             .thenRun(() -> log.info("{}: Sealed.", this.traceObjectId)),
                 ex -> ex instanceof StreamSegmentSealedException,
                 null);
@@ -363,6 +373,36 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     @Override
     public String toString() {
         return this.traceObjectId;
+    }
+
+    /**
+     * Creates the Attribute Segment in Storage if it is not already created. If it exists already, the given task is
+     * executed immediately, otherwise it is executed only after the Attribute Segment is created.
+     *
+     * @param toRun   The task to execute.
+     * @param timeout Timeout for the operation.
+     * @param <T>     Return type.
+     * @return A CompletableFuture that will be completed with the result (or failure cause) of the given task toRun.
+     */
+    private <T> CompletableFuture<T> createAttributeSegmentIfNecessary(Supplier<CompletableFuture<T>> toRun, Duration timeout) {
+        if (this.handle.get() == null) {
+            String attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(this.segmentMetadata.getName());
+            return Futures
+                    .exceptionallyComposeExpecting(
+                            this.storage.create(attributeSegmentName, this.config.getAttributeSegmentRollingPolicy(), timeout),
+                            ex -> ex instanceof StreamSegmentExistsException,
+                            () -> {
+                                log.info("{}: Attribute Segment did not exist in Storage when initialize() was called, but does now.", this.traceObjectId);
+                                return this.storage.openWrite(attributeSegmentName);
+                            })
+                    .thenComposeAsync(handle -> {
+                        this.handle.set(handle);
+                        return toRun.get();
+                    }, this.executor);
+        } else {
+            // Attribute Segment already exists.
+            return toRun.get();
+        }
     }
 
     /**
@@ -447,7 +487,12 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     }
 
     private CompletableFuture<Long> getLength(Duration timeout) {
-        return this.storage.getStreamSegmentInfo(this.handle.get().getSegmentName(), timeout)
+        SegmentHandle handle = this.handle.get();
+        if (handle == null) {
+            return CompletableFuture.completedFuture(0L);
+        }
+
+        return this.storage.getStreamSegmentInfo(handle.getSegmentName(), timeout)
                            .thenApply(SegmentProperties::getLength);
     }
 
@@ -459,13 +504,26 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         }
 
         // Cache miss; load data from Storage.
-        byte[] buffer = new byte[length];
-        return this.storage.read(this.handle.get(), offset, buffer, 0, length, timeout)
-                           .thenApplyAsync(bytesRead -> {
-                               Preconditions.checkArgument(length == bytesRead, "Unexpected number of bytes read.");
-                               storeInCache(offset, buffer);
-                               return new ByteArraySegment(buffer);
-                           }, this.executor);
+        SegmentHandle handle = this.handle.get();
+        if (handle == null) {
+            // Attribute Segment does not exist.
+            if (offset == 0 && length == 0) {
+                // Reading 0 bytes at offset 0 is a valid operation (inexistent Attribute Segment is equivalent to an empty one).
+                return CompletableFuture.completedFuture(new ByteArraySegment(new byte[0]));
+            } else {
+                return Futures.failedFuture(new ArrayIndexOutOfBoundsException(String.format(
+                        "Attribute Index Segment has not been created yet. Cannot read %d byte(s) from offset (%d).",
+                        length, offset)));
+            }
+        } else {
+            byte[] buffer = new byte[length];
+            return this.storage.read(handle, offset, buffer, 0, length, timeout)
+                               .thenApplyAsync(bytesRead -> {
+                                   Preconditions.checkArgument(length == bytesRead, "Unexpected number of bytes read.");
+                                   storeInCache(offset, buffer);
+                                   return new ByteArraySegment(buffer);
+                               }, this.executor);
+        }
     }
 
     private CompletableFuture<Long> writePages(List<Map.Entry<Long, ByteArraySegment>> pages, Collection<Long> obsoleteOffsets,
@@ -487,11 +545,9 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
             length.addAndGet(pageContents.getLength());
         }
 
-        // Stitch the collected Input Streams and write them to Storage.
-        val toWrite = new SequenceInputStream(Collections.enumeration(streams));
+        // Create the Attribute Segment in Storage (if needed), then write the new data to it and truncate if necessary.
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.storage
-                .write(this.handle.get(), writeOffset, toWrite, length.get(), timer.getRemaining())
+        return createAttributeSegmentIfNecessary(() -> writeToSegment(streams, writeOffset, length.get(), timer), timer.getRemaining())
                 .thenComposeAsync(v -> {
                     if (this.storage.supportsTruncation() && truncateOffset >= 0) {
                         return this.storage.truncate(this.handle.get(), truncateOffset, timer.getRemaining());
@@ -508,6 +564,12 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
                     // Return the current length of the Segment Attribute Index.
                     return writeOffset + length.get();
                 }, this.executor);
+    }
+
+    private CompletableFuture<Void> writeToSegment(List<InputStream> streams, long writeOffset, int length, TimeoutTimer timer) {
+        // Stitch the collected Input Streams and write them to Storage.
+        val toWrite = new SequenceInputStream(Collections.enumeration(streams));
+        return this.storage.write(this.handle.get(), writeOffset, toWrite, length, timer.getRemaining());
     }
 
     private byte[] getFromCache(long offset, int length) {
