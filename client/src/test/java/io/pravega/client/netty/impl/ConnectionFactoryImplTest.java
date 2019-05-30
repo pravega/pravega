@@ -32,13 +32,16 @@ import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
+
 import java.io.File;
 import java.net.URI;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
+
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -61,7 +64,7 @@ public class ConnectionFactoryImplTest {
         if (ssl) {
             try {
                 sslCtx = SslContextBuilder.forServer(new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
-                             new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)).build();
+                        new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)).build();
             } catch (SSLException e) {
                 throw new RuntimeException(e);
             }
@@ -82,23 +85,23 @@ public class ConnectionFactoryImplTest {
 
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
-         .channel(nio ? NioServerSocketChannel.class : EpollServerSocketChannel.class)
-         .option(ChannelOption.SO_BACKLOG, 100)
-         .handler(new LoggingHandler(LogLevel.INFO))
-         .childHandler(new ChannelInitializer<SocketChannel>() {
-             @Override
-             public void initChannel(SocketChannel ch) throws Exception {
-                 ChannelPipeline p = ch.pipeline();
-                 if (sslCtx != null) {
-                     SslHandler handler = sslCtx.newHandler(ch.alloc());
-                     SSLEngine sslEngine = handler.engine();
-                     SSLParameters sslParameters = sslEngine.getSSLParameters();
-                     sslParameters.setEndpointIdentificationAlgorithm("LDAPS");
-                     sslEngine.setSSLParameters(sslParameters);
-                     p.addLast(handler);
-                 }
-             }
-         });
+                .channel(nio ? NioServerSocketChannel.class : EpollServerSocketChannel.class)
+                .option(ChannelOption.SO_BACKLOG, 100)
+                .handler(new LoggingHandler(LogLevel.INFO))
+                .childHandler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    public void initChannel(SocketChannel ch) throws Exception {
+                        ChannelPipeline p = ch.pipeline();
+                        if (sslCtx != null) {
+                            SslHandler handler = sslCtx.newHandler(ch.alloc());
+                            SSLEngine sslEngine = handler.engine();
+                            SSLParameters sslParameters = sslEngine.getSSLParameters();
+                            sslParameters.setEndpointIdentificationAlgorithm("LDAPS");
+                            sslEngine.setSSLParameters(sslParameters);
+                            p.addLast(handler);
+                        }
+                    }
+                });
 
         // Start the server.
         serverChannel = b.bind("localhost", port).awaitUninterruptibly().channel();
@@ -114,11 +117,11 @@ public class ConnectionFactoryImplTest {
     public void establishConnection() throws ConnectionFailedException {
         @Cleanup
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
-                                                                              .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
-                                                                              .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
-                                                                              .build());
+                .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .build());
         @Cleanup
-        ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
+        ClientConnection connection = factory.establishConnection(UUID.randomUUID(), new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {
 
@@ -142,11 +145,11 @@ public class ConnectionFactoryImplTest {
     public void getActiveChannelTest() throws InterruptedException, ConnectionFailedException {
         @Cleanup
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
-                                                                              .controllerURI(URI.create( "tcp://" + "localhost"))
-                                                                              .build());
+                .controllerURI(URI.create("tcp://" + "localhost"))
+                .build());
         // establish a connection.
         @Cleanup
-        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
+        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(UUID.randomUUID(), new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
@@ -178,6 +181,6 @@ public class ConnectionFactoryImplTest {
         assertTrue(latch.await(10, TimeUnit.SECONDS));
         assertEquals("Expected active channel count is 0", 0, factory.getActiveChannelCount());
         // verify that the channel is removed from channelGroup too.
-        assertEquals(0,  ((ConnectionPoolImpl) factory.getConnectionPool()).getChannelGroup().size());
+        assertEquals(0, ((ConnectionPoolImpl) factory.getConnectionPool()).getChannelGroup().size());
     }
 }

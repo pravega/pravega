@@ -38,17 +38,20 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
+
 import java.io.File;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.function.Function;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
+
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
@@ -129,27 +132,27 @@ public class ConnectionPoolingTest {
 
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
-         .channel(nio ? NioServerSocketChannel.class : EpollServerSocketChannel.class)
-         .option(ChannelOption.SO_BACKLOG, 100)
-         .handler(new LoggingHandler(LogLevel.INFO))
-         .childHandler(new ChannelInitializer<SocketChannel>() {
-             @Override
-             public void initChannel(SocketChannel ch) throws Exception {
-                 ChannelPipeline p = ch.pipeline();
-                 if (sslCtx != null) {
-                     SslHandler handler = sslCtx.newHandler(ch.alloc());
-                     SSLEngine sslEngine = handler.engine();
-                     SSLParameters sslParameters = sslEngine.getSSLParameters();
-                     sslParameters.setEndpointIdentificationAlgorithm("LDAPS");
-                     sslEngine.setSSLParameters(sslParameters);
-                     p.addLast(handler);
-                 }
-                 p.addLast(new CommandEncoder(null),
-                           new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
-                           new CommandDecoder(),
-                           new EchoServerHandler());
-             }
-         });
+                .channel(nio ? NioServerSocketChannel.class : EpollServerSocketChannel.class)
+                .option(ChannelOption.SO_BACKLOG, 100)
+                .handler(new LoggingHandler(LogLevel.INFO))
+                .childHandler(new ChannelInitializer<SocketChannel>() {
+                    @Override
+                    public void initChannel(SocketChannel ch) throws Exception {
+                        ChannelPipeline p = ch.pipeline();
+                        if (sslCtx != null) {
+                            SslHandler handler = sslCtx.newHandler(ch.alloc());
+                            SSLEngine sslEngine = handler.engine();
+                            SSLParameters sslParameters = sslEngine.getSSLParameters();
+                            sslParameters.setEndpointIdentificationAlgorithm("LDAPS");
+                            sslEngine.setSSLParameters(sslParameters);
+                            p.addLast(handler);
+                        }
+                        p.addLast(new CommandEncoder(null),
+                                new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
+                                new CommandDecoder(),
+                                new EchoServerHandler());
+                    }
+                });
 
         // Start the server.
         serverChannel = b.bind("localhost", port).awaitUninterruptibly().channel();
@@ -165,7 +168,7 @@ public class ConnectionPoolingTest {
     public void testConnectionPooling() throws Exception {
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://")
-                                          + "localhost"))
+                        + "localhost"))
                 .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                 .maxConnectionsPerSegmentStore(1)
                 .build();
@@ -198,7 +201,7 @@ public class ConnectionPoolingTest {
 
         Flow flow1 = new Flow(1, 0);
         @Cleanup
-        ClientConnection connection1 = factory.establishConnection(flow1, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection1 = factory.establishConnection(flow1, UUID.randomUUID(), new PravegaNodeUri("localhost", port), rp).join();
 
         connection1.send(readRequestGenerator.apply(flow1.asLong()));
 
@@ -208,7 +211,7 @@ public class ConnectionPoolingTest {
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
         Flow flow2 = new Flow(2, 0);
         @Cleanup
-        ClientConnection connection2 = factory.establishConnection(flow2, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection2 = factory.establishConnection(flow2, UUID.randomUUID(), new PravegaNodeUri("localhost", port), rp).join();
 
         // send data over connection2 and verify.
         connection2.send(readRequestGenerator.apply(flow2.asLong()));
@@ -246,11 +249,11 @@ public class ConnectionPoolingTest {
     @Test
     public void testConcurrentRequests() throws Exception {
         ClientConfig clientConfig = ClientConfig.builder()
-                                                .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://")
-                                                        + "localhost"))
-                                                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
-                                                .maxConnectionsPerSegmentStore(1)
-                                                .build();
+                .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://")
+                        + "localhost"))
+                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .maxConnectionsPerSegmentStore(1)
+                .build();
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig);
         @Cleanup
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(clientConfig, connectionPool, 1);
@@ -279,11 +282,11 @@ public class ConnectionPoolingTest {
         };
 
         Flow flow1 = new Flow(1, 0);
-        ClientConnection connection1 = factory.establishConnection(flow1, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection1 = factory.establishConnection(flow1, UUID.randomUUID(), new PravegaNodeUri("localhost", port), rp).join();
 
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
         Flow flow2 = new Flow(2, 0);
-        ClientConnection connection2 = factory.establishConnection(flow2, new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection2 = factory.establishConnection(flow2, UUID.randomUUID(), new PravegaNodeUri("localhost", port), rp).join();
 
         connection1.send(readRequestGenerator.apply(flow1.asLong()));
         connection2.send(readRequestGenerator.apply(flow2.asLong()));

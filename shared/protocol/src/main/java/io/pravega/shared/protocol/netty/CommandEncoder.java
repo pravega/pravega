@@ -20,13 +20,16 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+
 import java.io.IOException;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
+
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -57,7 +60,6 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
  * The AppendBlockEnd contains metadata about the block that was just appended so that it does not
  * need to be parsed out of individual messages. Notably this includes the event number of the last
  * event in the block, so that it can be acknowledged.
- *
  */
 @NotThreadSafe
 @RequiredArgsConstructor
@@ -65,7 +67,7 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
-    private final AppendBatchSizeTracker blockSizeSupplier;
+    private final Function<UUID, AppendBatchSizeTracker> appendTracker;
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
     private String segmentBeingAppendedTo;
     private UUID writerIdPerformingAppends;
@@ -90,7 +92,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
                 breakFromAppend(out);
             }
-            if (bytesLeftInBlock == 0) {
+            if (bytesLeftInBlock == 0 && appendTracker != null) {
+                final AppendBatchSizeTracker blockSizeSupplier = appendTracker.apply(append.getWriterId());
                 currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
                 bytesLeftInBlock = currentBlockSize;
                 segmentBeingAppendedTo = append.segment;
@@ -98,8 +101,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 writeMessage(new AppendBlock(session.id), out);
                 if (ctx != null) {
                     ctx.executor().schedule(new BlockTimeouter(ctx.channel(), currentBlockSize),
-                                            blockSizeSupplier.getBatchTimeout(),
-                                            TimeUnit.MILLISECONDS);
+                            blockSizeSupplier.getBatchTimeout(),
+                            TimeUnit.MILLISECONDS);
                 }
             }
 
@@ -112,16 +115,16 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 out.writeBytes(data);
                 bytesLeftInBlock -= msgSize;
             } else {
-                int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE; 
+                int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
                 ByteBuf dataInsideBlock = data.readSlice(bytesInBlock);
                 ByteBuf dataRemainging = data;
                 writeMessage(new PartialEvent(dataInsideBlock), out);
                 writeMessage(new AppendBlockEnd(append.writerId,
-                                                currentBlockSize - bytesLeftInBlock,
-                                                dataRemainging,
-                                                session.eventCount,
-                                                session.lastEventNumber,
-                                                append.getRequestId()), out);
+                        currentBlockSize - bytesLeftInBlock,
+                        dataRemainging,
+                        session.eventCount,
+                        session.lastEventNumber,
+                        append.getRequestId()), out);
                 bytesLeftInBlock = 0;
                 session.eventCount = 0;
             }
@@ -130,7 +133,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
-                              new Session(setup.getWriterId(), setup.getRequestId()));
+                    new Session(setup.getWriterId(), setup.getRequestId()));
         } else if (msg instanceof BlockTimeout) {
             BlockTimeout timeoutMsg = (BlockTimeout) msg;
             if (currentBlockSize == timeoutMsg.ifStillBlockSize) {
@@ -150,7 +153,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
         if (append.getEventNumber() <= session.lastEventNumber) {
             throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
-            + " following: " + session.lastEventNumber);
+                    + " following: " + session.lastEventNumber);
         }
         if (append.isConditional()) {
             throw new IllegalArgumentException("Conditional appends should be written via a ConditionalAppend object.");
@@ -210,7 +213,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final class BlockTimeout {
         private final int ifStillBlockSize;
     }
-    
+
     @RequiredArgsConstructor
     private static final class BlockTimeouter implements Runnable {
         private final Channel channel;

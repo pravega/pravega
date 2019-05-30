@@ -37,7 +37,6 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -45,6 +44,7 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+
 import java.io.File;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -54,6 +54,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -61,6 +62,7 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Synchronized;
@@ -76,7 +78,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
             int v2 = Futures.isSuccessful(c2.getConnected()) ? c2.getFlowCount() : Integer.MAX_VALUE;
             return Integer.compare(v1, v2);
         }
-    }; 
+    };
     private final ClientConfig clientConfig;
     private final EventLoopGroup group;
     private final AtomicBoolean closed = new AtomicBoolean(false);
@@ -94,7 +96,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
     @Override
     @Synchronized
-    public CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp) {
+    public CompletableFuture<ClientConnection> getClientConnection(Flow flow, UUID id, PravegaNodeUri location, ReplyProcessor rp) {
         Preconditions.checkNotNull(flow, "Flow");
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
@@ -119,26 +121,27 @@ public class ConnectionPoolImpl implements ConnectionPool {
         } else {
             // create a new connection.
             log.info("Creating a new connection to {}", location);
-            final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-            final FlowHandler handler = new FlowHandler(location.getEndpoint(), batchSizeTracker);
+            final FlowHandler handler = new FlowHandler(location.getEndpoint());
             CompletableFuture<Void> establishedFuture = establishConnection(location, handler);
             connection = new Connection(location, handler, establishedFuture);
             prunedConnectionList.add(connection);
         }
+        connection.getFlowHandler().createAppendBatchSizeTracker(id);
         ClientConnection result = connection.getFlowHandler().createFlow(flow, rp);
         connectionMap.put(location, prunedConnectionList);
         return connection.getConnected().thenApply(v -> result);
     }
 
     @Override
-    public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri location, ReplyProcessor rp) {
+    @Synchronized
+    public CompletableFuture<ClientConnection> getClientConnection(UUID id, PravegaNodeUri location, ReplyProcessor rp) {
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
         Exceptions.checkNotClosed(closed.get(), this);
 
         // create a new connection.
-        final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        final FlowHandler handler = new FlowHandler(location.getEndpoint(), batchSizeTracker);
+        final FlowHandler handler = new FlowHandler(location.getEndpoint());
+        handler.createAppendBatchSizeTracker(id);
         CompletableFuture<Void> connectedFuture = establishConnection(location, handler);
         Connection connection = new Connection(location, handler, connectedFuture);
         ClientConnection result = connection.getFlowHandler().createConnectionWithFlowDisabled(rp);
@@ -156,7 +159,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
     @Synchronized
     public void pruneUnusedConnections() {
         for (List<Connection> connections : connectionMap.values()) {
-            for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext();) {
+            for (Iterator<Connection> iterator = connections.iterator(); iterator.hasNext(); ) {
                 Connection connection = iterator.next();
                 if (isUnused(connection)) {
                     connection.getFlowHandler().close();
@@ -174,9 +177,9 @@ public class ConnectionPoolImpl implements ConnectionPool {
     @VisibleForTesting
     public List<Channel> getActiveChannels() {
         return this.channelGroup.stream().filter(Channel::isActive)
-                                .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.", ch.id(),
-                                                      ch.localAddress(), ch.remoteAddress()))
-                                .collect(Collectors.toList());
+                .peek(ch -> log.debug("Channel with id {} localAddress {} and remoteAddress {} is active.", ch.id(),
+                        ch.localAddress(), ch.remoteAddress()))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -186,7 +189,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      * @return A future, which completes once the connection has been established, returning a FlowHandler that can be used to create
      * flows on the connection.
      */
-    private CompletableFuture<Void> establishConnection(PravegaNodeUri location, FlowHandler handler) {  
+    private CompletableFuture<Void> establishConnection(PravegaNodeUri location, FlowHandler handler) {
         final Bootstrap b = getNettyBootstrap().handler(getChannelInitializer(location, handler));
         // Initiate Connection.
         final CompletableFuture<Void> connectionComplete = new CompletableFuture<>();
@@ -196,7 +199,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
                     //since ChannelFuture is complete future.channel() is not a blocking call.
                     Channel ch = future.channel();
                     log.debug("Connect operation completed for channel:{}, local address:{}, remote address:{}",
-                              ch.id(), ch.localAddress(), ch.remoteAddress());
+                            ch.id(), ch.localAddress(), ch.remoteAddress());
                     channelGroup.add(ch); // Once a channel is closed the channel group implementation removes it.
                     connectionComplete.complete(null);
                 } else {
@@ -219,8 +222,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
     private Bootstrap getNettyBootstrap() {
         Bootstrap b = new Bootstrap();
         b.group(group)
-         .channel(Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class)
-         .option(ChannelOption.TCP_NODELAY, true);
+                .channel(Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class)
+                .option(ChannelOption.TCP_NODELAY, true);
         return b;
     }
 
@@ -248,7 +251,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
                 }
                 p.addLast(
                         new ExceptionLoggingHandler(location.getEndpoint()),
-                        new CommandEncoder(handler.getBatchSizeTracker()),
+                        new CommandEncoder(handler::getAppendBatchSizeTracker),
                         new LengthFieldBasedFrameDecoder(WireCommands.MAX_WIRECOMMAND_SIZE, 4, 4),
                         new CommandDecoder(),
                         handler);
@@ -266,11 +269,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
                 SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();
                 if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
                     clientSslCtxBuilder = clientSslCtxBuilder.trustManager(FingerprintTrustManagerFactory
-                                                                                   .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
+                            .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
                     log.debug("SslContextBuilder was set to an instance of {}", FingerprintTrustManagerFactory.class);
                 } else {
                     clientSslCtxBuilder = SslContextBuilder.forClient()
-                                                           .trustManager(new File(clientConfig.getTrustStore()));
+                            .trustManager(new File(clientConfig.getTrustStore()));
                 }
                 sslCtx = clientSslCtxBuilder.build();
             } catch (SSLException | NoSuchAlgorithmException e) {

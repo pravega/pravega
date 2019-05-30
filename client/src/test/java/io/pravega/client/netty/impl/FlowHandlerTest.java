@@ -23,10 +23,12 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+
 import lombok.Cleanup;
 import org.junit.Assert;
 import org.junit.Before;
@@ -66,6 +68,7 @@ public class FlowHandlerTest {
 
     private Flow flow;
     private FlowHandler flowHandler;
+    private final UUID trackerID = UUID.randomUUID();
     @Mock
     private ReplyProcessor processor;
     @Mock
@@ -92,14 +95,16 @@ public class FlowHandlerTest {
     public void setUp() throws Exception {
         flow = new Flow(10, 0);
         when(buffer.readableBytes()).thenReturn(10);
-        appendCmd = new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, flow.asLong());
-        doNothing().when(tracker).recordAppend(anyLong(), anyInt());
+        appendCmd = new Append("segment0", trackerID, 2, 1, buffer, 10L, flow.asLong());
 
         when(ctx.channel()).thenReturn(ch);
         when(ch.eventLoop()).thenReturn(loop);
         when(ch.writeAndFlush(any(Object.class))).thenReturn(completedFuture);
 
-        flowHandler = new FlowHandler("testConnection", tracker);
+        flowHandler = new FlowHandler("testConnection");
+        flowHandler.createAppendBatchSizeTracker(trackerID);
+        tracker = flowHandler.getAppendBatchSizeTracker(trackerID);
+        doNothing().when(tracker).recordAppend(anyLong(), anyInt());
     }
 
     @Test
@@ -200,7 +205,7 @@ public class FlowHandlerTest {
 
     @Test
     public void testCreateConnectionWithSessionDisabled() throws Exception {
-        flowHandler = new FlowHandler("testConnection1", tracker);
+        flowHandler = new FlowHandler("testConnection1");
         flowHandler.channelRegistered(ctx);
         ClientConnection connection = flowHandler.createConnectionWithFlowDisabled(processor);
         connection.send(appendCmd);

@@ -28,6 +28,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +36,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -52,6 +54,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final UUID trakerID = UUID.randomUUID();
     private final Controller controller;
     private final String delegationToken;
     @VisibleForTesting
@@ -78,7 +81,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 future.completeExceptionally(new SegmentTruncatedException("Segment no longer exists."));
             }
         }
-        
+
         @Override
         public void segmentIsTruncated(SegmentIsTruncated segmentIsTruncated) {
             log.info("Received segmentIsTruncated {}", segmentIsTruncated);
@@ -87,7 +90,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 future.completeExceptionally(new SegmentTruncatedException());
             }
         }
-        
+
         @Override
         public void segmentIsSealed(WireCommands.SegmentIsSealed segmentIsSealed) {
             log.info("Received segmentSealed {}", segmentIsSealed);
@@ -167,7 +170,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     public CompletableFuture<SegmentRead> read(long offset, int length) {
         Exceptions.checkNotClosed(closed.get(), this);
         WireCommands.ReadSegment request = new WireCommands.ReadSegment(segmentId.getScopedName(), offset, length,
-                                                                        this.delegationToken, requestId);
+                this.delegationToken, requestId);
         return backoffSchedule.retryWhen(t -> {
             Throwable ex = Exceptions.unwrap(t);
             if (closed.get()) {
@@ -193,9 +196,9 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                     );
         }, connectionFactory.getInternalExecutor());
     }
-        
+
     private CompletableFuture<SegmentRead> sendRequestOverConnection(WireCommands.ReadSegment request, ClientConnection c) {
-        CompletableFuture<WireCommands.SegmentRead> result = new CompletableFuture<>();            
+        CompletableFuture<WireCommands.SegmentRead> result = new CompletableFuture<>();
         if (closed.get()) {
             result.completeExceptionally(new ConnectionClosedException());
             return result;
@@ -210,7 +213,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
                 synchronized (lock) {
                     outstandingRequests.remove(request.getOffset());
                 }
-                result.completeExceptionally(cfe);                
+                result.completeExceptionally(cfe);
             }
         });
         return result;
@@ -219,7 +222,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
     private void closeConnection(Exception exceptionToInflightRequests) {
         if (closed.get()) {
             log.info("Closing connection to segment: {}", segmentId);
-        } else {            
+        } else {
             log.info("Closing connection to segment {} with exception: {}", segmentId, exceptionToInflightRequests);
         }
         CompletableFuture<ClientConnection> c;
@@ -247,7 +250,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         return controller.getEndpointForSegment(segmentId.getScopedName()).thenCompose((PravegaNodeUri uri) -> {
             synchronized (lock) {
                 if (connection == null) {
-                    connection = connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);
+                    connection = connectionFactory.establishConnection(Flow.from(requestId), trakerID, uri, responseProcessor);
                 }
                 return connection;
             }

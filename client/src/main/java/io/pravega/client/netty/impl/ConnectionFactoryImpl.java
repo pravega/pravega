@@ -15,15 +15,17 @@ import io.pravega.client.ClientConfig;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * A Connection factory implementation used to create {@link ClientConnection}s by creating new Flow over existing connection pool.
- *
  */
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
@@ -54,13 +56,13 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     }
 
     @Override
-    public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
-        return connectionPool.getClientConnection(flow, endpoint, rp);
+    public CompletableFuture<ClientConnection> establishConnection(Flow flow, UUID id, PravegaNodeUri endpoint, ReplyProcessor rp) {
+        return connectionPool.getClientConnection(flow, id, endpoint, rp);
     }
 
     @Override
-    public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
-        return connectionPool.getClientConnection(endpoint, rp);
+    public CompletableFuture<ClientConnection> establishConnection(UUID id, PravegaNodeUri endpoint, ReplyProcessor rp) {
+        return connectionPool.getClientConnection(id, endpoint, rp);
     }
 
     @Override
@@ -79,7 +81,7 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
 
     @VisibleForTesting
     public int getActiveChannelCount() {
-       return connectionPool.getActiveChannelCount();
+        return connectionPool.getActiveChannelCount();
     }
 
     private int getThreadPoolSize(Integer threadCount) {

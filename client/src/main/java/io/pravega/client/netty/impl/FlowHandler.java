@@ -23,12 +23,15 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
+
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -43,22 +46,23 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @Getter
-    private final AppendBatchSizeTracker batchSizeTracker;
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<Integer, ReplyProcessor> flowIdReplyProcessorMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, AppendBatchSizeTracker> idBatchSizeTrackerMap = new ConcurrentHashMap<>();
+
     private final AtomicBoolean disableFlow = new AtomicBoolean(false);
 
-    public FlowHandler(String connectionName, AppendBatchSizeTracker batchSizeTracker) {
+    public FlowHandler(String connectionName) {
         this.connectionName = connectionName;
-        this.batchSizeTracker = batchSizeTracker;
     }
 
     /**
      * Create a flow on existing connection.
+     *
      * @param flow Flow.
-     * @param rp ReplyProcessor for the specified flow.
+     * @param rp   ReplyProcessor for the specified flow.
      * @return Client Connection object.
      */
     public ClientConnection createFlow(final Flow flow, final ReplyProcessor rp) {
@@ -68,13 +72,15 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         if (flowIdReplyProcessorMap.put(flow.getFlowId(), rp) != null) {
             throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flow.getFlowId());
         }
-        return new ClientConnectionImpl(connectionName, flow.getFlowId(), batchSizeTracker, this);
+        return new ClientConnectionImpl(connectionName, flow.getFlowId(), this);
     }
+
 
     /**
      * Create a {@link ClientConnection} where flows are disabled. This implies that there is only one flow on the underlying
      * network connection.
-     * @param rp  The ReplyProcessor.
+     *
+     * @param rp The ReplyProcessor.
      * @return Client Connection object.
      */
     public ClientConnection createConnectionWithFlowDisabled(final ReplyProcessor rp) {
@@ -82,11 +88,12 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         Preconditions.checkState(!disableFlow.getAndSet(true), "Flows are disabled, incorrect usage pattern.");
         log.info("Creating a new connection with flow disabled for endpoint {}. The current Channel is {}.", connectionName, channel.get());
         flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
-        return new ClientConnectionImpl(connectionName, FLOW_DISABLED, batchSizeTracker, this);
+        return new ClientConnectionImpl(connectionName, FLOW_DISABLED, this);
     }
 
     /**
      * Close a flow. This is invoked when the ClientConnection is closed.
+     *
      * @param clientConnection Client Connection.
      */
     public void closeFlow(ClientConnection clientConnection) {
@@ -96,16 +103,46 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         flowIdReplyProcessorMap.remove(flow);
     }
 
+
+    /**
+     * Create a Batch size tracker on existing connection.
+     *
+     * @param id identifier.
+     */
+    public void createAppendBatchSizeTracker(final UUID id) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        if (idBatchSizeTrackerMap.containsKey(id)) {
+            log.info("Reusing Batch size tracker for id {}.", id);
+        } else {
+            log.info("Creating Batch size tracker for id {}.", id);
+            idBatchSizeTrackerMap.put(id, new AppendBatchSizeTrackerImpl());
+        }
+    }
+
+
+    /**
+     * get a Batch size tracker on existing connection.
+     *
+     * @param id identifier.
+     * @return Batch size Tracker object.
+     */
+    public AppendBatchSizeTracker getAppendBatchSizeTracker(final UUID id) {
+        return idBatchSizeTrackerMap.get(id);
+    }
+
+
     /**
      * Returns the number of open flows.
+     *
      * @return Flow count.
      */
     public int getOpenFlowCount() {
         return flowIdReplyProcessorMap.size();
     }
-    
+
     /**
      * Check the current status of Connection.
+     *
      * @return True if the connection is established.
      */
     public boolean isConnectionEstablished() {
@@ -114,7 +151,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
 
     /**
      * Fetch the netty channel. If {@link Channel} is null then throw a ConnectionFailedException.
-     * @return  The current {@link Channel}
+     *
+     * @return The current {@link Channel}
      * @throws ConnectionFailedException Throw if connection is not established.
      */
     Channel getChannel() throws ConnectionFailedException {
@@ -201,7 +239,11 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         }
 
         if (cmd instanceof WireCommands.DataAppended) {
-            batchSizeTracker.recordAck(((WireCommands.DataAppended) cmd).getEventNumber());
+            final WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) cmd;
+            final AppendBatchSizeTracker batchSizeTracker = getAppendBatchSizeTracker(dataAppended.getWriterId());
+            if (batchSizeTracker != null) {
+                batchSizeTracker.recordAck(dataAppended.getEventNumber());
+            }
         }
         // Obtain ReplyProcessor and process the reply.
         getReplyProcessor(cmd).ifPresent(processor -> {
@@ -237,6 +279,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                 if (openFlowCount != 0) {
                     log.warn("{} flows are not closed", openFlowCount);
                 }
+                log.debug("clearing Append Batch size Trackers {}", idBatchSizeTrackerMap);
+                idBatchSizeTrackerMap.clear();
                 ch.close();
             }
         }

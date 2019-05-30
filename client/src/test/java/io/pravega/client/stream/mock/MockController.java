@@ -43,6 +43,7 @@ import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.DeleteSegment;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,6 +59,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
+
 import lombok.AllArgsConstructor;
 import lombok.Synchronized;
 
@@ -75,7 +77,7 @@ public class MockController implements Controller {
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
     private final Supplier<Long> idGenerator = () -> Flow.create().asLong();
     private final boolean callServer;
-    
+
     @Override
     @Synchronized
     public CompletableFuture<Boolean> createScope(final String scopeName) {
@@ -94,6 +96,7 @@ public class MockController implements Controller {
             Object lock = new Object();
             @GuardedBy("lock")
             Iterator<Stream> iterator = collect.iterator();
+
             @Override
             public CompletableFuture<Stream> getNext() {
                 Stream next;
@@ -144,7 +147,7 @@ public class MockController implements Controller {
         }
         return CompletableFuture.completedFuture(true);
     }
-    
+
     @Synchronized
     List<Segment> getSegmentsForStream(Stream stream) {
         StreamConfiguration config = createdStreams.get(stream);
@@ -247,7 +250,7 @@ public class MockController implements Controller {
         sendRequestOverNewConnection(command, replyProcessor, result);
         return getAndHandleExceptions(result, RuntimeException::new);
     }
-    
+
     private boolean deleteSegment(String name) {
         if (!callServer) {
             return true;
@@ -294,16 +297,16 @@ public class MockController implements Controller {
     public CompletableFuture<StreamSegments> getCurrentSegments(String scope, String stream) {
         return CompletableFuture.completedFuture(getCurrentSegments(new StreamImpl(scope, stream)));
     }
-    
+
     private StreamSegments getCurrentSegments(Stream stream) {
         List<Segment> segmentsInStream = getSegmentsForStream(stream);
         TreeMap<Double, SegmentWithRange> segments = new TreeMap<>();
         double increment = 1.0 / segmentsInStream.size();
         for (int i = 0; i < segmentsInStream.size(); i++) {
             segments.put((i + 1) * increment,
-                         new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), i),
-                                              i * increment,
-                                              (i + 1) * increment));
+                    new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), i),
+                            i * increment,
+                            (i + 1) * increment));
         }
         return new StreamSegments(segments, "");
     }
@@ -312,11 +315,11 @@ public class MockController implements Controller {
     public CompletableFuture<Void> commitTransaction(Stream stream, UUID txId) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (Segment segment : getSegmentsForStream(stream)) {
-            futures.add(commitTxSegment(txId, segment));            
+            futures.add(commitTxSegment(txId, segment));
         }
         return Futures.allOf(futures);
     }
-    
+
     private CompletableFuture<Void> commitTxSegment(UUID txId, Segment segment) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         if (!callServer) {
@@ -364,11 +367,11 @@ public class MockController implements Controller {
     public CompletableFuture<Void> abortTransaction(Stream stream, UUID txId) {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (Segment segment : getSegmentsForStream(stream)) {
-            futures.add(abortTxSegment(txId, segment));            
+            futures.add(abortTxSegment(txId, segment));
         }
         return Futures.allOf(futures);
     }
-    
+
     private CompletableFuture<Void> abortTxSegment(UUID txId, Segment segment) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         if (!callServer) {
@@ -423,7 +426,7 @@ public class MockController implements Controller {
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         StreamSegments currentSegments = getCurrentSegments(stream);
         for (Segment segment : currentSegments.getSegments()) {
-            futures.add(createSegmentTx(txId, segment));            
+            futures.add(createSegmentTx(txId, segment));
         }
         return Futures.allOf(futures).thenApply(v -> new TxnSegments(currentSegments, txId));
     }
@@ -476,7 +479,7 @@ public class MockController implements Controller {
     public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(Stream stream, long timestamp) {
         return CompletableFuture.completedFuture(getSegmentsForStream(stream).stream().collect(Collectors.toMap(s -> s, s -> 0L)));
     }
-    
+
     @Override
     public CompletableFuture<StreamSegmentsWithPredecessors> getSuccessors(Segment segment) {
         final Stream segmentStream = Stream.of(segment.getScopedStreamName());
@@ -501,7 +504,7 @@ public class MockController implements Controller {
     @Override
     public CompletableFuture<StreamSegmentSuccessors> getSegments(StreamCut fromStreamCut, StreamCut toStreamCut) {
         Set<Segment> segments = ImmutableSet.<Segment>builder().addAll(fromStreamCut.asImpl().getPositions().keySet())
-                                                               .addAll(toStreamCut.asImpl().getPositions().keySet()).build();
+                .addAll(toStreamCut.asImpl().getPositions().keySet()).build();
         return CompletableFuture.completedFuture(new StreamSegmentSuccessors(segments, ""));
     }
 
@@ -512,8 +515,8 @@ public class MockController implements Controller {
 
     private <T> void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor, CompletableFuture<T> resultFuture) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
-            .establishConnection(Flow.from(((Request) request).getRequestId()), new PravegaNodeUri(endpoint, port), replyProcessor),
-                                                             RuntimeException::new);
+                        .establishConnection(Flow.from(((Request) request).getRequestId()), UUID.randomUUID(), new PravegaNodeUri(endpoint, port), replyProcessor),
+                RuntimeException::new);
         resultFuture.whenComplete((result, e) -> {
             connection.close();
         });

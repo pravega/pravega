@@ -11,6 +11,8 @@ package io.pravega.client.netty.impl;
 
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -27,7 +29,7 @@ public interface ConnectionPool extends AutoCloseable {
      * @param rp ReplyProcessor instance.
      * @return An instance of client connection.
      */
-    CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri uri, ReplyProcessor rp);
+    CompletableFuture<ClientConnection> getClientConnection(Flow flow, UUID id, PravegaNodeUri uri, ReplyProcessor rp);
 
     /**
      * This is used to create a {@link ClientConnection} where flows are disabled. This implies that only one ClientConnection
@@ -37,7 +39,7 @@ public interface ConnectionPool extends AutoCloseable {
      * @param rp ReplyProcessor instance.
      * @return An instance of client connection.
      */
-    CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri uri, ReplyProcessor rp);
+    CompletableFuture<ClientConnection> getClientConnection(UUID id, PravegaNodeUri uri, ReplyProcessor rp);
 
     /**
      * Fetch the current active {@link io.netty.channel.Channel} count, which represents the number of active connections being
