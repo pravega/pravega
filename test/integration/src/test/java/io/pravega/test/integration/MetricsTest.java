@@ -41,7 +41,6 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -62,6 +61,7 @@ import org.junit.Test;
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsTags.segmentTags;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -100,7 +100,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
         MetricsConfig metricsConfig = MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
-        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(3));
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(2));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
@@ -203,13 +203,10 @@ public class MetricsTest extends ThreadPooledTestSuite {
             readAllEvents(reader1);
 
             final String[] streamTags = segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0");
-            AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
-                return MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags) == null
-                        ? -1 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count();
-            }, 2000);
+            assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count());
 
             //Wait for cache eviction to happen
-            Thread.sleep(5000);
+            Thread.sleep(4000);
 
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
@@ -229,10 +226,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
-            AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
-                return MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags) == null
-                        ? -1 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count();
-            }, 1000);
+            assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count());
 
             Map<Double, Double> map = new HashMap<>();
             map.put(0.0, 1.0);
@@ -253,10 +247,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             readAllEvents(reader1);
 
             final String[] streamTags2nd = segmentTags(scope + "/" + STREAM_NAME + "/1.#epoch.1");
-            AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
-                return MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd) == null
-                        ? -1 : (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd).count();
-            }, 1000);
+            assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd).count());
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);
             readerGroupManager.deleteReaderGroup(readerGroupName2);
