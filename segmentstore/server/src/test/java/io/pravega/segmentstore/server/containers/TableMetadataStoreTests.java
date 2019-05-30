@@ -26,11 +26,16 @@ import java.util.concurrent.atomic.AtomicReference;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.SneakyThrows;
+import org.junit.Rule;
+import org.junit.rules.Timeout;
 
 /**
  * Unit tests for the {@link TableMetadataStore} class.
  */
 public class TableMetadataStoreTests extends MetadataStoreTestBase {
+    @Rule
+    public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+
     @Override
     public void testCreateSegmentWithFailures() {
         final String segmentName = "NewSegment";
@@ -80,18 +85,26 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
         }
 
         @Override
-        void setGetInfoErrorInjector(ErrorInjector<Exception> ei) {
-            this.tableStore.setGetErrorInjector(ei);
+        void setGetInfoErrorInjectorAsync(ErrorInjector<Exception> ei) {
+            this.tableStore.setGetErrorInjectorAsync(ei);
+        }
+
+        @Override
+        void setGetInfoErrorInjectorSync(ErrorInjector<Exception> ei) {
+            this.tableStore.setGetErrorInjectorSync(ei);
         }
 
         @Override
         public void close() {
+            this.metadataStore.close();
+            super.close();
         }
 
         private class TestTableStore extends TableStoreMock {
             private final AtomicInteger getCount = new AtomicInteger();
             private final AtomicReference<ErrorInjector<Exception>> putErrorInjector = new AtomicReference<>();
-            private final AtomicReference<ErrorInjector<Exception>> getErrorInjector = new AtomicReference<>();
+            private final AtomicReference<ErrorInjector<Exception>> getErrorInjectorSync = new AtomicReference<>();
+            private final AtomicReference<ErrorInjector<Exception>> getErrorInjectorAsync = new AtomicReference<>();
 
             TestTableStore(Executor executor) {
                 super(executor);
@@ -105,8 +118,12 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
                 this.putErrorInjector.set(ei);
             }
 
-            void setGetErrorInjector(ErrorInjector<Exception> ei) {
-                this.getErrorInjector.set(ei);
+            void setGetErrorInjectorAsync(ErrorInjector<Exception> ei) {
+                this.getErrorInjectorAsync.set(ei);
+            }
+
+            void setGetErrorInjectorSync(ErrorInjector<Exception> ei) {
+                this.getErrorInjectorSync.set(ei);
             }
 
             @Override
@@ -118,8 +135,9 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
 
             @Override
             public CompletableFuture<List<TableEntry>> get(String segmentName, List<ArrayView> keys, Duration timeout) {
+                ErrorInjector.throwSyncExceptionIfNeeded(this.getErrorInjectorSync.get());
                 return ErrorInjector.throwAsyncExceptionIfNeeded(
-                        this.getErrorInjector.get(),
+                        this.getErrorInjectorAsync.get(),
                         () -> super.get(segmentName, keys, timeout)
                                    .thenApply(result -> {
                                        this.getCount.incrementAndGet();
