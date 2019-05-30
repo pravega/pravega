@@ -1150,5 +1150,5 @@ public interface StreamMetadataStore extends AutoCloseable {
      * @param executor executor
      * @return A completableFuture, which when completed, will contain map of writer to respective marks.  
      */
-    CompletableFuture<Map<String, WriterMark>> getAllWritersMarks(String scope, String stream, OperationContext context, Executor executor);
+    CompletableFuture<Map<String, WriterMark>> getAllWriterMarks(String scope, String stream, OperationContext context, Executor executor);
 }

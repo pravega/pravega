@@ -1399,7 +1399,7 @@ public abstract class StreamTestBase {
     public void testWriterMark() {
         PersistentStreamBase stream = spy(createStream("writerMark", "writerMark", System.currentTimeMillis(), 3, 0));
 
-        Map<String, WriterMark> marks = stream.getAllWritersMarks().join();
+        Map<String, WriterMark> marks = stream.getAllWriterMarks().join();
         assertTrue(marks.isEmpty());
 
         // call noteWritermark --> this should call createMarkerRecord
@@ -1410,7 +1410,7 @@ public abstract class StreamTestBase {
 
         stream.noteWriterMark(writer, timestamp, position).join();
 
-        marks = stream.getAllWritersMarks().join();
+        marks = stream.getAllWriterMarks().join();
         assertEquals(marks.size(), 1);
         verify(stream, times(1)).createWriterMarkRecord(writer, timestamp, immutablePos);
 
@@ -1419,7 +1419,7 @@ public abstract class StreamTestBase {
 
         // call noteWritermark --> this should call update
         stream.noteWriterMark(writer, timestamp, position).join();
-        marks = stream.getAllWritersMarks().join();
+        marks = stream.getAllWriterMarks().join();
         assertEquals(marks.size(), 1);
         mark = stream.getWriterMarkRecord(writer).join();
         assertNotEquals(mark.getVersion(), version);
@@ -1441,7 +1441,7 @@ public abstract class StreamTestBase {
 
         // update deleted writer --> data not found
         stream.removeWriter(writer, mark.getObject()).join();
-        marks = stream.getAllWritersMarks().join();
+        marks = stream.getAllWriterMarks().join();
         assertEquals(marks.size(), 0);
         AssertExtensions.assertFutureThrows("", stream.updateWriterMarkRecord(writer, timestamp, immutablePos, true, mark.getVersion()),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
@@ -1463,8 +1463,8 @@ public abstract class StreamTestBase {
         timestamp = 1L;
         position = Collections.singletonMap(0L, 2L);
 
-        stream.noteWriterMark(writer, timestamp, position).join();
-
+        AssertExtensions.assertFutureThrows("Expecting WriteConflict", stream.noteWriterMark(writer, timestamp, position),
+            e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
     }
 
     @Test(timeout = 30000L)

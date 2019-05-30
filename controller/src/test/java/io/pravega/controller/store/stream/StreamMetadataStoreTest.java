@@ -1419,7 +1419,7 @@ public abstract class StreamMetadataStoreTest {
         WriterMark writerMark = store.getWriterMark(scope, stream, writer1, null, executor).join();
         assertTrue(writerMark.isAlive());
 
-        Map<String, WriterMark> marks = store.getAllWritersMarks(scope, stream, null, executor).join();
+        Map<String, WriterMark> marks = store.getAllWriterMarks(scope, stream, null, executor).join();
         assertTrue(marks.containsKey(writer1));
 
         store.shutdownWriter(scope, stream, writer1, null, executor).join();
@@ -1440,7 +1440,7 @@ public abstract class StreamMetadataStoreTest {
         AssertExtensions.assertFutureThrows("", store.getWriterMark(scope, stream, writer1, null, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
 
-        marks = store.getAllWritersMarks(scope, stream, null, executor).join();
+        marks = store.getAllWriterMarks(scope, stream, null, executor).join();
         assertTrue(marks.isEmpty());
 
         String writer2 = "writer2";
@@ -1450,7 +1450,7 @@ public abstract class StreamMetadataStoreTest {
         String writer4 = "writer4";
         store.noteWriterMark(scope, stream, writer4, 1L, Collections.singletonMap(0L, 1L), null, executor).join();
 
-        marks = store.getAllWritersMarks(scope, stream, null, executor).join();
+        marks = store.getAllWriterMarks(scope, stream, null, executor).join();
         assertFalse(marks.containsKey(writer1));
         assertTrue(marks.containsKey(writer2));
         assertTrue(marks.containsKey(writer3));

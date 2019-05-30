@@ -798,9 +798,9 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
     }
 
     @Override
-    public CompletableFuture<Map<String, WriterMark>> getAllWritersMarks(String scope, String stream, 
-                                                                         OperationContext context, Executor executor) {
-        return withCompletion(getStream(scope, stream, context).getAllWritersMarks(), executor);
+    public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks(String scope, String stream,
+                                                                        OperationContext context, Executor executor) {
+        return withCompletion(getStream(scope, stream, context).getAllWriterMarks(), executor);
     }
 
     protected Stream getStream(String scope, final String name, OperationContext context) {

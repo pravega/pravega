@@ -1011,7 +1011,7 @@ public class InMemoryStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<String, WriterMark>> getAllWritersMarks() {
+    public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks() {
         Map<String, WriterMark> result;
         synchronized (writersLock) {
             result = writerMarks.entrySet().stream().collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().getObject()));

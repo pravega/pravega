@@ -705,7 +705,7 @@ class ZKStream extends PersistentStreamBase {
     }
 
     @Override
-    public CompletableFuture<Map<String, WriterMark>> getAllWritersMarks() {
+    public CompletableFuture<Map<String, WriterMark>> getAllWriterMarks() {
         return store.getChildren(writerPositionsPath)
                 .thenCompose(children -> {
                     return Futures.allOfWithResults(children.stream().collect(Collectors.toMap(writer -> writer, 
