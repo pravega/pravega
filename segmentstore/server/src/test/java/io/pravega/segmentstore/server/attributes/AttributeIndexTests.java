@@ -221,10 +221,11 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         val context = new TestContext(DEFAULT_CONFIG);
         populateSegments(context);
 
-        // 1. Populate and verify first index.
+        // 1. Initialize a new index and write one entry to it - that will ensure it gets created.
         val sm = context.containerMetadata.getStreamSegmentMetadata(SEGMENT_ID);
         @Cleanup
         val idx = (SegmentAttributeBTreeIndex) context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        idx.update(Collections.singletonMap(UUID.randomUUID(), 0L), TIMEOUT).join();
 
         // We intentionally delete twice to make sure the operation is idempotent.
         context.index.delete(sm.getName(), TIMEOUT).join();
@@ -246,6 +247,8 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         // ... and after cleaning up the cache.
         idx.removeAllCacheEntries();
         checkIndex(idx, Collections.emptyMap());
+        Assert.assertFalse("Not expecting Attribute Segment to be recreated.",
+                context.storage.exists(StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME), TIMEOUT).join());
     }
 
     /**
@@ -564,6 +567,39 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
 
         // Verify an exception is thrown when we try to initialize.
         context.index.cleanup(Collections.singleton(SEGMENT_ID));
+    }
+
+    /**
+     * Tests the ability to create the Attribute Segment only upon the first write.
+     */
+    @Test
+    public void testLazyCreateAttributeSegment() {
+        val attributeId = UUID.randomUUID();
+        val attributeSegmentName = StreamSegmentNameUtils.getAttributeSegmentName(SEGMENT_NAME);
+        @Cleanup
+        val context = new TestContext(DEFAULT_CONFIG);
+        populateSegments(context);
+
+        // Initialize the index and verify the attribute segment hasn't been created yet.
+        val idx = context.index.forSegment(SEGMENT_ID, TIMEOUT).join();
+        Assert.assertFalse("Attribute Segment created after initialization.", context.storage.exists(attributeSegmentName, TIMEOUT).join());
+
+        // Verify sealing works with empty segment and that it does not create the file.
+        idx.seal(TIMEOUT).join();
+        Assert.assertFalse("Attribute Segment created after sealing.", context.storage.exists(attributeSegmentName, TIMEOUT).join());
+
+        // Verify reading works with empty segment and that it does not create the file.
+        val get1 = idx.get(Collections.singleton(attributeId), TIMEOUT).join();
+        Assert.assertFalse("Attribute Segment created after reading.", context.storage.exists(attributeSegmentName, TIMEOUT).join());
+        Assert.assertNull("Not expecting any result from an empty index get.", get1.get(attributeId));
+
+        // Verify updating creates the segment.
+        idx.update(Collections.singletonMap(attributeId, 1L), TIMEOUT).join();
+        Assert.assertTrue("Attribute Segment not created after updating.", context.storage.exists(attributeSegmentName, TIMEOUT).join());
+        val get2 = idx.get(Collections.singleton(attributeId), TIMEOUT).join();
+        Assert.assertEquals("Unexpected result after retrieval.", 1L, (long) get2.get(attributeId));
+        idx.seal(TIMEOUT).join();
+        Assert.assertTrue("Expecting sealed in storage.", context.storage.getStreamSegmentInfo(attributeSegmentName, TIMEOUT).join().isSealed());
     }
 
     private void testRegularOperations(int attributeCount, int batchSize, int repeats, AttributeIndexConfig config) {

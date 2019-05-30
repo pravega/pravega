@@ -1180,14 +1180,13 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                                 // then the normal reconciliation algorithm will kick in once it is discovered and if the
                                 // segment has already been fenced out, openWrite() will throw the appropriate exception
                                 // which will be handled upstream.
-                                log.info("{}: Segment did not exist in Storage when initialized() was called, but does now.", this.traceObjectId);
+                                log.info("{}: Segment did not exist in Storage when initialize() was called, but does now.", this.traceObjectId);
                                 return this.storage.openWrite(this.metadata.getName());
                             })
                     .thenComposeAsync(handle -> {
                         this.handle.set(handle);
                         return toRun.get();
                     }, this.executor);
-
         } else {
             // Segment already exists. Execute what we were supposed to.
             return toRun.get();
