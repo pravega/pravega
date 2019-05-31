@@ -151,7 +151,7 @@ public class PeriodicWatermarking {
 
                                // 1. filter writers that are active.
                                List<Entry<String, WriterMark>> activeWriters = new ArrayList<>();
-                               List<Entry<String, WriterMark>> stoppedAndInactive = new ArrayList<>();
+                               List<Entry<String, WriterMark>> inactiveWriters = new ArrayList<>();
                                AtomicBoolean allActiveAreParticipating = new AtomicBoolean(true);
                                writers.entrySet().forEach(x -> {
                                    if (watermarkClient.isWriterActive(x.getValue().getTimestamp())) {
@@ -159,14 +159,14 @@ public class PeriodicWatermarking {
                                        if (!watermarkClient.isWriterParticipating(x.getValue().getTimestamp())) {
                                            allActiveAreParticipating.set(false);
                                        }
-                                   } else if (!x.getValue().isAlive()) {
-                                       stoppedAndInactive.add(x);
+                                   } else {
+                                       inactiveWriters.add(x);
                                    }
                                });
 
                                // Stop all inactive writers that have been shutdown.
-                               CompletableFuture<List<Void>> removeStoppedAndInactiveWriters = 
-                                       Futures.allOfWithResults(stoppedAndInactive.stream().map(x ->
+                               CompletableFuture<List<Void>> removeInactiveWriters = 
+                                       Futures.allOfWithResults(inactiveWriters.stream().map(x ->
                                                Futures.exceptionallyExpecting(
                                                        streamMetadataStore.removeWriter(scope, streamName, x.getKey(),
                                                        x.getValue(), context, executor), 
@@ -177,7 +177,7 @@ public class PeriodicWatermarking {
                                    // this will prevent the periodic cycles being spent in running watermarking workflow for a silent stream. 
                                    // as soon as any writer reports its mark, stream will be added to bucket and background 
                                    // periodic processing will resume.
-                                   return removeStoppedAndInactiveWriters
+                                   return removeInactiveWriters
                                            .thenCompose(v -> bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.WatermarkingService,
                                                    scope, streamName, executor));
                                } 
@@ -196,7 +196,7 @@ public class PeriodicWatermarking {
                                }
 
                                // we will compute watermark and remove inactive writers concurrently
-                               return CompletableFuture.allOf(removeStoppedAndInactiveWriters, watermarkFuture.thenAccept(watermarkClient::completeIteration));
+                               return CompletableFuture.allOf(removeInactiveWriters, watermarkFuture.thenAccept(watermarkClient::completeIteration));
                            })
                 .exceptionally(e -> {
                     log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e); 
@@ -453,16 +453,16 @@ public class PeriodicWatermarking {
             Revision revision = client.getMark();
             // revision can be null if no window has been set yet. 
             if (revision == null) {
-                revision = client.fetchOldestRevision();                
+                markRevision.set(client.fetchOldestRevision());
+            } else {
+                markRevision.set(revision);
             }
-            
-            markRevision.set(revision);
             
             entries = Lists.newArrayList(client.readFrom(revision));
             
             // If there are no watermarks or there is no previous window recorded, in either case we set watermark start 
             // to MIN_VALUE
-            int index = entries.isEmpty() ? Integer.MIN_VALUE : 0;
+            int index = entries.isEmpty() || revision == null ? Integer.MIN_VALUE : 0;
             
             if (entries.size() > windowSize) {
                 index = entries.size() - windowSize - 1;

@@ -358,16 +358,15 @@ public class WatermarkWorkflowTest {
         map2 = ImmutableMap.of(1L, 100L, 2L, 400L);
         streamMetadataStore.noteWriterMark(scope, streamName, writer2, 401L, map2, null, executor).join();
 
-        // run watermark workflow. there shouldnt be a watermark emitted until writer 3 times out and is excluded 
+        // run watermark workflow. there shouldn't be a watermark emitted until writer 3 times out and is excluded 
         // from computation. That will happen for two iterations because our window size is 2. Third iteration will
-        // exclude writer 3 from watermark computation. 
+        // exclude writer 3 from watermark computation and remove it. 
         periodicWatermarking.watermark(stream).join();
         assertEquals(revisionedClient.watermarks.size(), 3);
         periodicWatermarking.watermark(stream).join();
         assertEquals(revisionedClient.watermarks.size(), 3);
 
-        // even though writer3 is excluded from computation, its mark is still not removed because it isnt explicitly 
-        // shutdown. 
+        // even though writer3 is excluded from computation, its mark is still not removed because it is still active
         WriterMark writer3Mark = streamMetadataStore.getWriterMark(scope, streamName, writer3, null, executor).join();
         assertTrue(writer3Mark.isAlive());
         assertEquals(writer3Mark.getTimestamp(), 300L);
