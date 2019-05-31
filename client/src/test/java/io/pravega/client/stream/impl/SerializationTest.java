@@ -61,7 +61,7 @@ public class SerializationTest {
 
     @Test
     public void testPosition() {
-        PositionImpl pos = new PositionImpl(ImmutableMap.of(Segment.fromScopedName("foo/bar/1"), 2L));
+        PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 2L));
         ByteBuffer bytes = pos.toBytes();
         Position pos2 = Position.fromBytes(bytes);
         assertEquals(pos, pos2);
@@ -129,9 +129,9 @@ public class SerializationTest {
                                                     .groupRefreshTimeMillis(r.nextInt(1000))
                                                     .stream(createSegment().getStream())
                                                     .build();
-        verify(initSerializer, new ReaderGroupStateInit(config, createSegmentToLongMap(), createSegmentToLongMap()));
+        verify(initSerializer, new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap()));
         CompactReaderGroupStateBuilder builder = new CompactReaderGroupState.CompactReaderGroupStateBuilder();
-        builder.assignedSegments(createMap(this::createString, this::createSegmentToLongMap));
+        builder.assignedSegments(createMap(this::createString, this::createSegmentRangeMap));
         builder.checkpointState(new CheckpointState.CheckpointStateBuilder().checkpoints(createList(this::createString))
                                                                             .lastCheckpointPosition(createSegmentToLongMap())
                                                                             .checkpointPositions(createMap(this::createString,
@@ -142,8 +142,8 @@ public class SerializationTest {
         builder.config(config);
         builder.distanceToTail(createMap(this::createString, r::nextLong));
         builder.endSegments(createSegmentToLongMap());
-        builder.unassignedSegments(createSegmentToLongMap());
-        builder.futureSegments(createMap(this::createSegment, () -> new HashSet<>(createLongList())));
+        builder.unassignedSegments(createSegmentRangeMap());
+        builder.futureSegments(createMap(this::createSegmentWithRange, () -> new HashSet<>(createLongList())));
         verify(initSerializer, builder.build());
 
     }
@@ -156,8 +156,8 @@ public class SerializationTest {
         verify(serializer, new ReleaseSegment(createString(), createSegment(), r.nextLong()));
         verify(serializer, new AcquireSegment(createString(), createSegment()));
         verify(serializer, new UpdateDistanceToTail(createString(), r.nextLong()));
-        verify(serializer, new SegmentCompleted(createString(), createSegment(),
-                                                createMap(this::createSegment, this::createLongList)));
+        verify(serializer, new SegmentCompleted(createString(), createSegmentWithRange(),
+                                                createMap(this::createSegmentWithRange, this::createLongList)));
         verify(serializer, new CheckpointReader(createString(), createString(), createSegmentToLongMap()));
         verify(serializer, new CreateCheckpoint(createString()));
         verify(serializer, new ClearCheckpointsBefore(createString()));
@@ -195,6 +195,10 @@ public class SerializationTest {
     private Map<Segment, Long> createSegmentToLongMap() throws Exception {
         return createMap(this::createSegment, r::nextLong);
     }
+    
+    private Map<SegmentWithRange, Long> createSegmentRangeMap() throws Exception {
+        return createMap(this::createSegmentWithRange, r::nextLong);
+    }
 
     private <K, V> Map<K, V> createMap(Callable<K> keyGen, Callable<V> valueGen) throws Exception {
         int size = r.nextInt(3);
@@ -203,6 +207,12 @@ public class SerializationTest {
             builder.put(keyGen.call(), valueGen.call());
         }
         return builder.build();
+    }
+    
+    private SegmentWithRange createSegmentWithRange() {
+        float r1 = r.nextFloat();
+        float r2 = r.nextFloat();
+        return new SegmentWithRange(createSegment(), Math.min(r1, r2), Math.max(r1, r2));
     }
 
     private Segment createSegment() {

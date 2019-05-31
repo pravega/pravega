@@ -32,9 +32,11 @@ public class SegmentWithRange {
     
     public SegmentWithRange(Segment segment, Range range) {
         Preconditions.checkNotNull(segment);
-        Preconditions.checkArgument(range.low >= 0.0 && range.low <= 1.0);
-        Preconditions.checkArgument(range.high >= 0.0 && range.high <= 1.0);
-        Preconditions.checkArgument(range.low <= range.high);
+        if (range != null) {
+            Preconditions.checkArgument(range.low >= 0.0 && range.low <= 1.0);
+            Preconditions.checkArgument(range.high >= 0.0 && range.high <= 1.0);
+            Preconditions.checkArgument(range.low <= range.high);
+        }
         this.segment = segment;
         this.range = range;
     }
@@ -52,13 +54,5 @@ public class SegmentWithRange {
             return Pair.of(low, high);
         }
     }
-
-//    public double getLow() {
-//        return range.low;
-//    }
-//    
-//    public double getHigh() {
-//        return range.high;
-//    }
     
 }

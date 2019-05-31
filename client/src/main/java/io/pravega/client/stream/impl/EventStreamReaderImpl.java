@@ -67,6 +67,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @GuardedBy("readers")
     private final Map<Segment, Range> ranges = new HashMap<>();
     @GuardedBy("readers")
+    private Sequence lastRead;
+    @GuardedBy("readers")
     private final List<SegmentWithRange> sealedSegments = new ArrayList<>();
     @GuardedBy("readers")
     private String atCheckpoint;
@@ -132,6 +134,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         if (buffer == null) {
             return createEmptyEvent(null);
         } 
+        lastRead = Sequence.create(segment.getSegmentId(), offset);
         int length = buffer.remaining() + WireCommands.TYPE_PLUS_LENGTH_SIZE;
         return new EventReadImpl<>(deserializer.deserialize(buffer), getPosition(),
                                    new EventPointerImpl(segment, offset, length), null);

@@ -34,6 +34,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -345,7 +346,10 @@ public class ReaderGroupState implements Revisioned {
             private void read01(RevisionDataInput revisionDataInput, ReaderGroupStateInitBuilder builder) throws IOException {
                 ElementDeserializer<SegmentWithRange> segmentWithRangeDeserializer = in -> {
                     Segment segment = Segment.fromScopedName(in.readUTF());
-                    Range range = new Range(in.readDouble(), in.readDouble());
+                    Range range = null;
+                    if (in.readBoolean()) {
+                       range = new Range(in.readDouble(), in.readDouble());
+                    } 
                     return new SegmentWithRange(segment, range);
                 };
                 builder.startingSegments(revisionDataInput.readMap(segmentWithRangeDeserializer,
@@ -363,8 +367,14 @@ public class ReaderGroupState implements Revisioned {
             private void write01(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
                 ElementSerializer<SegmentWithRange> segmentWithRangeSerializer = (out, s) -> {
                     out.writeUTF(s.getSegment().getScopedName());
-                    out.writeDouble(s.getRange().getLow());
-                    out.writeDouble(s.getRange().getHigh());
+                    Range range = s.getRange();
+                    if (range == null) {
+                        out.writeBoolean(false);
+                    } else {
+                        out.writeBoolean(true);
+                        out.writeDouble(range.getLow());
+                        out.writeDouble(range.getHigh());
+                    }
                 };
                 revisionDataOutput.writeMap(state.startingSegments, segmentWithRangeSerializer, RevisionDataOutput::writeLong);
             }
@@ -689,8 +699,10 @@ public class ReaderGroupState implements Revisioned {
         
         private SegmentWithRange removeSegmentFromAssigned(Map<SegmentWithRange, Long> assigned) {
             SegmentWithRange result = null; 
-            for (SegmentWithRange key : assigned.keySet()) {
+            for (Iterator<SegmentWithRange> iterator = assigned.keySet().iterator(); iterator.hasNext();) {
+                SegmentWithRange key = iterator.next();
                 if (key.getSegment().equals(segment)) {
+                    iterator.remove();
                     result = key;
                 }
             }

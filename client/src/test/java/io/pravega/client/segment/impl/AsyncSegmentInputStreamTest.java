@@ -131,17 +131,19 @@ public class AsyncSegmentInputStreamTest {
         ArgumentCaptor<ClientConnection.CompletedCallback> callBackCaptor =
                 ArgumentCaptor.forClass(ClientConnection.CompletedCallback.class);
         Mockito.doAnswer(new Answer<Void>() {
+            @Override
             public Void answer(InvocationOnMock invocation) {
                 // Simulate a connection failure post establishing connection to SegmentStore.
                 callBackCaptor.getValue().complete(new ConnectionFailedException("SendAsync exception since netty channel is null"));
                 return null;
             }
         }).doAnswer(new Answer<Void>() {
-                   public Void answer(InvocationOnMock invocation) {
-                       mockedCF.getProcessor(endpoint).segmentRead(segmentRead);
-                       return null;
-                   }
-               }).when(c).sendAsync(any(ReadSegment.class), callBackCaptor.capture());
+            @Override
+            public Void answer(InvocationOnMock invocation) {
+                mockedCF.getProcessor(endpoint).segmentRead(segmentRead);
+                return null;
+            }
+        }).when(c).sendAsync(any(ReadSegment.class), callBackCaptor.capture());
 
         // Read invocation.
         CompletableFuture<SegmentRead> readFuture = in.read(1234, 5678);

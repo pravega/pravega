@@ -27,6 +27,7 @@ import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
@@ -428,7 +429,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp,
-                                                           Position lastWrittenPosition) {
+                                                           WriterPosition lastWrittenPosition) {
         // TODO watermarking: Implement this feature in the controller and call the method here.
         return null;
     }
