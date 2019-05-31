@@ -275,6 +275,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     /**
+     * Gets a value indicating whether the Segment that this ReadIndex points to is still active (in memory) and not deleted.
+     *
+     * @return True if active, false otherwise.
+     */
+    boolean isActive() {
+        return this.metadata.isActive() && !this.metadata.isDeleted();
+    }
+
+    /**
      * Gets the length of the Segment this ReadIndex refers to.
      */
     long getSegmentLength() {

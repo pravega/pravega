@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
@@ -355,7 +356,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     /**
      * Marks this SegmentMetadata as inactive.
      */
-    synchronized void markInactive() {
+    @VisibleForTesting
+    public synchronized void markInactive() {
         this.active = false;
     }
 
