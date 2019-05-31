@@ -125,7 +125,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     @Override
     public boolean isActive() {
-        throw new UnsupportedOperationException("isActive() is not supported on " + getClass().getName());
+        return true;
     }
 
     @Override
