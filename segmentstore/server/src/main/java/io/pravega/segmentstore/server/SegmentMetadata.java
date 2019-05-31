@@ -10,6 +10,9 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.BiPredicate;
 
 /**
  * Defines an immutable StreamSegment Metadata.
@@ -89,4 +92,12 @@ public interface SegmentMetadata extends SegmentProperties {
      * @return True if pinned, false otherwise.
      */
     boolean isPinned();
+
+    /**
+     * Gets new Map containing all the Attributes for this Segment that match the given filter.
+     *
+     * @param filter The Key-Value filter that will be used.
+     * @return A new Map containing the result.
+     */
+    Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter);
 }
