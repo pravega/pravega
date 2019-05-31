@@ -130,8 +130,6 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
 
-        /*Class[] expectedReplies = {WireCommands.SegmentTruncated.class,
-                WireCommands.SegmentIsTruncated.class};*/
         Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentTruncated.class,
                 () -> log.info(requestId, "truncateSegment {} SegmentTruncated", qualifiedName));
@@ -158,8 +156,6 @@ public class SegmentHelper implements AutoCloseable {
         expectedReplies.put(WireCommands.NoSuchSegment.class,
                 () -> log.info(requestId, "deleteSegment {} NoSuchSegment", qualifiedName));
 
-        /*Class[] expectedReplies = {WireCommands.SegmentDeleted.class,
-                WireCommands.NoSuchSegment.class};*/
         return connection.sendRequest(requestId, new WireCommands.DeleteSegment(requestId, qualifiedName, delegationToken))
                 .thenApply(r -> transformReply(r, expectedReplies, connection));
     }
@@ -190,14 +186,13 @@ public class SegmentHelper implements AutoCloseable {
                                                    long clientRequestId) {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().getNextSequenceNumber();
+
         Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentSealed.class,
                 () -> log.info(requestId, "sealSegment {} segmentSealed", qualifiedName));
         expectedReplies.put(WireCommands.SegmentIsSealed.class,
                 () -> log.info(requestId, "sealSegment {} SegmentIsSealed", qualifiedName));
 
-        /*Class[] expectedReplies = {WireCommands.SegmentSealed.class,
-                WireCommands.SegmentIsSealed.class};*/
         return connection.sendRequest(requestId, new WireCommands.SealSegment(requestId, qualifiedName, delegationToken))
                 .thenApply(r -> transformReply(r, expectedReplies, connection));
     }
