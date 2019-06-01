@@ -22,6 +22,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -449,10 +450,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             result.whenComplete(
                     (value, ex) -> {
                         log.debug("result =  {}", value);
-                        logAndUntrackRequestTag(requestTag);
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
-                            log.error("Controller api failed with error: {}", ex.getMessage(), ex);
+                            logError(requestTag, cause);
                             String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
                             streamObserver.onError(Status.INTERNAL
                                     .withCause(cause)
@@ -462,6 +462,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             streamObserver.onNext(value);
                             streamObserver.onCompleted();
                         }
+                        logAndUntrackRequestTag(requestTag);
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -481,6 +482,16 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         if (requestTag != null) {
             log.debug(requestTracker.untrackRequest(requestTag.getRequestDescriptor()),
                     "Untracking request: {}.", requestTag.getRequestDescriptor());
+        }
+    }
+
+    private void logError(RequestTag requestTag, Throwable cause) {
+        String tag = requestTag == null ? "none" : requestTag.getRequestDescriptor();
+
+        if (cause instanceof LockFailedException) {
+            log.warn("Controller API call with tag {} failed with: {}", tag, cause.getMessage());
+        } else {
+            log.error("Controller API call with tag {} failed with error: ", tag, cause);
         }
     }
 }
