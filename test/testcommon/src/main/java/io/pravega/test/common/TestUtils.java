@@ -57,7 +57,7 @@ public class TestUtils {
     }
 
     /**
-     * Check whether the given condition is true and then await.
+     * Awaits the given condition to become true.
      *
      * @param condition            A Supplier that indicates when the condition is true. When this happens, this method will return.
      * @param checkFrequencyMillis The number of millis to wait between successive checks of the condition.
@@ -71,27 +71,6 @@ public class TestUtils {
             Thread.sleep(checkFrequencyMillis);
             remainingMillis -= checkFrequencyMillis;
         }
-
-        if (!condition.get() && remainingMillis <= 0) {
-            throw new TimeoutException("Timeout expired prior to the condition becoming true.");
-        }
-    }
-
-    /**
-     * Awaits first and then check whether the given condition becomes true.
-     *
-     * @param condition            A Supplier that indicates when the condition is true. When this happens, this method will return.
-     * @param checkFrequencyMillis The number of millis to wait between successive checks of the condition.
-     * @param timeoutMillis        The maximum amount of time to wait.
-     * @throws TimeoutException If the condition was not met during the allotted time.
-     */
-    @SneakyThrows(InterruptedException.class)
-    public static void awaitFirst(Supplier<Boolean> condition, int checkFrequencyMillis, long timeoutMillis) throws TimeoutException {
-        long remainingMillis = timeoutMillis;
-        do {
-            Thread.sleep(checkFrequencyMillis);
-            remainingMillis -= checkFrequencyMillis;
-        } while (!condition.get() && remainingMillis > 0);
 
         if (!condition.get() && remainingMillis <= 0) {
             throw new TimeoutException("Timeout expired prior to the condition becoming true.");

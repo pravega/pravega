@@ -9,7 +9,6 @@
  */
 package io.pravega.test.integration;
 
-import io.micrometer.core.instrument.Metrics;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
@@ -207,7 +206,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
             assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count());
 
             //Wait for cache eviction to happen
-            TestUtils.awaitFirst(() -> MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags) != null, 4000, 12000);
+            Thread.sleep(5000);
 
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
