@@ -420,7 +420,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 3, 2L));
 
         // check that client reconnected
-        verify(cf, times(2)).establishConnection(any(), any());
+        verify(cf, times(2)).establishConnection(eq(cid), any(), any());
 
     }
 
@@ -461,7 +461,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 2, 3));
 
         // check that client reconnected
-        verify(cf, times(2)).establishConnection(any(), any());
+        verify(cf, times(2)).establishConnection(eq(cid), any(), any());
 
     }
 

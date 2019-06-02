@@ -27,6 +27,7 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.ParametersAreNonnullByDefault;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -112,8 +113,8 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         SegmentStoreConnectionPool(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF, int maxConcurrent, int maxIdle) {
             super(() -> {
                 ReusableReplyProcessor rp = new ReusableReplyProcessor();
-                return clientCF.establishConnection(pravegaNodeUri, rp)
-                              .thenApply(connection -> new ConnectionObject(connection, rp));
+                return clientCF.establishConnection(UUID.randomUUID(), pravegaNodeUri, rp)
+                        .thenApply(connection -> new ConnectionObject(connection, rp));
             }, connectionObj -> connectionObj.connection.close(), maxConcurrent, maxIdle);
         }
 

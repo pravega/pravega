@@ -37,7 +37,6 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -54,6 +53,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -94,7 +94,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
 
     @Override
     @Synchronized
-    public CompletableFuture<ClientConnection> getClientConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp) {
+    public CompletableFuture<ClientConnection> getClientConnection(Flow flow, UUID id, PravegaNodeUri location, ReplyProcessor rp) {
         Preconditions.checkNotNull(flow, "Flow");
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
@@ -119,26 +119,27 @@ public class ConnectionPoolImpl implements ConnectionPool {
         } else {
             // create a new connection.
             log.info("Creating a new connection to {}", location);
-            final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-            final FlowHandler handler = new FlowHandler(location.getEndpoint(), batchSizeTracker);
+            final FlowHandler handler = new FlowHandler(location.getEndpoint());
             CompletableFuture<Void> establishedFuture = establishConnection(location, handler);
             connection = new Connection(location, handler, establishedFuture);
             prunedConnectionList.add(connection);
         }
+        connection.getFlowHandler().createAppendBatchSizeTracker(id);
         ClientConnection result = connection.getFlowHandler().createFlow(flow, rp);
         connectionMap.put(location, prunedConnectionList);
         return connection.getConnected().thenApply(v -> result);
     }
 
     @Override
-    public CompletableFuture<ClientConnection> getClientConnection(PravegaNodeUri location, ReplyProcessor rp) {
+    @Synchronized
+    public CompletableFuture<ClientConnection> getClientConnection(UUID id, PravegaNodeUri location, ReplyProcessor rp) {
         Preconditions.checkNotNull(location, "Location");
         Preconditions.checkNotNull(rp, "ReplyProcessor");
         Exceptions.checkNotClosed(closed.get(), this);
 
         // create a new connection.
-        final AppendBatchSizeTracker batchSizeTracker = new AppendBatchSizeTrackerImpl();
-        final FlowHandler handler = new FlowHandler(location.getEndpoint(), batchSizeTracker);
+        final FlowHandler handler = new FlowHandler(location.getEndpoint());
+        handler.createAppendBatchSizeTracker(id);
         CompletableFuture<Void> connectedFuture = establishConnection(location, handler);
         Connection connection = new Connection(location, handler, connectedFuture);
         ClientConnection result = connection.getFlowHandler().createConnectionWithFlowDisabled(rp);
@@ -248,7 +249,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
                 }
                 p.addLast(
                         new ExceptionLoggingHandler(location.getEndpoint()),
-                        new CommandEncoder(handler.getBatchSizeTracker()),
+                        new CommandEncoder(handler::getAppendBatchSizeTracker),
                         new LengthFieldBasedFrameDecoder(WireCommands.MAX_WIRECOMMAND_SIZE, 4, 4),
                         new CommandDecoder(),
                         handler);

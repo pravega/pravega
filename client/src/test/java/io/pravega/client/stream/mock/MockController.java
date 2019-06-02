@@ -512,8 +512,8 @@ public class MockController implements Controller {
 
     private <T> void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor, CompletableFuture<T> resultFuture) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
-            .establishConnection(Flow.from(((Request) request).getRequestId()), new PravegaNodeUri(endpoint, port), replyProcessor),
-                                                             RuntimeException::new);
+                        .establishConnection(Flow.from(((Request) request).getRequestId()), UUID.randomUUID(), new PravegaNodeUri(endpoint, port), replyProcessor),
+                RuntimeException::new);
         resultFuture.whenComplete((result, e) -> {
             connection.close();
         });

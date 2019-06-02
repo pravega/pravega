@@ -652,20 +652,20 @@ public class SegmentHelperTest {
         private ClientConnection connection;
         
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
+        public CompletableFuture<ClientConnection> establishConnection(UUID id, PravegaNodeUri endpoint, ReplyProcessor rp) {
             if (failConnection.get()) {
                 return Futures.failedFuture(new RuntimeException());   
             } else {
                 this.rp = rp;
-                ClientConnection connection = new MockConnection(rp, failConnection);
+                ClientConnection connection = new MockConnection(id, rp, failConnection);
                 return CompletableFuture.completedFuture(connection);
             }
         }
 
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
+        public CompletableFuture<ClientConnection> establishConnection(Flow flow, UUID id,  PravegaNodeUri endpoint, ReplyProcessor rp) {
             this.rp = rp;
-            ClientConnection connection = new MockConnection(rp, failConnection);
+            ClientConnection connection = new MockConnection(id, rp, failConnection);
             return CompletableFuture.completedFuture(connection);
         }
 
@@ -685,9 +685,11 @@ public class SegmentHelperTest {
     private class MockConnection implements ClientConnection {
         private final AtomicBoolean toFail;
         @Getter
+        private final UUID id;
         private final ReplyProcessor rp;
 
-        public MockConnection(ReplyProcessor rp, AtomicBoolean toFail) {
+        public MockConnection(UUID id, ReplyProcessor rp, AtomicBoolean toFail) {
+            this.id = id; 
             this.rp = rp;
             this.toFail = toFail;
         }

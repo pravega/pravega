@@ -18,6 +18,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +34,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
 
     @Override
     @Synchronized
-    public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri location, ReplyProcessor rp) {
+    public CompletableFuture<ClientConnection> establishConnection(UUID id, PravegaNodeUri location, ReplyProcessor rp) {
         ClientConnection connection = connections.get(location);
         Preconditions.checkState(connection != null, "Unexpected Endpoint");
         processors.put(location, rp);
@@ -42,8 +43,8 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
 
     @Override
     @Synchronized
-    public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp) {
-      return establishConnection(location, rp);
+    public CompletableFuture<ClientConnection> establishConnection(Flow flow, UUID id, PravegaNodeUri location, ReplyProcessor rp) {
+        return establishConnection(id, location, rp);
     }
 
     @Override

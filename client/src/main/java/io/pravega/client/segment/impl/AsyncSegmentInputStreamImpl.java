@@ -28,6 +28,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsTruncated;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
+import java.util.UUID;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -52,6 +53,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
 
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final UUID trakerID = UUID.randomUUID();
     private final Controller controller;
     private final String delegationToken;
     @VisibleForTesting
@@ -247,7 +249,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         return controller.getEndpointForSegment(segmentId.getScopedName()).thenCompose((PravegaNodeUri uri) -> {
             synchronized (lock) {
                 if (connection == null) {
-                    connection = connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);
+                    connection = connectionFactory.establishConnection(Flow.from(requestId), trakerID, uri, responseProcessor);
                 }
                 return connection;
             }
