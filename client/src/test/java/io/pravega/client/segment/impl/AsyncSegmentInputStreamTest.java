@@ -126,8 +126,8 @@ public class AsyncSegmentInputStreamTest {
                                                                             ByteBufferUtils.EMPTY, in.getRequestId());
         // simulate a establishConnection failure to segment store.
         Mockito.doReturn(failedConnection)
-                .doCallRealMethod()
-                .when(mockedCF).establishConnection(any(Flow.class), any(UUID.class), eq(endpoint), any(ReplyProcessor.class));
+               .doCallRealMethod()
+               .when(mockedCF).establishConnection(any(Flow.class), any(UUID.class), eq(endpoint), any(ReplyProcessor.class));
 
         ArgumentCaptor<ClientConnection.CompletedCallback> callBackCaptor =
                 ArgumentCaptor.forClass(ClientConnection.CompletedCallback.class);
