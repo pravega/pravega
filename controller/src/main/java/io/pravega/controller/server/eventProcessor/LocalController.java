@@ -431,13 +431,12 @@ public class LocalController implements Controller {
     @Override
     public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp,
                                                            Position lastWrittenPosition) {
-        // TODO watermarking: Implement this feature in the controller and call the method here.
-        return null;
+        Map<Long, Long> map = ModelHelper.createStreamCut(stream, lastWrittenPosition.asImpl()).getCutMap();
+        return Futures.toVoid(controller.noteTimestampFromWriter(stream.getScope(), stream.getStreamName(), writer, timestamp, map));
     }
 
     @Override
-    public CompletableFuture<Void> writerShutdown(String writerId, Stream stream) {
-        // TODO watermarking: Implement this feature in the controller and call the method here.
-        return null;
+    public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
+        return Futures.toVoid(controller.removeWriter(stream.getScope(), stream.getStreamName(), writerId));
     }
 }

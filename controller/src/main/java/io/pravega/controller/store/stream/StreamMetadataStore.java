@@ -1108,7 +1108,9 @@ public interface StreamMetadataStore extends AutoCloseable {
                                                               OperationContext context, Executor executor);
 
     /**
-     * Method to mark a writer for shutdown. A shutdown writer can be revived if newer marks are reported for it. 
+     * Method to mark a writer for shutdown. A shutdown writer can be revived if newer marks are reported for it.
+     * A writer which is marked for shutdown is removed asynchronously after its latest reported mark is included for 
+     * a watermarking computation. 
      * 
      * @param scope scope name
      * @param stream stream name
@@ -1120,7 +1122,9 @@ public interface StreamMetadataStore extends AutoCloseable {
     CompletableFuture<Void> shutdownWriter(String scope, String stream, String writer, OperationContext context, Executor executor);
 
     /**
-     * Method to remove writer specific metadata from the metadata store. Remove method is idempotent. 
+     * Method to remove writer specific metadata conditionally from the metadata store.  
+     * A writer is removed only if the writer mark in the store matches the given writer mark. Remove method is idempotent, 
+     * so if writer is not found, its considered removed. 
      * @param scope scope name
      * @param stream stream name
      * @param writer writer id

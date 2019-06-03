@@ -73,8 +73,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.WriterShutdownRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.WriterShutdownResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveWriterRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveWriterResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
@@ -1003,14 +1003,14 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> writerShutdown(String writerId, Stream stream) {
+    public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(writerId, "writerId");
         long traceId = LoggerHelpers.traceEnter(log, "writerShutdown", writerId, stream);
-        final CompletableFuture<WriterShutdownResponse> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<WriterShutdownResponse> callback = new RPCAsyncCallback<>(traceId, "writerShutdown");
-            client.writerShutdown(WriterShutdownRequest.newBuilder()
+        final CompletableFuture<RemoveWriterResponse> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<RemoveWriterResponse> callback = new RPCAsyncCallback<>(traceId, "writerShutdown");
+            client.removeWriter(RemoveWriterRequest.newBuilder()
                                                        .setWriter(writerId)
                                                        .setStream(ModelHelper.createStreamInfo(stream.getScope(),
                                                                                                stream.getStreamName()))
@@ -1019,8 +1019,8 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return Futures.toVoidExpecting(result,
-                                       WriterShutdownResponse.newBuilder()
-                                                             .setResult(WriterShutdownResponse.Status.SUCCESS)
+                                       RemoveWriterResponse.newBuilder()
+                                                             .setResult(RemoveWriterResponse.Status.SUCCESS)
                                                              .build(),
                                        RuntimeException::new)
                       .whenComplete((x, e) -> {

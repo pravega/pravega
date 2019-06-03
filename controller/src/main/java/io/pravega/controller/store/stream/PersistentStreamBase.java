@@ -1228,7 +1228,7 @@ public abstract class PersistentStreamBase implements Stream {
             // Ignore data not found exceptions. DataNotFound Exceptions can be thrown because transaction record no longer 
             // exists and this is an idempotent case. DataNotFound can also be thrown because writer's mark was deleted 
             // as we attempted to update an existing record. Note: Delete can be triggered by writer explicitly calling
-            // shutdownWriter api. 
+            // removeWriter api. 
             CompletableFuture<Void> future = getActiveTx(epoch, txId).thenCompose(txnRecord -> {
                 if (txnRecord != null && !Strings.isNullOrEmpty(txnRecord.getObject().getWriterId())
                         && txnRecord.getObject().getCommitTime() >= 0L && !txnRecord.getObject().getCommitOffsets().isEmpty()) {
@@ -2062,7 +2062,7 @@ public abstract class PersistentStreamBase implements Stream {
      * @param timestamp timestamp
      * @param position position
      * @return CompletableFuture which when completed will have writer mark created.  
-     * Implementation should throw DataExistsException if data exists
+     * Implementation should throw DataExistsException if data exists.
      */
     abstract CompletableFuture<Void> createWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position);
 
@@ -2075,17 +2075,21 @@ public abstract class PersistentStreamBase implements Stream {
 
     /**
      * Method to update existing writer mark record. 
+     * 
      * @param writer writer id
      * @param timestamp timestamp
      * @param position position
      * @param isAlive whether writer is shutdown or not
      * @param version version of last record
-     * @return CompletableFuture which when completed will have writer mark updated.  
+     * @return CompletableFuture which when completed will have writer mark updated. 
+     * @throws DataNotFoundException if while attempting to update a writer mark, its previous mark was removed by 
+     * watermarking workflow.
      */
     abstract CompletableFuture<Void> updateWriterMarkRecord(String writer, long timestamp, ImmutableMap<Long, Long> position, boolean isAlive, Version version);
 
     /**
      * Method to delete existing writer mark record conditionally. 
+     * 
      * @param writer writer id
      * @param version version of last record
      * @return CompletableFuture which when completed will have writer mark deleted.
