@@ -25,7 +25,7 @@ public interface ConnectionFactory extends AutoCloseable {
     /**
      * Establishes a connection between server and client with given parameters.
      *
-     * @param id       identifier
+     * @param id       Identifier
      * @param endpoint The Pravega Node URI.
      * @param rp       Reply Processor instance.
      * @return An instance of client connection.
@@ -36,7 +36,7 @@ public interface ConnectionFactory extends AutoCloseable {
      * This method is used to establish a client connection using a {@link Flow} on the underlying Connection
      * pool.
      * @param flow  Flow to be used to create a client connection.
-     * @param id     identifier
+     * @param id     Identifier
      * @param endpoint The Pravega Node URI.
      * @param rp Reply Processor instance.
      * @return An instance of client connection.
