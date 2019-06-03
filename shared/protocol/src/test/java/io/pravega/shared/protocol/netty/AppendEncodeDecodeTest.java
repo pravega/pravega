@@ -24,6 +24,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import org.junit.After;
@@ -40,13 +43,15 @@ public class AppendEncodeDecodeTest {
     private final int appendBlockSize = 1024;  
     private final UUID writerId = new UUID(1, 2);
     private final String streamName = "Test Stream Name";
-    private final CommandEncoder encoder = new CommandEncoder(new FixedBatchSizeTracker(appendBlockSize));
+    private final ConcurrentHashMap<UUID, AppendBatchSizeTracker> idBatchSizeTrackerMap = new ConcurrentHashMap<>();
+    private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
     private final AppendDecoder appendDecoder = new AppendDecoder();
     private Level origionalLogLevel;
     
     @Before
     public void setup() {
+        idBatchSizeTrackerMap.put(writerId, new FixedBatchSizeTracker(appendBlockSize));
         origionalLogLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
     }
@@ -137,8 +142,10 @@ public class AppendEncodeDecodeTest {
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
+        idBatchSizeTrackerMap.remove(writerId);
+        idBatchSizeTrackerMap.put(writerId, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
-        CommandEncoder commandEncoder = new CommandEncoder(new FixedBatchSizeTracker(3));
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(null, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -261,9 +268,14 @@ public class AppendEncodeDecodeTest {
     @Test 
     public void testSwitchingWriters() throws Exception {
         int size = 20; //Used to force a minimum size
-        CommandEncoder encoder = new CommandEncoder(new FixedBatchSizeTracker(size));
         UUID writer1 = new UUID(1, 1);
         UUID writer2 = new UUID(2, 2);
+        idBatchSizeTrackerMap.remove(writer1);
+        idBatchSizeTrackerMap.remove(writer2);
+        idBatchSizeTrackerMap.put(writer1, new FixedBatchSizeTracker(size));
+        idBatchSizeTrackerMap.put(writer2, new FixedBatchSizeTracker(size));
+
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         SetupAppend setupAppend = new SetupAppend(1, writer1, streamName, "");
@@ -279,7 +291,9 @@ public class AppendEncodeDecodeTest {
     @Test
     public void testZeroSizeAppend() throws Exception {
         int size = 0; //Used to force a minimum size
-        CommandEncoder encoder = new CommandEncoder(new FixedBatchSizeTracker(size));
+        idBatchSizeTrackerMap.remove(writerId);
+        idBatchSizeTrackerMap.put(writerId, new FixedBatchSizeTracker(size));
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
@@ -303,7 +317,9 @@ public class AppendEncodeDecodeTest {
     @Test
     public void testZeroSizeAppendInBlock() throws Exception {
         int size = 100;
-        CommandEncoder encoder = new CommandEncoder(new FixedBatchSizeTracker(size));
+        idBatchSizeTrackerMap.remove(writerId);
+        idBatchSizeTrackerMap.put(writerId, new FixedBatchSizeTracker(size));
+        CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
