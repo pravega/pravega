@@ -105,7 +105,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
 
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
-        final long requestId = connection.getFlow().getNextSequenceNumber();
+        final long requestId = connection.getFlow().asLong();
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
         Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
@@ -128,7 +128,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
-        final long requestId = connection.getFlow().getNextSequenceNumber();
+        final long requestId = connection.getFlow().asLong();
 
         Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentTruncated.class,
@@ -148,7 +148,7 @@ public class SegmentHelper implements AutoCloseable {
         final Controller.NodeUri uri = getSegmentUri(scope, stream, segmentId);
         final String qualifiedName = getQualifiedStreamSegmentName(scope, stream, segmentId);
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
-        final long requestId = connection.getFlow().getNextSequenceNumber();
+        final long requestId = connection.getFlow().asLong();
 
         Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentDeleted.class,
@@ -185,7 +185,7 @@ public class SegmentHelper implements AutoCloseable {
                                                    final String delegationToken,
                                                    long clientRequestId) {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
-        final long requestId = connection.getFlow().getNextSequenceNumber();
+        final long requestId = connection.getFlow().asLong();
 
         Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentSealed.class,
@@ -496,7 +496,7 @@ public class SegmentHelper implements AutoCloseable {
 
         final Controller.NodeUri uri = getTableUri(tableName);
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
-        final long requestId = connection.getFlow().getNextSequenceNumber();
+        final long requestId = connection.getFlow().asLong();
 
         Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentCreated.class,
@@ -525,7 +525,7 @@ public class SegmentHelper implements AutoCloseable {
                                                          final long clientRequestId) {
         final Controller.NodeUri uri = getTableUri(tableName);
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
-        final long requestId = connection.getFlow().getNextSequenceNumber();
+        final long requestId = connection.getFlow().asLong();
 
         Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentDeleted.class,
@@ -1114,6 +1114,7 @@ public class SegmentHelper implements AutoCloseable {
                                    RawClient client) {
         if (expectedReplies.containsKey(reply.getClass())) {
             expectedReplies.get(reply.getClass()).apply();
+            closeConnection(reply, client);
             return true;
         } else {
             throw handleUnexpectedReply(reply, expectedReplies, client);
