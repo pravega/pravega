@@ -43,13 +43,29 @@ public class RequestSweeper implements FailoverSweeper {
     private final ScheduledExecutorService executor;
     private final StreamMetadataTasks streamMetadataTasks;
     private final int limit;
-    
+
+    /**
+     * Constructor for RequestSweeper object
+     * 
+     * @param metadataStore stream metadata store
+     * @param executor executor
+     * @param streamMetadataTasks stream metadata tasks
+     */
     public RequestSweeper(final StreamMetadataStore metadataStore,
                           final ScheduledExecutorService executor, final StreamMetadataTasks streamMetadataTasks) {
         this(metadataStore, executor, streamMetadataTasks, LIMIT);
     }
-    
-    public RequestSweeper(final StreamMetadataStore metadataStore,
+
+    /**
+     * Constructor for RequestSweeper object
+     *
+     * @param metadataStore stream metadata store
+     * @param executor executor
+     * @param streamMetadataTasks stream metadata tasks
+     * @param limit limit on number of requests to sweep for a host in one iteration.
+     */
+    @VisibleForTesting
+    RequestSweeper(final StreamMetadataStore metadataStore,
                           final ScheduledExecutorService executor, final StreamMetadataTasks streamMetadataTasks,
                           final int limit) {
         this.metadataStore = metadataStore;
