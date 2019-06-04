@@ -17,7 +17,7 @@ try:
         "docker service inspect pravega_segmentstore --format='{{.Spec.TaskTemplate.ContainerSpec.Env}}'", shell=True)
 
     def get_config(name):
-        return re.findall(name + "=(.+?)( |])", env)[0][0]
+        return re.findall(name + "=(.+?)( |]|\n)", env)[0][0]
 
     published_address = get_config("publishedIPAddress")
     hdfs_url = get_config("HDFS_URL")
