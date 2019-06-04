@@ -27,6 +27,7 @@ import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -752,8 +753,8 @@ public abstract class StreamMetadataStoreTest {
         // third transaction created after new epoch created
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
 
-        store.sealTransaction(scope, stream, tx02.getId(), true, Optional.of(tx02.getVersion()), null, executor).get();
-        store.sealTransaction(scope, stream, tx01.getId(), true, Optional.of(tx01.getVersion()), null, executor).get();
+        store.sealTransaction(scope, stream, tx02.getId(), true, Optional.of(tx02.getVersion()), "", Long.MIN_VALUE, null, executor).get();
+        store.sealTransaction(scope, stream, tx01.getId(), true, Optional.of(tx01.getVersion()), "", Long.MIN_VALUE, null, executor).get();
 
         store.scaleSegmentsSealed(scope, stream, scale1SealedSegments.stream().collect(Collectors.toMap(x -> x, x -> 0L)), versioned,
                 null, executor).join();
@@ -799,7 +800,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(store.transactionStatus(scope, stream, tx01.getId(), null, executor).join(), TxnStatus.COMMITTED);
         assertEquals(store.transactionStatus(scope, stream, tx02.getId(), null, executor).join(), TxnStatus.COMMITTED);
         assertEquals(store.transactionStatus(scope, stream, tx03.getId(), null, executor).join(), TxnStatus.OPEN);
-        store.sealTransaction(scope, stream, tx03.getId(), true, Optional.of(tx03.getVersion()), null, executor).get();
+        store.sealTransaction(scope, stream, tx03.getId(), true, Optional.of(tx03.getVersion()), "", Long.MIN_VALUE, null, executor).get();
         // endregion
 
         // region verify migrate request for manual scale
@@ -818,7 +819,7 @@ public abstract class StreamMetadataStoreTest {
                 100, 100, null, executor).get();
         assertEquals(1, tx14.getEpoch());
 
-        store.sealTransaction(scope, stream, tx14.getId(), true, Optional.of(tx14.getVersion()), null, executor).get();
+        store.sealTransaction(scope, stream, tx14.getId(), true, Optional.of(tx14.getVersion()), "", Long.MIN_VALUE, null, executor).get();
 
         // verify that new txns can be created and are created on original epoch
         txnId = store.generateTransactionId(scope, stream, null, executor).join();
@@ -835,7 +836,7 @@ public abstract class StreamMetadataStoreTest {
         assertEquals(4, activeEpoch.getEpoch());
         assertEquals(4, activeEpoch.getReferenceEpoch());
 
-        store.sealTransaction(scope, stream, tx15.getId(), true, Optional.of(tx15.getVersion()), null, executor).get();
+        store.sealTransaction(scope, stream, tx15.getId(), true, Optional.of(tx15.getVersion()), "", Long.MIN_VALUE, null, executor).get();
 
         record = store.startCommitTransactions(scope, stream, null, executor).join();
         store.setState(scope, stream, State.COMMITTING_TXN, null, executor).get();
@@ -867,7 +868,7 @@ public abstract class StreamMetadataStoreTest {
         UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData tx1 = store.createTransaction(scope, stream, txnId,
                 100, 100, null, executor).get();
-        store.sealTransaction(scope, stream, txnId, true, Optional.of(tx1.getVersion()), null, executor).get();
+        store.sealTransaction(scope, stream, txnId, true, Optional.of(tx1.getVersion()), "", Long.MIN_VALUE, null, executor).get();
 
         long scaleTs = System.currentTimeMillis();
         List<Long> scale1SealedSegments = Collections.singletonList(0L);
@@ -949,10 +950,10 @@ public abstract class StreamMetadataStoreTest {
 
         // committing
         store.sealTransaction(scope, stream, tx00, true, Optional.empty(),
-                null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
         // aborting
         store.sealTransaction(scope, stream, tx01, false, Optional.empty(),
-                null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
 
         PersistentStreamBase streamObj = (PersistentStreamBase) ((AbstractStreamMetadataStore) store).getStream(scope, stream, null);
         // duplicate for tx00
@@ -997,11 +998,11 @@ public abstract class StreamMetadataStoreTest {
                 100, 100, null, executor).get();
         // set all three transactions to committing
         store.sealTransaction(scope, stream, tx10, true, Optional.empty(),
-                null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
         store.sealTransaction(scope, stream, tx11, true, Optional.empty(),
-                null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
         store.sealTransaction(scope, stream, tx12, true, Optional.empty(),
-                null, executor).get();
+                "", Long.MIN_VALUE, null, executor).get();
         
         // verify that we still get tx00 only 
         orderedRecords = streamObj.getOrderedCommittingTxnInLowestEpoch().join();
@@ -1395,5 +1396,98 @@ public abstract class StreamMetadataStoreTest {
             ((AbstractStreamMetadataStore) store).recordLastStreamSegment(scope, stream, i, null, executor).join();
             assertEquals(i + 1, (int) ((AbstractStreamMetadataStore) store).getSafeStartingSegmentNumberFor(scope, stream).join());
         }
+    }
+
+    @Test
+    public void testWriterMark() {
+        String stream = "mark";
+        store.createScope(scope).join();
+        store.createStream(scope, stream, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1))
+                                                             .build(), System.currentTimeMillis(), null, executor).join();
+
+        // data not found
+        String writer1 = "writer1";
+        AssertExtensions.assertFutureThrows("", store.getWriterMark(scope, stream, writer1, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        // now note writer record
+        store.noteWriterMark(scope, stream, writer1, 0L, Collections.singletonMap(0L, 1L), null, executor).join();
+        store.getWriterMark(scope, stream, writer1, null, executor).join();
+
+        // update writer record
+        store.noteWriterMark(scope, stream, writer1, 1L, Collections.singletonMap(0L, 2L), null, executor).join();
+        WriterMark writerMark = store.getWriterMark(scope, stream, writer1, null, executor).join();
+        assertTrue(writerMark.isAlive());
+
+        Map<String, WriterMark> marks = store.getAllWriterMarks(scope, stream, null, executor).join();
+        assertTrue(marks.containsKey(writer1));
+
+        store.shutdownWriter(scope, stream, writer1, null, executor).join();
+        writerMark = store.getWriterMark(scope, stream, writer1, null, executor).join();
+        assertFalse(writerMark.isAlive());
+
+        // note a mark after a writer has been shutdown. It should become alive again. 
+        store.noteWriterMark(scope, stream, writer1, 2L, Collections.singletonMap(0L, 2L), null, executor).join();
+        writerMark = store.getWriterMark(scope, stream, writer1, null, executor).join();
+        assertTrue(writerMark.isAlive());
+
+        // remove writer
+        AssertExtensions.assertFutureThrows("Mismatched writer mark did not throw exception",
+                store.removeWriter(scope, stream, writer1, WriterMark.EMPTY, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+
+        store.removeWriter(scope, stream, writer1, writerMark, null, executor).join();
+        AssertExtensions.assertFutureThrows("", store.getWriterMark(scope, stream, writer1, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+
+        marks = store.getAllWriterMarks(scope, stream, null, executor).join();
+        assertTrue(marks.isEmpty());
+
+        String writer2 = "writer2";
+        store.noteWriterMark(scope, stream, writer2, 1L, Collections.singletonMap(0L, 1L), null, executor).join();
+        String writer3 = "writer3";
+        store.noteWriterMark(scope, stream, writer3, 1L, Collections.singletonMap(0L, 1L), null, executor).join();
+        String writer4 = "writer4";
+        store.noteWriterMark(scope, stream, writer4, 1L, Collections.singletonMap(0L, 1L), null, executor).join();
+
+        marks = store.getAllWriterMarks(scope, stream, null, executor).join();
+        assertFalse(marks.containsKey(writer1));
+        assertTrue(marks.containsKey(writer2));
+        assertTrue(marks.containsKey(writer3));
+        assertTrue(marks.containsKey(writer4));
+    }
+
+    @Test
+    public void testMarkOnTransactionCommit() {
+        // create txn
+        // seal txn with committing
+        final String scope = "MarkOnTransactionCommit";
+        final String stream = "MarkOnTransactionCommit";
+        final ScalingPolicy policy = ScalingPolicy.fixed(1);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        long start = System.currentTimeMillis();
+        store.createScope(scope).join();
+
+        store.createStream(scope, stream, configuration, start, null, executor).join();
+        store.setState(scope, stream, State.ACTIVE, null, executor).join();
+
+        UUID txnId = store.generateTransactionId(scope, stream, null, executor).join();
+        VersionedTransactionData tx01 = store.createTransaction(scope, stream, txnId,
+                100, 100, null, executor).join();
+
+        String writer1 = "writer1";
+        long time = 1L;
+        store.sealTransaction(scope, stream, txnId, true, Optional.of(tx01.getVersion()), writer1, time, null, executor).join();
+        VersionedMetadata<CommittingTransactionsRecord> record = store.startCommitTransactions(scope, stream, null, executor).join();
+        store.recordCommitOffsets(scope, stream, txnId, Collections.singletonMap(0L, 1L), null, executor).join();
+        store.completeCommitTransactions(scope, stream, record, null, executor).join();
+
+        // verify that writer mark is created in the store
+        WriterMark mark = store.getWriterMark(scope, stream, writer1, null, executor).join();
+        assertEquals(mark.getTimestamp(), time);
+        assertEquals(mark.getPosition().size(), 1);
+        assertTrue(mark.getPosition().containsKey(0L));
+        assertEquals(mark.getPosition().get(0L).longValue(), 1L);
     }
 }

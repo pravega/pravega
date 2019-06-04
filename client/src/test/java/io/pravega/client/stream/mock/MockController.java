@@ -564,7 +564,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> writerShutdown(String writerId, Stream stream) {
+    public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
         return CompletableFuture.completedFuture(null);
     }
 }

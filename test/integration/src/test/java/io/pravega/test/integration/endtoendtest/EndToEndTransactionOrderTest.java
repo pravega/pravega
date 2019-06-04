@@ -102,7 +102,6 @@ public class EndToEndTransactionOrderTest {
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
         controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
@@ -112,6 +111,8 @@ public class EndToEndTransactionOrderTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
+
+        controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
         autoScaleMonitor = new AutoScaleMonitor(store,
                 internalCF,

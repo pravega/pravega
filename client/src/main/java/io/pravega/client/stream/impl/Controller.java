@@ -312,12 +312,12 @@ public interface Controller extends AutoCloseable {
     /**
      * Notifies the controller that the specified writer is shutting down gracefully and no longer
      * needs to be considered for calculating entries for the marks segment. This may not be called
-     * in the event that writer crashes.
+     * in the event that writer crashes. 
      * 
      * @param writerId The name of the writer. (User defined)
      * @param stream The stream the writer was on.
      */
-    CompletableFuture<Void> writerShutdown(String writerId, Stream stream);
+    CompletableFuture<Void> removeWriter(String writerId, Stream stream);
 
     /**
      * Closes controller client.

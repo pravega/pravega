@@ -129,13 +129,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 return inflight.size();
             }
         }
-        
+
         private long getLastSegmentLength() {
             synchronized (lock) {
                 return segmentLength;
             }
         }
-        
+
         private void noteSegmentLength(long newLength) {
             synchronized (lock) {
                 segmentLength = Math.max(segmentLength, newLength);
