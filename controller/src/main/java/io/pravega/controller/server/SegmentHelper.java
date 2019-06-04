@@ -108,7 +108,7 @@ public class SegmentHelper implements AutoCloseable {
         final long requestId = connection.getFlow().asLong();
         Pair<Byte, Integer> extracted = extractFromPolicy(policy);
 
-        Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
+        Map<Class, Runnable> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentCreated.class,
                 () -> log.info(requestId, "CreateSegment {} SegmentCreated", qualifiedStreamSegmentName));
         expectedReplies.put(WireCommands.SegmentAlreadyExists.class,
@@ -130,7 +130,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
+        Map<Class, Runnable> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentTruncated.class,
                 () -> log.info(requestId, "truncateSegment {} SegmentTruncated", qualifiedName));
         expectedReplies.put(WireCommands.SegmentIsTruncated.class,
@@ -150,7 +150,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
+        Map<Class, Runnable> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentDeleted.class,
                 () -> log.info(requestId, "deleteSegment {} SegmentDeleted", qualifiedName));
         expectedReplies.put(WireCommands.NoSuchSegment.class,
@@ -187,7 +187,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
+        Map<Class, Runnable> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentSealed.class,
                 () -> log.info(requestId, "sealSegment {} segmentSealed", qualifiedName));
         expectedReplies.put(WireCommands.SegmentIsSealed.class,
@@ -498,7 +498,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
+        Map<Class, Runnable> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentCreated.class,
                 () -> log.info(requestId, "CreateTableSegment {} SegmentCreated", tableName));
         expectedReplies.put(WireCommands.SegmentAlreadyExists.class,
@@ -527,7 +527,7 @@ public class SegmentHelper implements AutoCloseable {
         RawClient connection = new RawClient(ModelHelper.encode(uri), connectionFactory);
         final long requestId = connection.getFlow().asLong();
 
-        Map<Class, SegmentHelperLog> expectedReplies = new HashMap<>();
+        Map<Class, Runnable> expectedReplies = new HashMap<>();
         expectedReplies.put(WireCommands.SegmentDeleted.class,
                 () -> log.info(requestId, "deleteTableSegment {} SegmentDeleted.", tableName));
         expectedReplies.put(WireCommands.NoSuchSegment.class,
@@ -1086,10 +1086,6 @@ public class SegmentHelper implements AutoCloseable {
         return new ImmutablePair<>(rateType, desiredRate);
     }
 
-    private interface SegmentHelperLog {
-        void apply();
-    }
-
     private void closeConnection(Reply reply, RawClient client) {
         log.info("Closing connection as a result of receiving: {}", reply);
         if (client != null) {
@@ -1110,10 +1106,10 @@ public class SegmentHelper implements AutoCloseable {
      * @return true if reply is in the expected reply set or throw exception.
      */
     private Boolean transformReply(Reply reply,
-                                   Map<? extends Class, SegmentHelperLog> expectedReplies,
+                                   Map<? extends Class, Runnable> expectedReplies,
                                    RawClient client) {
         if (expectedReplies.containsKey(reply.getClass())) {
-            expectedReplies.get(reply.getClass()).apply();
+            expectedReplies.get(reply.getClass()).run();
             closeConnection(reply, client);
             return true;
         } else {
@@ -1123,7 +1119,7 @@ public class SegmentHelper implements AutoCloseable {
 
     @SneakyThrows(ConnectionFailedException.class)
     private RuntimeException handleUnexpectedReply(Reply reply,
-                                                   Map<? extends Class, SegmentHelperLog> expectedReplies,
+                                                   Map<? extends Class, Runnable> expectedReplies,
                                                    RawClient client) {
         closeConnection(reply, client);
         if (reply instanceof WireCommands.NoSuchSegment) {
