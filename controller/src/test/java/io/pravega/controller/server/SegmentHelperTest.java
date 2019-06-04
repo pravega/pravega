@@ -91,6 +91,17 @@ public class SegmentHelperTest {
                 ex -> ex instanceof AuthenticationException
         );
 
+        // On receiving SegmentAlreadyExists true should be returned.
+        CompletableFuture<Boolean> result = helper.createTableSegment("", "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        assertTrue(result.join());
+
+        CompletableFuture<Boolean> ret = helper.createTableSegment("", "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
+        assertTrue(ret.join());
+
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createSegment("", "",
                 0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
         validateProcessingFailureCFE(factory, futureSupplier);
@@ -108,6 +119,12 @@ public class SegmentHelperTest {
                 () -> retVal.join(),
                 ex -> ex instanceof AuthenticationException
         );
+
+        CompletableFuture<Boolean> result = helper.truncateSegment("", "", 0L, 0L,
+                "", System.nanoTime());
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentTruncated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        assertTrue(result.join());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.truncateSegment("", "", 0L, 0L,
                 "", System.nanoTime());
@@ -128,6 +145,11 @@ public class SegmentHelperTest {
                 ex -> ex instanceof AuthenticationException
         );
 
+        CompletableFuture<Boolean> result = helper.deleteSegment("", "", 0L, "", System.nanoTime());
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentDeleted(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        assertTrue(result.join());
+
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteSegment("", "", 0L, "", System.nanoTime());
         validateProcessingFailureCFE(factory, futureSupplier);
 
@@ -145,6 +167,12 @@ public class SegmentHelperTest {
                 () -> retVal.join(),
                 ex -> ex instanceof AuthenticationException
         );
+
+        CompletableFuture<Boolean> result = helper.sealSegment("", "", 0L,
+                "", System.nanoTime());
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentSealed(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        assertTrue(result.join());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.sealSegment("", "", 0L,
                 "", System.nanoTime());
