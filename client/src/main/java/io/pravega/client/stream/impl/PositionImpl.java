@@ -133,18 +133,32 @@ public class PositionImpl extends PositionInternal {
         }
         
         private void read01(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
-            Map<Segment, Range> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), this::readRange);
+            Map<Segment, Range> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), PositionSerializer::readRange);
             builder.segmentRanges(map);
         }
 
         private void write01(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
             Map<Segment, Range> map = position.segmentRanges;
-            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
-                                        (out, range) -> { out.writeDouble(range.getLow()); out.writeDouble(range.getHigh()); });
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
         }
         
-        private Range readRange(RevisionDataInput dataInput) throws IOException {
-            return new Range(dataInput.readDouble(), dataInput.readDouble());
+        private static void writeRange(RevisionDataOutput out, Range range) throws IOException {
+            double low, high;
+            if (range == null) {
+                low = -1;
+                high = -1;
+            } else {
+                low = range.getLow();
+                high = range.getHigh();
+            }
+            out.writeDouble(low);
+            out.writeDouble(high);
+        }
+        
+        private static Range readRange(RevisionDataInput in) throws IOException {
+            double low = in.readDouble();
+            double high = in.readDouble();
+            return (low < 0 || high < 0) ? null : new Range(low, high);
         }
     }
 

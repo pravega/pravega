@@ -346,10 +346,7 @@ public class ReaderGroupState implements Revisioned {
             private void read01(RevisionDataInput revisionDataInput, ReaderGroupStateInitBuilder builder) throws IOException {
                 ElementDeserializer<SegmentWithRange> segmentWithRangeDeserializer = in -> {
                     Segment segment = Segment.fromScopedName(in.readUTF());
-                    Range range = null;
-                    if (in.readBoolean()) {
-                       range = new Range(in.readDouble(), in.readDouble());
-                    } 
+                    Range range = readRange(in);
                     return new SegmentWithRange(segment, range);
                 };
                 builder.startingSegments(revisionDataInput.readMap(segmentWithRangeDeserializer,
@@ -367,14 +364,7 @@ public class ReaderGroupState implements Revisioned {
             private void write01(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
                 ElementSerializer<SegmentWithRange> segmentWithRangeSerializer = (out, s) -> {
                     out.writeUTF(s.getSegment().getScopedName());
-                    Range range = s.getRange();
-                    if (range == null) {
-                        out.writeBoolean(false);
-                    } else {
-                        out.writeBoolean(true);
-                        out.writeDouble(range.getLow());
-                        out.writeDouble(range.getHigh());
-                    }
+                    writeRange(out, s.getRange());
                 };
                 revisionDataOutput.writeMap(state.startingSegments, segmentWithRangeSerializer, RevisionDataOutput::writeLong);
             }
@@ -464,8 +454,7 @@ public class ReaderGroupState implements Revisioned {
             private void read01(RevisionDataInput revisionDataInput,
                                 CompactReaderGroupStateBuilder builder) throws IOException {
                 ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
-                ElementDeserializer<SegmentWithRange.Range> rangeDeserializer = in -> new SegmentWithRange.Range(in.readDouble(), in.readDouble());
-                Map<Segment, Range> ranges = revisionDataInput.readMap(segmentDeserializer, rangeDeserializer);
+                Map<Segment, Range> ranges = revisionDataInput.readMap(segmentDeserializer, ReaderGroupState::readRange);
 
                 Map<SegmentWithRange, Set<Long>> fs = builder.futureSegments.entrySet()
                                                                             .stream()
@@ -522,13 +511,8 @@ public class ReaderGroupState implements Revisioned {
                 for (Entry<SegmentWithRange, Long> e : object.unassignedSegments.entrySet()) {
                     ranges.put(e.getKey().getSegment(), e.getKey().getRange());
                 }
-                
                 ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
-                ElementSerializer<SegmentWithRange.Range> rangeSerializer = (out, range) -> {
-                    out.writeDouble(range.getLow());
-                    out.writeDouble(range.getHigh());
-                };
-                revisionDataOutput.writeMap(ranges, segmentSerializer, rangeSerializer);
+                revisionDataOutput.writeMap(ranges, segmentSerializer, ReaderGroupState::writeRange);
             }
         }
     }
@@ -933,8 +917,7 @@ public class ReaderGroupState implements Revisioned {
             
             private void read01(RevisionDataInput revisionDataInput, SegmentCompletedBuilder builder) throws IOException {
                 ElementDeserializer<Segment> segmentDeserializer = in -> Segment.fromScopedName(in.readUTF());
-                ElementDeserializer<SegmentWithRange.Range> rangeDeserializer = in -> new SegmentWithRange.Range(in.readDouble(), in.readDouble());
-                Map<Segment, Range> ranges = revisionDataInput.readMap(segmentDeserializer, rangeDeserializer);
+                Map<Segment, Range> ranges = revisionDataInput.readMap(segmentDeserializer, ReaderGroupState::readRange);
                 builder.segmentCompleted(new SegmentWithRange(builder.segmentCompleted.getSegment(), ranges.get(builder.segmentCompleted.getSegment())));
                 Map<SegmentWithRange, List<Long>> successorsMappedToTheirPredecessors = new HashMap<>();
                 for (Entry<SegmentWithRange, List<Long>> entry : builder.successorsMappedToTheirPredecessors.entrySet()) {
@@ -958,10 +941,7 @@ public class ReaderGroupState implements Revisioned {
                 for (SegmentWithRange segment : object.successorsMappedToTheirPredecessors.keySet()) {
                     rangeMap.put(segment.getSegment(), segment.getRange());
                 }
-                out.writeMap(rangeMap, (o, segment) -> o.writeUTF(segment.getScopedName()), (o, range) -> {
-                    out.writeDouble(range.getLow());
-                    out.writeDouble(range.getHigh());
-                });
+                out.writeMap(rangeMap, (o, segment) -> o.writeUTF(segment.getScopedName()), ReaderGroupState::writeRange);
             }
         }
     }
@@ -1156,6 +1136,25 @@ public class ReaderGroupState implements Revisioned {
              .serializer(CreateCheckpoint.class, 9, new CreateCheckpoint.CreateCheckpointSerializer())
              .serializer(ClearCheckpointsBefore.class, 10, new ClearCheckpointsBefore.ClearCheckpointsBeforeSerializer());
         }
+    }
+    
+    private static void writeRange(RevisionDataOutput out, Range range) throws IOException {
+        double low, high;
+        if (range == null) {
+            low = -1;
+            high = -1;
+        } else {
+            low = range.getLow();
+            high = range.getHigh();
+        }
+        out.writeDouble(low);
+        out.writeDouble(high);
+    }
+    
+    private static Range readRange(RevisionDataInput in) throws IOException {
+        double low = in.readDouble();
+        double high = in.readDouble();
+        return (low < 0 || high < 0) ? null : new Range(low, high);
     }
     
 }
