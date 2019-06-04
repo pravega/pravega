@@ -540,18 +540,18 @@ public class ControllerService {
                 });
     }
  
-    public CompletableFuture<Controller.WriterShutdownResponse> shutdownWriter(String scope, String stream, String writer) {
+    public CompletableFuture<Controller.RemoveWriterResponse> removeWriter(String scope, String stream, String writer) {
         return streamStore.shutdownWriter(scope, stream, writer, null, executor)
                 .handle((r, e) -> {
-                    Controller.WriterShutdownResponse.Builder response = Controller.WriterShutdownResponse.newBuilder();
+                    Controller.RemoveWriterResponse.Builder response = Controller.RemoveWriterResponse.newBuilder();
                     if (e != null) {
                         if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
-                            response.setResult(Controller.WriterShutdownResponse.Status.UNKNOWN_WRITER);
+                            response.setResult(Controller.RemoveWriterResponse.Status.UNKNOWN_WRITER);
                         } else {
-                            response.setResult(Controller.WriterShutdownResponse.Status.INTERNAL_ERROR);
+                            response.setResult(Controller.RemoveWriterResponse.Status.INTERNAL_ERROR);
                         }
                     } else {
-                        response.setResult(Controller.WriterShutdownResponse.Status.SUCCESS);
+                        response.setResult(Controller.RemoveWriterResponse.Status.SUCCESS);
                     }
                     return response.build();
                 });

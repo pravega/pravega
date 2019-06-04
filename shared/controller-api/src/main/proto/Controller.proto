@@ -40,7 +40,7 @@ service ControllerService {
     rpc listStreamsInScope(StreamsInScopeRequest) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
-    rpc writerShutdown(WriterShutdownRequest) returns (WriterShutdownResponse);
+    rpc removeWriter(RemoveWriterRequest) returns (RemoveWriterResponse);
     rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);
 }
 
@@ -329,12 +329,12 @@ message DelegationToken {
     string delegationToken = 1;
 }
 
-message WriterShutdownRequest {
+message RemoveWriterRequest {
     string writer = 1;
     StreamInfo stream = 2;
 }
 
-message WriterShutdownResponse {
+message RemoveWriterResponse {
     enum Status {
         SUCCESS = 0;
         UNKNOWN_WRITER = 1;

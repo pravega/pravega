@@ -448,14 +448,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void writerShutdown(Controller.WriterShutdownRequest request, StreamObserver<Controller.WriterShutdownResponse> responseObserver) {
+    public void removeWriter(Controller.RemoveWriterRequest request, StreamObserver<Controller.RemoveWriterResponse> responseObserver) {
         StreamInfo streamInfo = request.getStream();
         log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
                 streamInfo.getStream(), request.getWriter());
         authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
                 AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken  -> controllerService.shutdownWriter(streamInfo.getScope(),
+                delegationToken  -> controllerService.removeWriter(streamInfo.getScope(),
                         streamInfo.getStream(), request.getWriter()),
                 responseObserver);
     }

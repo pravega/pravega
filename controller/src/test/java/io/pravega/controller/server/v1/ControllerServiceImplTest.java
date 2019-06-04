@@ -735,18 +735,18 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.noteTimestampFromWriter(request, resultObserver);
         assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.INVALID_POSITION);
 
-        Controller.WriterShutdownRequest writerShutdownRequest = Controller.WriterShutdownRequest
+        Controller.RemoveWriterRequest writerShutdownRequest = Controller.RemoveWriterRequest
                 .newBuilder().setStream(streamInfo).setWriter(writer1).build();
-        ResultObserver<Controller.WriterShutdownResponse> shutdownResultObserver = new ResultObserver<>();
-        this.controllerService.writerShutdown(writerShutdownRequest, shutdownResultObserver);
-        assertEquals(shutdownResultObserver.get().getResult(), Controller.WriterShutdownResponse.Status.SUCCESS);
+        ResultObserver<Controller.RemoveWriterResponse> shutdownResultObserver = new ResultObserver<>();
+        this.controllerService.removeWriter(writerShutdownRequest, shutdownResultObserver);
+        assertEquals(shutdownResultObserver.get().getResult(), Controller.RemoveWriterResponse.Status.SUCCESS);
 
         // shutdown request for unknown writer
-        writerShutdownRequest = Controller.WriterShutdownRequest
+        writerShutdownRequest = Controller.RemoveWriterRequest
                 .newBuilder().setStream(streamInfo).setWriter("unknown writer").build();
         shutdownResultObserver = new ResultObserver<>();
-        this.controllerService.writerShutdown(writerShutdownRequest, shutdownResultObserver);
-        assertEquals(shutdownResultObserver.get().getResult(), Controller.WriterShutdownResponse.Status.UNKNOWN_WRITER);
+        this.controllerService.removeWriter(writerShutdownRequest, shutdownResultObserver);
+        assertEquals(shutdownResultObserver.get().getResult(), Controller.RemoveWriterResponse.Status.UNKNOWN_WRITER);
     }
 
     protected void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {

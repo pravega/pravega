@@ -436,7 +436,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> writerShutdown(String writerId, Stream stream) {
-        return Futures.toVoid(controller.shutdownWriter(stream.getScope(), stream.getStreamName(), writerId));
+    public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
+        return Futures.toVoid(controller.removeWriter(stream.getScope(), stream.getStreamName(), writerId));
     }
 }
