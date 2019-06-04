@@ -36,6 +36,7 @@ import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.EpochRecord;
+import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -142,7 +143,7 @@ public abstract class ControllerEventProcessorTest {
         Assert.assertNotNull(txnData);
         checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
 
-        streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
         CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
@@ -166,7 +167,7 @@ public abstract class ControllerEventProcessorTest {
         Assert.assertNotNull(txnData0);
         checkTransactionState(SCOPE, stream, txnOnEpoch0, TxnStatus.OPEN);
 
-        streamStore.sealTransaction(SCOPE, stream, txnData0.getId(), true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(SCOPE, stream, txnData0.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
         checkTransactionState(SCOPE, stream, txnData0.getId(), TxnStatus.COMMITTING);
 
         // scale stream
@@ -180,7 +181,7 @@ public abstract class ControllerEventProcessorTest {
         Assert.assertNotNull(txnData1);
         checkTransactionState(SCOPE, stream, txnOnEpoch1, TxnStatus.OPEN);
 
-        streamStore.sealTransaction(SCOPE, stream, txnData1.getId(), true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(SCOPE, stream, txnData1.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
         checkTransactionState(SCOPE, stream, txnData1.getId(), TxnStatus.COMMITTING);
 
         // set the stream to SEALING
@@ -340,7 +341,7 @@ public abstract class ControllerEventProcessorTest {
             Assert.assertNotNull(txnData);
             checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
 
-            streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), null, executor).join();
+            streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
             checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
 
             retVal.add(txnData);
@@ -356,7 +357,7 @@ public abstract class ControllerEventProcessorTest {
         Assert.assertNotNull(txnData);
         checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
 
-        streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), false, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), false, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
         checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.ABORTING);
 
         AbortRequestHandler abortRequestHandler = new AbortRequestHandler(streamStore, streamMetadataTasks, executor);
@@ -367,5 +368,26 @@ public abstract class ControllerEventProcessorTest {
     private void checkTransactionState(String scope, String stream, UUID txnId, TxnStatus expectedStatus) {
         TxnStatus txnStatus = streamStore.transactionStatus(scope, stream, txnId, null, executor).join();
         assertEquals(expectedStatus, txnStatus);
+    }
+
+    @Test(timeout = 10000)
+    public void testMarkOnCommit() {
+        UUID txnId = streamStore.generateTransactionId(SCOPE, STREAM, null, executor).join();
+        VersionedTransactionData txnData = streamStore.createTransaction(SCOPE, STREAM, txnId, 10000, 10000,
+                null, executor).join();
+        Assert.assertNotNull(txnData);
+        checkTransactionState(SCOPE, STREAM, txnId, TxnStatus.OPEN);
+
+        String writer1 = "writer1";
+        long timestamp = 1L;
+        streamStore.sealTransaction(SCOPE, STREAM, txnData.getId(), true, Optional.empty(), writer1, timestamp, null, executor).join();
+        checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTING);
+
+        CommitRequestHandler commitEventProcessor = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        commitEventProcessor.processEvent(new CommitEvent(SCOPE, STREAM, txnData.getEpoch())).join();
+        checkTransactionState(SCOPE, STREAM, txnData.getId(), TxnStatus.COMMITTED);
+
+        WriterMark mark = streamStore.getWriterMark(SCOPE, STREAM, writer1, null, executor).join();
+        assertEquals(mark.getTimestamp(), timestamp);
     }
 }

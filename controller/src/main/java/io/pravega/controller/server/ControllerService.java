@@ -21,6 +21,7 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -331,14 +332,14 @@ public class ControllerService {
         return listOfSegment;
     }
 
-    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId
-            txnId) {
+    public CompletableFuture<TxnStatus> commitTransaction(final String scope, final String stream, final TxnId txnId, 
+                                                          final String writerId, final long timestamp) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(txnId, "txnId");
         Timer timer = new Timer();
         UUID txId = ModelHelper.encode(txnId);
-        return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, null)
+        return streamTransactionMetadataTasks.commitTxn(scope, stream, txId, writerId, timestamp, null)
                 .handle((ok, ex) -> {
                     if (ex != null) {
                         log.warn("Transaction commit failed", ex);
@@ -507,6 +508,49 @@ public class ControllerService {
         } else if (status.equals(DeleteStreamStatus.Status.FAILURE)) {
             streamMetrics.deleteStreamFailed(scope, streamName);
         }
+    }
+
+    public CompletableFuture<Controller.TimestampResponse> noteTimestampFromWriter(String scope, String stream, String writerId, long timestamp, Map<Long, Long> streamCut) {
+        return streamStore.noteWriterMark(scope, stream, writerId, timestamp, streamCut, null, executor)
+                .handle((r, e) -> {
+                    Controller.TimestampResponse.Builder response = Controller.TimestampResponse.newBuilder();
+                    if (e != null) {
+                        response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
+                    } else {
+                        switch (r) {
+                            case SUCCESS:
+                                response.setResult(Controller.TimestampResponse.Status.SUCCESS);
+                                break;
+                            case INVALID_TIME:
+                                response.setResult(Controller.TimestampResponse.Status.INVALID_TIME);
+                                break;
+                            case INVALID_POSITION:
+                                response.setResult(Controller.TimestampResponse.Status.INVALID_POSITION);
+                                break;
+                            default:
+                                response.setResult(Controller.TimestampResponse.Status.INTERNAL_ERROR);
+                                break;
+                        }
+                    }
+                    return response.build();
+                });
+    }
+ 
+    public CompletableFuture<Controller.RemoveWriterResponse> removeWriter(String scope, String stream, String writer) {
+        return streamStore.shutdownWriter(scope, stream, writer, null, executor)
+                .handle((r, e) -> {
+                    Controller.RemoveWriterResponse.Builder response = Controller.RemoveWriterResponse.newBuilder();
+                    if (e != null) {
+                        if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                            response.setResult(Controller.RemoveWriterResponse.Status.UNKNOWN_WRITER);
+                        } else {
+                            response.setResult(Controller.RemoveWriterResponse.Status.INTERNAL_ERROR);
+                        }
+                    } else {
+                        response.setResult(Controller.RemoveWriterResponse.Status.SUCCESS);
+                    }
+                    return response.build();
+                });
     }
 
     // End metrics reporting region
