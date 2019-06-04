@@ -11,6 +11,7 @@ package io.pravega.storage.hdfs;
 
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
+import io.pravega.segmentstore.storage.DataCorruptionException;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.StorageNotPrimaryException;
 import io.pravega.test.common.AssertExtensions;
@@ -38,9 +39,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyShort;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for HDFSStorage that use mocks.
@@ -294,6 +293,32 @@ public class HDFSStorageTestWithMocks {
                 ex -> ex instanceof IOException && !(ex instanceof StreamSegmentException));
     }
 
+    /**
+     * Tests scenario when generic IOException is thrown.
+     * @throws Exception Assertions and other exceptions.
+     */
+    @Test
+    public void testSealForException() throws Exception {
+        when(mockFileSystem.rename(any(), any()))
+                .thenThrow(new IOException(MIDDLE_EPOCH_PATH));
+        when(mockFileSystem.globStatus(any())).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(MIDDLE_EPOCH_PATH)),
+                }
+        );
+
+        HDFSStorage storage = createStorage();
+        storage.initialize(MIDDLE_EPOCH);
+        SegmentHandle handle = storage.openWrite(TEST_SEGMENT_NAME);
+
+        AssertExtensions.assertThrows("seal should correctly handle IOException.",
+                () -> storage.seal(handle),
+                ex -> ex instanceof IOException);
+        verify(mockFileSystem, times(1)).rename(new Path(MIDDLE_EPOCH_PATH), new Path(SEG_SEALED_PATH));
+        // Make sure file permissions are not changed.
+        verify(mockFileSystem, never()).setPermission(any(), any());
+    }
+
     @Test
     public void testSealForPessimisticCase() throws Exception {
         when(mockFileSystem.rename(any(), any()))
@@ -310,6 +335,71 @@ public class HDFSStorageTestWithMocks {
         SegmentHandle handle = storage.openWrite(TEST_SEGMENT_NAME);
         storage.seal(handle);
         verify(mockFileSystem, times(2)).rename(new Path(HIGHER_EPOCH_PATH), new Path(SEG_SEALED_PATH));
+    }
+
+    /**
+     * Tests scenario where file with higher epoch is found in storage after earlier successful openWrite.
+     * @throws Exception Assertions and other exceptions.
+     */
+    @Test
+    public void testSealForPessimisticCaseWithHigherEpochInStorage() throws Exception {
+        // First call to rename throws exception, the second call succeeds.
+        when(mockFileSystem.rename(any(), any()))
+                .thenThrow(new PathNotFoundException(MIDDLE_EPOCH_PATH))
+                .thenReturn(true);
+
+        // First call is during openWrite, second call is during unseal
+        when(mockFileSystem.globStatus(any())).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(MIDDLE_EPOCH_PATH)),
+                }
+        ).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(HIGHER_EPOCH_PATH)),
+                }
+        );
+
+        HDFSStorage storage = createStorage();
+        storage.initialize(MIDDLE_EPOCH);
+        SegmentHandle handle = storage.openWrite(TEST_SEGMENT_NAME);
+
+        AssertExtensions.assertThrows("seal should correctly throw StorageNotPrimaryException.",
+                () -> storage.seal(handle),
+                ex -> ex instanceof StorageNotPrimaryException);
+        verify(mockFileSystem, times(1)).rename(new Path(MIDDLE_EPOCH_PATH), new Path(SEG_SEALED_PATH));
+    }
+
+    /**
+     * Tests scenario where file with lower epoch is found in storage after earlier successful openWrite.
+     * @throws Exception Assertions and other exceptions.
+     */
+    @Test
+    public void testSealForPessimisticCaseWithLowerEpochInStorage() throws Exception {
+
+        // First call to rename throws exception, the second call succeeds.
+        when(mockFileSystem.rename(any(), any()))
+                .thenThrow(new PathNotFoundException(MIDDLE_EPOCH_PATH))
+                .thenReturn(true);
+
+        // First call is during openWrite, second call is during unseal
+        when(mockFileSystem.globStatus(any())).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(MIDDLE_EPOCH_PATH)),
+                }
+        ).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(LOWER_EPOCH_PATH)),
+                }
+        );
+
+        HDFSStorage storage = createStorage();
+        storage.initialize(MIDDLE_EPOCH);
+        SegmentHandle handle = storage.openWrite(TEST_SEGMENT_NAME);
+
+        AssertExtensions.assertThrows("seal should correctly throw DataCorruptionException.",
+                () -> storage.seal(handle),
+                ex -> ex instanceof DataCorruptionException);
+        verify(mockFileSystem, times(1)).rename(new Path(MIDDLE_EPOCH_PATH), new Path(SEG_SEALED_PATH));
     }
 
     @Test
@@ -330,6 +420,97 @@ public class HDFSStorageTestWithMocks {
         SegmentHandle handle = storage.openWrite(TEST_SEGMENT_NAME);
         storage.unseal(handle);
         verify(mockFileSystem, times(2)).rename(new Path(SEG_SEALED_PATH), new Path(HIGHER_EPOCH_PATH));
+    }
+
+    /**
+     * Tests scenario when generic IOException is thrown.
+     * @throws Exception Assertions and other exceptions.
+     */
+    @Test
+    public void testUnsealForException() throws Exception {
+        when(mockFileSystem.rename(any(), any()))
+                .thenThrow(new IOException(MIDDLE_EPOCH_PATH));
+        when(mockFileSystem.globStatus(any())).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(SEG_SEALED_PATH)),
+                }
+        );
+
+        HDFSStorage storage = createStorage();
+        storage.initialize(MIDDLE_EPOCH);
+        SegmentHandle handle = storage.openWrite(TEST_SEGMENT_NAME);
+
+        AssertExtensions.assertThrows("unseal should correctly handle IOException.",
+                () -> storage.unseal(handle),
+                ex -> ex instanceof IOException);
+        verify(mockFileSystem, times(1)).rename(new Path(SEG_SEALED_PATH), new Path(MIDDLE_EPOCH_PATH));
+        // Make sure file permissions are changed.
+        verify(mockFileSystem, times(1)).setPermission(new Path(SEG_SEALED_PATH), new FsPermission(FsAction.READ_WRITE, FsAction.NONE, FsAction.NONE));
+    }
+
+    /**
+     * Tests scenario where file with higher epoch is found in storage after earlier successful openWrite.
+     * @throws Exception Assertions and other exceptions.
+     */
+    @Test
+    public void testUnsealForPessimisticCaseWithHigherEpochInStorage() throws Exception {
+        // First call to rename throws exception, the second call succeeds.
+        when(mockFileSystem.rename(any(), any()))
+                .thenThrow(new PathNotFoundException(SEG_SEALED_PATH))
+                .thenReturn(true);
+
+        // First call is during openWrite, second call is during unseal
+        when(mockFileSystem.globStatus(any())).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(SEG_SEALED_PATH)),
+                }
+        ).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(HIGHER_EPOCH_PATH)),
+                }
+        );
+
+        HDFSStorage storage = createStorage();
+        storage.initialize(MIDDLE_EPOCH);
+        SegmentHandle handle = storage.openWrite(TEST_SEGMENT_NAME);
+
+        AssertExtensions.assertThrows("unseal should correctly throw StorageNotPrimaryException.",
+                () -> storage.unseal(handle),
+                ex -> ex instanceof StorageNotPrimaryException);
+        verify(mockFileSystem, times(1)).rename(new Path(SEG_SEALED_PATH), new Path(MIDDLE_EPOCH_PATH));
+    }
+
+    /**
+     * Tests scenario where file with lower epoch is found in storage after earlier successful openWrite.
+     * @throws Exception Assertions and other exceptions.
+     */
+    @Test
+    public void testUnsealForPessimisticCaseWithLowerEpochInStorage() throws Exception {
+
+        // First call to rename throws exception, the second call succeeds.
+        when(mockFileSystem.rename(any(), any()))
+                .thenThrow(new PathNotFoundException(SEG_SEALED_PATH))
+                .thenReturn(true);
+
+        // First call is during openWrite, second call is during unseal
+        when(mockFileSystem.globStatus(any())).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(SEG_SEALED_PATH)),
+                }
+        ).thenReturn(
+                new FileStatus[] {
+                        new FileStatus(0, false, 1, 64, 0, new Path(LOWER_EPOCH_PATH)),
+                }
+        );
+
+        HDFSStorage storage = createStorage();
+        storage.initialize(MIDDLE_EPOCH);
+        SegmentHandle handle = storage.openWrite(TEST_SEGMENT_NAME);
+
+        AssertExtensions.assertThrows("unseal should correctly throw DataCorruptionException.",
+                () -> storage.unseal(handle),
+                ex -> ex instanceof DataCorruptionException);
+        verify(mockFileSystem, times(1)).rename(new Path(SEG_SEALED_PATH), new Path(MIDDLE_EPOCH_PATH));
     }
 
     @Test
