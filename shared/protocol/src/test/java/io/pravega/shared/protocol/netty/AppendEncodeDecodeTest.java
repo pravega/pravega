@@ -164,6 +164,10 @@ public class AppendEncodeDecodeTest {
         int numEvents = 2;
         UUID c1 = new UUID(1, 1);
         UUID c2 = new UUID(2, 2);
+        idBatchSizeTrackerMap.remove(c1);
+        idBatchSizeTrackerMap.remove(c2);
+        idBatchSizeTrackerMap.put(c1, new FixedBatchSizeTracker(size));
+        idBatchSizeTrackerMap.put(c2, new FixedBatchSizeTracker(size));
         String s1 = "Stream 1";
         String s2 = "Stream 2";
         sendAndVerifyEvents(s1, c1, numEvents, size, numEvents);
