@@ -45,7 +45,7 @@ public class RequestSweeper implements FailoverSweeper {
     private final int limit;
 
     /**
-     * Constructor for RequestSweeper object
+     * Constructor for RequestSweeper object.
      * 
      * @param metadataStore stream metadata store
      * @param executor executor
@@ -57,7 +57,7 @@ public class RequestSweeper implements FailoverSweeper {
     }
 
     /**
-     * Constructor for RequestSweeper object
+     * Constructor for RequestSweeper object.
      *
      * @param metadataStore stream metadata store
      * @param executor executor
