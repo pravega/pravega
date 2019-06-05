@@ -170,7 +170,7 @@ public class MockController implements Controller {
             throw new IllegalArgumentException("Dynamic scaling not supported with a mock controller");
         }
         List<SegmentWithRange> result = new ArrayList<>();
-        for (int i=0;i<scalingPolicy.getMinNumSegments();i++) {
+        for (int i = 0; i < scalingPolicy.getMinNumSegments(); i++) {
             result.add(createRange(stream, scalingPolicy.getMinNumSegments(), i));
         }
         return result;

@@ -20,7 +20,7 @@ import org.apache.commons.lang3.tuple.Pair;
  * An identifier for a segment of a stream.
  */
 @Data
-@EqualsAndHashCode(of="segment")
+@EqualsAndHashCode(of = "segment")
 public class SegmentWithRange {    
     @NonNull
     private final Segment segment;

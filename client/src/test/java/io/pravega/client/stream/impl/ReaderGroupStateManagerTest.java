@@ -352,7 +352,7 @@ public class ReaderGroupStateManagerTest {
         AtomicLong clock = new AtomicLong();
         SegmentWithRange segment0 = new SegmentWithRange(new Segment(scope, stream, 0), 0, 0.5);
         SegmentWithRange segment1 = new SegmentWithRange(new Segment(scope, stream, 1), 0.5, 1.0);
-        Map<SegmentWithRange, Long> segmentMap = ImmutableMap.<SegmentWithRange, Long> builder()
+        Map<SegmentWithRange, Long> segmentMap = ImmutableMap.<SegmentWithRange, Long>builder()
                                                              .put(segment0, 123L)
                                                              .put(segment1, 456L)
                                                              .build();

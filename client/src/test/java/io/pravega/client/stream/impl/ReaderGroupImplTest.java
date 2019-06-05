@@ -155,7 +155,7 @@ public class ReaderGroupImplTest {
         when(state.getPositions()).thenReturn(ImmutableMap.of(Stream.of(SCOPE, stream), positions));
         when(state.getEndSegments()).thenReturn(endStreamCut.asImpl().getPositions());
         when(synchronizer.getState()).thenReturn(state);
-        ImmutableSet<Segment> r = ImmutableSet.<Segment> builder()
+        ImmutableSet<Segment> r = ImmutableSet.<Segment>builder()
                                               .addAll(startStreamCut.asImpl().getPositions().keySet())
                                               .addAll(endStreamCut.asImpl().getPositions().keySet())
                                               .build();
