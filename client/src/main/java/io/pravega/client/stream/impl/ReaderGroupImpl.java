@@ -254,8 +254,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             StreamCut toStreamCut = computeEndStreamCut(streamPosition.getKey(), endSegments);
             futures.add(getRemainingBytes(metaFactory, fromStreamCut, toStreamCut));
         }
-        return Futures.getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfBytes -> {
-            return listOfBytes.stream()
+        return Futures.getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfLong -> {
+            return listOfLong.stream()
                     .mapToLong(i -> i)
                     .sum();
         }), RuntimeException::new);
