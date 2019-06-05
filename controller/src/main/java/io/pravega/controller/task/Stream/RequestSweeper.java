@@ -8,6 +8,7 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.controller.task.Stream;
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -36,15 +37,41 @@ import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
  */
 public class RequestSweeper implements FailoverSweeper {
 
+    public static final int LIMIT = 100;
+    
     private final StreamMetadataStore metadataStore;
     private final ScheduledExecutorService executor;
     private final StreamMetadataTasks streamMetadataTasks;
+    private final int limit;
 
+    /**
+     * Constructor for RequestSweeper object.
+     * 
+     * @param metadataStore stream metadata store
+     * @param executor executor
+     * @param streamMetadataTasks stream metadata tasks
+     */
     public RequestSweeper(final StreamMetadataStore metadataStore,
                           final ScheduledExecutorService executor, final StreamMetadataTasks streamMetadataTasks) {
+        this(metadataStore, executor, streamMetadataTasks, LIMIT);
+    }
+
+    /**
+     * Constructor for RequestSweeper object.
+     *
+     * @param metadataStore stream metadata store
+     * @param executor executor
+     * @param streamMetadataTasks stream metadata tasks
+     * @param limit limit on number of requests to sweep for a host in one iteration.
+     */
+    @VisibleForTesting
+    RequestSweeper(final StreamMetadataStore metadataStore,
+                          final ScheduledExecutorService executor, final StreamMetadataTasks streamMetadataTasks,
+                          final int limit) {
         this.metadataStore = metadataStore;
         this.executor = executor;
         this.streamMetadataTasks = streamMetadataTasks;
+        this.limit = limit;
     }
 
     @Override
@@ -77,13 +104,14 @@ public class RequestSweeper implements FailoverSweeper {
         log.info("Sweeping orphaned tasks for host {}", oldHostId);
         return withRetriesAsync(() -> Futures.doWhileLoop(
                 () -> postRequest(oldHostId),
-                List::isEmpty, executor).whenCompleteAsync((result, ex) ->
+                list -> !list.isEmpty(), executor).whenCompleteAsync((result, ex) ->
                         log.info("Sweeping orphaned tasks for host {} complete", oldHostId), executor),
                 RETRYABLE_PREDICATE, Integer.MAX_VALUE, executor);
     }
 
-    private CompletableFuture<List<String>> postRequest(final String oldHostId) {
-        return metadataStore.getPendingsTaskForHost(oldHostId, 100)
+    @VisibleForTesting
+    CompletableFuture<List<String>> postRequest(final String oldHostId) {
+        return metadataStore.getPendingsTaskForHost(oldHostId, limit)
                             .thenComposeAsync(tasks -> Futures.allOfWithResults(
                                     tasks.entrySet().stream().map(entry ->
                                             streamMetadataTasks.writeEvent(entry.getValue())
