@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.containers;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.Exceptions;
 import io.pravega.common.MathHelpers;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -64,7 +65,7 @@ import org.junit.Test;
  * Unit tests for MetadataStore class.
  */
 public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
-    protected static final Duration TIMEOUT = Duration.ofSeconds(3000);
+    protected static final Duration TIMEOUT = Duration.ofSeconds(30);
     private static final int CONTAINER_ID = 123;
     private static final int ATTRIBUTE_COUNT = 10;
 
@@ -418,19 +419,27 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = createTestContext();
 
-        // 1. Unable to access storage.
-        context.setGetInfoErrorInjector(new ErrorInjector<>(i -> true, IntentionalException::new));
+        // 1. Unable to access storage
+        context.setGetInfoErrorInjectorAsync(new ErrorInjector<>(i -> true, IntentionalException::new));
         AssertExtensions.assertSuppliedFutureThrows(
-                "getOrAssignSegmentId did not throw the right exception when the underlying storage failed.",
+                "getOrAssignSegmentId did not throw the right exception for an async exception.",
                 () -> context.getMetadataStore().getOrAssignSegmentId(segmentName, TIMEOUT),
                 ex -> ex instanceof IntentionalException);
-        context.setGetInfoErrorInjector(null); // Clear it.
+        context.setGetInfoErrorInjectorAsync(null); // Clear it.
 
         // 2. StreamSegmentNotExists
         AssertExtensions.assertSuppliedFutureThrows(
                 "getOrAssignSegmentId did not throw the right exception for a non-existent StreamSegment.",
                 () -> context.getMetadataStore().getOrAssignSegmentId(segmentName + "foo", TIMEOUT),
                 ex -> ex instanceof StreamSegmentNotExistsException);
+
+        // 3. Synchrounous errors.
+        context.setGetInfoErrorInjectorSync(new ErrorInjector<>(i -> true, IntentionalException::new));
+        AssertExtensions.assertSuppliedFutureThrows(
+                "getOrAssignSegmentId did not throw the right exception for a synchronous exception",
+                () -> context.getMetadataStore().getOrAssignSegmentId(segmentName, TIMEOUT),
+                ex -> ex instanceof IntentionalException);
+        context.setGetInfoErrorInjectorSync(null); // Clear it.
     }
 
     /**
@@ -508,7 +517,6 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         }
     }
 
-
     /**
      * Tests the ability of the MetadataStore to generate/return the Id of an existing StreamSegment, with concurrent requests.
      * Also tests the ability to execute such callbacks in the order in which they were received.
@@ -524,7 +532,6 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = createTestContext();
         context.getMetadataStore().createSegment(segmentName, null, TIMEOUT).join();
-        CompletableFuture<Void> initialAddFuture = new CompletableFuture<>();
         CompletableFuture<Void> addInvoked = new CompletableFuture<>();
         AtomicBoolean mapSegmentIdInvoked = new AtomicBoolean(false);
         context.connector.setMapSegmentId((id, sp, pin, timeout) -> {
@@ -568,13 +575,53 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
                     invocationOrder.add(3);
                     return CompletableFuture.completedFuture(thirdResult);
                 });
-        initialAddFuture.complete(null);
 
         Assert.assertEquals("Unexpected result from firstCall.", firstResult, firstCall.join());
         Assert.assertEquals("Unexpected result from secondCall.", secondResult, secondCall.join());
         Assert.assertEquals("Unexpected result from thirdCall.", thirdResult, thirdCall.join());
         val expectedOrder = Arrays.asList(1, 2, 3);
         AssertExtensions.assertListEquals("", expectedOrder, invocationOrder, Integer::equals);
+    }
+
+    /**
+     * Tests the ability of the MetadataStore to cancel pending assignment requests when {@link MetadataStore#close} is
+     * invoked.
+     */
+    @Test
+    public void testClose() {
+        final String segmentName = "Segment";
+        @Cleanup
+        TestContext context = createTestContext();
+        context.getMetadataStore().createSegment(segmentName, null, TIMEOUT).join();
+        CompletableFuture<Long> mapResult = new CompletableFuture<>();
+        CompletableFuture<Void> mapIdInvoked = new CompletableFuture<>();
+        context.connector.setMapSegmentId(
+                (id, sp, pin, timeout) -> {
+                    mapIdInvoked.complete(null);
+                    return mapResult;
+                });
+
+        CompletableFuture<String> firstCall = context.getMetadataStore().getOrAssignSegmentId(segmentName, TIMEOUT,
+                id -> Futures.failedFuture(new AssertionError("This should not be invoked (1).")));
+        CompletableFuture<String> secondCall = context.getMetadataStore().getOrAssignSegmentId(segmentName, TIMEOUT,
+                id -> Futures.failedFuture(new AssertionError("This should not be invoked (2).")));
+
+        // Wait for the map invocation to occur before moving forward, otherwise we won't be testing the correct scenario.
+        mapIdInvoked.join();
+
+        // Close the MetadataStore and verify that pending requests (initial + subsequent) are failed appropriately.
+        context.getMetadataStore().close();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "First call did not fail when close() was invoked.",
+                () -> firstCall,
+                ex -> ex instanceof ObjectClosedException);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Second call did not fail when close() was invoked.",
+                () -> secondCall,
+                ex -> ex instanceof ObjectClosedException);
+
+        // Nobody should be waiting on this anymore, but in case anyone does, fail it now.
+        mapResult.completeExceptionally(new AssertionError("This should not happen"));
     }
 
     private String getName(long segmentId) {
@@ -698,7 +745,9 @@ public abstract class MetadataStoreTestBase extends ThreadPooledTestSuite {
 
         abstract int getStoreReadCount();
 
-        abstract void setGetInfoErrorInjector(ErrorInjector<Exception> ei);
+        abstract void setGetInfoErrorInjectorSync(ErrorInjector<Exception> ei);
+
+        abstract void setGetInfoErrorInjectorAsync(ErrorInjector<Exception> ei);
 
         int getNonPinnedMappedSegmentCount() {
             val m = this.connector.getContainerMetadata();

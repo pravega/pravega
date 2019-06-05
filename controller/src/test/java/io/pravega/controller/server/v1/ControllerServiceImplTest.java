@@ -16,6 +16,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -36,6 +37,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
+import io.pravega.controller.task.TaskData;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -43,7 +45,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -61,6 +65,7 @@ import static org.junit.Assert.assertTrue;
  * <p>
  * Every test is run twice for both streamStore (Zookeeper and InMemory) types.
  */
+@Slf4j
 public abstract class ControllerServiceImplTest {
 
     protected static final String SCOPE1 = "scope1";
@@ -233,6 +238,14 @@ public abstract class ControllerServiceImplTest {
         deleteScopeStatus = result6.get();
         assertEquals("Delete non existent scope", DeleteScopeStatus.Status.SCOPE_NOT_FOUND,
                      deleteScopeStatus.getStatus());
+
+        // Delete empty scope, should throw
+        ResultObserver<DeleteScopeStatus> result8 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Call to delete scope did not throw on empty scope",
+                () ->  this.controllerService.deleteScope(ModelHelper.createScopeInfo(""), result8),
+                ex -> ex instanceof IllegalArgumentException);
+
     }
 
     @Test
@@ -289,6 +302,25 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.createStream(ModelHelper.decode(SCOPE1, "abcdef", configuration6), result6);
         status = result6.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
+    }
+
+    @Test
+    public void testCreateStreamThrowsLockFailed() {
+        // Check that concurrent calls to create a stream throw FailedLockingException
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+        ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
+        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
+        this.blockCriticalSection();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, "locking", configuration), result1);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, "locking", configuration), result2);
+        AssertExtensions.assertThrows(
+                "Concurrent call to create stream did not fail to lock or has thrown something else.",
+                () -> {
+                    result2.get();
+                    result1.get();
+                },
+                ex -> ex.getCause() instanceof LockFailedException);
     }
 
     @Test
@@ -437,7 +469,7 @@ public abstract class ControllerServiceImplTest {
         assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateStreamStatus.getStatus());
     }
 
-        @Test
+    @Test
     public void sealStreamTests() {
         CreateScopeStatus createScopeStatus;
         CreateStreamStatus createStreamStatus;
@@ -530,18 +562,31 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
-    public void getSegmentsImmediatlyFollowingTest() {
+    public void getSegmentsImmediatelyFollowingTest() {
         scaleTest();
         ResultObserver<SuccessorResponse> result = new ResultObserver<>();
-        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), result);
+        this.controllerService.getSegmentsImmediatelyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), result);
         final SuccessorResponse successorResponse = result.get();
         Assert.assertEquals(2, successorResponse.getSegmentsCount());
 
         ResultObserver<SuccessorResponse> result2 = new ResultObserver<>();
-        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
+        this.controllerService.getSegmentsImmediatelyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
                 result2);
         final SuccessorResponse successorResponse2 = result2.get();
         Assert.assertEquals(0, successorResponse2.getSegmentsCount());
+
+        /* Testing deprecated RPC. This test code should be removed once we address: */
+        /* https://github.com/pravega/pravega/issues/3760                            */
+        ResultObserver<SuccessorResponse> resultDeprecated = new ResultObserver<>();
+        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), resultDeprecated);
+        final SuccessorResponse successorResponseDeprecated = resultDeprecated.get();
+        Assert.assertEquals(2, successorResponseDeprecated.getSegmentsCount());
+
+        ResultObserver<SuccessorResponse> resultDeprecated2 = new ResultObserver<>();
+        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
+                resultDeprecated2);
+        final SuccessorResponse successorResponseDeprecated2 = resultDeprecated2.get();
+        Assert.assertEquals(0, successorResponseDeprecated2.getSegmentsCount());
     }
 
     @Test
@@ -629,6 +674,18 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.isSegmentValid(ModelHelper.createSegmentId(SCOPE1, STREAM1, 3), result2);
         final SegmentValidityResponse isValid2 = result2.get();
         Assert.assertEquals(false, isValid2.getResponse());
+
+        ResultObserver<SegmentValidityResponse> result3 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Failed to throw when validating segment.",
+                () ->  this.controllerService.isSegmentValid(ModelHelper.createSegmentId("", STREAM1, 3), result3),
+                ex -> ex instanceof IllegalArgumentException);
+
+        ResultObserver<SegmentValidityResponse> result4 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Failed to throw when validating segment.",
+                () -> this.controllerService.isSegmentValid(ModelHelper.createSegmentId(SCOPE1, "", 3), result4),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
@@ -715,4 +772,12 @@ public abstract class ControllerServiceImplTest {
             }
         }
     }
+
+    /**
+     * Blocks call inside a critical section started with
+     * {@link TaskMetadataStore#lock(Resource, TaskData, String, String, String, String)} to force a concurrent
+     * execution.
+     */
+    abstract void blockCriticalSection();
+
 }

@@ -283,7 +283,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final class ResponseProcessor extends FailingReplyProcessor {
         @Override
         public void connectionDropped() {
-            failConnection(new ConnectionFailedException());
+            failConnection(new ConnectionFailedException("Connection dropped for writer " + writerId));
         }
         
         @Override
@@ -433,7 +433,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 // list.
                 connection = Futures.getThrowingException(getConnection());
             } catch (SegmentSealedException | NoSuchSegmentException e) {
-                // Add the event to inflight, this will be resent to the succesor during the execution of resendToSuccessorsCallback
+                // Add the event to inflight, this will be resent to the successor during the execution of resendToSuccessorsCallback
                 state.addToInflight(event);
                 return;
             }
@@ -456,7 +456,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         if (state.isClosed()) {
             throw new IllegalStateException("SegmentOutputStream is already closed", state.getException());
         }
-        if (state.isAlreadySealed()) {
+        if (state.needSuccessors.get()) {
             throw new SegmentSealedException(this.segmentName);
         }
         if (state.getConnection() == null) {
@@ -496,6 +496,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             try {
                 ClientConnection connection = Futures.getThrowingException(getConnection());
                 connection.send(new KeepAlive());
+            } catch (SegmentSealedException | NoSuchSegmentException e) {
+                if (StreamSegmentNameUtils.isTransactionSegment(segmentName)) {
+                    log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
+                                     "commited/aborted. Details: {}", e.getMessage());
+                    failConnection(e);
+                } else {
+                    log.info("Exception observed while obtaining connection during flush. Details: {} ", e.getMessage());
+                }
             } catch (Exception e) {
                 failConnection(e);
             }
@@ -528,12 +536,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              retrySchedule.getMaxDelay(),
                                              t -> log.warn(writerId + " Failed to connect: ", t))
                  .runAsync(() -> {
-                     log.debug("Running reconnect for segment:{} writerID: {}", segmentName, writerId);
-                     if (state.isClosed() || state.isAlreadySealed()) {
+                     log.debug("Running reconnect for segment {} writer {}", segmentName, writerId);
+                     if (state.isClosed() || state.needSuccessors.get()) {
+                         // stop reconnect when writer is closed or resend inflight to successors has been triggered.
                          return CompletableFuture.completedFuture(null);
                      }
                      Preconditions.checkState(state.getConnection() == null);
-                     log.info("Fetching endpoint for segment {}, writerID: {}", segmentName, writerId);
+                     log.info("Fetching endpoint for segment {}, writer {}", segmentName, writerId);
                      return controller.getEndpointForSegment(segmentName).thenComposeAsync((PravegaNodeUri uri) -> {
                          log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
                          return connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);

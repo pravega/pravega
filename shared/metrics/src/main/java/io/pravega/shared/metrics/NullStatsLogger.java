@@ -40,13 +40,23 @@ public class NullStatsLogger implements StatsLogger {
         }
 
         @Override
+        public Supplier<Number> getSupplier() {
+            return null;
+        }
+
+        @Override
+        public void setSupplier(Supplier<Number> supplier) {
+            // no-op
+        }
+
+        @Override
         public void close() {
             // nop
         }
     }
 
     @Override
-    public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
+    public Gauge registerGauge(String name, Supplier<Number> value, String... tags) {
         return NULLGAUGE;
     }
 
