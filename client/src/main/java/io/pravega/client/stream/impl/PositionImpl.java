@@ -40,7 +40,7 @@ public class PositionImpl extends PositionInternal {
     /**
      * Instantiates Position with current and future owned segments.
      *
-     * @param ownedSegments Current segments that the position refers to.
+     * @param segments Current segments that the position refers to.
      */
     public PositionImpl(Map<SegmentWithRange, Long> segments) {
         this.ownedSegments = new HashMap<>(segments.size());

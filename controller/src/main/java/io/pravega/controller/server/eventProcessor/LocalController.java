@@ -12,7 +12,6 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
