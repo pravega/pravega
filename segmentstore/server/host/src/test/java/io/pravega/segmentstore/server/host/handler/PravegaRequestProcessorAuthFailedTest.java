@@ -38,13 +38,13 @@ public class PravegaRequestProcessorAuthFailedTest {
                 new DelegationTokenVerifier() {
                     @Override
                     public boolean isTokenValid(String resource, String token, AuthHandler.Permissions expectedLevel) {
-                        return true;
+                        return false;
                     }
 
                     @Override
                     public void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
                             throws TokenException {
-                        //throw new TokenException("Token verification failed");
+                        throw new TokenException("Token verification failed.");
                     }
                 }, false);
     }
