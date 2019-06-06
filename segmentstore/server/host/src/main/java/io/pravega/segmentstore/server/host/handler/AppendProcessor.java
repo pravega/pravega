@@ -162,7 +162,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             } catch (TokenException e) {
                 log.warn(e.getMessage(), e);
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
-                        "Update Segment Attribute", e);
+                        "Update Segment Attribute", new AuthenticationException(e));
                 return;
             }
         }
