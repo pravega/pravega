@@ -546,22 +546,26 @@ public class OperationProcessorTests extends OperationLogTestBase {
             }
 
             // Check truncation markers if this is the last Operation to be written.
-            LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
             if (dataFrameRecord.getLastFullDataFrameAddress() != null
                     && dataFrameRecord.getLastFullDataFrameAddress().getSequence() != dataFrameRecord.getLastUsedDataFrameAddress().getSequence()) {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
                 // that ends with a part of it.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.",
-                        dataFrameRecord.getLastFullDataFrameAddress(), dataFrameAddress);
+                AssertExtensions.assertEventuallyEquals(
+                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.",
+                        dataFrameRecord.getLastFullDataFrameAddress(),
+                        () -> truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber()), 100, TIMEOUT.toMillis());
             } else if (dataFrameRecord.isLastFrameEntry()) {
                 // The operation was the last one in the frame. This is a Truncation Marker.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.",
-                        dataFrameRecord.getLastUsedDataFrameAddress(), dataFrameAddress);
+                AssertExtensions.assertEventuallyEquals(
+                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.",
+                        dataFrameRecord.getLastUsedDataFrameAddress(),
+                        () -> truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber()), 100, TIMEOUT.toMillis());
             } else {
                 // The operation is not the last in the frame, and it doesn't span multiple frames either.
                 // There could be data after it that is not safe to truncate. The correct Truncation Marker is the
                 // same as the one for the previous operation.
                 LogAddress expectedTruncationMarker = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber() - 1);
+                LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
                 Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.",
                         expectedTruncationMarker, dataFrameAddress);
             }
