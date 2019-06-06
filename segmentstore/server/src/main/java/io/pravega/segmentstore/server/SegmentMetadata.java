@@ -109,6 +109,7 @@ public interface SegmentMetadata extends SegmentProperties {
      *
      * @return The map.
      */
+    @Override
     Map<UUID, Long> getAttributes();
 
     /**
