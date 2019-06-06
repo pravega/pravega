@@ -67,6 +67,28 @@ public class AssertExtensions {
     }
 
     /**
+     * Invokes `eval` in a loop over and over (with a small sleep) and asserts that the value eventually reaches `expected`.
+     *
+     * @param <T>                 The type of the value to compare.
+     * @param message             The message ot include.
+     * @param expected            The expected return value.
+     * @param eval                The function to test
+     * @param checkIntervalMillis The number of milliseconds to wait between two checks.
+     * @param timeoutMillis       The timeout in milliseconds after which an assertion error should be thrown.
+     * @throws Exception If the is an assertion error, and exception from `eval`, or the thread is interrupted.
+     */
+    public static <T> void assertEventuallyEquals(String message, T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
+        long remainingMillis = timeoutMillis;
+        while (remainingMillis > 0) {
+            if ((expected == null && eval.call() == null) || (expected != null && expected.equals(eval.call()))) {
+                return;
+            }
+            Thread.sleep(checkIntervalMillis);
+        }
+        assertEquals(message, expected, eval.call());
+    }
+
+    /**
      * Asserts that an exception of the Type provided is thrown.
      *
      * @param run  The Runnable to execute.
