@@ -17,8 +17,6 @@ import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ;
@@ -28,12 +26,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TokenVerifierImplTest {
-
-    @Before
-    public void setUp() throws Exception {
-
-    }
-
 
     @Test
     public void testTokenVerifier() throws TokenException {
@@ -91,9 +83,5 @@ public class TokenVerifierImplTest {
                     .setExpiration(new Date())
                     .compact();
         assertFalse("Level check should fail", finalTokenVerifier.isTokenValid("xyz", token, READ_UPDATE));
-    }
-
-    @After
-    public void tearDown() throws Exception {
     }
 }
