@@ -122,20 +122,22 @@ public class ClientConfig implements Serializable {
         @VisibleForTesting
         ClientConfigBuilder extractCredentials(Properties properties, Map<String, String> env) {
             if (credentials != null) {
-                log.debug("Client credentials were specified by the caller.");
+                log.info("Client credentials were extracted using the explicitly supplied credentials object.");
                 return this;
             }
             if (properties != null) {
                 credentials = extractCredentialsFromProperties(properties);
                 if (credentials != null) {
-                    log.debug("Client credentials were extracted from system properties.");
+                    log.info("Client credentials were extracted from system properties. {}",
+                            "They weren't explicitly supplied as a Credentials object.");
                     return this;
                 }
             }
             if (env != null) {
                 credentials = extractCredentialsFromEnv(env);
                 if (credentials != null) {
-                    log.debug("Client credentials were extracted from environment variables");
+                    log.info("Client credentials were extracted from environment variables. {}",
+                            "They weren't explicitly supplied as a Credentials object or system properties.");
                     return this;
                 }
             }
