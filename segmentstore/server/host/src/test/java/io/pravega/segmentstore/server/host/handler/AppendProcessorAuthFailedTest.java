@@ -16,7 +16,6 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.UUID;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -32,6 +31,7 @@ public class AppendProcessorAuthFailedTest {
     public void setUp() throws Exception {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
+
         processor = new AppendProcessor(store, connection, new FailingRequestProcessor(),
                 new DelegationTokenVerifier() {
                     @Override
@@ -45,16 +45,12 @@ public class AppendProcessorAuthFailedTest {
                         throw new TokenException("Token verification failed.");
                     }
                 });
-
-    }
-
-    @After
-    public void tearDown() throws Exception {
     }
 
     @Test
     public void setupAppend() {
-        processor.setupAppend(new WireCommands.SetupAppend(100L, UUID.randomUUID(), "segment", "token"));
+        processor.setupAppend(new WireCommands.SetupAppend(100L,
+                UUID.randomUUID(), "segment", "token"));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 }
