@@ -279,7 +279,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             unread = controller.getSegments(fromStreamCut, toStreamCut);
             endPositions = toStreamCut.asImpl().getPositions();
         }
-        return unread.thenApplyAsync(unreadVal -> {
+        return unread.thenApply(unreadVal -> {
             long totalLength = 0;
             for (Segment s : unreadVal.getSegments()) {
                 if (endPositions.containsKey(s)) {
