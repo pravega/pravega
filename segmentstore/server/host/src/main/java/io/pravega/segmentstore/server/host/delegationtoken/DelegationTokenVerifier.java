@@ -10,7 +10,10 @@
 package io.pravega.segmentstore.server.host.delegationtoken;
 
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.InvalidClaimException;
+import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
+import io.pravega.auth.TokenExpiredException;
 
 /**
  * This interface represents the code on segment store side that verifies the delegation token.
@@ -25,5 +28,6 @@ public interface DelegationTokenVerifier {
      */
     boolean isTokenValid(String resource, String token, AuthHandler.Permissions expectedLevel);
 
-    void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel) throws TokenException;
+    void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
+            throws TokenExpiredException, InvalidTokenException, InvalidClaimException, TokenException;
 }
