@@ -31,6 +31,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final String tlsCertFile;
     private final String tlsKeyFile;
     private final String tokenSigningKey;
+    private final int accessTokenTtlInSeconds;
     private final String tlsTrustStore;
     private final boolean replyWithStackTraceOnError;
     private final boolean requestTracingEnabled;
@@ -38,7 +39,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     @Builder
     public GRPCServerConfigImpl(final int port, final String publishedRPCHost, final Integer publishedRPCPort,
                                 boolean authorizationEnabled, String userPasswordFile, boolean tlsEnabled,
-                                String tlsCertFile, String tlsKeyFile, String tokenSigningKey, String tlsTrustStore,
+                                String tlsCertFile, String tlsKeyFile, String tokenSigningKey, int accessTokenTtlInSeconds, String tlsTrustStore,
                                 boolean replyWithStackTraceOnError, boolean requestTracingEnabled) {
 
         Preconditions.checkArgument(port > 0, "Invalid port.");
@@ -59,6 +60,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.tlsKeyFile = tlsKeyFile;
         this.tlsTrustStore = tlsTrustStore;
         this.tokenSigningKey = tokenSigningKey;
+        this.accessTokenTtlInSeconds = accessTokenTtlInSeconds;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.requestTracingEnabled = requestTracingEnabled;
     }
@@ -83,6 +85,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                         Strings.isNullOrEmpty(userPasswordFile) ? "unspecified" : "specified"))
                 .append(String.format("tokenSigningKey is %s, ",
                         Strings.isNullOrEmpty(tokenSigningKey) ? "unspecified" : "specified"))
+                .append(String.format("accessTokenTtlInSeconds: %d, ", accessTokenTtlInSeconds))
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))

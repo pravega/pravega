@@ -15,7 +15,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthorizationException;
 
-import java.sql.Date;
+import java.util.Date;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,10 +28,11 @@ import lombok.AllArgsConstructor;
 public class AuthHelper {
     private final boolean isAuthEnabled;
     private final String tokenSigningKey;
+    private final int accessTokenTtlInSeconds;
 
     @VisibleForTesting
     public static AuthHelper getDisabledAuthHelper() {
-        return new AuthHelper(false, "");
+        return new AuthHelper(false, "", -1);
     }
 
     public boolean isAuthorized(String resource, AuthHandler.Permissions permission) {
@@ -78,7 +79,7 @@ public class AuthHelper {
                        .setSubject("segmentstoreresource")
                        .setAudience("segmentstore")
                        .setIssuedAt(Date.from(now))
-                       .setExpiration(Date.from(now.plusSeconds(300)))
+                       .setExpiration(Date.from(now.plusSeconds(this.accessTokenTtlInSeconds)))
                        .setClaims(claims)
                        .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
                        .compact();

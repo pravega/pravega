@@ -24,7 +24,7 @@ public class GRPCServerConfigImplTest {
     public void toStringReturnsSuccessfullyWithAllConfigSpecified() {
         GRPCServerConfigImpl config = new GRPCServerConfigImpl(9090, "localhost",
                 9090, true, "/passwd", true,
-                "/cert.pem", "./key.pem", "secret", "/cert.pem",
+                "/cert.pem", "./key.pem", "secret", 300, "/cert.pem",
                 true, true);
         assertNotNull(config.toString());
     }
@@ -33,7 +33,7 @@ public class GRPCServerConfigImplTest {
     public void toStringReturnsSuccessfullyWithSomeConfigNullOrEmpty() {
         GRPCServerConfigImpl config = new GRPCServerConfigImpl(9090, null,
                 9090, true, null, true,
-                "", " ", "secret", "/cert.pem",
+                "", " ", "secret", 300, "/cert.pem",
                 false, true);
         assertNotNull(config.toString());
     }
