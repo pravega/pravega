@@ -11,6 +11,8 @@ package io.pravega.segmentstore.server.host.delegationtoken;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import io.pravega.auth.InvalidTokenException;
+import io.pravega.auth.TokenException;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import java.util.Date;
 import java.util.HashMap;
@@ -34,7 +36,7 @@ public class TokenVerifierImplTest {
 
 
     @Test
-    public void testTokenVerifier() {
+    public void testTokenVerifier() throws TokenException {
         AutoScalerConfig config = AutoScalerConfig.builder()
                                                   .with(AutoScalerConfig.AUTH_ENABLED, false)
                                                   .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
@@ -51,7 +53,7 @@ public class TokenVerifierImplTest {
                                  .build();
         tokenVerifier = new TokenVerifierImpl(config);
         DelegationTokenVerifier finalTokenVerifier = tokenVerifier;
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(InvalidTokenException.class, () -> {
             finalTokenVerifier.verifyToken("xyz", null, READ);
         });
 
@@ -65,7 +67,7 @@ public class TokenVerifierImplTest {
                            .setClaims(claims)
                            .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
                            .compact();
-        assertTrue("Wildcard check should pass", finalTokenVerifier.verifyToken("xyz", token, READ));
+        assertTrue("Wildcard check should pass", finalTokenVerifier.isTokenValid("xyz", token, READ));
 
         //Level mismatch test
         claims = new HashMap<>();
@@ -77,7 +79,7 @@ public class TokenVerifierImplTest {
                            .setClaims(claims)
                            .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
                            .compact();
-        assertFalse("Level check should fail", finalTokenVerifier.verifyToken("xyz", token, READ_UPDATE));
+        assertFalse("Level check should fail", finalTokenVerifier.isTokenValid("xyz", token, READ_UPDATE));
 
         claims = new HashMap<>();
         claims.put("xyz", String.valueOf(READ_UPDATE));
@@ -88,7 +90,7 @@ public class TokenVerifierImplTest {
                     .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
                     .setExpiration(new Date())
                     .compact();
-        assertFalse("Level check should fail", finalTokenVerifier.verifyToken("xyz", token, READ_UPDATE));
+        assertFalse("Level check should fail", finalTokenVerifier.isTokenValid("xyz", token, READ_UPDATE));
     }
 
     @After

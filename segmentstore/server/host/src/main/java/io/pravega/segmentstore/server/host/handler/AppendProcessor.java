@@ -17,6 +17,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -152,12 +153,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         String newSegment = setupAppend.getSegment();
         UUID writer = setupAppend.getWriterId();
         log.info("Setting up appends for writer: {} on segment: {}", writer, newSegment);
-        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(newSegment,
-                setupAppend.getDelegationToken(), AuthHandler.Permissions.READ_UPDATE)) {
-            log.warn("Delegation token verification failed");
-            handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
-                    "Update Segment Attribute", new AuthenticationException("Token verification failed"));
-            return;
+
+        if (this.tokenVerifier != null) {
+            try {
+                tokenVerifier.verifyToken(newSegment,
+                                          setupAppend.getDelegationToken(),
+                                          AuthHandler.Permissions.READ_UPDATE);
+            } catch (TokenException e) {
+                log.warn(e.getMessage(), e);
+                handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
+                        "Update Segment Attribute", e);
+                return;
+            }
         }
 
         // Get the last Event Number for this writer from the Store. This operation (cache=true) will automatically put

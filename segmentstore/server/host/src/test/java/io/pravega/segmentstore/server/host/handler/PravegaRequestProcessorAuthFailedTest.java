@@ -9,8 +9,11 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.auth.AuthHandler;
+import io.pravega.auth.TokenException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -31,7 +34,19 @@ public class PravegaRequestProcessorAuthFailedTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
         processor = new PravegaRequestProcessor(store, mock(TableStore.class), connection, SegmentStatsRecorder.noOp(),
-                TableSegmentStatsRecorder.noOp(), (resource, token, expectedLevel) -> false, false);
+                TableSegmentStatsRecorder.noOp(),
+                new DelegationTokenVerifier() {
+                    @Override
+                    public boolean isTokenValid(String resource, String token, AuthHandler.Permissions expectedLevel) {
+                        return true;
+                    }
+
+                    @Override
+                    public void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
+                            throws TokenException {
+                        //throw new TokenException("Token verification failed");
+                    }
+                }, false);
     }
 
     @After

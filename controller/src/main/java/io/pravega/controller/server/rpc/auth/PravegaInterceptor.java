@@ -24,6 +24,7 @@ import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -89,12 +90,15 @@ public class PravegaInterceptor implements ServerInterceptor {
      */
     public static String retrieveMasterToken(String tokenSigningKey) {
         Map<String, Object> claims = new HashMap<>();
-
         claims.put("*", String.valueOf(READ_UPDATE));
+
+        Instant now = Instant.now();
 
         return Jwts.builder()
                    .setSubject("segmentstoreresource")
                    .setAudience("segmentstore")
+                   //.setIssuedAt(Date.from(now))
+                   //.setExpiration(Date.from(now.plusSeconds(300)))
                    .setClaims(claims)
                    .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
                    .compact();

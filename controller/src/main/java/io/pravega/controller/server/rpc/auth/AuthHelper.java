@@ -14,6 +14,9 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthorizationException;
+
+import java.sql.Date;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -69,10 +72,13 @@ public class AuthHelper {
             Map<String, Object> claims = new HashMap<>();
 
             claims.put(resource, String.valueOf(expectedLevel));
+            Instant now = Instant.now();
 
             return Jwts.builder()
                        .setSubject("segmentstoreresource")
                        .setAudience("segmentstore")
+                       .setIssuedAt(Date.from(now))
+                       .setExpiration(Date.from(now.plusSeconds(300)))
                        .setClaims(claims)
                        .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
                        .compact();

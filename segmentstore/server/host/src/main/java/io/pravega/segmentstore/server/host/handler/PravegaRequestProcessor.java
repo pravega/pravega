@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -204,12 +205,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
-        if (!tokenVerifier.verifyToken(segment, delegationToken, READ)) {
-            log.warn(requestId, "Delegation token verification failed.");
-            handleException(requestId, segment, operation, new AuthenticationException("Token verification failed"));
-            return false;
+        boolean isTokenValid = false;
+        try {
+            tokenVerifier.verifyToken(segment, delegationToken, READ);
+            isTokenValid = true;
+        } catch (TokenException e) {
+            log.warn(e.getMessage());
+            handleException(requestId, segment, operation, e);
+            isTokenValid = false;
         }
-        return true;
+        return isTokenValid;
     }
 
     /**
