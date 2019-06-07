@@ -15,7 +15,7 @@ RUN apk add --update \
     gcompat \
     python \
     jq \
-    curl \
+    curl=7.61.1-r2 \
   && rm -rf /var/cache/apk/*
 
 EXPOSE 9090 9091 10000 12345
