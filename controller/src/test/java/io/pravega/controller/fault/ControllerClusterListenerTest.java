@@ -62,7 +62,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * ControllerClusterListener tests.
@@ -183,14 +182,14 @@ public class ControllerClusterListenerTest {
         TaskSweeper taskSweeper = spy(new TaskSweeper(taskStore, host.getHostId(), executor,
                 new TestTasks(taskStore, executor, host.getHostId())));
 
-        when(taskSweeper.sweepFailedProcesses(any(Supplier.class))).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             if (!taskSweep.isDone()) {
                 // we complete the future when this method is called for the first time.
                 taskSweep.complete(null);
             }
             return CompletableFuture.completedFuture(null);
-        });
-        when(taskSweeper.handleFailedProcess(anyString())).thenAnswer(invocation -> {
+        }).when(taskSweeper).sweepFailedProcesses(any(Supplier.class));
+        doAnswer(invocation -> {
             if (!taskHostSweep1.isDone()) {
                 // we complete this future when task sweeper for a failed host is called for the first time.
                 taskHostSweep1.complete(null);
@@ -199,7 +198,7 @@ public class ControllerClusterListenerTest {
                 taskHostSweep2.complete(null);
             }
             return CompletableFuture.completedFuture(null);
-        });
+        }).when(taskSweeper).handleFailedProcess(anyString());
 
         // Create txn sweeper.
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
@@ -216,18 +215,19 @@ public class ControllerClusterListenerTest {
             return false;
         }).when(txnSweeper).isReady();
 
-        when(txnSweeper.sweepFailedProcesses(any())).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             if (!txnSweep.isDone()) {
                 txnSweep.complete(null);
             }
             return CompletableFuture.completedFuture(null);
-        });
-        when(txnSweeper.handleFailedProcess(anyString())).thenAnswer(invocation -> {
+        }).when(txnSweeper).sweepFailedProcesses(any());
+        
+        doAnswer(invocation -> {
             if (!txnHostSweep2.isDone()) {
                 txnHostSweep2.complete(null);
             }
             return CompletableFuture.completedFuture(null);
-        });
+        }).when(txnSweeper).handleFailedProcess(anyString());
 
         // Create request sweeper.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, mock(BucketStore.class), taskStore, segmentHelper, executor,
@@ -245,18 +245,19 @@ public class ControllerClusterListenerTest {
             return false;
         }).when(requestSweeper).isReady();
 
-        when(requestSweeper.sweepFailedProcesses(any())).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             if (!requestSweep.isDone()) {
                 requestSweep.complete(null);
             }
             return CompletableFuture.completedFuture(null);
-        });
-        when(requestSweeper.handleFailedProcess(anyString())).thenAnswer(invocation -> {
+        }).when(requestSweeper).sweepFailedProcesses(any());
+        
+        doAnswer(invocation -> {
             if (!requestHostSweep2.isDone()) {
                 requestHostSweep2.complete(null);
             }
             return CompletableFuture.completedFuture(null);
-        });
+        }).when(requestSweeper).handleFailedProcess(anyString());
 
         // Create ControllerClusterListener.
         ControllerClusterListener clusterListener = new ControllerClusterListener(host, clusterZK, executor,
