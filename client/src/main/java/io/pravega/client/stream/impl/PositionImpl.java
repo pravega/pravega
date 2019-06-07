@@ -62,10 +62,6 @@ public class PositionImpl extends PositionInternal {
         }
     }
 
-    static PositionImpl createEmptyPosition() {
-        return new PositionImpl(new HashMap<>());
-    }
-
     @Override
     public Set<Segment> getOwnedSegments() {
         return Collections.unmodifiableSet(ownedSegments.keySet());
