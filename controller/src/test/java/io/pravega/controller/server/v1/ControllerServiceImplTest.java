@@ -309,11 +309,16 @@ public abstract class ControllerServiceImplTest {
         // Check that concurrent calls to create a stream throw FailedLockingException
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
+
+        ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
+        this.controllerService.createScope(ScopeInfo.newBuilder().setScope("locking-scope").build(), result);
+        Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
+
         ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
         ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
         this.blockCriticalSection();
-        this.controllerService.createStream(ModelHelper.decode(SCOPE1, "locking", configuration), result1);
-        this.controllerService.createStream(ModelHelper.decode(SCOPE1, "locking", configuration), result2);
+        this.controllerService.createStream(ModelHelper.decode("locking-scope", "locking", configuration), result1);
+        this.controllerService.createStream(ModelHelper.decode("locking-scope", "locking", configuration), result2);
         AssertExtensions.assertThrows(
                 "Concurrent call to create stream did not fail to lock or has thrown something else.",
                 () -> {
