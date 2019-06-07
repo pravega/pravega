@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 
@@ -131,6 +132,11 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
     @Override
     public SegmentProperties getSnapshot() {
         throw new UnsupportedOperationException("getSnapshot() is not supported on " + getClass().getName());
+    }
+
+    @Override
+    public Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+        throw new UnsupportedOperationException("getAttributes(BiPredicate) is not supported on " + getClass().getName());
     }
 
     @Override

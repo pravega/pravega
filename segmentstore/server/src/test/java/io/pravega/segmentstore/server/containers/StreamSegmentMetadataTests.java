@@ -20,7 +20,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.val;
 import org.junit.Assert;
@@ -73,7 +75,15 @@ public class StreamSegmentMetadataTests {
         metadata.updateAttributes(attributeUpdates);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after update.", expectedAttributes, metadata);
 
-        // Step 3: Remove all attributes (Note that attributes are not actually removed; they're set to the NULL_ATTRIBUTE_VALUE).fa
+        // Check getAttributes(filter).
+        BiPredicate<UUID, Long> filter = (key, value) -> key.getLeastSignificantBits() % 2 == 0;
+        val expectedFilteredAttributes = expectedAttributes.entrySet().stream()
+                                                           .filter(e -> filter.test(e.getKey(), e.getValue()))
+                                                           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        val actualFilteredAttributes = metadata.getAttributes(filter);
+        AssertExtensions.assertMapEquals("Unexpected result from getAttributes(Filter).", expectedFilteredAttributes, actualFilteredAttributes);
+
+        // Step 3: Remove all attributes (Note that attributes are not actually removed; they're set to the NULL_ATTRIBUTE_VALUE).
         expectedAttributes.entrySet().forEach(e -> e.setValue(Attributes.NULL_ATTRIBUTE_VALUE));
         metadata.updateAttributes(expectedAttributes);
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after removal.", expectedAttributes, metadata);

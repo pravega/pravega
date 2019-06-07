@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -185,6 +186,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public synchronized Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+        return getAttributes().entrySet().stream()
+                              .filter(e -> filter.test(e.getKey(), e.getValue()))
+                              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    @Override
     public String toString() {
         return String.format(
                 "Id = %d, Start = %d, Length = %d, StorageLength = %d, Sealed(M/S) = %s/%s, Deleted = %s, Name = %s",
@@ -275,7 +283,7 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized void setLastModified(ImmutableDate date) {
         this.lastModified = date;
-        log.trace("{}: LastModified = {}.", this.lastModified);
+        log.trace("{}: LastModified = {}.", this.traceObjectId, this.lastModified);
     }
 
     @Override
