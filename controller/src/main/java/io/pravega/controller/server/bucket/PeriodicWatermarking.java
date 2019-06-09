@@ -34,6 +34,7 @@ import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.watermarks.SegmentWithRange;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -230,10 +232,11 @@ public class PeriodicWatermarking {
         // positions to StreamSegmentRecord objects by retrieving ranges from store. And then perform computation on those 
         // objects. 
 
-        long lowerBoundOnTime = activeWriters.stream().min(Comparator.comparingLong(x -> x.getValue().getTimestamp()))
-                     .map(x -> x.getValue().getTimestamp()).orElse(Long.MIN_VALUE);
+        LongSummaryStatistics summarized = activeWriters.stream().collect(Collectors.summarizingLong(x -> x.getValue().getTimestamp()));
+        long lowerBoundOnTime = summarized.getMin();
+        long upperBoundOnTime = summarized.getMax();
                     
-        if (lowerBoundOnTime > previousWatermark.getTimestamp()) {
+        if (lowerBoundOnTime > previousWatermark.getLowerTimeBound()) {
             CompletableFuture<List<Map<StreamSegmentRecord, Long>>> positionsFuture = Futures.allOfWithResults(
                     activeWriters.stream().map(x -> {
                         return Futures.keysAllOfWithResults(
@@ -246,7 +249,8 @@ public class PeriodicWatermarking {
                 // add writer positions to upperBound map. 
                 addToUpperBound(position, upperBound);
             })).thenCompose(v -> computeStreamCut(scope, streamName, context, upperBound, previousWatermark)
-                    .thenApply(streamCut -> builder.timestamp(lowerBoundOnTime).streamCut(ImmutableMap.copyOf(streamCut)).build()));
+                    .thenApply(streamCut -> builder.lowerTimeBound(lowerBoundOnTime).upperTimeBound(upperBoundOnTime)
+                               .streamCut(ImmutableMap.copyOf(streamCut)).build()));
         } else {
             // new time is not advanced. No watermark to be emitted. 
             return CompletableFuture.completedFuture(null);
@@ -304,25 +308,20 @@ public class PeriodicWatermarking {
      * @return CompletableFuture which when completed will contain a stream cut which completes missing ranges from upper bound
      * if any.  
      */
-    private CompletableFuture<Map<Long, Long>> computeStreamCut(String scope, String stream, OperationContext context,
-                                                                Map<StreamSegmentRecord, Long> upperBound, Watermark previousWatermark) {
+    private CompletableFuture<Map<SegmentWithRange, Long>> computeStreamCut(String scope, String stream, OperationContext context,
+                                                                            Map<StreamSegmentRecord, Long> upperBound, Watermark previousWatermark) {
         ConcurrentHashMap<StreamSegmentRecord, Long> streamCut = new ConcurrentHashMap<>(upperBound);
         AtomicReference<Map<Double, Double>> missingRanges = new AtomicReference<>(findMissingRanges(streamCut));
 
-        CompletableFuture<Void> previousFuture;
         if (previousWatermark != null && !previousWatermark.equals(Watermark.EMPTY)) {
             // super impose previous watermark on the computed upper bound so that we take greatest upper bound which
             // is greater than or equal to previous watermark. 
-            previousFuture = Futures.keysAllOfWithResults(
-                    previousWatermark.getStreamCut().entrySet().stream()
-                                     .collect(Collectors.toMap(x -> streamMetadataStore.getSegment(scope, stream, x.getKey(), context, executor),
-                                             Entry::getValue)))
-                    .thenAccept(previous -> addToUpperBound(previous, streamCut));
-        } else {
-            previousFuture = CompletableFuture.completedFuture(null);
+
+            addToUpperBound(previousWatermark.getStreamCut().entrySet().stream()
+                                             .collect(Collectors.toMap(x -> transform(x.getKey()), Entry::getValue)), streamCut);
         }
 
-        return previousFuture.thenCompose(previous -> Futures.doWhileLoop(() -> {
+        return Futures.doWhileLoop(() -> {
             int highestEpoch = streamCut.keySet().stream().mapToInt(StreamSegmentRecord::getCreationEpoch).max().orElse(-1);
             assert highestEpoch >= 0;
             
@@ -339,7 +338,17 @@ public class PeriodicWatermarking {
                                            return missingRanges.get();
                                        });
         }, map -> !map.isEmpty(), executor)
-                .thenApply(v -> streamCut.entrySet().stream().collect(Collectors.toMap(x -> x.getKey().segmentId(), Entry::getValue))));
+                .thenApply(v -> streamCut.entrySet().stream().collect(Collectors.toMap(x -> transform(x.getKey()), Entry::getValue)));
+    }
+    
+    private SegmentWithRange transform(StreamSegmentRecord segment) {
+        return SegmentWithRange.builder().segmentId(segment.segmentId()).rangeLow(segment.getKeyStart()).rangeHigh(segment.getKeyEnd()).build();
+    }
+
+    private StreamSegmentRecord transform(SegmentWithRange segment) {
+        int segmentNumber = StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId());
+        int epoch = StreamSegmentNameUtils.getEpoch(segment.getSegmentId());
+        return new StreamSegmentRecord(segmentNumber, epoch, Long.MIN_VALUE, segment.getRangeLow(), segment.getRangeHigh());
     }
 
     private List<StreamSegmentRecord> findSegmentsForMissingRange(EpochRecord epochRecord, Map.Entry<Double, Double> missingRange) {
@@ -530,7 +539,7 @@ public class PeriodicWatermarking {
                 return true;
             }
             
-            return time > active.getValue().getTimestamp();
+            return time > active.getValue().getLowerTimeBound();
         }
 
         boolean isWriterParticipating(long time) {
@@ -540,7 +549,7 @@ public class PeriodicWatermarking {
                 return true;
             }
             
-            return time > latest.getValue().getTimestamp();
+            return time > latest.getValue().getLowerTimeBound();
         }
     }
 }
