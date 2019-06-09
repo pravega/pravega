@@ -39,6 +39,7 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.Synchronized;
 import org.apache.curator.framework.CuratorFramework;
@@ -232,7 +233,7 @@ public class WatermarkWorkflowTest {
         assertTrue(client.isWriterParticipating(6L));
     }
 
-    @Test
+    @Test(timeout = 30000L)
     public void testWatermarkingWorkflow() {
         SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
 
@@ -427,8 +428,8 @@ public class WatermarkWorkflowTest {
         streamMetadataStore.completeScale(scope, streamName, response, null, executor).join();
         streamMetadataStore.setState(scope, streamName, State.ACTIVE, null, executor).join();
     }
-    
-    class MockRevisionedStreamClient implements RevisionedStreamClient<Watermark> {
+
+    static class MockRevisionedStreamClient implements RevisionedStreamClient<Watermark> {
         private final AtomicInteger revCounter = new AtomicInteger(0);
         private Revision mark;
         private final List<Map.Entry<Revision, Watermark>> watermarks = new ArrayList<>();
@@ -436,33 +437,29 @@ public class WatermarkWorkflowTest {
         @Override
         @Synchronized
         public Revision fetchOldestRevision() {
-            return watermarks.isEmpty() ? null : watermarks.get(0).getKey();
+            return watermarks.isEmpty() ? MockRevision.EMPTY : watermarks.get(0).getKey();
         }
 
         @Override
         @Synchronized
         public Revision fetchLatestRevision() {
-            return watermarks.isEmpty() ? null : watermarks.get(watermarks.size() - 1).getKey();
+            return watermarks.isEmpty() ? MockRevision.EMPTY : watermarks.get(watermarks.size() - 1).getKey();
         }
 
         @Override
         @Synchronized
         public Iterator<Map.Entry<Revision, Watermark>> readFrom(Revision start) throws TruncatedDataException {
-            int index = start == null ? 0 : ((MockRevision) start).id;
+            int index = start.equals(MockRevision.EMPTY) ? 0 : ((MockRevision) start).id;
             return watermarks.stream().filter(x -> ((MockRevision) x.getKey()).id >= index).iterator();
         }
 
         @Override
         @Synchronized
         public Revision writeConditionally(Revision latestRevision, Watermark value) {
-            Revision last = watermarks.isEmpty() ? null : watermarks.get(watermarks.size() - 1).getKey();
+            Revision last = watermarks.isEmpty() ? MockRevision.EMPTY : watermarks.get(watermarks.size() - 1).getKey();
             boolean equal;
             Revision newRevision = null;
-            if (latestRevision == null) {
-                equal = last == null;
-            } else {
-                equal = latestRevision.equals(last);
-            }
+            equal = latestRevision.equals(last);
 
             if (equal) {
                 newRevision = new MockRevision(revCounter.incrementAndGet());
@@ -473,7 +470,6 @@ public class WatermarkWorkflowTest {
         }
 
         @Override
-        @Synchronized
         public void writeUnconditionally(Watermark value) {
             
         }
@@ -511,7 +507,10 @@ public class WatermarkWorkflowTest {
         }
     }
     
-    class MockRevision implements Revision {
+    @EqualsAndHashCode
+    static class MockRevision implements Revision {
+        static final MockRevision EMPTY = new MockRevision(Integer.MIN_VALUE);
+        
         private final int id;
 
         MockRevision(int id) {
@@ -522,7 +521,7 @@ public class WatermarkWorkflowTest {
         public RevisionImpl asImpl() {
             return null;
         }
-
+        
         @Override
         public int compareTo(@NonNull Revision o) {
             return Integer.compare(id, ((MockRevision) o).id);

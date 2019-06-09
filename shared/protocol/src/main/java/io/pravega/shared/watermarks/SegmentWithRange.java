@@ -15,10 +15,8 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
-import lombok.SneakyThrows;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 /**
  * A serializable representation of a segment with id and range information.  
@@ -35,14 +33,13 @@ public class SegmentWithRange {
 
     }
     
-    @SneakyThrows(IOException.class)
-    public static SegmentWithRange fromByteBuf(final ByteBuffer data) {
-        return SERIALIZER.deserialize(data.array());
-    }
-
-    @SneakyThrows(IOException.class)
-    public ByteBuffer toByteBuf() {
-        return ByteBuffer.wrap(SERIALIZER.serialize(this).getCopy());
+    /**
+     * Method to check if given segment overlaps with this segment.
+     * @param segment segment to check overlap for
+     * @return true if they overlap, false otherwise
+     */
+    public boolean overlaps(final SegmentWithRange segment) {
+        return segment.getRangeLow() < rangeHigh && segment.getRangeHigh() > rangeLow;
     }
 
     static class SegmentWithRangeSerializer

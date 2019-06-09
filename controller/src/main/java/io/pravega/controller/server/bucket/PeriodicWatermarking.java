@@ -239,7 +239,7 @@ public class PeriodicWatermarking {
     private CompletableFuture<Watermark> computeWatermark(String scope, String streamName, OperationContext context,
                                                           List<Map.Entry<String, WriterMark>> activeWriters, Watermark previousWatermark) {
         Watermark.WatermarkBuilder builder = Watermark.builder();
-        ConcurrentHashMap<StreamSegmentRecord, Long> upperBound = new ConcurrentHashMap<>();
+        ConcurrentHashMap<SegmentWithRange, Long> upperBound = new ConcurrentHashMap<>();
         
         // We are deliberately making two passes over writers - first to find lowest time. Second loop will convert writer 
         // positions to StreamSegmentRecord objects by retrieving ranges from store. And then perform computation on those 
@@ -250,11 +250,11 @@ public class PeriodicWatermarking {
         long upperBoundOnTime = summarized.getMax();
                     
         if (lowerBoundOnTime > previousWatermark.getLowerTimeBound()) {
-            CompletableFuture<List<Map<StreamSegmentRecord, Long>>> positionsFuture = Futures.allOfWithResults(
+            CompletableFuture<List<Map<SegmentWithRange, Long>>> positionsFuture = Futures.allOfWithResults(
                     activeWriters.stream().map(x -> {
                         return Futures.keysAllOfWithResults(
                                 x.getValue().getPosition().entrySet().stream()
-                                 .collect(Collectors.toMap(y -> streamMetadataStore.getSegment(scope, streamName, y.getKey(), context, executor),
+                                 .collect(Collectors.toMap(y -> getSegmentWithRange(scope, streamName, context, y.getKey()),
                                          Entry::getValue)));
                     }).collect(Collectors.toList()));
             
@@ -270,6 +270,11 @@ public class PeriodicWatermarking {
         }
     }
 
+    private CompletableFuture<SegmentWithRange> getSegmentWithRange(String scope, String streamName, OperationContext context, long segmentId) {
+        return streamMetadataStore.getSegment(scope, streamName, segmentId, context, executor)
+                .thenApply(this::transform);
+    }
+
     /**
      * Method that updates the supplied upperBound by comparing it with supplied position such that resultant upperbound
      * is an upper bound on current position and all previously considered positions. 
@@ -280,18 +285,18 @@ public class PeriodicWatermarking {
      * @param position position be included while computing new upper bound
      * @param upperBound existing upper bound
      */
-    private void addToUpperBound(Map<StreamSegmentRecord, Long> position, Map<StreamSegmentRecord, Long> upperBound) {
-        for (Map.Entry<StreamSegmentRecord, Long> writerPos : position.entrySet()) {
-            StreamSegmentRecord segment = writerPos.getKey();
+    private void addToUpperBound(Map<SegmentWithRange, Long> position, Map<SegmentWithRange, Long> upperBound) {
+        for (Map.Entry<SegmentWithRange, Long> writerPos : position.entrySet()) {
+            SegmentWithRange segment = writerPos.getKey();
             long offset = writerPos.getValue();
             if (upperBound.containsKey(segment)) { // update offset if the segment is already present. 
                 long newOffset = Math.max(offset, upperBound.get(segment));
                 upperBound.put(segment, newOffset);
             } else if (!hasSuccessors(segment, upperBound.keySet())) { // only include segment if it doesnt have a successor already included in the set. 
-                Set<StreamSegmentRecord> included = upperBound.keySet();
+                Set<SegmentWithRange> included = upperBound.keySet();
                 included.forEach(x -> {
                     // remove all predecessors of `segment` from upper bound. 
-                    if (segment.overlaps(x) && segment.segmentId() > x.segmentId()) {
+                    if (segment.overlaps(x) && segment.getSegmentId() > x.getSegmentId()) {
                         upperBound.remove(x);     
                     }
                 });
@@ -301,8 +306,8 @@ public class PeriodicWatermarking {
         }
     }
 
-    private boolean hasSuccessors(StreamSegmentRecord segment, Set<StreamSegmentRecord> included) {
-        return included.stream().anyMatch(x -> segment.overlaps(x) && segment.segmentId() < x.segmentId());
+    private boolean hasSuccessors(SegmentWithRange segment, Set<SegmentWithRange> included) {
+        return included.stream().anyMatch(x -> segment.overlaps(x) && segment.getSegmentId() < x.getSegmentId());
     }
 
     /**
@@ -322,73 +327,66 @@ public class PeriodicWatermarking {
      * if any.  
      */
     private CompletableFuture<Map<SegmentWithRange, Long>> computeStreamCut(String scope, String stream, OperationContext context,
-                                                                            Map<StreamSegmentRecord, Long> upperBound, Watermark previousWatermark) {
-        ConcurrentHashMap<StreamSegmentRecord, Long> streamCut = new ConcurrentHashMap<>(upperBound);
+                                                                            Map<SegmentWithRange, Long> upperBound, Watermark previousWatermark) {
+        ConcurrentHashMap<SegmentWithRange, Long> streamCut = new ConcurrentHashMap<>(upperBound);
         AtomicReference<Map<Double, Double>> missingRanges = new AtomicReference<>(findMissingRanges(streamCut));
 
         if (previousWatermark != null && !previousWatermark.equals(Watermark.EMPTY)) {
             // super impose previous watermark on the computed upper bound so that we take greatest upper bound which
             // is greater than or equal to previous watermark. 
 
-            addToUpperBound(previousWatermark.getStreamCut().entrySet().stream()
-                                             .collect(Collectors.toMap(x -> transform(x.getKey()), Entry::getValue)), streamCut);
+            addToUpperBound(previousWatermark.getStreamCut(), streamCut);
         }
 
         return Futures.doWhileLoop(() -> {
-            int highestEpoch = streamCut.keySet().stream().mapToInt(StreamSegmentRecord::getCreationEpoch).max().orElse(-1);
+            int highestEpoch = streamCut.keySet().stream().mapToInt(x -> StreamSegmentNameUtils.getEpoch(x.getSegmentId()))
+                                        .max().orElse(-1);
             assert highestEpoch >= 0;
             
             return streamMetadataStore.getEpoch(scope, stream, highestEpoch, context, executor)
                                        .thenApply(epochRecord -> {
                                            missingRanges.get().entrySet().forEach(missingRange -> {
-                                               List<StreamSegmentRecord> replacement = findSegmentsForMissingRange(epochRecord, missingRange);
-                                               Map<StreamSegmentRecord, Long> replacementSegmentOffsetMap =
+                                               List<SegmentWithRange> replacement = findSegmentsForMissingRange(epochRecord, missingRange);
+                                               Map<SegmentWithRange, Long> replacementSegmentOffsetMap =
                                                        replacement.stream().collect(Collectors.toMap(x -> x, x -> 0L));
                                                addToUpperBound(replacementSegmentOffsetMap, streamCut);
                                            });
 
-                                           missingRanges.set(findMissingRanges(streamCut));
-                                           return missingRanges.get();
+                                           return missingRanges.updateAndGet(x -> findMissingRanges(streamCut));
                                        });
         }, map -> !map.isEmpty(), executor)
-                .thenApply(v -> streamCut.entrySet().stream().collect(Collectors.toMap(x -> transform(x.getKey()), Entry::getValue)));
+                .thenApply(v -> streamCut);
     }
     
     private SegmentWithRange transform(StreamSegmentRecord segment) {
         return SegmentWithRange.builder().segmentId(segment.segmentId()).rangeLow(segment.getKeyStart()).rangeHigh(segment.getKeyEnd()).build();
     }
-
-    private StreamSegmentRecord transform(SegmentWithRange segment) {
-        int segmentNumber = StreamSegmentNameUtils.getSegmentNumber(segment.getSegmentId());
-        int epoch = StreamSegmentNameUtils.getEpoch(segment.getSegmentId());
-        return new StreamSegmentRecord(segmentNumber, epoch, Long.MIN_VALUE, segment.getRangeLow(), segment.getRangeHigh());
-    }
-
-    private List<StreamSegmentRecord> findSegmentsForMissingRange(EpochRecord epochRecord, Map.Entry<Double, Double> missingRange) {
+    
+    private List<SegmentWithRange> findSegmentsForMissingRange(EpochRecord epochRecord, Map.Entry<Double, Double> missingRange) {
         return epochRecord.getSegments().stream().filter(x -> x.overlaps(missingRange.getKey(), missingRange.getValue()))
-                .collect(Collectors.toList());
+                          .map(this::transform).collect(Collectors.toList());
     }
 
-    private Map<Double, Double> findMissingRanges(Map<StreamSegmentRecord, Long> streamCut) {
+    private Map<Double, Double> findMissingRanges(Map<SegmentWithRange, Long> streamCut) {
         Map<Double, Double> missingRanges = new HashMap<>();
-        List<Map.Entry<StreamSegmentRecord, Long>> sorted = streamCut
-                .entrySet().stream().sorted(Comparator.comparingDouble(x -> x.getKey().getKeyStart())).collect(Collectors.toList());
-        Map.Entry<StreamSegmentRecord, Long> previous = sorted.get(0);
+        List<Map.Entry<SegmentWithRange, Long>> sorted = streamCut
+                .entrySet().stream().sorted(Comparator.comparingDouble(x -> x.getKey().getRangeLow())).collect(Collectors.toList());
+        Map.Entry<SegmentWithRange, Long> previous = sorted.get(0);
         
-        if (previous.getKey().getKeyStart() > 0.0) {
-            missingRanges.put(0.0, previous.getKey().getKeyStart());
+        if (previous.getKey().getRangeLow() > 0.0) {
+            missingRanges.put(0.0, previous.getKey().getRangeLow());
         }
         
         for (int i = 1; i < sorted.size(); i++) {
-            Map.Entry<StreamSegmentRecord, Long> next = sorted.get(i);
-            if (previous.getKey().getKeyEnd() != next.getKey().getKeyStart()) {
-                missingRanges.put(previous.getKey().getKeyEnd(), next.getKey().getKeyStart());
+            Map.Entry<SegmentWithRange, Long> next = sorted.get(i);
+            if (previous.getKey().getRangeHigh() != next.getKey().getRangeLow()) {
+                missingRanges.put(previous.getKey().getRangeHigh(), next.getKey().getRangeLow());
             }
             previous = next;
         }
 
-        if (previous.getKey().getKeyEnd() < 1.0) {
-            missingRanges.put(previous.getKey().getKeyEnd(), 1.0);
+        if (previous.getKey().getRangeHigh() < 1.0) {
+            missingRanges.put(previous.getKey().getRangeHigh(), 1.0);
         }
 
         return missingRanges;
@@ -480,7 +478,7 @@ public class PeriodicWatermarking {
                 markRevision.set(revision);
             }
             
-            entries = Lists.newArrayList(client.readFrom(revision));
+            entries = Lists.newArrayList(client.readFrom(markRevision.get()));
             
             // If there are no watermarks or there is no previous window recorded, in either case we set watermark start 
             // to MIN_VALUE

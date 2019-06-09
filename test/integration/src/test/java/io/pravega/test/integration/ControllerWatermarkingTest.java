@@ -48,6 +48,7 @@ import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
@@ -133,9 +134,12 @@ public class ControllerWatermarkingTest {
                 ReaderConfig.builder().build());
 
         EventRead<Watermark> watermark = reader.readNextEvent(30000L);
-        watermark = reader.readNextEvent(30000L);
+        if (watermark.getEvent() == null) {
+            // we are getting first event as null for some reason
+            watermark = reader.readNextEvent(30000L);
+        }
         assertNotNull(watermark.getEvent());
-        assertEquals(watermark.getEvent().getTimestamp(), 1L);
-        assertEquals(watermark.getEvent().getStreamCut().get(0L).longValue(), 20L);
+        assertEquals(watermark.getEvent().getLowerTimeBound(), 1L);
+        assertTrue(watermark.getEvent().getStreamCut().entrySet().stream().anyMatch(x -> x.getKey().getSegmentId() == 0L && x.getValue() ==  20L));
     }
 }
