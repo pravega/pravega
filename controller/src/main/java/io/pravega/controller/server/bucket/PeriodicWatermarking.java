@@ -53,6 +53,7 @@ import java.util.LongSummaryStatistics;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -117,93 +118,105 @@ public class PeriodicWatermarking {
 
         log.debug("Periodic background processing for watermarking called for stream {}/{}",
                 scope, streamName);
-        
-        return Futures.exceptionallyExpecting(streamMetadataStore.getAllWriterMarks(scope, streamName, context, executor),
-                           e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyMap())
-                           .thenCompose(writers -> {
-                               WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
-                               CompletableFuture<Void> future;
-                               if (watermarkClient.isStreamCreated()) {
-                                   future = CompletableFuture.completedFuture(null);
-                               } else {
-                                   // create the stream first time
-                                   future = streamMetadataTasks.createStream(scope, StreamSegmentNameUtils.getMarkForStream(streamName), 
-                                           StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis())
-                                           .thenAccept(status -> {
-                                               switch (status) {
-                                                   case SUCCESS:
-                                                   case STREAM_EXISTS:
-                                                       watermarkClient.setStreamCreated();
-                                                       break;
-                                                   default:
-                                                       throw new RuntimeException("Failed to create mark segment. " +
-                                                               "Will be retried in subsequent watermarking iteration");
-                                               }
-                                           });
-                               }
 
-                               return future.thenApply(v -> new SimpleEntry<>(watermarkClient, writers));
-                                
-                           })
-                           .thenCompose(pair -> {
-                               WatermarkClient watermarkClient = pair.getKey();
-                               Map<String, WriterMark> writers = pair.getValue();
-                               
-                               watermarkClient.reinitialize();
+        CompletableFuture<Map<String, WriterMark>> allWriterMarks = Futures.exceptionallyExpecting(
+                streamMetadataStore.getAllWriterMarks(scope, streamName, context, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyMap());
 
-                               // 1. filter writers that are active.
-                               List<Entry<String, WriterMark>> activeWriters = new ArrayList<>();
-                               List<Entry<String, WriterMark>> inactiveWriters = new ArrayList<>();
-                               AtomicBoolean allActiveAreParticipating = new AtomicBoolean(true);
-                               writers.entrySet().forEach(x -> {
-                                   if (watermarkClient.isWriterActive(x.getValue().getTimestamp())) {
-                                       activeWriters.add(x);
-                                       if (!watermarkClient.isWriterParticipating(x.getValue().getTimestamp())) {
-                                           allActiveAreParticipating.set(false);
-                                       }
-                                   } else {
-                                       inactiveWriters.add(x);
-                                   }
-                               });
+        CompletableFuture<SimpleEntry<WatermarkClient, Map<String, WriterMark>>> createStreamFuture = allWriterMarks
+                .thenCompose(writers -> {
+                    WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
+                    CompletableFuture<Void> future;
+                    if (watermarkClient.isStreamCreated()) {
+                        future = CompletableFuture.completedFuture(null);
+                    } else {
+                        // create the stream first time
+                        future = createMarkStream(scope, streamName, watermarkClient);
+                    }
 
-                               // Stop all inactive writers that have been shutdown.
-                               CompletableFuture<List<Void>> removeInactiveWriters = 
-                                       Futures.allOfWithResults(inactiveWriters.stream().map(x ->
-                                               Futures.exceptionallyExpecting(
-                                                       streamMetadataStore.removeWriter(scope, streamName, x.getKey(),
-                                                       x.getValue(), context, executor), 
-                                                       e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null))
-                                                                                  .collect(Collectors.toList()));
-                               
-                               if (activeWriters.isEmpty()) {
-                                   // this will prevent the periodic cycles being spent in running watermarking workflow for a silent stream. 
-                                   // as soon as any writer reports its mark, stream will be added to bucket and background 
-                                   // periodic processing will resume.
-                                   return removeInactiveWriters
-                                           .thenCompose(v -> bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.WatermarkingService,
-                                                   scope, streamName, executor));
-                               } 
-
-                               CompletableFuture<Watermark> watermarkFuture;
-                               if (!allActiveAreParticipating.get()) {
-                                   // there are active writers that have not reported their marks. We should wait 
-                                   // until they either report or become inactive. So we will complete this iteration without 
-                                   // emitting any watermark (null) and in subsequent iterations if these writers have made progress
-                                   // we will emit watermark or evict writers from watermark computation. 
-                                   watermarkFuture = CompletableFuture.completedFuture(null);
-                               } else {
-                                   // compute new mark
-                                   watermarkFuture = computeWatermark(scope, streamName, context, activeWriters, 
-                                           watermarkClient.getPreviousWatermark());
-                               }
-
-                               // we will compute watermark and remove inactive writers concurrently
-                               return CompletableFuture.allOf(removeInactiveWriters, watermarkFuture.thenAccept(watermarkClient::completeIteration));
-                           })
-                .exceptionally(e -> {
-                    log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e); 
-                    return null;
+                    return future.thenApply(v -> new SimpleEntry<>(watermarkClient, writers));
                 });
+        
+        return createStreamFuture.thenCompose(pair -> {
+            WatermarkClient watermarkClient = pair.getKey();
+            Map<String, WriterMark> writers = pair.getValue();
+
+            watermarkClient.reinitialize();
+            return filterWritersAndComputeWatermark(scope, streamName, context, watermarkClient, writers);
+        }).exceptionally(e -> {
+            log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e);
+            return null;
+        });
+    }
+
+    private CompletableFuture<Void> createMarkStream(String scope, String streamName, WatermarkClient watermarkClient) {
+        CompletableFuture<Void> future;
+        future = streamMetadataTasks.createStream(scope, StreamSegmentNameUtils.getMarkForStream(streamName),
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis())
+                    .thenAccept(status -> {
+                                        switch (status) {
+                                            case SUCCESS:
+                                            case STREAM_EXISTS:
+                                                watermarkClient.setStreamCreated();
+                                                break;
+                                            default:
+                                                throw new RuntimeException("Failed to create mark segment. " +
+                                                        "Will be retried in subsequent watermarking iteration");
+                                        }
+                                    });
+        return future;
+    }
+
+    private CompletionStage<Void> filterWritersAndComputeWatermark(String scope, String streamName, OperationContext context, 
+                                                                   WatermarkClient watermarkClient, Map<String, WriterMark> writers) {
+        // 1. filter writers that are active.
+        List<Entry<String, WriterMark>> activeWriters = new ArrayList<>();
+        List<Entry<String, WriterMark>> inactiveWriters = new ArrayList<>();
+        AtomicBoolean allActiveAreParticipating = new AtomicBoolean(true);
+        writers.entrySet().forEach(x -> {
+            if (watermarkClient.isWriterActive(x.getValue().getTimestamp())) {
+                activeWriters.add(x);
+                if (!watermarkClient.isWriterParticipating(x.getValue().getTimestamp())) {
+                    allActiveAreParticipating.set(false);
+                }
+            } else {
+                inactiveWriters.add(x);
+            }
+        });
+
+        // Stop all inactive writers that have been shutdown.
+        CompletableFuture<List<Void>> removeInactiveWriters = 
+                Futures.allOfWithResults(inactiveWriters.stream().map(x ->
+                        Futures.exceptionallyExpecting(
+                                streamMetadataStore.removeWriter(scope, streamName, x.getKey(),
+                                x.getValue(), context, executor), 
+                                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null))
+                                                        .collect(Collectors.toList()));
+
+        if (activeWriters.isEmpty()) {
+            // this will prevent the periodic cycles being spent in running watermarking workflow for a silent stream. 
+            // as soon as any writer reports its mark, stream will be added to bucket and background 
+            // periodic processing will resume.
+            return removeInactiveWriters
+                    .thenCompose(v -> bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.WatermarkingService,
+                            scope, streamName, executor));
+        }
+
+        CompletableFuture<Watermark> watermarkFuture;
+        if (!allActiveAreParticipating.get()) {
+            // there are active writers that have not reported their marks. We should wait 
+            // until they either report or become inactive. So we will complete this iteration without 
+            // emitting any watermark (null) and in subsequent iterations if these writers have made progress
+            // we will emit watermark or evict writers from watermark computation. 
+            watermarkFuture = CompletableFuture.completedFuture(null);
+        } else {
+            // compute new mark
+            watermarkFuture = computeWatermark(scope, streamName, context, activeWriters, 
+                    watermarkClient.getPreviousWatermark());
+        }
+
+        // we will compute watermark and remove inactive writers concurrently
+        return CompletableFuture.allOf(removeInactiveWriters, watermarkFuture.thenAccept(watermarkClient::completeIteration));
     }
 
     /**
