@@ -9,14 +9,18 @@
  */
 package io.pravega.segmentstore.server.host.delegationtoken;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.pravega.auth.InvalidClaimException;
 import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
-import java.util.Date;
+import io.pravega.shared.security.token.JsonWebToken;
+
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
 import org.junit.Test;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ;
@@ -28,60 +32,102 @@ import static org.junit.Assert.assertTrue;
 public class TokenVerifierImplTest {
 
     @Test
-    public void testTokenVerifier() throws TokenException {
-        AutoScalerConfig config = AutoScalerConfig.builder()
-                                                  .with(AutoScalerConfig.AUTH_ENABLED, false)
-                                                  .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
-                                                  .build();
-        DelegationTokenVerifier tokenVerifier = new TokenVerifierImpl(config);
+    public void testTokenVerificationSucceedWhenAuthIsDisabled() throws TokenException {
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(false);
 
-        //Auth disabled. No token is checked.
+        // No exception is expected here.
         tokenVerifier.verifyToken("xyz", null, READ);
+        assertTrue(tokenVerifier.isTokenValid("xyz", null, READ));
+    }
 
-        //Auth enabled, error on null token
-        config = AutoScalerConfig.builder()
-                                 .with(AutoScalerConfig.AUTH_ENABLED, true)
-                                 .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
-                                 .build();
-        tokenVerifier = new TokenVerifierImpl(config);
-        DelegationTokenVerifier finalTokenVerifier = tokenVerifier;
-        assertThrows(InvalidTokenException.class, () -> {
-            finalTokenVerifier.verifyToken("xyz", null, READ);
-        });
+    @Test
+    public void testTokenVerificationFailsWhenTokenIsNull() {
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
 
-        Map<String, Object> claims = new HashMap<>();
+        assertThrows(InvalidTokenException.class,
+                () -> tokenVerifier.verifyToken("xyz", null, READ)
+        );
+        assertFalse(tokenVerifier.isTokenValid("xyz", null, READ));
+    }
 
-        claims.put("*", String.valueOf(READ_UPDATE));
+    @Test
+    public void testTokenVerificationFailsWhenTokenIsExpired() {
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
+        String tokenWithExpiry = prepareJwt("*, READ_UPDATE", 0);
 
-        String token = Jwts.builder()
-                           .setSubject("segmentstoreresource")
-                           .setAudience("segmentstore")
-                           .setClaims(claims)
-                           .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
-                           .compact();
-        assertTrue("Wildcard check should pass", finalTokenVerifier.isTokenValid("xyz", token, READ));
+        assertThrows(TokenExpiredException.class,
+                () -> tokenVerifier.verifyToken("xyz", tokenWithExpiry, READ)
+        );
+        assertFalse(tokenVerifier.isTokenValid("xyz", tokenWithExpiry, READ));
+    }
 
-        //Level mismatch test
-        claims = new HashMap<>();
-        claims.put("xyz", String.valueOf(READ));
+    @Test
+    public void testTokenVerificationSucceedsWhenTokenIsNotExpired() throws TokenException {
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
+        String tokenWithExpiry = prepareJwt("*, READ_UPDATE", Integer.MAX_VALUE);
 
-        token = Jwts.builder()
-                           .setSubject("segmentstoreresource")
-                           .setAudience("segmentstore")
-                           .setClaims(claims)
-                           .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
-                           .compact();
-        assertFalse("Level check should fail", finalTokenVerifier.isTokenValid("xyz", token, READ_UPDATE));
+        // No exception is expected here.
+        tokenVerifier.verifyToken("s1", tokenWithExpiry, READ_UPDATE);
+        assertTrue(tokenVerifier.isTokenValid("s1", tokenWithExpiry, READ_UPDATE));
+    }
 
-        claims = new HashMap<>();
-        claims.put("xyz", String.valueOf(READ_UPDATE));
-        token = Jwts.builder()
-                    .setSubject("segmentstoreresource")
-                    .setAudience("segmentstore")
-                    .setClaims(claims)
-                    .signWith(SignatureAlgorithm.HS512, "secret".getBytes())
-                    .setExpiration(new Date())
-                    .compact();
-        assertFalse("Level check should fail", finalTokenVerifier.isTokenValid("xyz", token, READ_UPDATE));
+    @Test
+    public void testTokenVerificationFailsWhenTokenDoesNotContainMatchingResource() {
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
+        String tokenWithClaim = prepareJwt("abc, READ_UPDATE", Integer.MAX_VALUE);
+
+        assertThrows(InvalidClaimException.class,
+                () -> tokenVerifier.verifyToken("xyz", tokenWithClaim, READ)
+        );
+        assertFalse(tokenVerifier.isTokenValid("xyz", tokenWithClaim, READ));
+    }
+
+    @Test
+    public void testTokenVerificationFailsWhenTokenDoesNotContainMatchingPermission() {
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
+        String tokenWithClaim = prepareJwt("abc, READ", Integer.MAX_VALUE);
+
+        assertThrows(InvalidClaimException.class,
+                () -> tokenVerifier.verifyToken("abc", tokenWithClaim, READ_UPDATE)
+        );
+        assertFalse(tokenVerifier.isTokenValid("xyz", tokenWithClaim, READ));
+    }
+
+    @Test
+    public void testTokenVerificationSucceedsWhenTokenContainsMatchingClaim() throws TokenException {
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
+
+        String tokenWithWildcardClaim = prepareJwt("*, READ_UPDATE", Integer.MAX_VALUE);
+        tokenVerifier.verifyToken("xyz", tokenWithWildcardClaim, READ);
+        assertTrue(tokenVerifier.isTokenValid("xyz", tokenWithWildcardClaim, READ));
+
+        String tokenWithSpecificClaim = prepareJwt("abc, READ_UPDATE", Integer.MAX_VALUE);
+        tokenVerifier.verifyToken("abc", tokenWithSpecificClaim, READ);
+        assertTrue(tokenVerifier.isTokenValid("abc", tokenWithSpecificClaim, READ));
+    }
+
+    private String prepareJwt(String acl, Integer ttlInSeconds) {
+        return prepareJwt(Arrays.asList(acl), ttlInSeconds);
+    }
+
+    private String prepareJwt(List<String> acls, Integer ttlInSeconds) {
+        Map<String, Object> permissionsByResource = new HashMap<>();
+        for (String acl: acls) {
+            String[] aclContent = acl.split(",");
+            String resource = aclContent[0].trim();
+            String permission = aclContent[1].trim();
+            permissionsByResource.put(resource, permission);
+        }
+        JsonWebToken token = new JsonWebToken("segmentstoreresource",
+                "segmentstore", "secret".getBytes(), ttlInSeconds, permissionsByResource);
+        return token.toCompactString();
+    }
+
+    private DelegationTokenVerifier prepareTokenVerifier(boolean isAuthEnabled) {
+        AutoScalerConfig config = AutoScalerConfig.builder()
+                .with(AutoScalerConfig.AUTH_ENABLED, isAuthEnabled)
+                .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
+                .build();
+        return new TokenVerifierImpl(config);
     }
 }
