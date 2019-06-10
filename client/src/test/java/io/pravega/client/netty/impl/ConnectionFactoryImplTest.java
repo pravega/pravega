@@ -34,7 +34,6 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLEngine;
@@ -119,7 +118,7 @@ public class ConnectionFactoryImplTest {
                                                                               .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                               .build());
         @Cleanup
-        ClientConnection connection = factory.establishConnection(UUID.randomUUID(), new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
+        ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
             @Override
             public void connectionDropped() {
 
@@ -147,7 +146,7 @@ public class ConnectionFactoryImplTest {
                                                                               .build());
         // establish a connection.
         @Cleanup
-        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(UUID.randomUUID(), new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
+        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {

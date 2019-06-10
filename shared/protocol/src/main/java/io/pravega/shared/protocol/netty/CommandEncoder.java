@@ -66,7 +66,7 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
-    private final Function<UUID, AppendBatchSizeTracker> appendTracker;
+    private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
     private String segmentBeingAppendedTo;
     private UUID writerIdPerformingAppends;
@@ -92,7 +92,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 breakFromAppend(out);
             }
             if (bytesLeftInBlock == 0 && appendTracker != null) {
-                final AppendBatchSizeTracker blockSizeSupplier = appendTracker.apply(append.getWriterId());
+                final AppendBatchSizeTracker blockSizeSupplier = appendTracker.apply(append.getFlowId());
                 currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
                 bytesLeftInBlock = currentBlockSize;
                 segmentBeingAppendedTo = append.segment;

@@ -44,7 +44,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.function.Function;
 import javax.net.ssl.SSLEngine;
@@ -199,7 +198,7 @@ public class ConnectionPoolingTest {
 
         Flow flow1 = new Flow(1, 0);
         @Cleanup
-        ClientConnection connection1 = factory.establishConnection(flow1, UUID.randomUUID(), new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection1 = factory.establishConnection(flow1, new PravegaNodeUri("localhost", port), rp).join();
 
         connection1.send(readRequestGenerator.apply(flow1.asLong()));
 
@@ -209,7 +208,7 @@ public class ConnectionPoolingTest {
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
         Flow flow2 = new Flow(2, 0);
         @Cleanup
-        ClientConnection connection2 = factory.establishConnection(flow2, UUID.randomUUID(), new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection2 = factory.establishConnection(flow2, new PravegaNodeUri("localhost", port), rp).join();
 
         // send data over connection2 and verify.
         connection2.send(readRequestGenerator.apply(flow2.asLong()));
@@ -280,11 +279,11 @@ public class ConnectionPoolingTest {
         };
 
         Flow flow1 = new Flow(1, 0);
-        ClientConnection connection1 = factory.establishConnection(flow1, UUID.randomUUID(), new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection1 = factory.establishConnection(flow1, new PravegaNodeUri("localhost", port), rp).join();
 
         // create a second connection, since the max number of connections is 1 this should reuse the same connection.
         Flow flow2 = new Flow(2, 0);
-        ClientConnection connection2 = factory.establishConnection(flow2, UUID.randomUUID(), new PravegaNodeUri("localhost", port), rp).join();
+        ClientConnection connection2 = factory.establishConnection(flow2, new PravegaNodeUri("localhost", port), rp).join();
 
         connection1.send(readRequestGenerator.apply(flow1.asLong()));
         connection2.send(readRequestGenerator.apply(flow2.asLong()));

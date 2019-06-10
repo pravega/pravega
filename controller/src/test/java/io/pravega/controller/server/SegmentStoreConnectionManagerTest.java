@@ -23,7 +23,6 @@ import io.pravega.test.common.AssertExtensions;
 import lombok.Getter;
 import org.junit.Before;
 import org.junit.Test;
-import java.util.UUID;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -66,13 +65,13 @@ public class SegmentStoreConnectionManagerTest {
         assertTrue(connection1.getConnection() instanceof MockConnection);
         assertTrue(((MockConnection) connection1.getConnection()).getRp() instanceof ReusableReplyProcessor);
         assertEquals(connection1.getReplyProcessor(), myReplyProc);
-        verify(cf, times(1)).establishConnection(any(), any(), any());
+        verify(cf, times(1)).establishConnection(any(), any());
 
         ReplyProcessor myReplyProc2 = getReplyProcessor();
 
         ConnectionWrapper connection2 = pool.getConnection(myReplyProc2).join();
         assertEquals(connection2.getReplyProcessor(), myReplyProc2);
-        verify(cf, times(2)).establishConnection(any(), any(), any());
+        verify(cf, times(2)).establishConnection(any(), any());
 
         // return these connections
         connection1.close();
@@ -353,16 +352,16 @@ public class SegmentStoreConnectionManagerTest {
         private ReplyProcessor rp;
 
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(UUID id, PravegaNodeUri endpoint, ReplyProcessor rp) {
+        public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
             this.rp = rp;
-            ClientConnection connection = new MockConnection(id, rp);
+            ClientConnection connection = new MockConnection(rp);
             return CompletableFuture.completedFuture(connection);
         }
 
         @Override
-        public CompletableFuture<ClientConnection> establishConnection(Flow flow, UUID id, PravegaNodeUri endpoint, ReplyProcessor rp) {
+        public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
             this.rp = rp;
-            ClientConnection connection = new MockConnection(id, rp);
+            ClientConnection connection = new MockConnection(rp);
             return CompletableFuture.completedFuture(connection);
         }
 
@@ -381,15 +380,12 @@ public class SegmentStoreConnectionManagerTest {
         int uniqueId = connectionCounter.incrementAndGet();
 
         @Getter
-        private final UUID id;
-        @Getter
         private final ReplyProcessor rp;
         @Getter
         private AtomicBoolean isClosed = new AtomicBoolean(false);
 
-        public MockConnection(UUID id,  ReplyProcessor rp) {
-            this.id = id;   
-            this.rp = rp;
+        public MockConnection(ReplyProcessor rp) {
+               this.rp = rp;
         }
 
         @Override

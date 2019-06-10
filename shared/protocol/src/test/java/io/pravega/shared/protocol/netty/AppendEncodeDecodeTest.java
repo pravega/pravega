@@ -42,7 +42,7 @@ public class AppendEncodeDecodeTest {
     private final int appendBlockSize = 1024;  
     private final UUID writerId = new UUID(1, 2);
     private final String streamName = "Test Stream Name";
-    private final ConcurrentHashMap<UUID, AppendBatchSizeTracker> idBatchSizeTrackerMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, AppendBatchSizeTracker> idBatchSizeTrackerMap = new ConcurrentHashMap<>();
     private final CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
     private final AppendDecoder appendDecoder = new AppendDecoder();
@@ -50,7 +50,9 @@ public class AppendEncodeDecodeTest {
     
     @Before
     public void setup() {
-        idBatchSizeTrackerMap.put(writerId, new FixedBatchSizeTracker(appendBlockSize));
+
+        idBatchSizeTrackerMap.put(0L, new FixedBatchSizeTracker(appendBlockSize));
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
         origionalLogLevel = ResourceLeakDetector.getLevel();
         ResourceLeakDetector.setLevel(Level.PARANOID);
     }
@@ -141,8 +143,8 @@ public class AppendEncodeDecodeTest {
         byte[] content = new byte[100];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
-        idBatchSizeTrackerMap.remove(writerId);
-        idBatchSizeTrackerMap.put(writerId, new FixedBatchSizeTracker(3));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
         Append msg = new Append("segment", writerId, 1, event, 1);
         CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
@@ -164,10 +166,8 @@ public class AppendEncodeDecodeTest {
         int numEvents = 2;
         UUID c1 = new UUID(1, 1);
         UUID c2 = new UUID(2, 2);
-        idBatchSizeTrackerMap.remove(c1);
-        idBatchSizeTrackerMap.remove(c2);
-        idBatchSizeTrackerMap.put(c1, new FixedBatchSizeTracker(size));
-        idBatchSizeTrackerMap.put(c2, new FixedBatchSizeTracker(size));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
         String s1 = "Stream 1";
         String s2 = "Stream 2";
         sendAndVerifyEvents(s1, c1, numEvents, size, numEvents);
@@ -273,10 +273,8 @@ public class AppendEncodeDecodeTest {
         int size = 20; //Used to force a minimum size
         UUID writer1 = new UUID(1, 1);
         UUID writer2 = new UUID(2, 2);
-        idBatchSizeTrackerMap.remove(writer1);
-        idBatchSizeTrackerMap.remove(writer2);
-        idBatchSizeTrackerMap.put(writer1, new FixedBatchSizeTracker(size));
-        idBatchSizeTrackerMap.put(writer2, new FixedBatchSizeTracker(size));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
 
         CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         @Cleanup("release")
@@ -294,8 +292,8 @@ public class AppendEncodeDecodeTest {
     @Test
     public void testZeroSizeAppend() throws Exception {
         int size = 0; //Used to force a minimum size
-        idBatchSizeTrackerMap.remove(writerId);
-        idBatchSizeTrackerMap.put(writerId, new FixedBatchSizeTracker(size));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
         CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
@@ -320,8 +318,8 @@ public class AppendEncodeDecodeTest {
     @Test
     public void testZeroSizeAppendInBlock() throws Exception {
         int size = 100;
-        idBatchSizeTrackerMap.remove(writerId);
-        idBatchSizeTrackerMap.put(writerId, new FixedBatchSizeTracker(size));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(size));
         CommandEncoder encoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();

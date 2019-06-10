@@ -24,7 +24,6 @@ import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import io.pravega.test.common.AssertExtensions;
 import java.nio.ByteBuffer;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import lombok.Cleanup;
@@ -127,7 +126,7 @@ public class AsyncSegmentInputStreamTest {
         // simulate a establishConnection failure to segment store.
         Mockito.doReturn(failedConnection)
                .doCallRealMethod()
-               .when(mockedCF).establishConnection(any(Flow.class), any(UUID.class), eq(endpoint), any(ReplyProcessor.class));
+               .when(mockedCF).establishConnection(any(Flow.class), eq(endpoint), any(ReplyProcessor.class));
 
         ArgumentCaptor<ClientConnection.CompletedCallback> callBackCaptor =
                 ArgumentCaptor.forClass(ClientConnection.CompletedCallback.class);
@@ -151,7 +150,7 @@ public class AsyncSegmentInputStreamTest {
         assertEquals(segmentRead, readFuture.join());
         assertTrue(Futures.isSuccessful(readFuture)); // read completes after 3 retries.
         // Verify that the reader attempts to establish connection 3 times ( 2 failures followed by a successful attempt).
-        verify(mockedCF, times(3)).establishConnection(any(Flow.class), any(UUID.class), eq(endpoint), any(ReplyProcessor.class));
+        verify(mockedCF, times(3)).establishConnection(any(Flow.class), eq(endpoint), any(ReplyProcessor.class));
         inOrder.verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
                                     Mockito.any(ClientConnection.CompletedCallback.class));
         // Validate that the connection is closed in case of an error.

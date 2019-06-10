@@ -219,10 +219,10 @@ public class SegmentMetadataClientTest {
 
         long length = client.fetchCurrentSegmentLength();
         InOrder order = Mockito.inOrder(connection, cf);
-        order.verify(cf).establishConnection(any(UUID.class), eq(endpoint), any(ReplyProcessor.class));
+        order.verify(cf).establishConnection(eq(endpoint), any(ReplyProcessor.class));
         order.verify(connection).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")),
                                            Mockito.any(ClientConnection.CompletedCallback.class));
-        order.verify(cf).establishConnection(any(UUID.class), eq(endpoint), any(ReplyProcessor.class));
+        order.verify(cf).establishConnection(eq(endpoint), any(ReplyProcessor.class));
         order.verify(connection).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(1), segment.getScopedName(), "")),
                                            Mockito.any(ClientConnection.CompletedCallback.class));
         order.verify(cf).getProcessor(eq(endpoint));
@@ -244,13 +244,13 @@ public class SegmentMetadataClientTest {
         ClientConnection connection1 = mock(ClientConnection.class);
         ClientConnection connection2 = mock(ClientConnection.class);
         AtomicReference<ReplyProcessor> processor = new AtomicReference<>();
-        Mockito.when(cf.establishConnection(Mockito.any(Flow.class),  Mockito.any(UUID.class), Mockito.eq(endpoint), Mockito.any()))
+        Mockito.when(cf.establishConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any()))
                .thenReturn(Futures.failedFuture(new ConnectionFailedException()))
                .thenReturn(CompletableFuture.completedFuture(connection1))
                .thenAnswer(new Answer<CompletableFuture<ClientConnection>>() {
                    @Override
                    public CompletableFuture<ClientConnection> answer(InvocationOnMock invocation) throws Throwable {
-                       processor.set(invocation.getArgument(3));
+                       processor.set(invocation.getArgument(2));
                        return CompletableFuture.completedFuture(connection2);
                    }
                });
@@ -282,13 +282,13 @@ public class SegmentMetadataClientTest {
         }).when(connection2).sendAsync(any(WireCommands.GetStreamSegmentInfo.class), Mockito.any(ClientConnection.CompletedCallback.class));
         @Cleanup
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
-        InOrder order = Mockito.inOrder(connection1, connection2, cf);
         long length = client.fetchCurrentSegmentLength();
-        order.verify(cf, Mockito.times(2)).establishConnection(Mockito.any(Flow.class),  Mockito.any(UUID.class), Mockito.eq(endpoint), Mockito.any());
+        InOrder order = Mockito.inOrder(connection1, connection2, cf);
+        order.verify(cf, Mockito.times(2)).establishConnection(Mockito.any(Flow.class),  Mockito.eq(endpoint), Mockito.any());
         order.verify(connection1).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")),
                                             Mockito.any(ClientConnection.CompletedCallback.class));
         order.verify(connection1).close();
-        order.verify(cf).establishConnection(Mockito.any(Flow.class),  Mockito.any(UUID.class), Mockito.eq(endpoint), Mockito.any());
+        order.verify(cf).establishConnection(Mockito.any(Flow.class),  Mockito.eq(endpoint), Mockito.any());
         order.verify(connection2).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(1), segment.getScopedName(), "")),
                                             Mockito.any(ClientConnection.CompletedCallback.class));
         order.verifyNoMoreInteractions();

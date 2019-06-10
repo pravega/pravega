@@ -63,7 +63,6 @@ public class FlowHandlerTest {
 
     private Flow flow;
     private FlowHandler flowHandler;
-    private final UUID trackerID = UUID.randomUUID();
     @Mock
     private ReplyProcessor processor;
     @Mock
@@ -90,14 +89,13 @@ public class FlowHandlerTest {
     public void setUp() throws Exception {
         flow = new Flow(10, 0);
         when(buffer.readableBytes()).thenReturn(10);
-        appendCmd = new Append("segment0", trackerID, 2, 1, buffer, 10L, flow.asLong());
+        appendCmd = new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, flow.asLong());
 
         when(ctx.channel()).thenReturn(ch);
         when(ch.eventLoop()).thenReturn(loop);
         when(ch.writeAndFlush(any(Object.class))).thenReturn(completedFuture);
 
         flowHandler = new FlowHandler("testConnection");
-        flowHandler.createAppendBatchSizeTracker(trackerID);
     }
 
     @Test
@@ -164,7 +162,7 @@ public class FlowHandlerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void createDuplicateSession() throws Exception {
-        Flow flow = new Flow(11, 0);
+        Flow flow = new Flow(10, 0);
         ClientConnection connection1 = flowHandler.createFlow(flow, processor);
         flowHandler.channelRegistered(ctx);
         connection1.send(appendCmd);
@@ -198,11 +196,11 @@ public class FlowHandlerTest {
 
     @Test
     public void testCreateConnectionWithSessionDisabled() throws Exception {
+        flow = new Flow(0, 10);
         flowHandler = new FlowHandler("testConnection1");
-        flowHandler.createAppendBatchSizeTracker(trackerID);
         flowHandler.channelRegistered(ctx);
         ClientConnection connection = flowHandler.createConnectionWithFlowDisabled(processor);
-        connection.send(appendCmd);
+        connection.send(new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, flow.asLong()));
         assertThrows(IllegalStateException.class, () -> flowHandler.createFlow(flow, processor));
     }
 

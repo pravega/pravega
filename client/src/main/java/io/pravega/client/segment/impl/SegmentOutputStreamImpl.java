@@ -12,7 +12,6 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.auth.AuthenticationException;
-import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
@@ -80,7 +79,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final String delegationToken;
     @VisibleForTesting
     @Getter
-    private final long requestId = Flow.create().asLong();
+    private final long requestId = 0;
 
     /**
      * Internal object that tracks the state of the connection.
@@ -545,7 +544,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                      log.info("Fetching endpoint for segment {}, writer {}", segmentName, writerId);
                      return controller.getEndpointForSegment(segmentName).thenComposeAsync((PravegaNodeUri uri) -> {
                          log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
-                         return connectionFactory.establishConnection(writerId, uri, responseProcessor);
+                         return connectionFactory.establishConnection(uri, responseProcessor);
                      }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
                          SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, delegationToken);
