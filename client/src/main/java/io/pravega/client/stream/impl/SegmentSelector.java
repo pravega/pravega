@@ -18,6 +18,7 @@ import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.util.RetriesExhaustedException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -80,19 +81,17 @@ public class SegmentSelector {
         return currentSegments.getSegmentForKey(routingKey);
     }
 
-    public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment>
-            segmentSealedCallback) {
+    public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment> segmentSealedCallback) {
         StreamSegmentsWithPredecessors successors = Futures.getAndHandleExceptions(
                 controller.getSuccessors(sealedSegment), t -> {
                     log.error("Error while fetching successors for segment: {}", sealedSegment, t);
+                    // Remove all writers and fail all pending writes
+                    Exception e = (t instanceof RetriesExhaustedException) ? new ControllerFailureException(t) : new NoSuchSegmentException(sealedSegment.toString());
+                    removeAllWriters().forEach(event -> event.getAckFuture().completeExceptionally(e));
                     return null;
                 });
 
         if (successors == null) {
-            // Stream is deleted, complete all pending writes exceptionally.
-            log.error("Stream is deleted, all pending writes will be completed exceptionally");
-            removeAllWriters().forEach(event -> event.getAckFuture()
-                    .completeExceptionally(new NoSuchSegmentException(sealedSegment.toString())));
             return Collections.emptyList();
         } else {
             return updateSegmentsUponSealed(successors, sealedSegment, segmentSealedCallback);
