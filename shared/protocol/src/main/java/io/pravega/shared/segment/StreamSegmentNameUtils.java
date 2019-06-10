@@ -78,7 +78,7 @@ public final class StreamSegmentNameUtils {
      * Prefix for identifying system created mark segments for storing watermarks. 
      */
     @Getter(AccessLevel.PACKAGE)
-    private static final String MARK_PREFIX = "_MARK_";
+    private static final String MARK_PREFIX = "_MARK";
 
     //endregion
 
