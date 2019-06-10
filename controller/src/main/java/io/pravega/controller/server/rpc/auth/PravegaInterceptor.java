@@ -18,13 +18,11 @@ import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
 import io.grpc.Status;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
+import io.pravega.shared.security.token.JsonWebToken;
 import java.security.Principal;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -89,18 +87,10 @@ public class PravegaInterceptor implements ServerInterceptor {
      * @return A new master token which has highest privileges.
      */
     public static String retrieveMasterToken(String tokenSigningKey) {
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("*", String.valueOf(READ_UPDATE));
+        Map<String, Object> customClaims = new HashMap<>();
+        customClaims.put("*", String.valueOf(READ_UPDATE));
 
-        Instant now = Instant.now();
-
-        return Jwts.builder()
-                   .setSubject("segmentstoreresource")
-                   .setAudience("segmentstore")
-                   //.setIssuedAt(Date.from(now))
-                   //.setExpiration(Date.from(now.plusSeconds(300)))
-                   .setClaims(claims)
-                   .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                   .compact();
+        return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
+                null, customClaims).toCompactString();
     }
 }

@@ -10,13 +10,9 @@
 package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthorizationException;
-
-import java.util.Date;
-import java.time.Instant;
+import io.pravega.shared.security.token.JsonWebToken;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -26,6 +22,7 @@ import lombok.AllArgsConstructor;
  */
 @AllArgsConstructor
 public class AuthHelper {
+
     private final boolean isAuthEnabled;
     private final String tokenSigningKey;
     private final int accessTokenTtlInSeconds;
@@ -71,20 +68,17 @@ public class AuthHelper {
     private String createDelegationToken(String resource, AuthHandler.Permissions expectedLevel, String tokenSigningKey) {
         if (isAuthEnabled) {
             Map<String, Object> claims = new HashMap<>();
-
             claims.put(resource, String.valueOf(expectedLevel));
-            Instant now = Instant.now();
 
-            return Jwts.builder()
-                       .setSubject("segmentstoreresource")
-                       .setAudience("segmentstore")
-                       .setIssuedAt(Date.from(now))
-                       .setExpiration(Date.from(now.plusSeconds(this.accessTokenTtlInSeconds)))
-                       .setClaims(claims)
-                       .signWith(SignatureAlgorithm.HS512, tokenSigningKey.getBytes())
-                       .compact();
+            return new JsonWebToken("segmentstoreresource",
+                            "segmentstore",
+                                    tokenSigningKey.getBytes(),
+                                    this.accessTokenTtlInSeconds,
+                                    claims)
+                    .toCompactString();
+        } else {
+            return "";
         }
-        return "";
     }
 
     public String retrieveMasterToken() {
