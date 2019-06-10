@@ -44,17 +44,18 @@ public final class ExecutorServiceHelpers {
     @Data
     private static class CallerRuns implements RejectedExecutionHandler {
         private final String poolName;
+
         @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-            log.debug("Caller to ececutor: "+poolName+" rejected and run in the caller.");
+            log.debug("Caller to ececutor: " + poolName + " rejected and run in the caller.");
             r.run();
         }
     }
-    
+
     private static final class LogUncaughtException implements UncaughtExceptionHandler {
         @Override
         public void uncaughtException(Thread t, Throwable e) {
-            log.error("Exception thrown out of root of thread: "+ t.getName(), e);
+            log.error("Exception thrown out of root of thread: " + t.getName(), e);
         }
     }
     
@@ -214,7 +215,7 @@ public final class ExecutorServiceHelpers {
                         List<Runnable> remainingTasks = pool.shutdownNow();
                         log.warn("One or more threads from pool " + pool
                                 + " did not shutdown properly. Remaining tasks: " + remainingTasks);
-                        
+
                     }
                 }
             } catch (InterruptedException ie) {

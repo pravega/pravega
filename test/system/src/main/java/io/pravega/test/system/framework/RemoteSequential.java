@@ -61,7 +61,7 @@ public class RemoteSequential implements TestExecutor {
                 throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
                         "test " + testMethod);
             } else {
-                log.info("Created job succeeded with: "+ response.toString());
+                log.info("Created job succeeded with: " + response.toString());
             }
         }).thenCompose(v2 -> waitForJobCompletion(jobId, client))
                 .<Void>thenApply(v1 -> {
