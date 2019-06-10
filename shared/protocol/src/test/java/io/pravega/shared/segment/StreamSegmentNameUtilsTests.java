@@ -139,7 +139,7 @@ public class StreamSegmentNameUtilsTests {
     public void testMarkSegmentName() {
         String myStream = "myStream";
         String name = StreamSegmentNameUtils.getMarkSegmentForStream(myStream);
-        assertTrue(name.startsWith(StreamSegmentNameUtils.MARK));
         assertTrue(name.endsWith(myStream));
+        assertTrue(name.startsWith(StreamSegmentNameUtils.getMARK_PREFIX()));
     }
 }
