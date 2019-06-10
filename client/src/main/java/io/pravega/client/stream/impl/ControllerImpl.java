@@ -988,7 +988,7 @@ public class ControllerImpl implements Controller {
         return result.thenApply( token -> token.getDelegationToken())
         .whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("getCurrentSegments failed: ", e);
+                log.warn("getCurrentSegments failed: ", e.getMessage(), e);
             }
             LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
         });
