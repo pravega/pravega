@@ -114,6 +114,7 @@ project('common') {
         testCompile project(':test:testcommon')
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
+        compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
         //Do NOT add any additional dependencies here.
     }
 
@@ -143,6 +144,27 @@ project('shared:authplugin') {
         failOnError = false
         dependencies {
             compile 'org.projectlombok:lombok:' + lombokVersion   
+        }
+        source {
+            sourceSets.main.java
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
+    }
+}
+
+project('shared:security') {
+    dependencies {
+        compile project(':common')
+        compile project(':shared:authplugin')
+        compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
+        testCompile project(':test:testcommon')
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion
         }
         source {
             sourceSets.main.java
@@ -367,6 +389,7 @@ project('segmentstore:server:host') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(":shared:security")
         compile project(':shared:cluster')
         compile project(':segmentstore:contracts')
         compile project(':client')
@@ -576,6 +599,7 @@ project('controller') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(":shared:security")
         compile project(":shared:controller-api")
         compile project(':shared:cluster')
         compile project(":client")
@@ -933,6 +957,7 @@ task publishAllJars() {
     dependsOn ':client:publish'
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
+    dependsOn ':shared:security'
     dependsOn ':shared:protocol:publish'
     dependsOn ':segmentstore:contracts:publish'
     dependsOn ':segmentstore:storage:publish'
