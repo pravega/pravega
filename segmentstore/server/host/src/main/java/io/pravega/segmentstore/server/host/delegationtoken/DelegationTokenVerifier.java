@@ -34,16 +34,17 @@ public interface DelegationTokenVerifier {
 
     /**
      * Ensures that the given {@code token} represents specified {@code expectedLevel} of access on the
-     * given {@code resource}. It returns normally if the token grants the access, and throws exceptions otherwise.
+     * given {@code resource}. It returns normally if the {@code token} grants {@code expectedLevel} of access,
+     * and throws an exception, otherwise.
      *
      * @param resource                the resource for which access is desired.
      * @param token                   the access/delegation token.
      * @param expectedLevel           maximum expected access to the given {@code resource}.
-     * @throws TokenExpiredException  if {@code token} has expired
-     * @throws InvalidTokenException  if {@code token} is invalid
-     * @throws InvalidClaimException  if {@code token} does not contain the claim representing
+     * @throws TokenExpiredException  if the {@code token} has expired
+     * @throws InvalidTokenException  if the {@code token} is invalid
+     * @throws InvalidClaimException  if the {@code token} does not contain the claim representing
      *                                {@code expectedLevel} of access
-     * @throws TokenException         in any other failure scenarios.
+     * @throws TokenException         if any other failure condition is encountered
      */
     void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
             throws TokenExpiredException, InvalidTokenException, InvalidClaimException, TokenException;
