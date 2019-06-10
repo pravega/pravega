@@ -137,71 +137,68 @@ public class ReadTxnWriteScaleWithFailoverTest extends AbstractFailoverTests {
 
     @Test
     public void readTxnWriteScaleWithFailoverTest() throws Exception {
-        try {
-            createWriters(clientFactory, NUM_WRITERS, scope, stream);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
+        createWriters(clientFactory, NUM_WRITERS, scope, stream);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
 
-            //run the failover test before scaling
-            performFailoverForTestsInvolvingTxns();
+        //run the failover test before scaling
+        performFailoverForTestsInvolvingTxns();
 
-            //bring the instances back to 3 before performing failover during scaling
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        //bring the instances back to 3 before performing failover during scaling
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
 
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            //scale manually
-            log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, stream)
-                    .get().getSegments().size());
+        //scale manually
+        log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, stream)
+                  .get().getSegments().size());
 
-            Map<Double, Double> keyRanges = new HashMap<>();
-            keyRanges.put(0.0, 0.2);
-            keyRanges.put(0.2, 0.4);
-            keyRanges.put(0.4, 0.6);
-            keyRanges.put(0.6, 0.8);
-            keyRanges.put(0.8, 1.0);
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.2);
+        keyRanges.put(0.2, 0.4);
+        keyRanges.put(0.4, 0.6);
+        keyRanges.put(0.6, 0.8);
+        keyRanges.put(0.8, 1.0);
 
-            CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, stream),
-                    Collections.singletonList(0L),
-                    keyRanges,
-                    executorService).getFuture();
-            Futures.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));
+        CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, stream),
+                                                                        Collections.singletonList(0L),
+                                                                        keyRanges,
+                                                                        executorService).getFuture();
+        Futures.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));
 
-            //run the failover test while scaling
-            performFailoverForTestsInvolvingTxns();
+        //run the failover test while scaling
+        performFailoverForTestsInvolvingTxns();
 
-            //do a get on scaleStatus
-            if (Futures.await(scaleStatus)) {
-                log.info("Scale operation has completed: {}", scaleStatus.get());
-                if (!scaleStatus.get()) {
-                    log.error("Scale operation did not complete", scaleStatus.get());
-                    Assert.fail("Scale operation did not complete successfully");
-                }
-            } else {
-                Assert.fail("Scale operation threw an exception");
+        //do a get on scaleStatus
+        if (Futures.await(scaleStatus)) {
+            log.info("Scale operation has completed: {}", scaleStatus.get());
+            if (!scaleStatus.get()) {
+                log.error("Scale operation did not complete", scaleStatus.get());
+                Assert.fail("Scale operation did not complete successfully");
             }
-
-            log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, stream)
-                    .get().getSegments().size());
-
-            //bring the instances back to 3 before performing failover after scaling
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
-
-            //run the failover test after scaling
-            performFailoverForTestsInvolvingTxns();
-
-            stopWriters();
-            waitForTxnsToComplete();
-            stopReaders();
-            validateResults();
-
-            cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-            log.info("Test ReadTxnWriteScaleWithFailover succeeds");
-        } finally {
-            testState.checkForAnomalies();
+        } else {
+            Assert.fail("Scale operation threw an exception");
         }
+
+        log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, stream)
+                  .get().getSegments().size());
+
+        //bring the instances back to 3 before performing failover after scaling
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+
+        //run the failover test after scaling
+        performFailoverForTestsInvolvingTxns();
+
+        stopWriters();
+        waitForTxnsToComplete();
+        stopReaders();
+        validateResults();
+
+        cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+        testState.checkForAnomalies();
+        log.info("Test ReadTxnWriteScaleWithFailover succeeds");
     }
 
 }
