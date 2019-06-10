@@ -107,18 +107,19 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
                 "ReadWriteAndScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
                 "ReadWriteAndScaleWithFailoverTest-controller");
+
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .clientConfig(clientConfig)
                                     .maxBackoffMillis(5000).build(),
                 controllerExecutorService);
         testState = new TestState(false);
-        streamManager = new StreamManagerImpl( ClientConfig.builder().controllerURI(controllerURIDirect).build());
+        streamManager = new StreamManagerImpl(clientConfig);
         createScopeAndStream(scope, SCALE_STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
-        readerGroupManager = ReaderGroupManager.withScope(scope,
-                ClientConfig.builder().controllerURI(controllerURIDirect).build());
+        readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
     }
 
     @After

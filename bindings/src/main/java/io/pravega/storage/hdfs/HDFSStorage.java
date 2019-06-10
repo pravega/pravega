@@ -290,7 +290,11 @@ class HDFSStorage implements SyncStorage {
             } else if (fileStatus.getLen() != offset) {
                 throw new BadOffsetException(target.getSegmentName(), fileStatus.getLen(), offset);
             }
+        } catch (IOException ex) {
+            throw HDFSExceptionHelpers.convertException(target.getSegmentName(), ex);
+        }
 
+        try {
             FileStatus sourceFile = findStatusForSegment(sourceSegment, true);
             Preconditions.checkState(isSealed(sourceFile.getPath()),
                     "Cannot concat segment '%s' into '%s' because it is not sealed.", sourceSegment, target.getSegmentName());

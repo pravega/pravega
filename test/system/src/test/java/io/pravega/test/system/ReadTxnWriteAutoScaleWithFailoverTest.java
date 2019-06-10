@@ -14,6 +14,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -101,17 +102,19 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
                 "ReadTxnWriteAutoScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
                 "ReadTxnWriteAutoScaleWithFailoverTest-controller");
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                                         .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                         .clientConfig(clientConfig)
                                          .maxBackoffMillis(5000).build(),
                 controllerExecutorService);
         testState = new TestState(true);
-        streamManager = new StreamManagerImpl( ClientConfig.builder().controllerURI(controllerURIDirect).build());
+        streamManager = new StreamManagerImpl(clientConfig);
         createScopeAndStream(scope, stream, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
-        clientFactory = new ClientFactoryImpl(scope, controller);
-        readerGroupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerURIDirect).build());
+
+        clientFactory = new ClientFactoryImpl(scope, controller, new ConnectionFactoryImpl(clientConfig));
+        readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
     }
 
     @After

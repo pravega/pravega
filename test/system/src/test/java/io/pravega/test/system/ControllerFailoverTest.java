@@ -96,10 +96,11 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         Map<Double, Double> newRangesToCreate = new HashMap<>();
         newRangesToCreate.put(0.0, 1.0);
 
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         // Connect with first controller instance.
         final Controller controller1 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .clientConfig(clientConfig)
                                     .build(), executorService);
 
         // Create scope, stream, and a transaction with high timeout value.
@@ -131,11 +132,12 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
+        ClientConfig clientConf = Utils.buildClientConfig(controllerURIDirect);
         // Connect to another controller instance.
         @Cleanup
         final Controller controller2 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .clientConfig(clientConf)
                                     .build(), executorService);
 
         // Note: if scale does not complete within desired time, test will timeout.

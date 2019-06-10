@@ -116,58 +116,45 @@ public class RevisionDataStreamCommonTests {
     public void testGetCompactLongLength() throws Exception {
         val expectedValues = ImmutableMap.<Long, Integer>builder()
                 .put(RevisionDataOutput.COMPACT_LONG_MIN - 1, -1)
-                .put(RevisionDataOutput.COMPACT_LONG_MAX, -1)
+                .put(RevisionDataOutput.COMPACT_LONG_MAX + 1, -1)
                 .put(0L, 1).put(0x3FL, 1)
                 .put(0x3FL + 1, 2).put(0x3FFFL, 2)
                 .put(0x3FFFL + 1, 4).put(0x3FFF_FFFFL, 4)
                 .put(0x3FFF_FFFFL + 1, 8).build();
-        @Cleanup
-        val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
-        for (val e : expectedValues.entrySet()) {
-            if (e.getValue() < 0) {
-                AssertExtensions.assertThrows(
-                        "getCompactLongLength accepted invalid input: " + e.getKey(),
-                        () -> rdos.getCompactLongLength(e.getKey()),
-                        ex -> ex instanceof IllegalArgumentException);
-            } else {
-                // Verify what it should be.
-                int actualValue = rdos.getCompactLongLength(e.getKey());
-                Assert.assertEquals("Unexpected result for " + e.getKey(), (int) e.getValue(), actualValue);
-
-                // Verify that it is the case in practice.
-                testLength(RevisionDataOutputStream::writeCompactLong, RevisionDataOutputStream::getCompactLongLength, e.getKey());
-            }
-        }
+        testGetCompactLength(expectedValues, RevisionDataOutputStream::getCompactLongLength, RevisionDataOutputStream::writeCompactLong);
     }
 
     /**
-     * Tests the getCompactLongLength() method.
+     * Tests the getCompactSignedLongLength() method.
+     */
+    @Test
+    public void testGetCompactSignedLongLength() throws Exception {
+        val expectedValues = ImmutableMap.<Long, Integer>builder()
+                .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN - 1, -1)
+                .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MAX + 1, -1)
+                .put(-0x1FL - 1, 1).put(0x1FL, 1)
+                .put(-0x1FL - 2, 2).put(0x1FFFL, 2)
+                .put(-0x1FFFL - 2, 4).put(0x1FFF_FFFFL, 4)
+                .put(-0x1FFF_FFFFL - 2, 8).put(0x1FFF_FFFFL + 1, 8)
+                .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN, 8)
+                .put(RevisionDataOutput.COMPACT_SIGNED_LONG_MAX, 8)
+                .put(0L, 1).put(-1L, 1)
+                .build();
+        testGetCompactLength(expectedValues, RevisionDataOutputStream::getCompactSignedLongLength, RevisionDataOutputStream::writeCompactSignedLong);
+    }
+
+    /**
+     * Tests the getCompactIntLength() method.
      */
     @Test
     public void testGetCompactIntLength() throws Exception {
         val expectedValues = ImmutableMap.<Integer, Integer>builder()
                 .put(RevisionDataOutput.COMPACT_INT_MIN - 1, -1)
-                .put(RevisionDataOutput.COMPACT_INT_MAX, -1)
+                .put(RevisionDataOutput.COMPACT_INT_MAX + 1, -1)
                 .put(0, 1).put(0x7F, 1)
                 .put(0x7F + 1, 2).put(0x3FFF, 2)
                 .put(0x3FFF + 1, 4).build();
-        @Cleanup
-        val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
-        for (val e : expectedValues.entrySet()) {
-            if (e.getValue() < 0) {
-                AssertExtensions.assertThrows(
-                        "getCompactIntLength accepted invalid input: " + e.getKey(),
-                        () -> rdos.getCompactIntLength(e.getKey()),
-                        ex -> ex instanceof IllegalArgumentException);
-            } else {
-                // Verify what it should be.
-                int actualValue = rdos.getCompactIntLength(e.getKey());
-                Assert.assertEquals("Unexpected result for " + e.getKey(), (int) e.getValue(), actualValue);
-
-                // Verify that it is the case in practice.
-                testLength(RevisionDataOutputStream::writeCompactInt, RevisionDataOutputStream::getCompactIntLength, e.getKey());
-            }
-        }
+        testGetCompactLength(expectedValues, RevisionDataOutputStream::getCompactIntLength, RevisionDataOutputStream::writeCompactInt);
     }
 
     /**
@@ -177,15 +164,39 @@ public class RevisionDataStreamCommonTests {
     public void testCompactLong() throws Exception {
         val toTest = new ArrayList<Long>();
         // Boundary tests.
-        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_LONG_MIN, RevisionDataOutput.COMPACT_LONG_MAX - 1,
+        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_LONG_MIN, RevisionDataOutput.COMPACT_LONG_MAX,
                 0x3FL, 0x3FL + 1, 0x3FFFL, 0x3FFFL + 1, 0x3FFF_FFFFL, 0x3FFF_FFFFL + 1));
 
         // We want to test that when we split up the Long into smaller numbers, we won't be tripping over unsigned bytes/shorts/ints.
         toTest.addAll(getAllOneBitNumbers(Long.SIZE - 2));
 
-        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_LONG_MIN - 1, RevisionDataOutput.COMPACT_LONG_MAX);
+        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_LONG_MIN - 1, RevisionDataOutput.COMPACT_LONG_MAX + 1);
         testCompact(RevisionDataOutputStream::writeCompactLong, RevisionDataInputStream::readCompactLong,
                 RevisionDataOutputStream::getCompactLongLength, toTest, shouldFail, Long::equals);
+    }
+
+    /**
+     * Tests the ability to encode and decode a Compact Signed Long.
+     */
+    @Test
+    public void testCompactSignedLong() throws Exception {
+        val toTest = new ArrayList<Long>();
+
+        // Boundary tests.
+        toTest.addAll(Arrays.asList(-0x1FL - 1, 0x1FL, -0x1FL - 2, 0x1FFFL, -0x1FFFL - 2, 0x1FFF_FFFFL, -0x1FFF_FFFFL - 2, 0x1FFF_FFFFL + 1, 0L, -1L));
+
+        // We want to test that when we split up the Long into smaller numbers, we won't be tripping over unsigned bytes/shorts/ints.
+        toTest.addAll(getAllOneBitNumbers(Long.SIZE - 3));
+
+        // Add the negatives of all the numbers so far.
+        toTest.addAll(toTest.stream().mapToLong(l -> -l).boxed().collect(Collectors.toList()));
+
+        // Add extremes.
+        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN, RevisionDataOutput.COMPACT_SIGNED_LONG_MAX));
+
+        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_SIGNED_LONG_MIN - 1, RevisionDataOutput.COMPACT_SIGNED_LONG_MAX + 1);
+        testCompact(RevisionDataOutputStream::writeCompactSignedLong, RevisionDataInputStream::readCompactSignedLong,
+                RevisionDataOutputStream::getCompactSignedLongLength, toTest, shouldFail, Long::equals);
     }
 
     /**
@@ -195,13 +206,13 @@ public class RevisionDataStreamCommonTests {
     public void testCompactInt() throws Exception {
         val toTest = new ArrayList<Integer>();
         // Boundary tests.
-        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN, RevisionDataOutput.COMPACT_INT_MAX - 1,
+        toTest.addAll(Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN, RevisionDataOutput.COMPACT_INT_MAX,
                 0x7F, 0x7F + 1, 0x3FFF, 0x3FFF + 1, 0x3F_FFFF, 0x3F_FFFF + 1));
 
         // We want to test that when we split up the Long into smaller numbers, we won't be tripping over unsigned bytes/shorts/ints.
         getAllOneBitNumbers(Integer.SIZE - 2).forEach(n -> toTest.add((int) (long) n));
 
-        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN - 1, RevisionDataOutput.COMPACT_INT_MAX);
+        val shouldFail = Arrays.asList(RevisionDataOutput.COMPACT_INT_MIN - 1, RevisionDataOutput.COMPACT_INT_MAX + 1);
         testCompact(RevisionDataOutputStream::writeCompactInt, RevisionDataInputStream::readCompactInt, RevisionDataOutputStream::getCompactIntLength,
                 toTest, shouldFail, Integer::equals);
     }
@@ -296,6 +307,26 @@ public class RevisionDataStreamCommonTests {
                     (s, v) -> s.getMapLength(v, e -> Long.BYTES, s::getUTFLength),
                     value,
                     this::mapsEqual);
+        }
+    }
+
+    private <T> void testGetCompactLength(Map<T, Integer> expectedValues, BiFunction<RevisionDataOutputStream, T, Integer> getLength, BiConsumerWithException<RevisionDataOutputStream, T> writeNumber) throws Exception {
+        @Cleanup
+        val rdos = RevisionDataOutputStream.wrap(new ByteArrayOutputStream());
+        for (val e : expectedValues.entrySet()) {
+            if (e.getValue() < 0) {
+                AssertExtensions.assertThrows(
+                        "getCompactIntLength accepted invalid input: " + e.getKey(),
+                        () -> getLength.apply(rdos, e.getKey()),
+                        ex -> ex instanceof IllegalArgumentException);
+            } else {
+                // Verify what it should be.
+                int actualValue = getLength.apply(rdos, e.getKey());
+                Assert.assertEquals("Unexpected result for " + e.getKey(), (int) e.getValue(), actualValue);
+
+                // Verify that it is the case in practice.
+                testLength(writeNumber, getLength, e.getKey());
+            }
         }
     }
 

@@ -23,6 +23,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
@@ -76,16 +77,16 @@ public class InProcPravegaClusterTest {
         // explicit in the respective test classes.
 
         if (authEnabled) {
-            emulatorBuilder.passwdFile("../config/passwd")
-                    .userName("admin")
-                    .passwd("1111_aaaa");
+            emulatorBuilder.passwdFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
+                    .userName(SecurityConfigDefaults.AUTH_ADMIN_USERNAME)
+                    .passwd(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD);
         }
         if (tlsEnabled) {
-            emulatorBuilder.certFile("../config/cert.pem")
-                    .keyFile("../config/key.pem")
-                    .jksKeyFile("../config/standalone.keystore.jks")
-                    .jksTrustFile("../config/standalone.truststore.jks")
-                    .keyPasswordFile("../config/standalone.keystore.jks.passwd");
+            emulatorBuilder.certFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
+                    .keyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
+                    .jksKeyFile(SecurityConfigDefaults.TLS_SERVER_KEYSTORE_PATH)
+                    .jksTrustFile(SecurityConfigDefaults.TLS_CLIENT_TRUSTSTORE_PATH)
+                    .keyPasswordFile(SecurityConfigDefaults.TLS_PASSWORD_PATH);
         }
 
         localPravega = emulatorBuilder.build();

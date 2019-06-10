@@ -667,7 +667,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<SuccessorResponse> resultFuture = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SuccessorResponse> callback = new RPCAsyncCallback<>(traceId, "getSuccessors");
-            client.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment), callback);
+            client.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment), callback);
             return callback.getFuture();
         }, this.executor);
         return resultFuture.thenApply(successors -> {

@@ -26,6 +26,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.ClientConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -59,7 +60,8 @@ public class ConnectionFactoryImplTest {
         final SslContext sslCtx;
         if (ssl) {
             try {
-                sslCtx = SslContextBuilder.forServer(new File("../config/cert.pem"), new File("../config/key.pem")).build();
+                sslCtx = SslContextBuilder.forServer(new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
+                             new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)).build();
             } catch (SSLException e) {
                 throw new RuntimeException(e);
             }
@@ -113,7 +115,7 @@ public class ConnectionFactoryImplTest {
         @Cleanup
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                               .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
-                                                                              .trustStore("../config/cert.pem")
+                                                                              .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                               .build());
         @Cleanup
         ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
