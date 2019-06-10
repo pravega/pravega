@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.watermarks;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -22,13 +23,23 @@ import java.io.IOException;
  * A serializable representation of a segment with id and range information.  
  */
 @Data
-@Builder
 public class SegmentWithRange {
-    public static final SegmentWithRangeSerializer SERIALIZER = new SegmentWithRangeSerializer();
+    static final SegmentWithRangeSerializer SERIALIZER = new SegmentWithRangeSerializer();
     private final long segmentId;
     private final double rangeLow;
     private final double rangeHigh;
-    
+
+    @Builder
+    public SegmentWithRange(long segmentId, double rangeLow, double rangeHigh) {
+        Preconditions.checkArgument(segmentId >= 0L);
+        Preconditions.checkArgument(rangeLow >= 0.0);
+        Preconditions.checkArgument(rangeHigh <= 1.0);
+        Preconditions.checkArgument(rangeLow < rangeHigh);
+        this.segmentId = segmentId;
+        this.rangeLow = rangeLow;
+        this.rangeHigh = rangeHigh;
+    }
+
     public static class SegmentWithRangeBuilder implements ObjectBuilder<SegmentWithRange> {
 
     }

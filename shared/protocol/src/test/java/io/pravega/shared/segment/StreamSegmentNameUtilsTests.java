@@ -134,4 +134,12 @@ public class StreamSegmentNameUtilsTests {
         AssertExtensions.assertThrows("No tokens supplied", () -> StreamSegmentNameUtils.getQualifiedTableName("scope"), 
                 e -> e instanceof IllegalArgumentException);
     }
+
+    @Test
+    public void testMarkSegmentName() {
+        String myStream = "myStream";
+        String name = StreamSegmentNameUtils.getMarkSegmentForStream(myStream);
+        assertTrue(name.startsWith(StreamSegmentNameUtils.MARK));
+        assertTrue(name.endsWith(myStream));
+    }
 }

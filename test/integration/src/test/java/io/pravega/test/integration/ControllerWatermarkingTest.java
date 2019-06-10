@@ -111,7 +111,7 @@ public class ControllerWatermarkingTest {
         controller.createScope(scope).join();
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         controller.createStream(scope, stream, config).join();
-        controller.createStream(scope, StreamSegmentNameUtils.getMarkForStream(stream), config).join();
+        controller.createStream(scope, StreamSegmentNameUtils.getMarkSegmentForStream(stream), config).join();
         Stream streamObj = new StreamImpl(scope, stream);
         Position pos1 = new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0L), 10L));
         Position pos2 = new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0L), 20L));
@@ -119,7 +119,7 @@ public class ControllerWatermarkingTest {
         controller.noteTimestampFromWriter("1", streamObj, 1L, pos1).join();
         controller.noteTimestampFromWriter("2", streamObj, 2L, pos2).join();
 
-        String markStream = StreamSegmentNameUtils.getMarkForStream(stream);
+        String markStream = StreamSegmentNameUtils.getMarkSegmentForStream(stream);
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
          ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
          ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory);

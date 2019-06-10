@@ -293,7 +293,7 @@ public class WatermarkWorkflowTest {
         // verify that a watermark has been emitted. 
         // this should emit a watermark that contains all three segments with offsets = 200L
         // and timestamp = 100L
-        MockRevisionedStreamClient revisionedClient = revisionedStreamClientMap.get(StreamSegmentNameUtils.getMarkForStream(streamName));
+        MockRevisionedStreamClient revisionedClient = revisionedStreamClientMap.get(StreamSegmentNameUtils.getMarkSegmentForStream(streamName));
         assertEquals(revisionedClient.watermarks.size(), 1);
         Watermark watermark = revisionedClient.watermarks.get(0).getValue();
         assertEquals(watermark.getLowerTimeBound(), 100L);

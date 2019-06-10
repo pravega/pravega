@@ -151,7 +151,7 @@ public class PeriodicWatermarking {
 
     private CompletableFuture<Void> createMarkStream(String scope, String streamName, WatermarkClient watermarkClient) {
         CompletableFuture<Void> future;
-        future = streamMetadataTasks.createStream(scope, StreamSegmentNameUtils.getMarkForStream(streamName),
+        future = streamMetadataTasks.createStream(scope, StreamSegmentNameUtils.getMarkSegmentForStream(streamName),
                 StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis())
                     .thenAccept(status -> {
                                         switch (status) {
@@ -410,7 +410,7 @@ public class PeriodicWatermarking {
         @VisibleForTesting
         WatermarkClient(Stream stream, SynchronizerClientFactory clientFactory) {
             this.client = clientFactory.createRevisionedStreamClient(
-                    StreamSegmentNameUtils.getMarkForStream(stream.getStreamName()), 
+                    StreamSegmentNameUtils.getMarkSegmentForStream(stream.getStreamName()), 
                     new WatermarkSerializer(), SynchronizerConfig.builder().build());
             this.windowStart = new AtomicInteger();
             windowSize = WINDOW_SIZE;
