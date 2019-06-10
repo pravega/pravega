@@ -15,6 +15,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.function.RunnableWithException;
 import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -209,7 +210,12 @@ public final class ExecutorServiceHelpers {
                 if (!pool.awaitTermination(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS)) {
                     // Cancel currently executing tasks and wait for them to respond to being cancelled.
                     pool.shutdownNow();
-                    pool.awaitTermination(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
+                    if (!pool.awaitTermination(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS)) {
+                        List<Runnable> remainingTasks = pool.shutdownNow();
+                        log.warn("One or more threads from pool " + pool
+                                + " did not shutdown properly. Remaining tasks: " + remainingTasks);
+                        
+                    }
                 }
             } catch (InterruptedException ie) {
                 pool.shutdownNow();
