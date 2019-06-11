@@ -12,7 +12,6 @@ package io.pravega.controller.server.eventProcessor;
 import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -27,6 +26,7 @@ import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
@@ -429,9 +429,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp,
-                                                           Position lastWrittenPosition) {
-        Map<Long, Long> map = ModelHelper.createStreamCut(stream, lastWrittenPosition.asImpl()).getCutMap();
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition) {
+        Map<Long, Long> map = ModelHelper.createStreamCut(stream, lastWrittenPosition).getCutMap();
         return Futures.toVoid(controller.noteTimestampFromWriter(stream.getScope(), stream.getStreamName(), writer, timestamp, map));
     }
 

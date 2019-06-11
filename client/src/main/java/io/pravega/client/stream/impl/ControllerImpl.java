@@ -25,7 +25,6 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -971,7 +970,7 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, Position lastWrittenPosition) {
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(writer, "writer");
@@ -983,8 +982,7 @@ public class ControllerImpl implements Controller {
             client.noteTimestampFromWriter(TimestampFromWriter.newBuilder()
                                                               .setWriter(writer)
                                                               .setTimestamp(timestamp)
-                                                              .setPosition(ModelHelper.createStreamCut(stream,
-                                                                                                       lastWrittenPosition.asImpl()))
+                                                              .setPosition(ModelHelper.createStreamCut(stream, lastWrittenPosition))
                                                               .build(),
                                            callback);
             return callback.getFuture();

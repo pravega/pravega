@@ -11,6 +11,7 @@ package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.Position;
+import io.pravega.client.stream.impl.SegmentWithRange.Range;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -22,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Builder;
@@ -33,19 +35,31 @@ public class PositionImpl extends PositionInternal {
 
     private static final PositionSerializer SERIALIZER = new PositionSerializer();
     private final Map<Segment, Long> ownedSegments;
+    private final Map<Segment, Range> segmentRanges;
 
     /**
      * Instantiates Position with current and future owned segments.
      *
-     * @param ownedSegments Current segments that the position refers to.
+     * @param segments Current segments that the position refers to.
      */
-    @Builder(builderClassName = "PositionBuilder")
-    public PositionImpl(Map<Segment, Long> ownedSegments) {
-        this.ownedSegments = new HashMap<>(ownedSegments);
+    public PositionImpl(Map<SegmentWithRange, Long> segments) {
+        this.ownedSegments = new HashMap<>(segments.size());
+        this.segmentRanges = new HashMap<>(segments.size());
+        for (Entry<SegmentWithRange, Long> entry : segments.entrySet()) {
+            SegmentWithRange s = entry.getKey();
+            this.ownedSegments.put(s.getSegment(), entry.getValue());
+            this.segmentRanges.put(s.getSegment(), s.getRange());
+        }
     }
-
-    static PositionImpl createEmptyPosition() {
-        return new PositionImpl(new HashMap<>());
+    
+    @Builder(builderClassName = "PositionBuilder")
+    private PositionImpl(Map<Segment, Long> ownedSegments, Map<Segment, Range> segmentRanges) {
+        this.ownedSegments = ownedSegments;
+        if (segmentRanges == null) {
+            this.segmentRanges = Collections.emptyMap();
+        } else {
+            this.segmentRanges = segmentRanges;
+        }
     }
 
     @Override
@@ -99,7 +113,8 @@ public class PositionImpl extends PositionInternal {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00);
+            version(0).revision(0, this::write00, this::read00)
+                      .revision(1, this::write01, this::read01);
         }
 
         private void read00(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
@@ -111,6 +126,35 @@ public class PositionImpl extends PositionInternal {
             Map<Segment, Long> map = position.getOwnedSegmentsWithOffsets();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()),
                                         (out, offset) -> out.writeCompactLong(offset));
+        }
+        
+        private void read01(RevisionDataInput revisionDataInput, PositionBuilder builder) throws IOException {
+            Map<Segment, Range> map = revisionDataInput.readMap(in -> Segment.fromScopedName(in.readUTF()), PositionSerializer::readRange);
+            builder.segmentRanges(map);
+        }
+
+        private void write01(PositionImpl position, RevisionDataOutput revisionDataOutput) throws IOException {
+            Map<Segment, Range> map = position.segmentRanges;
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeUTF(s.getScopedName()), PositionSerializer::writeRange);
+        }
+        
+        private static void writeRange(RevisionDataOutput out, Range range) throws IOException {
+            double low, high;
+            if (range == null) {
+                low = -1;
+                high = -1;
+            } else {
+                low = range.getLow();
+                high = range.getHigh();
+            }
+            out.writeDouble(low);
+            out.writeDouble(high);
+        }
+        
+        private static Range readRange(RevisionDataInput in) throws IOException {
+            double low = in.readDouble();
+            double high = in.readDouble();
+            return (low < 0 || high < 0) ? null : new Range(low, high);
         }
     }
 

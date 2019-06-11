@@ -92,7 +92,7 @@ public class StreamSegments {
         Map<Long, List<SegmentWithRange>> replacedRanges = replacementRanges.getReplacementRanges();
         List<SegmentWithRange> replacements = replacedRanges.get(segment.getSegmentId());
         Preconditions.checkNotNull(replacements, "Empty set of replacements for: {}", segment.getSegmentId());
-        replacements.sort(Comparator.comparingDouble(SegmentWithRange::getHigh).reversed());
+        replacements.sort(Comparator.comparingDouble((SegmentWithRange s) -> s.getRange().getHigh()).reversed());
         verifyContinuous(replacements);
         for (Entry<Double, SegmentWithRange> existingEntry : segments.descendingMap().entrySet()) { // iterate from the highest key.
             final SegmentWithRange existingSegment = existingEntry.getValue();
@@ -101,8 +101,8 @@ public class StreamSegments {
                 // ensuring that newer writes to the successor(s) happen only for the replaced segment's range.
                 for (SegmentWithRange segmentWithRange : replacements) {
                     Double lowerBound = segments.lowerKey(existingEntry.getKey()); // Used to skip over items not in the clients view yet.
-                    if (lowerBound == null || segmentWithRange.getHigh() >= lowerBound) { 
-                        result.put(Math.min(segmentWithRange.getHigh(), existingEntry.getKey()), segmentWithRange);
+                    if (lowerBound == null || segmentWithRange.getRange().getHigh() >= lowerBound) { 
+                        result.put(Math.min(segmentWithRange.getRange().getHigh(), existingEntry.getKey()), segmentWithRange);
                     }
                 }
             } else {
@@ -149,11 +149,11 @@ public class StreamSegments {
         Preconditions.checkArgument(replacements != null, "Replacement segments did not contain replacements for segment being replaced");
         if (replacementRanges.size() == 1) {
             //Simple split
-            Preconditions.checkArgument(replacedSegment.getHigh() == getUpperBound(replacements));
-            Preconditions.checkArgument(replacedSegment.getLow() == getLowerBound(replacements));
+            Preconditions.checkArgument(replacedSegment.getRange().getHigh() == getUpperBound(replacements));
+            Preconditions.checkArgument(replacedSegment.getRange().getLow() == getLowerBound(replacements));
         } else {
-            Preconditions.checkArgument(replacedSegment.getHigh() <= getUpperBound(replacements));
-            Preconditions.checkArgument(replacedSegment.getLow() >= getLowerBound(replacements));
+            Preconditions.checkArgument(replacedSegment.getRange().getHigh() <= getUpperBound(replacements));
+            Preconditions.checkArgument(replacedSegment.getRange().getLow() >= getLowerBound(replacements));
         }
         for (Entry<Long, List<SegmentWithRange>> ranges : replacementRanges.entrySet()) {
             Entry<Double, SegmentWithRange> upperReplacedSegment = segments.floorEntry(getUpperBound(ranges.getValue()));
@@ -166,17 +166,17 @@ public class StreamSegments {
     }
     
     private void verifyContinuous(List<SegmentWithRange> newSegments) {
-        double previous = newSegments.get(0).getHigh();
+        double previous = newSegments.get(0).getRange().getHigh();
         for (SegmentWithRange s : newSegments) {
-            Preconditions.checkArgument(previous == s.getHigh(), "Replacement segments were not continious: {}", newSegments);
-            previous = s.getLow();
+            Preconditions.checkArgument(previous == s.getRange().getHigh(), "Replacement segments were not continious: {}", newSegments);
+            previous = s.getRange().getLow();
         }
     }
 
     private double getLowerBound(List<SegmentWithRange> values) {
         double lowerReplacementRange = 1;
         for (SegmentWithRange range : values) {
-            lowerReplacementRange = Math.min(lowerReplacementRange, range.getLow());
+            lowerReplacementRange = Math.min(lowerReplacementRange, range.getRange().getLow());
         }
         return lowerReplacementRange;
     }
@@ -184,7 +184,7 @@ public class StreamSegments {
     private double getUpperBound(List<SegmentWithRange> value) {
         double upperReplacementRange = 0;
         for (SegmentWithRange range : value) {
-            upperReplacementRange = Math.max(upperReplacementRange, range.getHigh());
+            upperReplacementRange = Math.max(upperReplacementRange, range.getRange().getHigh());
         }
         return upperReplacementRange;
     }

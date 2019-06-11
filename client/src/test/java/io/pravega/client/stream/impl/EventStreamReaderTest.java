@@ -83,7 +83,7 @@ public class EventStreamReaderTest {
                                                                            ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
-               .thenReturn(ImmutableMap.of(segment, 0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
                .thenReturn(Collections.emptyMap());
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
         ByteBuffer buffer = writeInt(stream, 1);
@@ -138,17 +138,18 @@ public class EventStreamReaderTest {
         //Validate that segmentInputStream1.close() is invoked on reaching endOffset.
         Mockito.verify(segmentInputStream1, Mockito.times(1)).close();
         
+        SegmentWithRange segmentWithRange = new SegmentWithRange(segment, 0, 1);
         // Verify groupstate is not updated before the checkpoint, but is after.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segmentWithRange);
         Mockito.when(groupState.getCheckpoint()).thenReturn("checkpoint").thenReturn(null);
         assertEquals("checkpoint", reader.readNextEvent(0).getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
         // Verify groupstate is not updated before the checkpoint, but is after.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segmentWithRange);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
         // Now it is called.
-        inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment);
+        inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(segmentWithRange);
         
     }
 
@@ -201,9 +202,9 @@ public class EventStreamReaderTest {
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
                                                                            ReaderConfig.builder().build());
-        Segment segment = Segment.fromScopedName("Foo/Bar/0");
+        SegmentWithRange segment = new SegmentWithRange(Segment.fromScopedName("Foo/Bar/0"), 0, 1);
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment.getSegment(), segmentSealedCallback, writerConfig, "");
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         ByteBuffer buffer3 = writeInt(stream, 3);
@@ -227,7 +228,7 @@ public class EventStreamReaderTest {
         Segment segment1 = Segment.fromScopedName("Foo/Bar/0");
         Segment segment2 = Segment.fromScopedName("Foo/Bar/1");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
-               .thenReturn(ImmutableMap.of(segment1, 0L, segment2, 0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment1, 0, 0.5), 0L, new SegmentWithRange(segment2, 0, 0.5), 0L))
                .thenReturn(Collections.emptyMap());
         SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, "");
         SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, "");
@@ -274,8 +275,8 @@ public class EventStreamReaderTest {
         Segment segment1 = Segment.fromScopedName("Foo/Bar/0");
         Segment segment2 = Segment.fromScopedName("Foo/Bar/1");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
-               .thenReturn(ImmutableMap.of(segment1, 0L))
-               .thenReturn(ImmutableMap.of(segment2, 0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment1, 0, 0.5), 0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment2, 0.5, 1.0), 0L))
                .thenReturn(Collections.emptyMap());
         SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, "");
         SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, "");
@@ -307,8 +308,11 @@ public class EventStreamReaderTest {
                                                                            orderer, clock::get,
                                                                            ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
+               .thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
+                                                                                       writerConfig, "");
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         ByteBuffer buffer3 = writeInt(stream, 3);
@@ -336,8 +340,11 @@ public class EventStreamReaderTest {
                                                                            orderer, clock::get,
                                                                            ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
+               .thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
+                                                                                       writerConfig, "");
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
@@ -365,8 +372,11 @@ public class EventStreamReaderTest {
                                                                            orderer, clock::get,
                                                                            ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
+               .thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
+                                                                                       writerConfig, "");
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.doReturn(true).when(groupState).isCheckpointSilent(Mockito.eq(ReaderGroupImpl.SILENT + "Foo"));
         Mockito.when(groupState.getCheckpoint())
@@ -399,7 +409,7 @@ public class EventStreamReaderTest {
                                                                            ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
-               .thenReturn(ImmutableMap.of(segment, 0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
                .thenReturn(Collections.emptyMap());
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
                                                                                        writerConfig, "");
@@ -441,8 +451,11 @@ public class EventStreamReaderTest {
                                                                            orderer, clock::get,
                                                                            ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
+        Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
+               .thenReturn(Collections.emptyMap());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
+                                                                                       writerConfig, "");
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(groupState.getCheckpoint()).thenThrow(new ReinitializationRequiredException());
         assertThrows(ReinitializationRequiredException.class, () -> reader.readNextEvent(0)); 
@@ -462,7 +475,7 @@ public class EventStreamReaderTest {
                                                                            ReaderConfig.builder().build());
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
-               .thenReturn(ImmutableMap.of(segment, 0L))
+               .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
                .thenReturn(Collections.emptyMap());
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
                                                                                        writerConfig, "");
@@ -493,7 +506,7 @@ public class EventStreamReaderTest {
     public void testTruncatedSegmentDeleted() throws Exception {
         AtomicLong clock = new AtomicLong();
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
-
+        SegmentWithRange rangedSegment = new SegmentWithRange(segment, 0, 1);
         // Setup mock.
         SegmentInputStreamFactory segInputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
         SegmentMetadataClientFactory segmentMetadataClientFactory = Mockito.mock(SegmentMetadataClientFactory.class);
@@ -514,7 +527,7 @@ public class EventStreamReaderTest {
                 orderer, clock::get,
                 ReaderConfig.builder().build());
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
-                .thenReturn(ImmutableMap.of(segment, 0L))
+                .thenReturn(ImmutableMap.of(rangedSegment, 0L))
                 .thenReturn(Collections.emptyMap());
         InOrder inOrder = Mockito.inOrder(groupState, segmentInputStream);
         // Validate that TruncatedDataException is thrown.
@@ -523,19 +536,19 @@ public class EventStreamReaderTest {
         // Ensure this segment is closed.
         inOrder.verify(segmentInputStream, Mockito.times(1)).close();      
         // Ensure groupstate is not updated before the checkpoint.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(rangedSegment);
         Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
         EventRead<byte[]> event = reader.readNextEvent(0);
         assertTrue(event.isCheckpoint());
         assertEquals("Foo", event.getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
         // Verify groupstate is not updated before the checkpoint, but is after.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(rangedSegment);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
         assertNull(event.getEvent());
         // Now it is called.
-        inOrder.verify(groupState).handleEndOfSegment(segment);
+        inOrder.verify(groupState).handleEndOfSegment(rangedSegment);
     }
     
     @Test(timeout = 10000)
@@ -548,21 +561,24 @@ public class EventStreamReaderTest {
 
         //Mock for the two SegmentInputStreams.
         Segment segment1 = Segment.fromScopedName("Foo/Bar/1");
+        SegmentWithRange s1range = new SegmentWithRange(segment1, 0, 1);
         EventSegmentReader segmentInputStream1 = Mockito.mock(EventSegmentReader.class);
         Mockito.when(segmentInputStream1.read(anyLong())).thenThrow(new EndOfSegmentException(EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED));
         Mockito.when(segmentInputStream1.getSegmentId()).thenReturn(segment1);
 
         Segment segment2 = Segment.fromScopedName("Foo/Bar/2");
+        SegmentWithRange s2range = new SegmentWithRange(segment2, 0, 0.5);
         EventSegmentReader segmentInputStream2 = Mockito.mock(EventSegmentReader.class);
         SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, "");
         Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(writeInt(stream2, 2));
         Mockito.when(segmentInputStream2.getSegmentId()).thenReturn(segment2);
         
         Segment segment3 = Segment.fromScopedName("Foo/Bar/3");
+        SegmentWithRange s3range = new SegmentWithRange(segment3, 0.5, 1.0);
         EventSegmentReader segmentInputStream3 = Mockito.mock(EventSegmentReader.class);
         SegmentOutputStream stream3 = segmentStreamFactory.createOutputStreamForSegment(segment3, segmentSealedCallback, writerConfig, "");
-        Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(writeInt(stream3, 3));
-        Mockito.when(segmentInputStream2.getSegmentId()).thenReturn(segment3);
+        Mockito.when(segmentInputStream3.read(anyLong())).thenReturn(writeInt(stream3, 3));
+        Mockito.when(segmentInputStream3.getSegmentId()).thenReturn(segment3);
 
         SegmentInputStreamFactory inputStreamFactory = Mockito.mock(SegmentInputStreamFactory.class);
         Mockito.when(inputStreamFactory.createEventReaderForSegment(segment1, Long.MAX_VALUE)).thenReturn(segmentInputStream1);
@@ -578,7 +594,7 @@ public class EventStreamReaderTest {
                                                                            ReaderConfig.builder().build());
 
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(anyLong()))
-               .thenReturn(ImmutableMap.of(segment1, 0L))
+               .thenReturn(ImmutableMap.of(s1range, 0L))
                .thenReturn(Collections.emptyMap());
 
         InOrder inOrder = Mockito.inOrder(segmentInputStream1, groupState);
@@ -591,16 +607,16 @@ public class EventStreamReaderTest {
                .thenReturn("checkpoint")
                .thenReturn(null);
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(anyLong()))
-               .thenReturn(ImmutableMap.of(segment2, 0L, segment3, 0L))
+               .thenReturn(ImmutableMap.of(s2range, 0L, s3range, 0L))
                .thenReturn(Collections.emptyMap());
         assertEquals("checkpoint", reader.readNextEvent(0).getCheckpointName());
         inOrder.verify(groupState).getCheckpoint();
         // Ensure groupstate is not updated before the checkpoint.
-        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(segment1);
+        inOrder.verify(groupState, Mockito.times(0)).handleEndOfSegment(s1range);
         event = reader.readNextEvent(0);
         assertFalse(event.isCheckpoint());
         // Now it is called.
-        inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(segment1);
+        inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(s1range);
         assertEquals(ImmutableList.of(segmentInputStream2, segmentInputStream3), reader.getReaders());        
         
     }
@@ -740,7 +756,7 @@ public class EventStreamReaderTest {
                                                                                          new ReaderGroupStateInitSerializer(),
                                                                                          SynchronizerConfig.builder()
                                                                                                            .build());
-        Map<Segment, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
+        Map<SegmentWithRange, Long> segments = ReaderGroupImpl.getSegmentsForStreams(controller, config);
         sync.initialize(new ReaderGroupState.ReaderGroupStateInit(config,
                                                                   segments,
                                                                   getEndSegmentsForStreams(config)));

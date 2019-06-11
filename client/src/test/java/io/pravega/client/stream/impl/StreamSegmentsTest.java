@@ -1359,7 +1359,7 @@ public class StreamSegmentsTest {
                  .stream()
                  .flatMap(c -> c.stream())
                  .forEach(newSegment -> ranges.put(newSegment.getSegment(),
-                                                   Range.openClosed(newSegment.getLow(), newSegment.getHigh())));
+                                                   Range.openClosed(newSegment.getRange().getLow(), newSegment.getRange().getHigh())));
             current = current.withReplacementRange(entry.getKey(), entry.getValue());
         }
         return current;
