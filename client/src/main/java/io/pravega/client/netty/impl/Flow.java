@@ -59,7 +59,6 @@ public class Flow {
         return new Flow((int) (flowAsLong >> 32), (int) flowAsLong);
     }
 
-
     /**
      * Obtain a FlowID from a {@code long} representation.
      *

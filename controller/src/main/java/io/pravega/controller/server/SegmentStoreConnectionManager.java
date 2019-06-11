@@ -113,7 +113,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
             super(() -> {
                 ReusableReplyProcessor rp = new ReusableReplyProcessor();
                 return clientCF.establishConnection(pravegaNodeUri, rp)
-                               .thenApply(connection -> new ConnectionObject(connection, rp));
+                              .thenApply(connection -> new ConnectionObject(connection, rp));
             }, connectionObj -> connectionObj.connection.close(), maxConcurrent, maxIdle);
         }
 

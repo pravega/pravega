@@ -43,7 +43,7 @@ public class MockConnectionFactoryImpl implements ConnectionFactory {
     @Override
     @Synchronized
     public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri location, ReplyProcessor rp) {
-        return establishConnection(location, rp);
+      return establishConnection(location, rp);
     }
 
     @Override

@@ -34,7 +34,6 @@ public class ClientConnectionImpl implements ClientConnection {
     @VisibleForTesting
     @Getter
     private final FlowHandler nettyHandler;
-
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
     public ClientConnectionImpl(String connectionName, int flowId, FlowHandler nettyHandler) {

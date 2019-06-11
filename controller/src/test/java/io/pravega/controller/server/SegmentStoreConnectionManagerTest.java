@@ -385,7 +385,7 @@ public class SegmentStoreConnectionManagerTest {
         private AtomicBoolean isClosed = new AtomicBoolean(false);
 
         public MockConnection(ReplyProcessor rp) {
-               this.rp = rp;
+            this.rp = rp;
         }
 
         @Override

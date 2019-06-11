@@ -11,7 +11,6 @@ package io.pravega.client.netty.impl;
 
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
-
 import java.util.concurrent.CompletableFuture;
 
 /**
