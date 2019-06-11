@@ -52,7 +52,7 @@ public final class ExecutorServiceHelpers {
         }
     }
 
-    private static final class LogUncaughtException implements UncaughtExceptionHandler {
+    private static final class LogUncaughtExceptions implements UncaughtExceptionHandler {
         @Override
         public void uncaughtException(Thread t, Throwable e) {
             log.error("Exception thrown out of root of thread: " + t.getName(), e);
@@ -72,7 +72,7 @@ public final class ExecutorServiceHelpers {
             @Override
             public Thread newThread(Runnable r) {
                 Thread thread = new Thread(r, groupName + "-" + threadCount.incrementAndGet());
-                thread.setUncaughtExceptionHandler(new LogUncaughtException());
+                thread.setUncaughtExceptionHandler(new LogUncaughtExceptions());
                 thread.setDaemon(true);
                 return thread;
             }
