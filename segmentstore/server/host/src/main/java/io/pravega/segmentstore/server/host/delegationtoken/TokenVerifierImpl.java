@@ -58,14 +58,33 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                     .findFirst();
 
             if (!matchingClaim.isPresent()) {
-                throw new InvalidClaimException("No matching claim found for resource: " + resource);
+                log.trace(String.format("No matching claim found for resource [%s] and permission [%s] in token [%s].",
+                        resource, expectedLevel.toString(), token));
+
+                throw new InvalidClaimException(String.format(
+                        "No matching claim found for resource: [%s] and permission: [%s] in the delegation token.",
+                        resource, expectedLevel.toString()));
+
             }
         }
     }
 
     private boolean entryMatchesResource(Map.Entry<String, Object> entry, String resource) {
-        return resource.equals(entry.getKey())
-               || resource.equals(entry.getKey() + "/")
+        return resource.equals(entry.getKey()) // exact match
+
+               /*
+                * Examples of matches:
+                *   - Entry = "abc/, ...", resource = "abc/xyx"
+                */
+               || entry.getKey().endsWith("/") && resource.startsWith(entry.getKey())
+
+               /*
+                * Examples of matches:
+                *    1) Entry = "_system/_requeststream, READ_UPDATE", resource = "_system/_requeststream/0.#epoch.0"
+                */
+               || resource.startsWith(entry.getKey() + "/")
+
+                // The wildcard character matches in entry matches every possible resource.
                || entry.getKey().equals("*");
     }
 }
