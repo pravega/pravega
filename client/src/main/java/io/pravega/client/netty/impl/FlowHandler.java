@@ -107,9 +107,9 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
      */
     private void createAppendBatchSizeTrackerIfNeeded(final int  flowID) {
         if (flowIDBatchSizeTrackerMap.containsKey(flowID)) {
-            log.info("Reusing Batch size tracker for Flow ID {}.", flowID);
+            log.debug("Reusing Batch size tracker for Flow ID {}.", flowID);
         } else {
-            log.info("Creating Batch size tracker for flow ID {}.", flowID);
+            log.debug("Creating Batch size tracker for flow ID {}.", flowID);
             flowIDBatchSizeTrackerMap.put(flowID, new AppendBatchSizeTrackerImpl());
         }
     }
