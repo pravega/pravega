@@ -47,7 +47,7 @@ public final class ExecutorServiceHelpers {
 
         @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-            log.debug("Caller to ececutor: " + poolName + " rejected and run in the caller.");
+            log.debug("Caller to executor: " + poolName + " rejected and run in the caller.");
             r.run();
         }
     }
