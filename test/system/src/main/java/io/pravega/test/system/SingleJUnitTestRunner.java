@@ -47,9 +47,11 @@ public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
                 @Override
                 public Object invokeExplosively(final Object target, final Object... params) throws Throwable {
                     try {
-                        return super.invokeExplosively(target, params);
+                        Object result = super.invokeExplosively(target, params);
+                        log.info("Test " + methodName + " completed without error.");
+                        return result;
                     } catch (Throwable t) {
-                        log.error("Test failed with exception. ", t);
+                        log.error("Test " + methodName + " failed with exception. ", t);
                         throw t;
                     }
                 }
