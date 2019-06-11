@@ -11,24 +11,26 @@ package io.pravega.shared.security.token;
 
 import io.jsonwebtoken.Claims;
 import io.pravega.auth.TokenException;
-import org.junit.Test;
 import java.util.HashMap;
 import java.util.Map;
+import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class JsonWebTokenTest {
 
     @Test
-    public void testConstructionIsSuccessfullWithMinimalValidInput() {
+    public void testConstructionIsSuccessfulWithMinimalValidInput() {
         String token = new JsonWebToken("subject", "audience", "secret".getBytes()).toCompactString();
-        assertEquals("eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJzdWJqZWN0IiwiYXVkIjoiYXVkaWVuY2UifQ.i2DZBbiMIvEcdmKcrB9oMjTXORRONJLiKEf0h9ies22j3NYwMbZwgWLGdhCbcIahDp4j4dW2YRXu9QVugYKaVw",
-                token);
+        assertNotNull(token);
+        assertNotEquals("", token);
     }
 
     @Test
-    public void testConstructionFailsWhenMandatoryInputIsNull() {
+    public void testInputIsRejectedWhenMandatoryInputIsNull() {
         assertThrows(NullPointerException.class,
                 () -> new JsonWebToken(null, "audience", "signingKeyString".getBytes())
         );
