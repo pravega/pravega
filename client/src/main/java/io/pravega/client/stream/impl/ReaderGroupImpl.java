@@ -246,15 +246,19 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
     }
 
-    private long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, Map<Segment, Long> endSegments, SegmentMetadataClientFactory metaFactory) {
+    private Long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, Map<Segment, Long> endSegments, SegmentMetadataClientFactory metaFactory) {
         log.debug("Compute unread bytes from position {}", positions);
-        long totalLength = 0;
+        final List<CompletableFuture<Long>> futures = new ArrayList<>(positions.size());
         for (Entry<Stream, Map<Segment, Long>> streamPosition : positions.entrySet()) {
             StreamCut fromStreamCut = new StreamCutImpl(streamPosition.getKey(), streamPosition.getValue());
             StreamCut toStreamCut = computeEndStreamCut(streamPosition.getKey(), endSegments);
-            totalLength += getRemainingBytes(metaFactory, fromStreamCut, toStreamCut);
+            futures.add(getRemainingBytes(metaFactory, fromStreamCut, toStreamCut));
         }
-        return totalLength;
+        return Futures.getAndHandleExceptions(allOfWithResults(futures).thenApply(listOfLong -> {
+            return listOfLong.stream()
+                    .mapToLong(i -> i)
+                    .sum();
+        }), RuntimeException::new);
     }
 
     private StreamCut computeEndStreamCut(Stream stream, Map<Segment, Long> endSegments) {
@@ -264,9 +268,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         return toPositions.isEmpty() ? StreamCut.UNBOUNDED : new StreamCutImpl(stream, toPositions);
     }
 
-    private long getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut fromStreamCut, StreamCut toStreamCut) {
-        long totalLength = 0;
-
+    private CompletableFuture<Long> getRemainingBytes(SegmentMetadataClientFactory metaFactory, StreamCut fromStreamCut, StreamCut toStreamCut) {
         //fetch StreamSegmentSuccessors
         final CompletableFuture<StreamSegmentSuccessors> unread;
         final Map<Segment, Long> endPositions;
@@ -277,22 +279,23 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             unread = controller.getSegments(fromStreamCut, toStreamCut);
             endPositions = toStreamCut.asImpl().getPositions();
         }
-        StreamSegmentSuccessors unreadVal = Futures.getAndHandleExceptions(unread, RuntimeException::new);
-        //compute remaining bytes.
-        for (Segment s : unreadVal.getSegments()) {
-            if (endPositions.containsKey(s)) {
-                totalLength += endPositions.get(s);
-            } else {
-                @Cleanup
-                SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, unreadVal.getDelegationToken());
-                totalLength += metadataClient.fetchCurrentSegmentLength();
+        return unread.thenApply(unreadVal -> {
+            long totalLength = 0;
+            for (Segment s : unreadVal.getSegments()) {
+                if (endPositions.containsKey(s)) {
+                    totalLength += endPositions.get(s);
+                } else {
+                    @Cleanup
+                    SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, unreadVal.getDelegationToken());
+                    totalLength += metadataClient.fetchCurrentSegmentLength();
+                }
             }
-        }
-        for (long bytesRead : fromStreamCut.asImpl().getPositions().values()) {
-            totalLength -= bytesRead;
-        }
-        log.debug("Remaining bytes from position: {} to position: {} is {}", fromStreamCut, toStreamCut, totalLength);
-        return totalLength;
+            for (long bytesRead : fromStreamCut.asImpl().getPositions().values()) {
+                totalLength -= bytesRead;
+            }
+            log.debug("Remaining bytes from position: {} to position: {} is {}", fromStreamCut, toStreamCut, totalLength);
+            return totalLength;
+        });
     }
 
     @Override
