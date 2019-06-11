@@ -35,6 +35,7 @@ import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
@@ -293,7 +294,7 @@ public class WatermarkWorkflowTest {
         // verify that a watermark has been emitted. 
         // this should emit a watermark that contains all three segments with offsets = 200L
         // and timestamp = 100L
-        MockRevisionedStreamClient revisionedClient = revisionedStreamClientMap.get(StreamSegmentNameUtils.getMarkSegmentForStream(streamName));
+        MockRevisionedStreamClient revisionedClient = revisionedStreamClientMap.get(NameUtils.getMarkStreamForStream(streamName));
         assertEquals(revisionedClient.watermarks.size(), 1);
         Watermark watermark = revisionedClient.watermarks.get(0).getValue();
         assertEquals(watermark.getLowerTimeBound(), 100L);

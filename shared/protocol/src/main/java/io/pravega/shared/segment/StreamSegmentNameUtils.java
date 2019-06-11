@@ -11,9 +11,6 @@ package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-import lombok.AccessLevel;
-import lombok.Getter;
-
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -73,12 +70,6 @@ public final class StreamSegmentNameUtils {
      * This is used in composing table names as `scope`/_tables
      */
     private static final String TABLES = "_tables";
-
-    /**
-     * Prefix for identifying system created mark segments for storing watermarks. 
-     */
-    @Getter(AccessLevel.PACKAGE)
-    private static final String MARK_PREFIX = "_MARK";
 
     //endregion
 
@@ -375,12 +366,4 @@ public final class StreamSegmentNameUtils {
         return tokens[1].equals(TABLES);
     }
     // endregion
-    
-    // region watermark
-    public static String getMarkSegmentForStream(String stream) {
-        StringBuffer sb = new StringBuffer();
-        sb.append(MARK_PREFIX);
-        sb.append(stream);
-        return sb.toString();
-    }
 }
