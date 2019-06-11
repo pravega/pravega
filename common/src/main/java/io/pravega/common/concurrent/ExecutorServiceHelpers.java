@@ -214,7 +214,7 @@ public final class ExecutorServiceHelpers {
                     if (!pool.awaitTermination(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS)) {
                         List<Runnable> remainingTasks = pool.shutdownNow();
                         log.warn("One or more threads from pool " + pool
-                                + " did not shutdown properly. Remaining tasks: " + remainingTasks);
+                                + " did not shutdown properly. Waiting tasks: " + remainingTasks);
 
                     }
                 }
