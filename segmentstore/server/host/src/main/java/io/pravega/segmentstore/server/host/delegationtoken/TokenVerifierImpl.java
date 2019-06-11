@@ -84,7 +84,7 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
                 */
                || resource.startsWith(entry.getKey() + "/")
 
-                // The wildcard character matches in entry matches every possible resource.
+               // The wildcard character matches in entry matches every possible resource.
                || entry.getKey().equals("*");
     }
 }
