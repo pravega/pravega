@@ -106,6 +106,14 @@ public class TokenVerifierImplTest {
         assertTrue(tokenVerifier.isTokenValid("abc", tokenWithSpecificClaim, READ));
     }
 
+    @Test
+    public void testTokenVerificationSuceedsForInternalSegments() throws TokenException {
+        DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(true);
+
+        String token = prepareJwt("_system/_requeststream, READ_UPDATE", null);
+        tokenVerifier.verifyToken("_system/_requeststream/0.#epoch.0", token, READ);
+    }
+
     private String prepareJwt(String acl, Integer ttlInSeconds) {
         return prepareJwt(Arrays.asList(acl), ttlInSeconds);
     }
