@@ -157,6 +157,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                          log.info("Sealing segment {} ", toSeal);
                          while (toSeal != null) {
                              resend(selector.refreshSegmentEventWritersUponSealed(toSeal, segmentSealedCallBack));
+                             // remove segment writer after resending inflight events of the sealed segment.
+                             selector.removeSegmentWriter(toSeal);
                              /* In the case of segments merging Flush ensures there can't be anything left
                               * inflight that will need to be resent to the new segment when the write lock
                               * is released. (To preserve order)

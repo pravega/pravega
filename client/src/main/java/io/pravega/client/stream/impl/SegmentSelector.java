@@ -112,6 +112,15 @@ public class SegmentSelector {
                 segmentSealedCallBack);
     }
 
+    /**
+     * Remove a segment writer.
+     * @param segment The segment whose writer should be removed.
+     */
+    @Synchronized
+    void removeSegmentWriter(Segment segment) {
+        writers.remove(segment);
+    }
+
     @Synchronized
     private List<PendingEvent> updateSegments(StreamSegments newSteamSegments, Consumer<Segment>
             segmentSealedCallBack) {
@@ -142,7 +151,7 @@ public class SegmentSelector {
         currentSegments = currentSegments.withReplacementRange(sealedSegment, successors);
         createMissingWriters(segmentSealedCallback, currentSegments.getDelegationToken());
         log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
-        return writers.remove(sealedSegment).getUnackedEventsOnSeal();
+        return writers.get(sealedSegment).getUnackedEventsOnSeal();
     }
 
     @Synchronized
