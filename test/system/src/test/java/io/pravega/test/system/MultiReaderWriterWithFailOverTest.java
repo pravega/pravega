@@ -134,22 +134,17 @@ public class MultiReaderWriterWithFailOverTest extends AbstractFailoverTests {
 
     @Test
     public void multiReaderWriterWithFailOverTest() throws Exception {
-        try {
-            createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
+        createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
-            //run the failover test
-            performFailoverTest();
+        //run the failover test
+        performFailoverTest();
 
-            stopWriters();
-            stopReaders();
-            validateResults();
-
-            cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-
-            log.info("Test MultiReaderWriterWithFailOver succeeds");
-        } finally {
-            testState.checkForAnomalies();
-        }
+        stopWriters();
+        stopReaders();
+        validateResults();
+        cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+        testState.checkForAnomalies();
+        log.info("Test MultiReaderWriterWithFailOver succeeds");
     }
 }
