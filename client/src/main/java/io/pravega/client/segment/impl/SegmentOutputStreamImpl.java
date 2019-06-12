@@ -499,7 +499,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             } catch (SegmentSealedException | NoSuchSegmentException e) {
                 if (StreamSegmentNameUtils.isTransactionSegment(segmentName)) {
                     log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
-                                     "commited/aborted. Details: {}", e.getMessage());
+                                     "committed/aborted. Details: {}", e.getMessage());
                     failConnection(e);
                 } else {
                     log.info("Exception observed while obtaining connection during flush. Details: {} ", e.getMessage());
@@ -509,13 +509,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
             state.waitForInflight();
             Exceptions.checkNotClosed(state.isClosed(), this);
-            /* SegmentSealedException is thrown if either of the below conditions are true
+        }
+        /* SegmentSealedException is thrown if either of the below conditions are true
                  - resendToSuccessorsCallback has been invoked.
                  - the segment corresponds to an aborted Transaction.
-             */
-            if (state.needSuccessors.get() || (StreamSegmentNameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
-                throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
-            }
+         */
+        if (state.needSuccessors.get() || (StreamSegmentNameUtils.isTransactionSegment(segmentName) && state.isAlreadySealed())) {
+            throw new SegmentSealedException(segmentName + " sealed for writer " + writerId);
         }
     }
     

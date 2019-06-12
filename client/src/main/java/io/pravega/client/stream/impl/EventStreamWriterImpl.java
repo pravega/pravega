@@ -152,33 +152,27 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                       * entries that will succeed in being written to a new segment are written and any
                       * segmentSealedCallbacks that will be called happen before the next write is invoked.
                       */
-                     try {
-                         synchronized (writeSealLock) {
-                             Segment toSeal = sealedSegmentQueue.poll();
-                             log.info("Sealing segment {} ", toSeal);
-                             while (toSeal != null) {
-                                 resend(selector.refreshSegmentEventWritersUponSealed(toSeal, segmentSealedCallBack));
-                                 /* In the case of segments merging Flush ensures there can't be anything left
-                                  * inflight that will need to be resent to the new segment when the write lock
-                                  * is released. (To preserve order)
-                                  */
-                                 for (SegmentOutputStream writer : selector.getWriters()) {
-                                     try {
-                                         writer.write(PendingEvent.withoutHeader(null, ByteBufferUtils.EMPTY, null));
-                                         writer.flush();
-                                     } catch (SegmentSealedException e) {
-                                         // Segment sealed exception observed during a flush. Re-run flush on all the
-                                         // available writers.
-                                         log.info("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
-                                     }
+                     synchronized (writeSealLock) {
+                         Segment toSeal = sealedSegmentQueue.poll();
+                         log.info("Sealing segment {} ", toSeal);
+                         while (toSeal != null) {
+                             resend(selector.refreshSegmentEventWritersUponSealed(toSeal, segmentSealedCallBack));
+                             /* In the case of segments merging Flush ensures there can't be anything left
+                              * inflight that will need to be resent to the new segment when the write lock
+                              * is released. (To preserve order)
+                              */
+                             for (SegmentOutputStream writer : selector.getWriters()) {
+                                 try {
+                                     writer.write(PendingEvent.withoutHeader(null, ByteBufferUtils.EMPTY, null));
+                                     writer.flush();
+                                 } catch (SegmentSealedException e) {
+                                     // Segment sealed exception observed during a flush. Re-run flush on all the
+                                     // available writers.
+                                     log.info("Flush on segment {} failed due to {}, it will be retried.", writer.getSegmentName(), e.getMessage());
                                  }
-                                 toSeal = sealedSegmentQueue.poll();
-                                 log.info("Sealing another segment {} ", toSeal);
                              }
-                         }
-                     } finally {
-                         if (sealedSegmentQueue.isEmpty()) {
-                             sealedSegmentQueue.notifyAll();
+                             toSeal = sealedSegmentQueue.poll();
+                             log.info("Sealing another segment {} ", toSeal);
                          }
                      }
                      return null;
@@ -364,8 +358,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         synchronized (writeFlushLock) {
             boolean success = false;
             while (!success) {
-                // no new writes can happen on acquiring this lock.
-                waitForResendToComplete();
                 success = true;
                 for (SegmentOutputStream writer : selector.getWriters()) {
                     try {
@@ -382,12 +374,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         }
     }
 
-    private void waitForResendToComplete() {
-        if (!sealedSegmentQueue.isEmpty()) {
-            Exceptions.handleInterrupted(() -> sealedSegmentQueue.wait()); // TODO: add timeout
-        }
-    }
-
     @Override
     public void close() {
         if (closed.getAndSet(true)) {
@@ -397,8 +383,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         synchronized (writeFlushLock) {
             boolean success = false;
             while (!success) {
-                // no new writes can happen on acquiring this lock.
-                waitForResendToComplete();
                 success = true;
                 for (SegmentOutputStream writer : selector.getWriters()) {
                     try {
