@@ -32,7 +32,7 @@ import static org.junit.Assert.assertTrue;
 public class TokenVerifierImplTest {
 
     @Test
-    public void testTokenVerificationSucceedWhenAuthIsDisabled() throws TokenException {
+    public void testTokenVerificationSucceedsWhenAuthIsDisabled() throws TokenException {
         DelegationTokenVerifier tokenVerifier = prepareTokenVerifier(false);
 
         // No exception is expected here.
