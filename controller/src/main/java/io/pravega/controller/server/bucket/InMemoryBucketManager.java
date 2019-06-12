@@ -31,7 +31,7 @@ public class InMemoryBucketManager extends BucketManager {
 
     @Override
     protected int getBucketCount() {
-        return bucketStore.getBucketCount();
+        return bucketStore.getBucketCount(getServiceType());
     }
 
     @Override

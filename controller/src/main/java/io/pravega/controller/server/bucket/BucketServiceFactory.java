@@ -24,17 +24,14 @@ public class BucketServiceFactory {
     private final String hostId;
     private final BucketStore bucketStore;
     private final int maxConcurrentExecutions;
-    private final ScheduledExecutorService executorService;
 
-    public BucketServiceFactory(@NonNull String hostId, @NonNull BucketStore bucketStore, int maxConcurrentExecutions, 
-                                @NonNull ScheduledExecutorService executorService) {
+    public BucketServiceFactory(@NonNull String hostId, @NonNull BucketStore bucketStore, int maxConcurrentExecutions) {
         this.hostId = hostId;
         this.bucketStore = bucketStore;
         this.maxConcurrentExecutions = maxConcurrentExecutions;
-        this.executorService = executorService;
     }
 
-    public BucketManager createRetentionService(Duration executionDuration, BucketWork work) {
+    public BucketManager createRetentionService(Duration executionDuration, BucketWork work, ScheduledExecutorService executorService) {
         switch (bucketStore.getStoreType()) {
             case Zookeeper:
                 ZookeeperBucketStore zkBucketStore = (ZookeeperBucketStore) bucketStore;
@@ -50,6 +47,28 @@ public class BucketServiceFactory {
                                 maxConcurrentExecutions, executionDuration, work);
 
                 return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.RetentionService, 
+                        executorService, inMemorySupplier);
+            default:
+                throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));
+        }
+    }
+    
+    public BucketManager createWatermarkingService(Duration executionDuration, BucketWork work, ScheduledExecutorService executorService) {
+        switch (bucketStore.getStoreType()) {
+            case Zookeeper:
+                ZookeeperBucketStore zkBucketStore = (ZookeeperBucketStore) bucketStore;
+                Function<Integer, BucketService> zkSupplier = bucket ->
+                        new ZooKeeperBucketService(BucketStore.ServiceType.WatermarkingService, bucket, zkBucketStore, executorService,
+                                maxConcurrentExecutions, executionDuration, work);
+
+                return new ZooKeeperBucketManager(hostId, zkBucketStore, BucketStore.ServiceType.WatermarkingService, executorService, zkSupplier);
+            case InMemory:
+                InMemoryBucketStore inMemoryBucketStore = (InMemoryBucketStore) bucketStore;
+                Function<Integer, BucketService> inMemorySupplier = bucket ->
+                        new InMemoryBucketService(BucketStore.ServiceType.WatermarkingService, bucket, inMemoryBucketStore, executorService,
+                                maxConcurrentExecutions, executionDuration, work);
+
+                return new InMemoryBucketManager(hostId, (InMemoryBucketStore) bucketStore, BucketStore.ServiceType.WatermarkingService, 
                         executorService, inMemorySupplier);
             default:
                 throw new IllegalArgumentException(String.format("store type %s not supported", bucketStore.getStoreType().name()));

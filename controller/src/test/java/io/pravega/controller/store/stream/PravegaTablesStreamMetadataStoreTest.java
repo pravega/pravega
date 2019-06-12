@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -51,7 +52,10 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         cli.start();
         SegmentHelper segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(1), AuthHelper.getDisabledAuthHelper());
-        bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+
+        bucketStore = StreamStoreFactory.createZKBucketStore(map, cli, executor);
     }
 
     @Override

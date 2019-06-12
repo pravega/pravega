@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.client.StoreClient;
@@ -21,6 +22,10 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class StreamStoreFactory {
+    public static final ImmutableMap<BucketStore.ServiceType, Integer> BUCKET_COUNT_MAP = ImmutableMap.of(
+            BucketStore.ServiceType.RetentionService, Config.RETENTION_BUCKET_COUNT,
+            BucketStore.ServiceType.WatermarkingService, Config.WATERMARKING_BUCKET_COUNT);
+
     public static StreamMetadataStore createStore(final StoreClient storeClient, final SegmentHelper segmentHelper,
                                                   final AuthHelper authHelper, final ScheduledExecutorService executor) {
         switch (storeClient.getType()) {
@@ -65,21 +70,22 @@ public class StreamStoreFactory {
     
     @VisibleForTesting
     public static BucketStore createZKBucketStore(final CuratorFramework client, final Executor executor) {
-        return createZKBucketStore(Config.BUCKET_COUNT, client, executor);
+        return createZKBucketStore(BUCKET_COUNT_MAP, client, executor);
     }
 
     @VisibleForTesting
-    public static BucketStore createZKBucketStore(final int bucketCount, final CuratorFramework client, final Executor executor) {
-        return new ZookeeperBucketStore(bucketCount, client, executor);
+    public static BucketStore createZKBucketStore(final ImmutableMap<BucketStore.ServiceType, Integer> map, 
+                                                  final CuratorFramework client, final Executor executor) {
+        return new ZookeeperBucketStore(map, client, executor);
     }
     
     @VisibleForTesting
     public static BucketStore createInMemoryBucketStore() {
-        return createInMemoryBucketStore(Config.BUCKET_COUNT);
+        return createInMemoryBucketStore(BUCKET_COUNT_MAP);
     }
 
     @VisibleForTesting
-    public static BucketStore createInMemoryBucketStore(int bucketCount) {
-        return new InMemoryBucketStore(bucketCount);
+    public static BucketStore createInMemoryBucketStore(ImmutableMap<BucketStore.ServiceType, Integer> map) {
+        return new InMemoryBucketStore(map);
     }
 }

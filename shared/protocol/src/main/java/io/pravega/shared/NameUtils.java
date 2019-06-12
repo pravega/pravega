@@ -10,6 +10,8 @@
 package io.pravega.shared;
 
 import com.google.common.base.Preconditions;
+import lombok.AccessLevel;
+import lombok.Getter;
 
 /**
  * Utilities for naming and validating pravega objects - streams, scopes, etc.
@@ -24,6 +26,12 @@ public class NameUtils {
 
     // The prefix which has to be appended to streams created internally for readerGroups.
     public static final String READER_GROUP_STREAM_PREFIX = INTERNAL_NAME_PREFIX + "RG";
+
+    /**
+     * Prefix for identifying system created mark segments for storing watermarks. 
+     */
+    @Getter(AccessLevel.PACKAGE)
+    private static final String MARK_PREFIX = INTERNAL_NAME_PREFIX + "MARK";
 
     /**
      * Construct an internal representation of stream name. This is required to distinguish between user created
@@ -102,4 +110,13 @@ public class NameUtils {
     public static String validateReaderGroupName(String name) {
         return validateUserStreamName(name);
     }
+
+    // region watermark
+    public static String getMarkStreamForStream(String stream) {
+        StringBuffer sb = new StringBuffer();
+        sb.append(MARK_PREFIX);
+        sb.append(stream);
+        return sb.toString();
+    }
+    // endregion
 }

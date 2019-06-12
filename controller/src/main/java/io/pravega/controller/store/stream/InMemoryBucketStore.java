@@ -9,9 +9,9 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.collect.ImmutableMap;
 import io.netty.util.internal.ConcurrentSet;
 import io.pravega.controller.store.client.StoreType;
-import lombok.Getter;
 
 import java.util.Collections;
 import java.util.Set;
@@ -21,15 +21,14 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 
 public class InMemoryBucketStore implements BucketStore {
-    @Getter
-    private final int bucketCount;
+    private final ImmutableMap<ServiceType, Integer> bucketCountMap;
     
     private final ConcurrentMap<String, ConcurrentSet<String>> bucketedStreams;
     
     private final ConcurrentMap<String, BucketChangeListener> listeners;
 
-    InMemoryBucketStore(int bucketCount) {
-        this.bucketCount = bucketCount;
+    InMemoryBucketStore(ImmutableMap<ServiceType, Integer> bucketCountMap) {
+        this.bucketCountMap = bucketCountMap;
         bucketedStreams = new ConcurrentHashMap<>();
         listeners = new ConcurrentHashMap<>();
     }
@@ -44,6 +43,11 @@ public class InMemoryBucketStore implements BucketStore {
     }
 
     @Override
+    public int getBucketCount(ServiceType serviceType) {
+        return bucketCountMap.get(serviceType);
+    }
+
+    @Override
     public CompletableFuture<Set<String>> getStreamsForBucket(ServiceType serviceType, int bucket, Executor executor) {
         String bucketName = getBucketName(serviceType, bucket);
         if (bucketedStreams.containsKey(bucketName)) {
@@ -55,6 +59,7 @@ public class InMemoryBucketStore implements BucketStore {
 
     @Override
     public CompletableFuture<Void> addStreamToBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
+        int bucketCount = bucketCountMap.get(serviceType);
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
         String bucketName = getBucketName(serviceType, bucket);
         ConcurrentSet<String> set = bucketedStreams.compute(bucketName, (x, y) -> {
@@ -77,6 +82,7 @@ public class InMemoryBucketStore implements BucketStore {
 
     @Override
     public CompletableFuture<Void> removeStreamFromBucketStore(ServiceType serviceType, String scope, String stream, Executor executor) {
+        int bucketCount = bucketCountMap.get(serviceType);
         int bucket = BucketStore.getBucket(scope, stream, bucketCount);
         String bucketName = getBucketName(serviceType, bucket);
 

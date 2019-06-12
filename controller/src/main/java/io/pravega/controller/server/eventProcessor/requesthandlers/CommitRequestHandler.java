@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -44,23 +45,25 @@ import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> implements StreamTask<CommitEvent> {
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
     private final BlockingQueue<CommitEvent> processedEvents;
 
     public CommitRequestHandler(final StreamMetadataStore streamMetadataStore,
                                 final StreamMetadataTasks streamMetadataTasks,
                                 final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                final ScheduledExecutorService executor) {
-        this(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, executor, null);
+                                BucketStore bucketStore, final ScheduledExecutorService executor) {
+        this(streamMetadataStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor, null);
     }
 
     @VisibleForTesting
     public CommitRequestHandler(final StreamMetadataStore streamMetadataStore,
                                 final StreamMetadataTasks streamMetadataTasks,
                                 final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
-                                final ScheduledExecutorService executor,
+                                BucketStore bucketStore, final ScheduledExecutorService executor,
                                 final BlockingQueue<CommitEvent> queue) {
         super(streamMetadataStore, executor);
+        this.bucketStore = bucketStore;
         Preconditions.checkNotNull(streamMetadataStore);
         Preconditions.checkNotNull(streamMetadataTasks);
         Preconditions.checkNotNull(executor);
@@ -296,7 +299,9 @@ public class CommitRequestHandler extends AbstractRequestProcessor<CommitEvent> 
                     .thenCompose(v -> streamMetadataTasks.getCurrentSegmentSizes(scope, stream, segments))
                     .thenCompose(map -> streamMetadataStore.recordCommitOffsets(scope, stream, txnId, map, context, executor));
         }
-        return future;
+        
+        return future
+                .thenCompose(v -> bucketStore.addStreamToBucketStore(BucketStore.ServiceType.WatermarkingService, scope, stream, executor));
     }
 
     /**

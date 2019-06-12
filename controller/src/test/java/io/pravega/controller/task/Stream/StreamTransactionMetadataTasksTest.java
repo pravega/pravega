@@ -127,6 +127,7 @@ public class StreamTransactionMetadataTasksTest {
     private TestingServer zkServer;
 
     private StreamMetadataStore streamStore;
+    private BucketStore bucketStore;
     private HostControllerStore hostStore;
     private SegmentHelper segmentHelperMock;
     private StreamMetadataTasks streamMetadataTasks;
@@ -169,9 +170,11 @@ public class StreamTransactionMetadataTasksTest {
         streamStore = StreamStoreFactory.createZKStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
+
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore();
+
         connectionFactory = Mockito.mock(ConnectionFactory.class);
         segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
-        BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
     }
@@ -218,7 +221,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
-        consumer = new ControllerService(streamStore, streamMetadataTasks, txnTasks,
+        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -258,7 +261,7 @@ public class StreamTransactionMetadataTasksTest {
 
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
-        consumer = new ControllerService(streamStore, streamMetadataTasks, txnTasks,
+        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         // Create test scope and stream.
@@ -345,7 +348,7 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, executor, processedCommitEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, bucketStore, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
@@ -384,7 +387,7 @@ public class StreamTransactionMetadataTasksTest {
                 AuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
-        consumer = new ControllerService(streamStore, streamMetadataTasks, txnTasks,
+        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -426,7 +429,7 @@ public class StreamTransactionMetadataTasksTest {
         BlockingQueue<CommitEvent> processedCommitEvents = new LinkedBlockingQueue<>();
         BlockingQueue<AbortEvent> processedAbortEvents = new LinkedBlockingQueue<>();
         createEventProcessor("commitRG", "commitStream", commitReader, commitWriter,
-                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, executor, processedCommitEvents), executor));
+                () -> new ConcurrentEventProcessor<>(new CommitRequestHandler(streamStore, streamMetadataTasks, txnTasks, bucketStore, executor, processedCommitEvents), executor));
         createEventProcessor("abortRG", "abortStream", abortReader, abortWriter,
                 () -> new ConcurrentEventProcessor<>(new AbortRequestHandler(streamStore, streamMetadataTasks, executor, processedAbortEvents), executor));
 
@@ -459,7 +462,7 @@ public class StreamTransactionMetadataTasksTest {
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
-        consumer = new ControllerService(streamStore, streamMetadataTasks, txnTasks,
+        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, txnTasks,
                 segmentHelperMock, executor, null);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
