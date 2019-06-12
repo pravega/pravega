@@ -71,7 +71,7 @@ public class K8SequentialExecutor implements TestExecutor {
                              verifyPravegaPodRestart(podStatusBeforeTest, getPravegaPodStatus(client));
                              if (s.getExitCode() != 0) {
                                  log.error("Test {}#{} failed. Details: {}", className, methodName, s);
-                                 throw new AssertionError(methodName + " test failed.");
+                                 throw new AssertionError(methodName + " test failed due to " + s.getReason() + " with message " + s.getMessage());
                              } else {
                                  return null;
                              }

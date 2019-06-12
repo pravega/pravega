@@ -203,6 +203,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
                     testState.getWriteException.set(e);
+                    break;
                 }
             }
             log.info("Completed writing");
@@ -294,6 +295,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                 } catch (Throwable e) {
                     log.error("Test exception in reading events: ", e);
                     testState.getReadException.set(e);
+                    break;
                 }
             }
             log.info("Completed reading");
