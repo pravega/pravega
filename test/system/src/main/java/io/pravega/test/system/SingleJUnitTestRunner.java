@@ -43,7 +43,19 @@ public class SingleJUnitTestRunner extends BlockJUnit4ClassRunner {
         Method m = null;
         try {
             m = this.testClass.getDeclaredMethod(this.methodName);
-            Statement statement = methodBlock(new FrameworkMethod(m));
+            Statement statement = methodBlock(new FrameworkMethod(m) {
+                @Override
+                public Object invokeExplosively(final Object target, final Object... params) throws Throwable {
+                    try {
+                        Object result = super.invokeExplosively(target, params);
+                        log.info("Test " + methodName + " completed without error.");
+                        return result;
+                    } catch (Throwable t) {
+                        log.error("Test " + methodName + " failed with exception. ", t);
+                        throw t;
+                    }
+                }
+            });
             statement.evaluate();
         } catch (Throwable ex) {
             throw new TestFrameworkException(TestFrameworkException.Type.InternalError, "Exception while running test" +
