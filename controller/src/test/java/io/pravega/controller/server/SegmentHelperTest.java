@@ -92,15 +92,24 @@ public class SegmentHelperTest {
         );
 
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Boolean> result = helper.createTableSegment("", "", requestId);
+        CompletableFuture<Boolean> result = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         assertTrue(result.join());
 
-        CompletableFuture<Boolean> ret = helper.createTableSegment("", "", requestId);
+        CompletableFuture<Boolean> ret = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         assertTrue(ret.join());
+
+        // handleUnexpectedReply
+        CompletableFuture<Boolean> resultException = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentDeleted(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        AssertExtensions.assertThrows("",
+                () -> resultException.join(),
+                ex -> ex instanceof ConnectionFailedException
+        );
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createSegment("", "",
                 0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
