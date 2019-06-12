@@ -139,68 +139,65 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
     @Test
     public void readWriteAndScaleWithFailoverTest() throws Exception {
-        try {
-            createWriters(clientFactory, NUM_WRITERS, scope, SCALE_STREAM);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, SCALE_STREAM, NUM_READERS);
+        createWriters(clientFactory, NUM_WRITERS, scope, SCALE_STREAM);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, SCALE_STREAM, NUM_READERS);
 
-            //run the failover test before scaling
-            performFailoverTest();
+        //run the failover test before scaling
+        performFailoverTest();
 
-            //bring the instances back to 3 before performing failover during scaling
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        //bring the instances back to 3 before performing failover during scaling
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            //scale manually
-            log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
-                    .get().getSegments().size());
+        //scale manually
+        log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
+                  .get().getSegments().size());
 
-            Map<Double, Double> keyRanges = new HashMap<>();
-            keyRanges.put(0.0, 0.2);
-            keyRanges.put(0.2, 0.4);
-            keyRanges.put(0.4, 0.6);
-            keyRanges.put(0.6, 0.8);
-            keyRanges.put(0.8, 1.0);
+        Map<Double, Double> keyRanges = new HashMap<>();
+        keyRanges.put(0.0, 0.2);
+        keyRanges.put(0.2, 0.4);
+        keyRanges.put(0.4, 0.6);
+        keyRanges.put(0.6, 0.8);
+        keyRanges.put(0.8, 1.0);
 
-            CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, SCALE_STREAM),
-                    Collections.singletonList(0L),
-                    keyRanges,
-                    executorService).getFuture();
-            Futures.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));
+        CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, SCALE_STREAM),
+                                                                        Collections.singletonList(0L),
+                                                                        keyRanges,
+                                                                        executorService).getFuture();
+        Futures.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));
 
-            //run the failover test while scaling
-            performFailoverTest();
+        //run the failover test while scaling
+        performFailoverTest();
 
-            //do a get on scaleStatus
-            if (Futures.await(scaleStatus)) {
-                log.info("Scale operation has completed: {}", scaleStatus.get());
-                if (!scaleStatus.get()) {
-                    log.error("Scale operation did not complete", scaleStatus.get());
-                    Assert.fail("Scale operation did not complete successfully");
-                }
-            } else {
-                Assert.fail("Scale operation threw an exception");
+        //do a get on scaleStatus
+        if (Futures.await(scaleStatus)) {
+            log.info("Scale operation has completed: {}", scaleStatus.get());
+            if (!scaleStatus.get()) {
+                log.error("Scale operation did not complete", scaleStatus.get());
+                Assert.fail("Scale operation did not complete successfully");
             }
-
-            log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
-                    .get().getSegments().size());
-
-            //bring the instances back to 3 before performing failover after scaling
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
-
-            //run the failover test after scaling
-            performFailoverTest();
-
-            stopWriters();
-            stopReaders();
-            validateResults();
-
-            cleanUp(scope, SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-            log.info("Test ReadWriteAndScaleWithFailover succeeds");
-        } finally {
-            testState.checkForAnomalies();
+        } else {
+            Assert.fail("Scale operation threw an exception");
         }
+
+        log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
+                  .get().getSegments().size());
+
+        //bring the instances back to 3 before performing failover after scaling
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+
+        //run the failover test after scaling
+        performFailoverTest();
+
+        stopWriters();
+        stopReaders();
+        validateResults();
+
+        cleanUp(scope, SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+        testState.checkForAnomalies();
+        log.info("Test ReadWriteAndScaleWithFailover succeeds");
     }
 }
