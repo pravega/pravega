@@ -145,55 +145,51 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
 
     @Test
     public void bookieFailoverTest() throws ExecutionException, InterruptedException {
+        createWriters(clientFactory, NUM_WRITERS, SCOPE, STREAM);
+        createReaders(clientFactory, readerGroupName, SCOPE, readerGroupManager, STREAM, NUM_READERS);
 
-        try {
-            createWriters(clientFactory, NUM_WRITERS, SCOPE, STREAM);
-            createReaders(clientFactory, readerGroupName, SCOPE, readerGroupManager, STREAM, NUM_READERS);
+        // Give some time to create readers before forcing a bookie failover.
+        Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
 
-            // Give some time to create readers before forcing a bookie failover.
-            Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
+        // Scale down bookie.
+        Futures.getAndHandleExceptions(bookkeeperService.scaleService(2), ExecutionException::new);
 
-            // Scale down bookie.
-            Futures.getAndHandleExceptions(bookkeeperService.scaleService(2), ExecutionException::new);
+        log.info("Sleeping for {} seconds.", BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
+        Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
 
-            log.info("Sleeping for {} seconds.", BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
-            Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
+        long writeCountBeforeSleep  = testState.getEventWrittenCount();
+        log.info("Write count is {} after {} seconds sleep after bookie failover.", writeCountBeforeSleep, BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
 
-            long writeCountBeforeSleep  = testState.getEventWrittenCount();
-            log.info("Write count is {} after {} seconds sleep after bookie failover.", writeCountBeforeSleep, BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
+        log.info("Sleeping for {} seconds.", BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
+        Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
 
-            log.info("Sleeping for {} seconds.", BOOKIE_FAILOVER_WAIT_MILLIS / 1000);
-            Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
+        long writeCountAfterSleep  = testState.getEventWrittenCount();
+        log.info("Write count is {} after {} seconds sleep after bookie failover.", writeCountAfterSleep, 2 * (BOOKIE_FAILOVER_WAIT_MILLIS / 1000));
 
-            long writeCountAfterSleep  = testState.getEventWrittenCount();
-            log.info("Write count is {} after {} seconds sleep after bookie failover.", writeCountAfterSleep, 2 * (BOOKIE_FAILOVER_WAIT_MILLIS / 1000));
+        Assert.assertEquals("Unexpected writes performed during Bookie failover.", writeCountAfterSleep, writeCountBeforeSleep);
+        log.info("Writes failed when bookie is scaled down.");
 
-            Assert.assertEquals("Unexpected writes performed during Bookie failover.", writeCountAfterSleep, writeCountBeforeSleep);
-            log.info("Writes failed when bookie is scaled down.");
+        // Bring up a new bookie instance.
+        Futures.getAndHandleExceptions(bookkeeperService.scaleService(3), ExecutionException::new);
 
-            // Bring up a new bookie instance.
-            Futures.getAndHandleExceptions(bookkeeperService.scaleService(3), ExecutionException::new);
+        // Give some more time to writers to write more events.
+        Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
+        stopWriters();
 
-            // Give some more time to writers to write more events.
-            Exceptions.handleInterrupted(() -> Thread.sleep(BOOKIE_FAILOVER_WAIT_MILLIS));
-            stopWriters();
+        // Also, verify writes happened after bookie is brought back.
+        long finalWriteCount = testState.getEventWrittenCount();
+        log.info("Final write count {}.", finalWriteCount);
+        Assert.assertTrue(finalWriteCount > writeCountAfterSleep);
 
-            // Also, verify writes happened after bookie is brought back.
-            long finalWriteCount = testState.getEventWrittenCount();
-            log.info("Final write count {}.", finalWriteCount);
-            Assert.assertTrue(finalWriteCount > writeCountAfterSleep);
+        stopReaders();
 
-            stopReaders();
+        // Verify that there is no data loss/duplication.
+        validateResults();
 
-            // Verify that there is no data loss/duplication.
-            validateResults();
+        // Cleanup if validation is successful.
+        cleanUp(SCOPE, STREAM, readerGroupManager, readerGroupName);
 
-            // Cleanup if validation is successful.
-            cleanUp(SCOPE, STREAM, readerGroupManager, readerGroupName);
-
-            log.info("Test BookieFailover succeeds.");
-        } finally {
-            testState.checkForAnomalies();
-        }
+        testState.checkForAnomalies();
+        log.info("Test BookieFailover succeeds.");
     }
 }
