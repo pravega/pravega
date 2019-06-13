@@ -29,11 +29,13 @@ import org.apache.curator.framework.CuratorFramework;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTableName;
@@ -53,6 +55,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
     private static final String COMPLETED_TXN_GC_NAME = "completedTxnGC";
 
     private final ZkInt96Counter counter;
+    private final AtomicReference<ZKGarbageCollector> completedTxnGCRef;
     private final ZKGarbageCollector completedTxnGC;
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
@@ -73,19 +76,25 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         this.completedTxnGC = new ZKGarbageCollector(COMPLETED_TXN_GC_NAME, zkStoreHelper, this::gcCompletedTxn, gcPeriod);
         this.completedTxnGC.startAsync();
         this.completedTxnGC.awaitRunning();
+        this.completedTxnGCRef = new AtomicReference<>(completedTxnGC);
         this.counter = new ZkInt96Counter(zkStoreHelper);
         this.storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
         this.executor = executor;
     }
 
-    private CompletableFuture<Void> gcCompletedTxn() {
+    @VisibleForTesting 
+    CompletableFuture<Void> gcCompletedTxn() {
         List<String> batches = new ArrayList<>();
         return withCompletion(storeHelper.expectingDataNotFound(storeHelper.getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE)
                                                          .collectRemaining(batches::add)
                                                          .thenApply(v -> {
                                                                      // retain latest two and delete remainder.
                                                                      if (batches.size() > 2) {
-                                                                         return batches.subList(0, batches.size() - 2);
+                                                                         List<String> list = batches
+                                                                                 .stream().sorted(Comparator.comparingLong(Long::parseLong))
+                                                                                 .collect(Collectors.toList());
+
+                                                                         return list.subList(0, batches.size() - 2);
                                                                      } else {
                                                                          return new ArrayList<String>();
                                                                      }
@@ -107,9 +116,14 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                          }), null), executor);
     }
 
+    @VisibleForTesting
+    void setCompletedTxnGCRef(ZKGarbageCollector garbageCollector) {
+        completedTxnGCRef.set(garbageCollector);
+    }
+
     @Override
     PravegaTablesStream newStream(final String scope, final String name) {
-        return new PravegaTablesStream(scope, name, storeHelper, orderer, completedTxnGC::getLatestBatch,
+        return new PravegaTablesStream(scope, name, storeHelper, orderer, completedTxnGCRef.get()::getLatestBatch,
                 () -> ((PravegaTablesScope) getScope(scope)).getStreamsInScopeTableName(), executor);
     }
 
