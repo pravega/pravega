@@ -170,16 +170,15 @@ public class EndToEndChannelLeakTest {
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
 
-        //the append paths increases the connections
-        assertChannelCount(12, connectionPool);
+        assertChannelCount(5, connectionPool);
 
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
-        assertChannelCount(12, connectionPool);
+        assertChannelCount(5, connectionPool);
 
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
-        assertChannelCount(12, connectionPool);
+        assertChannelCount(5, connectionPool);
     }
 
     @Test//(timeout = 30000)
@@ -227,7 +226,7 @@ public class EndToEndChannelLeakTest {
         //reader creates a new connection to the segment 0;
         assertEquals("zero", event.getEvent());
         //Connection to segment 0 does not cause an increase in number of open connections since we have reached the maxConnection count.
-        assertChannelCount(7, connectionPool);
+        assertChannelCount(5, connectionPool);
 
         // scale
         Stream stream = new StreamImpl(SCOPE, STREAM_NAME);
@@ -238,7 +237,7 @@ public class EndToEndChannelLeakTest {
         Boolean result = controller.scaleStream(stream, Collections.singletonList(0L), map, executor).getFuture().get();
         assertTrue(result);
         //No changes to the channel count.
-        assertChannelCount(7, connectionPool);
+        assertChannelCount(5, connectionPool);
         
         //Reaches EOS
         event = reader1.readNextEvent(1000);
@@ -254,12 +253,12 @@ public class EndToEndChannelLeakTest {
 
         //2 new flows  are opened.(+3 connections to the segments 1,2,3 after scale by the writer,
         // -1 flow to segment 0 which is sealed.)
-        assertChannelCount(9, connectionPool);
+        assertChannelCount(5, connectionPool);
 
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
         CompletableFuture<Checkpoint> future = readerGroup.initiateCheckpoint("cp1", executor);
-        //3 more from the state synchronizer
-        assertChannelCount(12, connectionPool);
+        //4 more from the state synchronizer
+        assertChannelCount(5, connectionPool);
         event = reader1.readNextEvent(5000);
         assertEquals("cp1", event.getCheckpointName());
         event = reader1.readNextEvent(5000);
@@ -267,11 +266,11 @@ public class EndToEndChannelLeakTest {
         future.join();
         //Checkpoint should close connections back down
         readerGroup.close();
-        assertChannelCount(11, connectionPool);
+        assertChannelCount(5, connectionPool);
         
         event = reader1.readNextEvent(10000);
         assertNotNull(event.getEvent());
-        assertChannelCount(11, connectionPool);
+        assertChannelCount(5, connectionPool);
     }
     
     @Test(timeout = 30000)
@@ -300,8 +299,7 @@ public class EndToEndChannelLeakTest {
                                                                      connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
-        // opens one channel
-        channelCount += 1;
+        //Should not add any connections
         assertChannelCount(channelCount, connectionPool);
         
         //Create a writer.
@@ -343,7 +341,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(channelCount, connectionPool);
         
         writer.writeEvent("1", "one").get(); //should detect end of segment
-        channelCount += 3; //segment open 3.
+        channelCount += 2; //clone one segment open 3.
         assertChannelCount(channelCount, connectionPool);
         
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
@@ -363,7 +361,7 @@ public class EndToEndChannelLeakTest {
         future.join();
         //Checkpoint should close connections back down
         readerGroup.close();
-        channelCount -= 3;
+        channelCount -= 4;
         assertChannelCount(channelCount, connectionPool);
 
         //Write more events.
@@ -381,7 +379,7 @@ public class EndToEndChannelLeakTest {
         
         reader1.close();
         //3 from segments 4 from group state.
-        channelCount -= 6;
+        channelCount -= 7;
         assertChannelCount(channelCount, connectionPool);
         groupManager.close();
         writer.close();
@@ -429,8 +427,8 @@ public class EndToEndChannelLeakTest {
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
                 ReaderConfig.builder().build());
-        //Creating a reader spawns a revisioned stream client which opens 5 sockets ( read, write, StateSynchronizer, metadataClient and conditionalUpdates).
-        expectedChannelCount += 5;
+        //Creating a reader spawns a revisioned stream client which opens 5 sockets ( read, write, metadataClient and conditionalUpdates).
+        expectedChannelCount += 4;
         EventRead<String> event = reader1.readNextEvent(10000);
         
         //reader creates a new connection to the segment 0;
@@ -466,7 +464,7 @@ public class EndToEndChannelLeakTest {
         writer.writeEvent("6", "six").get();
         
         //Open 3 new segments close one old one. 
-        expectedChannelCount += 3;
+        expectedChannelCount += 2;
         assertChannelCount(expectedChannelCount, connectionPool);
         
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
@@ -496,12 +494,12 @@ public class EndToEndChannelLeakTest {
         future.join();
         //Checkpoint should close connections back down
         readerGroup.close();
-        expectedChannelCount -= 3;
+        expectedChannelCount -= 4;
         assertChannelCount(expectedChannelCount, connectionPool);
         
         reader1.close();
         reader2.close();
-        expectedChannelCount -= 6 + 3;
+        expectedChannelCount -= 8 + 3;
         assertChannelCount(expectedChannelCount, connectionPool);
     }
     
