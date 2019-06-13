@@ -81,6 +81,13 @@ public class SegmentSelector {
         return currentSegments.getSegmentForKey(routingKey);
     }
 
+    /**
+     * Refresh segment writers corresponding to the successors of the sealed segment and return inflight event list of the sealed segment.
+     * The segment writer for sealed segment is not removed.
+     * @param sealedSegment The sealed segment.
+     * @param segmentSealedCallback Sealed segment callback.
+     * @return List of pending events.
+     */
     public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment> segmentSealedCallback) {
         StreamSegmentsWithPredecessors successors = Futures.getAndHandleExceptions(
                 controller.getSuccessors(sealedSegment), t -> {

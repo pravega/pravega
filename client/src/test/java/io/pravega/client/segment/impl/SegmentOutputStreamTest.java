@@ -173,14 +173,15 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
+        @Cleanup
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, resendToSuccessorsCallback, RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         cf.getProcessor(uri).noSuchSegment(new WireCommands.NoSuchSegment(output.getRequestId(), SEGMENT, "SomeException", -1L));
         assertThrows(SegmentSealedException.class, () -> Futures.getThrowingException(output.getConnection()));
         assertTrue(callbackInvoked.get());
-        assertThrows(SegmentSealedException.class, output::close);
     }
+
 
     @Test(timeout = 10000)
     public void testConnectWithMultipleFailures() throws Exception {
@@ -266,7 +267,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
-        
+
         output.reconnect();
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test1"), new CompletableFuture<>()));
@@ -628,25 +629,6 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
         output.getUnackedEventsOnSeal(); // this is invoked by the segmentSealedCallback.
         AssertExtensions.assertThrows(SegmentSealedException.class, () -> output.flush());
-    }
-
-    @Test(timeout = 10000)
-    public void testFlushForEmptyInflightSealedSegment() throws Exception {
-        UUID cid = UUID.randomUUID();
-        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
-        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
-        cf.setExecutor(executorService());
-        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
-        ClientConnection connection = mock(ClientConnection.class);
-        cf.provideConnection(uri, connection);
-        InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
-        output.reconnect();
-        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
-        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
-        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 0));
-        output.getUnackedEventsOnSeal(); // this is invoked by the segmentSealedCallback.
-        AssertExtensions.assertThrows(SegmentSealedException.class, output::flush);
     }
 
     @Test(timeout = 10000)
