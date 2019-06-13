@@ -19,6 +19,7 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 public class JsonWebTokenTest {
 
@@ -45,7 +46,7 @@ public class JsonWebTokenTest {
     }
 
     @Test
-    public void testpopulatesTokenWithAllInputs() throws TokenException {
+    public void testPopulatesTokenWithAllInputs() throws TokenException {
         Map<String, Object> customClaims = new HashMap<>();
         //customClaims.put("abc", "READ_UPDATE");
 
@@ -57,5 +58,15 @@ public class JsonWebTokenTest {
 
         assertEquals("subject", allClaims.getSubject());
         assertEquals("audience", allClaims.getAudience());
+   }
+
+   @Test
+   public void testTokenDoesNotContainExpiryWhenTtlIsMinusOne() throws TokenException {
+       String token =  new JsonWebToken("subject", "audience", "signingKeyString".getBytes(),
+               -1, null)
+               .toCompactString();
+
+       Claims allClaims = JsonWebToken.parseClaims(token, "signingKeyString".getBytes());
+       assertNull(allClaims.getExpiration());
    }
 }
