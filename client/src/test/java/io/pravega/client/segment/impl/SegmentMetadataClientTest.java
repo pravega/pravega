@@ -284,7 +284,7 @@ public class SegmentMetadataClientTest {
         SegmentMetadataClientImpl client = new SegmentMetadataClientImpl(segment, controller, cf, "");
         InOrder order = Mockito.inOrder(connection1, connection2, cf);
         long length = client.fetchCurrentSegmentLength();
-        order.verify(cf, Mockito.times(2)).establishConnection(Mockito.any(Flow.class),  Mockito.eq(endpoint), Mockito.any());
+        order.verify(cf, Mockito.times(2)).establishConnection(Mockito.any(Flow.class), Mockito.eq(endpoint), Mockito.any());
         order.verify(connection1).sendAsync(Mockito.eq(new WireCommands.GetStreamSegmentInfo(requestIds.get(0), segment.getScopedName(), "")),
                                             Mockito.any(ClientConnection.CompletedCallback.class));
         order.verify(connection1).close();
