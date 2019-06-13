@@ -22,6 +22,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
@@ -529,6 +530,14 @@ public class PravegaTablesStoreHelper {
                 e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
                     return unwrap instanceof StoreException.StoreConnectionException;
-                }, NUM_OF_RETRIES, executor);
+                }, NUM_OF_RETRIES, executor)
+                .exceptionally(e -> {
+                    Throwable t = Exceptions.unwrap(e);
+                    if (t instanceof RetriesExhaustedException) {
+                        throw new CompletionException(t.getCause());
+                    } else {
+                        throw new CompletionException(t);
+                    }
+                });
     }
 }

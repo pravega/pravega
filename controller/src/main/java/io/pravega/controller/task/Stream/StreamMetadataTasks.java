@@ -632,8 +632,15 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
         String id = UUID.randomUUID().toString();
+        // We first add index and then call the metadata update.
+        // In case, while trying to perform a metadata update, if we get connection exception or write conflict exception 
+        // (which can also occur if we had retried on a store exception), we will still post the event because we dont know 
+        // if our update succeeded or not. Posting the event is harmless. If the update had succeeded, then the event will 
+        // be used for processing. If the update had failed, the event will be discarded. 
         return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event)
-                           .thenCompose(v -> futureSupplier.get())
+                           .thenCompose(v -> Futures.exceptionallyExpecting(futureSupplier.get(), 
+                                   e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException || 
+                                           Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null))
                            .thenCompose(t -> RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event), e -> { }, executor)
                                                         .thenCompose(v -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
                                                         .thenApply(v -> t));
