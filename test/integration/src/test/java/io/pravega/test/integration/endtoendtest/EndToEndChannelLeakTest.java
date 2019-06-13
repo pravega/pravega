@@ -299,6 +299,7 @@ public class EndToEndChannelLeakTest {
                                                                      connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
+
         //Should not add any connections
         assertChannelCount(channelCount, connectionPool);
         
@@ -341,7 +342,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(channelCount, connectionPool);
         
         writer.writeEvent("1", "one").get(); //should detect end of segment
-        channelCount += 2; //Clone one segment open 3.
+        channelCount += 2; //Close one segment open 3.
         assertChannelCount(channelCount, connectionPool);
         
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
