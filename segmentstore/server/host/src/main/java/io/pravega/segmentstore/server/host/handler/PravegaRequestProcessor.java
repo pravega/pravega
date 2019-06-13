@@ -210,8 +210,8 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             tokenVerifier.verifyToken(segment, delegationToken, READ);
             isTokenValid = true;
         } catch (TokenException e) {
-            log.warn(e.getMessage());
-            handleException(requestId, segment, operation, new AuthenticationException(e));
+            log.warn(e.getMessage(), e);
+            handleException(requestId, segment, operation, e);
             isTokenValid = false;
         }
         return isTokenValid;
@@ -942,10 +942,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             log.info(requestId, "Closing connection {} while performing {} due to {}.",
                      connection, operation, u.getMessage());
             connection.close();
-        } else if (u instanceof AuthenticationException) {
-            log.warn(requestId, "Authentication error during '{}'.", operation);
+        } else if (u instanceof TokenException) {
+            log.warn(requestId, "Token verification failed during '{}'.", operation);
             invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace), failureHandler);
-            connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn(requestId, "Unsupported Operation '{}'.", operation, u);
             invokeSafely(connection::send, new OperationUnsupported(requestId, operation, clientReplyStackTrace), failureHandler);

@@ -11,7 +11,7 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenException;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -193,7 +193,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     log.warn("Connection for segment {} on writer {} failed due to: {}", segmentName, writerId, message);
                 }
             }
-            if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException) {
+            if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException
+                    || throwable instanceof TokenException) {
                 setupConnection.releaseExceptionally(throwable);
             } else if (failSetupConnection) {
                 setupConnection.releaseExceptionallyAndReset(throwable);                
@@ -283,11 +284,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final class ResponseProcessor extends FailingReplyProcessor {
         @Override
         public void connectionDropped() {
+            log.trace("connectionDropped");
             failConnection(new ConnectionFailedException("Connection dropped for writer " + writerId));
         }
         
         @Override
         public void wrongHost(WrongHost wrongHost) {
+            log.trace("wrongHost");
             failConnection(new ConnectionFailedException(wrongHost.toString()));
         }
 
@@ -408,13 +411,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void processingFailure(Exception error) {
+            log.trace("processingFailure");
             failConnection(error);
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth failed {}", authTokenCheckFailed);
-            failConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+            log.warn("Token check failed {}", authTokenCheckFailed);
+            failConnection(new TokenException(authTokenCheckFailed.toString()));
         }
     }
 
@@ -558,6 +562,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          }
                          return connectionSetupFuture.exceptionally(t -> {
                              Throwable exception = Exceptions.unwrap(t);
+                             if (exception instanceof TokenException) {
+                                 log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
+                                         writerId, segmentName);
+                                 return null;
+                             }
                              if (exception instanceof SegmentSealedException) {
                                  log.info("Ending reconnect attempts on writer {} to {} because segment is sealed", writerId, segmentName);
                                  return null;

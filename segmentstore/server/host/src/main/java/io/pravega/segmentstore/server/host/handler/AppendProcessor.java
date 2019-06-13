@@ -16,7 +16,6 @@ import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthHandler;
-import io.pravega.auth.AuthenticationException;
 import io.pravega.auth.TokenException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
@@ -162,7 +161,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             } catch (TokenException e) {
                 log.warn(e.getMessage(), e);
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
-                        "Update Segment Attribute", new AuthenticationException(e));
+                        "Update Segment Attribute", e);
                 return;
             }
         }
@@ -353,10 +352,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
             connection.close();
-        } else if (u instanceof AuthenticationException) {
+        } else if (u instanceof TokenException) {
             log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace));
-            connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", doingWhat, u);
             connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
