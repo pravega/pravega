@@ -17,7 +17,6 @@ import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -25,8 +24,8 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.PositionImpl;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -113,8 +112,8 @@ public class ControllerWatermarkingTest {
         controller.createStream(scope, stream, config).join();
         controller.createStream(scope, NameUtils.getMarkStreamForStream(stream), config).join();
         Stream streamObj = new StreamImpl(scope, stream);
-        Position pos1 = new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0L), 10L));
-        Position pos2 = new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0L), 20L));
+        WriterPosition pos1 = WriterPosition.builder().segments(Collections.singletonMap(new Segment(scope, stream, 0L), 10L)).build();
+        WriterPosition pos2 = WriterPosition.builder().segments(Collections.singletonMap(new Segment(scope, stream, 0L), 20L)).build();
         
         controller.noteTimestampFromWriter("1", streamObj, 1L, pos1).join();
         controller.noteTimestampFromWriter("2", streamObj, 2L, pos2).join();
