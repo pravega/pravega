@@ -341,7 +341,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(channelCount, connectionPool);
         
         writer.writeEvent("1", "one").get(); //should detect end of segment
-        channelCount += 2; //clone one segment open 3.
+        channelCount += 2; //Clone one segment open 3.
         assertChannelCount(channelCount, connectionPool);
         
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
@@ -427,7 +427,7 @@ public class EndToEndChannelLeakTest {
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
                 ReaderConfig.builder().build());
-        //Creating a reader spawns a revisioned stream client which opens 5 sockets ( read, write, metadataClient and conditionalUpdates).
+        //Creating a reader spawns a revisioned stream client which opens 4 sockets ( read, write, metadataClient and conditionalUpdates).
         expectedChannelCount += 4;
         EventRead<String> event = reader1.readNextEvent(10000);
         
