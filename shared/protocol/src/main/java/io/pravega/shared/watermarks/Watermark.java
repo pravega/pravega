@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -9,12 +9,12 @@
  */
 package io.pravega.shared.watermarks;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
 import lombok.SneakyThrows;
@@ -24,16 +24,29 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+/**
+ * Represents a serializable Watermark. 
+ * A watermark represents a window on time with corresponding stream cut position that indicates to readers where they in 
+ * a stream are vis-a-vis time provided by writers. 
+ *
+ * The lower time bound is a timestamp which is less than or equal to the most recent value provided by any writer. 
+ * The upper time bound is a timestamp which is greater than or equal to any time that were provided by any writer.
+ * 
+ * Stream cut is an upper bound on most recent positions provided by all writer. 
+ */
 @Data
 public class Watermark {
     public static final WatermarkSerializer SERIALIZER = new WatermarkSerializer();
-    public static final Watermark EMPTY = new Watermark(Long.MIN_VALUE, ImmutableMap.of());
-    private final long timestamp;
-    private final ImmutableMap<Long, Long> streamCut;
+    public static final Watermark EMPTY = new Watermark(Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of());
+    private final long lowerTimeBound;
+    private final long upperTimeBound;
+    private final ImmutableMap<SegmentWithRange, Long> streamCut;
 
     @Builder
-    public Watermark(long timestamp, ImmutableMap<Long, Long> streamCut) {
-        this.timestamp = timestamp;
+    public Watermark(long lowerTimeBound, long upperTimeBound, ImmutableMap<SegmentWithRange, Long> streamCut) {
+        Preconditions.checkArgument(upperTimeBound >= lowerTimeBound);
+        this.lowerTimeBound = lowerTimeBound;
+        this.upperTimeBound = upperTimeBound;
         this.streamCut = streamCut;
     }
 
@@ -65,16 +78,18 @@ public class Watermark {
 
         private void read00(RevisionDataInput revisionDataInput,
                             Watermark.WatermarkBuilder builder) throws IOException {
-            builder.timestamp(revisionDataInput.readLong());
+            builder.lowerTimeBound(revisionDataInput.readLong());
+            builder.upperTimeBound(revisionDataInput.readLong());
 
-            ImmutableMap.Builder<Long, Long> mapBuilder = ImmutableMap.builder();
-            revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, mapBuilder);
+            ImmutableMap.Builder<SegmentWithRange, Long> mapBuilder = ImmutableMap.builder();
+            revisionDataInput.readMap(SegmentWithRange.SERIALIZER::deserialize, DataInput::readLong, mapBuilder);
             builder.streamCut(mapBuilder.build());
         }
         
         private void write00(Watermark watermark, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeLong(watermark.timestamp);
-            revisionDataOutput.writeMap(watermark.streamCut, DataOutput::writeLong, DataOutput::writeLong);
+            revisionDataOutput.writeLong(watermark.lowerTimeBound);
+            revisionDataOutput.writeLong(watermark.upperTimeBound);
+            revisionDataOutput.writeMap(watermark.streamCut, SegmentWithRange.SERIALIZER::serialize, DataOutput::writeLong);
         }
 
         @Override

@@ -17,6 +17,8 @@ import org.junit.rules.Timeout;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.Assert.assertTrue;
+
 public class NameUtilsTest {
 
     //Ensure each test completes within 10 seconds.
@@ -78,5 +80,13 @@ public class NameUtilsTest {
     public void testInternalReaderGroupName() {
         Assert.assertTrue(NameUtils.getStreamForReaderGroup("readergroup1").startsWith(
                 NameUtils.READER_GROUP_STREAM_PREFIX));
+    }
+
+    @Test
+    public void testMarkSegmentName() {
+        String myStream = "myStream";
+        String name = NameUtils.getMarkStreamForStream(myStream);
+        assertTrue(name.endsWith(myStream));
+        assertTrue(name.startsWith(NameUtils.getMARK_PREFIX()));
     }
 }

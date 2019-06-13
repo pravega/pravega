@@ -48,8 +48,10 @@ public class ReaderGroupStateTest {
 
     @Before
     public void setup() {
-        readerState = new ReaderGroupState("stream", revision, readerConf,
-                                           getOffsetMap(asList("S1", "S2"), 1L), Collections.emptyMap());
+        Map<SegmentWithRange, Long> offsetMap = new HashMap<>();
+        offsetMap.put(new SegmentWithRange(new Segment(SCOPE, "S1", 0), 0, 1), 1L);
+        offsetMap.put(new SegmentWithRange(new Segment(SCOPE, "S2", 0), 0, 1), 1L);
+        readerState = new ReaderGroupState("stream", revision, readerConf, offsetMap, Collections.emptyMap());
     }
     
 

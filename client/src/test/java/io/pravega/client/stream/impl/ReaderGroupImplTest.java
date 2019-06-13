@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
 import org.junit.Before;
@@ -145,13 +146,21 @@ public class ReaderGroupImplTest {
 
         //setup mocks
         when(state.getPositionsForLastCompletedCheckpoint()).thenReturn(Optional.empty()); // simulate zero checkpoints.
-        when(state.getPositions()).thenReturn(ImmutableMap.of(Stream.of(SCOPE, stream), startStreamCut.asImpl().getPositions()));
+        Map<SegmentWithRange, Long> positions = startStreamCut.asImpl()
+                                                              .getPositions()
+                                                              .entrySet()
+                                                              .stream()
+                                                              .collect(Collectors.toMap(e -> new SegmentWithRange(e.getKey(), null),
+                                                                                        e -> e.getValue()));
+        when(state.getPositions()).thenReturn(ImmutableMap.of(Stream.of(SCOPE, stream), positions));
         when(state.getEndSegments()).thenReturn(endStreamCut.asImpl().getPositions());
         when(synchronizer.getState()).thenReturn(state);
         ImmutableSet<Segment> r = ImmutableSet.<Segment>builder()
-                .addAll(startStreamCut.asImpl().getPositions().keySet()).addAll(endStreamCut.asImpl().getPositions().keySet()).build();
-        when(controller.getSegments(startStreamCut, endStreamCut))
-                .thenReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(r, "")));
+                                              .addAll(startStreamCut.asImpl().getPositions().keySet())
+                                              .addAll(endStreamCut.asImpl().getPositions().keySet())
+                                              .build();
+        when(controller.getSegments(startStreamCut,
+                                    endStreamCut)).thenReturn(CompletableFuture.completedFuture(new StreamSegmentSuccessors(r, "")));
 
         assertEquals(40L, readerGroup.unreadBytes());
     }

@@ -33,7 +33,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
@@ -43,11 +43,11 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.net.URI;
 import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
@@ -111,7 +111,7 @@ public class ControllerWatermarkingTest {
         controller.createScope(scope).join();
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         controller.createStream(scope, stream, config).join();
-        controller.createStream(scope, StreamSegmentNameUtils.getMarkForStream(stream), config).join();
+        controller.createStream(scope, NameUtils.getMarkStreamForStream(stream), config).join();
         Stream streamObj = new StreamImpl(scope, stream);
         Position pos1 = new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0L), 10L));
         Position pos2 = new PositionImpl(Collections.singletonMap(new Segment(scope, stream, 0L), 20L));
@@ -119,7 +119,7 @@ public class ControllerWatermarkingTest {
         controller.noteTimestampFromWriter("1", streamObj, 1L, pos1).join();
         controller.noteTimestampFromWriter("2", streamObj, 2L, pos2).join();
 
-        String markStream = StreamSegmentNameUtils.getMarkForStream(stream);
+        String markStream = NameUtils.getMarkStreamForStream(stream);
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
          ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
          ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory);
@@ -133,9 +133,12 @@ public class ControllerWatermarkingTest {
                 ReaderConfig.builder().build());
 
         EventRead<Watermark> watermark = reader.readNextEvent(30000L);
-        watermark = reader.readNextEvent(30000L);
+        if (watermark.getEvent() == null) {
+            // we are getting first event as null for some reason
+            watermark = reader.readNextEvent(30000L);
+        }
         assertNotNull(watermark.getEvent());
-        assertEquals(watermark.getEvent().getTimestamp(), 1L);
-        assertEquals(watermark.getEvent().getStreamCut().get(0L).longValue(), 20L);
+        assertEquals(watermark.getEvent().getLowerTimeBound(), 1L);
+        assertTrue(watermark.getEvent().getStreamCut().entrySet().stream().anyMatch(x -> x.getKey().getSegmentId() == 0L && x.getValue() ==  20L));
     }
 }

@@ -16,7 +16,6 @@ import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.Position;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.Transaction;
@@ -425,7 +424,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                                              .stream()
                                              .collect(Collectors.toMap(e -> e.getKey(),
                                                                        e -> e.getValue().getLastObservedWriteOffset()));
-        Position position = new PositionImpl(offsets);
+        WriterPosition position = new WriterPosition(offsets);
         controller.noteTimestampFromWriter(writerId, stream, timestamp, position);
         
     }

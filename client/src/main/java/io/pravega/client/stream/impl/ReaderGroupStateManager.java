@@ -153,12 +153,12 @@ public class ReaderGroupStateManager {
      * 
      * @return true if the completed segment was released successfully.
      */
-    boolean handleEndOfSegment(Segment segmentCompleted) throws ReaderNotInReaderGroupException {
-        final Map<Segment, List<Long>> segmentToPredecessor;
-        if (sync.getState().getEndSegments().containsKey(segmentCompleted)) {
+    boolean handleEndOfSegment(SegmentWithRange segmentCompleted) throws ReaderNotInReaderGroupException {
+        final Map<SegmentWithRange, List<Long>> segmentToPredecessor;
+        if (sync.getState().getEndSegments().containsKey(segmentCompleted.getSegment())) {
             segmentToPredecessor = Collections.emptyMap();
         } else {
-            val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted), RuntimeException::new);
+            val successors = getAndHandleExceptions(controller.getSuccessors(segmentCompleted.getSegment()), RuntimeException::new);
             segmentToPredecessor = successors.getSegmentToPredecessor();
         }
 
@@ -275,7 +275,7 @@ public class ReaderGroupStateManager {
      * If there are unassigned segments and this host has not acquired one in a while, acquires them.
      * @return A map from the new segment that was acquired to the offset to begin reading from within the segment.
      */
-    Map<Segment, Long> acquireNewSegmentsIfNeeded(long timeLag) throws ReaderNotInReaderGroupException {
+    Map<SegmentWithRange, Long> acquireNewSegmentsIfNeeded(long timeLag) throws ReaderNotInReaderGroupException {
         fetchUpdatesIfNeeded();
         if (shouldAcquireSegment()) {
             return acquireSegment(timeLag);
@@ -326,29 +326,29 @@ public class ReaderGroupStateManager {
         }
     }
 
-    private Map<Segment, Long> acquireSegment(long timeLag) throws ReaderNotInReaderGroupException {
+    private Map<SegmentWithRange, Long> acquireSegment(long timeLag) throws ReaderNotInReaderGroupException {
         AtomicBoolean reinitRequired = new AtomicBoolean();
-        Map<Segment, Long> result = sync.updateState((state, updates) -> {
+        Map<SegmentWithRange, Long> result = sync.updateState((state, updates) -> {
             if (!state.isReaderOnline(readerId)) {
                 reinitRequired.set(true);
-                return Collections.<Segment, Long>emptyMap();
+                return Collections.<SegmentWithRange, Long>emptyMap();
             }
             reinitRequired.set(false);
             if (state.getCheckpointForReader(readerId) != null) {
-                return Collections.<Segment, Long>emptyMap();
+                return Collections.<SegmentWithRange, Long>emptyMap();
             }
             int toAcquire = calculateNumSegmentsToAcquire(state);
             if (toAcquire == 0) {
-                return Collections.<Segment, Long>emptyMap();
+                return Collections.<SegmentWithRange, Long>emptyMap();
             }
-            Map<Segment, Long> unassignedSegments = state.getUnassignedSegments();
-            Map<Segment, Long> acquired = new HashMap<>(toAcquire);
-            Iterator<Entry<Segment, Long>> iter = unassignedSegments.entrySet().iterator();
+            Map<SegmentWithRange, Long> unassignedSegments = state.getUnassignedSegments();
+            Map<SegmentWithRange, Long> acquired = new HashMap<>(toAcquire);
+            Iterator<Entry<SegmentWithRange, Long>> iter = unassignedSegments.entrySet().iterator();
             for (int i = 0; i < toAcquire; i++) {
                 assert iter.hasNext();
-                Entry<Segment, Long> segment = iter.next();
+                Entry<SegmentWithRange, Long> segment = iter.next();
                 acquired.put(segment.getKey(), segment.getValue());
-                updates.add(new AcquireSegment(readerId, segment.getKey()));
+                updates.add(new AcquireSegment(readerId, segment.getKey().getSegment()));
             }
             updates.add(new UpdateDistanceToTail(readerId, timeLag));
             return acquired;
