@@ -299,7 +299,7 @@ public class EndToEndChannelLeakTest {
                                                                      connectionFactory);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0)
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
-
+        
         //Should not add any connections
         assertChannelCount(channelCount, connectionPool);
         
