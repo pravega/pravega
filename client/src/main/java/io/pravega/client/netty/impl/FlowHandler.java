@@ -293,7 +293,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     }
 
     private Optional<ReplyProcessor> getReplyProcessor(Reply cmd) {
-        int flowId = disableFlow.get() ? FLOW_DISABLED :  Flow.toFlowID(cmd.getRequestId());
+        int flowId = disableFlow.get() ? FLOW_DISABLED : Flow.toFlowID(cmd.getRequestId());
         final ReplyProcessor processor = flowIdReplyProcessorMap.get(flowId);
         if (processor == null) {
             log.warn("No ReplyProcessor found for the provided flowId {}. Ignoring response", flowId);

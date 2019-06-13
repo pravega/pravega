@@ -151,6 +151,7 @@ public class AsyncSegmentInputStreamTest {
         assertTrue(Futures.isSuccessful(readFuture)); // read completes after 3 retries.
         // Verify that the reader attempts to establish connection 3 times ( 2 failures followed by a successful attempt).
         verify(mockedCF, times(3)).establishConnection(any(Flow.class), eq(endpoint), any(ReplyProcessor.class));
+        // The second time sendAsync is invoked but it fail due to the exception.
         inOrder.verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
                                     Mockito.any(ClientConnection.CompletedCallback.class));
         // Validate that the connection is closed in case of an error.
