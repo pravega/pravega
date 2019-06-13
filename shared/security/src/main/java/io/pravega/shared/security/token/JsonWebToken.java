@@ -67,7 +67,9 @@ public class JsonWebToken {
         this.signingKey = signingKey.clone();
 
         this.currentInstant = Instant.now();
-        if (timeToLiveInSeconds != null) {
+
+        // timetoLiveInSeconds = -1 implies that the token never expires.
+        if (timeToLiveInSeconds != null && timeToLiveInSeconds != -1) {
             this.expirationTime = Date.from(this.currentInstant.plusSeconds(timeToLiveInSeconds));
         }
         this.permissionsByResource = resourcePermissionClaims;
