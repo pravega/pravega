@@ -65,13 +65,16 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 @Slf4j
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
+    private static final long RESET_TOKEN = 0;
 
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
+    private long currentToken = RESET_TOKEN;
     private String segmentBeingAppendedTo;
     private UUID writerIdPerformingAppends;
     private int currentBlockSize;
     private int bytesLeftInBlock;
+    private long tokenCounter;
 
     @Data
     private static final class Session {
@@ -99,7 +102,12 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 writerIdPerformingAppends = append.writerId;
                 writeMessage(new AppendBlock(session.id), out);
                 if (ctx != null) {
-                    ctx.executor().schedule(new BlockTimeouter(ctx.channel(), currentBlockSize),
+                    tokenCounter++;
+                    if (tokenCounter == RESET_TOKEN) {
+                        tokenCounter++;
+                    }
+                    currentToken = tokenCounter;
+                    ctx.executor().schedule(new BlockTimeouter(ctx.channel(), currentToken),
                                             blockSizeSupplier.getBatchTimeout(),
                                             TimeUnit.MILLISECONDS);
                 }
@@ -114,7 +122,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 out.writeBytes(data);
                 bytesLeftInBlock -= msgSize;
             } else {
-                int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE; 
+                int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
                 ByteBuf dataInsideBlock = data.readSlice(bytesInBlock);
                 ByteBuf dataRemainging = data;
                 writeMessage(new PartialEvent(dataInsideBlock), out);
@@ -126,6 +134,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                                                 append.getRequestId()), out);
                 bytesLeftInBlock = 0;
                 session.eventCount = 0;
+                currentToken = RESET_TOKEN;
             }
         } else if (msg instanceof SetupAppend) {
             breakFromAppend(out);
@@ -135,7 +144,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                               new Session(setup.getWriterId(), setup.getRequestId()));
         } else if (msg instanceof BlockTimeout) {
             BlockTimeout timeoutMsg = (BlockTimeout) msg;
-            if (currentBlockSize == timeoutMsg.ifStillBlockSize) {
+            if (currentToken == timeoutMsg.token) {
                 breakFromAppend(out);
             }
         } else if (msg instanceof WireCommand) {
@@ -174,6 +183,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
             session.eventCount = 0;
+            currentToken = RESET_TOKEN;
         }
         segmentBeingAppendedTo = null;
         writerIdPerformingAppends = null;
@@ -210,17 +220,17 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     @RequiredArgsConstructor
     private static final class BlockTimeout {
-        private final int ifStillBlockSize;
+        private final long token;
     }
-    
+
     @RequiredArgsConstructor
     private static final class BlockTimeouter implements Runnable {
         private final Channel channel;
-        private final int blockSize;
+        private final long token;
 
         @Override
         public void run() {
-            channel.writeAndFlush(new BlockTimeout(blockSize));
+            channel.writeAndFlush(new BlockTimeout(token));
         }
     }
 
