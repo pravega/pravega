@@ -132,41 +132,38 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
 
     @Test
     public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
-        try {
-            createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
+        createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
 
-            //run the failover test before scaling
-            performFailoverTest();
+        //run the failover test before scaling
+        performFailoverTest();
 
-            //bring the instances back to 3 before performing failover during scaling
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        //bring the instances back to 3 before performing failover during scaling
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+        addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
 
-            //run the failover test while scaling
-            performFailoverTest();
+        //run the failover test while scaling
+        performFailoverTest();
 
-            waitForScaling(scope, AUTO_SCALE_STREAM, config);
+        waitForScaling(scope, AUTO_SCALE_STREAM, config);
 
-            //bring the instances back to 3 before performing failover
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        //bring the instances back to 3 before performing failover
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            //run the failover test after scaling
-            performFailoverTest();
+        //run the failover test after scaling
+        performFailoverTest();
 
-            stopWriters();
-            stopReaders();
-            validateResults();
+        stopWriters();
+        stopReaders();
+        validateResults();
 
-            cleanUp(scope, AUTO_SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-            log.info("Test ReadWriteAndAutoScaleWithFailover succeeds");
-        } finally {
-            testState.checkForAnomalies();
-        }
+        cleanUp(scope, AUTO_SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+        testState.checkForAnomalies();
+        log.info("Test ReadWriteAndAutoScaleWithFailover succeeds");
     }
 }
