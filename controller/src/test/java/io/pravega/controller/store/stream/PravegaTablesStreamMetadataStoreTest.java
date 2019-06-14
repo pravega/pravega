@@ -356,8 +356,6 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
                      batches.add(Integer.parseInt(x));
                      return true;
                  }).join();
-        System.err.println("shivesh:: batches = " + batches);
-
         return batches;
     }
 
