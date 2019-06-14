@@ -13,10 +13,17 @@ import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.EventExecutor;
+import io.netty.util.concurrent.EventExecutorGroup;
+import io.netty.util.concurrent.Promise;
+import io.netty.util.concurrent.ProgressivePromise;
+import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
@@ -24,19 +31,29 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.Iterator;
+import java.util.Collection;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.MockitoJUnitRunner;
 import static io.pravega.shared.protocol.netty.WireCommandType.EVENT;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(MockitoJUnitRunner.class)
 public class AppendEncodeDecodeTest {
 
     private final int appendBlockSize = 1024;  
@@ -47,10 +64,169 @@ public class AppendEncodeDecodeTest {
     private final FakeLengthDecoder lengthDecoder = new FakeLengthDecoder();
     private final AppendDecoder appendDecoder = new AppendDecoder();
     private Level origionalLogLevel;
-    
+
+    private EventExecutor executor =  new EventExecutor() {
+        @Override
+        public EventExecutor next() {
+            return null;
+        }
+
+        @Override
+        public EventExecutorGroup parent() {
+            return null;
+        }
+
+        @Override
+        public boolean inEventLoop() {
+            return false;
+        }
+
+        @Override
+        public boolean inEventLoop(Thread thread) {
+            return false;
+        }
+
+        @Override
+        public <V> Promise<V> newPromise() {
+            return null;
+        }
+
+        @Override
+        public <V> ProgressivePromise<V> newProgressivePromise() {
+            return null;
+        }
+
+        @Override
+        public <V> Future<V> newSucceededFuture(V result) {
+            return null;
+        }
+
+        @Override
+        public <V> Future<V> newFailedFuture(Throwable cause) {
+            return null;
+        }
+
+        @Override
+        public boolean isShuttingDown() {
+            return false;
+        }
+
+        @Override
+        public Future<?> shutdownGracefully() {
+            return null;
+        }
+
+        @Override
+        public Future<?> shutdownGracefully(long quietPeriod, long timeout, TimeUnit unit) {
+            return null;
+        }
+
+        @Override
+        public Future<?> terminationFuture() {
+            return null;
+        }
+
+        @Override
+        public void shutdown() {
+
+        }
+
+        @Override
+        public List<Runnable> shutdownNow() {
+            return null;
+        }
+
+        @Override
+        public Iterator<EventExecutor> iterator() {
+            return null;
+        }
+
+        @Override
+        public Future<?> submit(Runnable task) {
+            return null;
+        }
+
+        @Override
+        public <T> Future<T> submit(Runnable task, T result) {
+            return null;
+        }
+
+        @Override
+        public <T> Future<T> submit(Callable<T> task) {
+            return null;
+        }
+
+        @Override
+        public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+            command.run();
+            return null;
+        }
+
+        @Override
+        public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
+            return null;
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+            return null;
+        }
+
+        @Override
+        public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
+            return null;
+        }
+
+        @Override
+        public boolean isShutdown() {
+            return false;
+        }
+
+        @Override
+        public boolean isTerminated() {
+            return false;
+        }
+
+        @Override
+        public boolean awaitTermination(long l, TimeUnit timeUnit) throws InterruptedException {
+            return false;
+        }
+
+        @Override
+        public <T> List<java.util.concurrent.Future<T>> invokeAll(Collection<? extends Callable<T>> collection) throws InterruptedException {
+            return null;
+        }
+
+        @Override
+        public <T> List<java.util.concurrent.Future<T>> invokeAll(Collection<? extends Callable<T>> collection, long l, TimeUnit timeUnit) throws InterruptedException {
+            return null;
+        }
+
+        @Override
+        public <T> T invokeAny(Collection<? extends Callable<T>> collection) throws InterruptedException, ExecutionException {
+            return null;
+        }
+
+        @Override
+        public <T> T invokeAny(Collection<? extends Callable<T>> collection, long l, TimeUnit timeUnit) throws InterruptedException, ExecutionException, TimeoutException {
+            return null;
+        }
+
+        @Override
+        public void execute(Runnable runnable) {
+
+        }
+    };
+
+    @Mock
+    private ChannelHandlerContext ctx;
+    @Mock
+    private Channel ch;
+
     @Before
     public void setup() {
-
+        Mockito.when(ctx.channel()).thenReturn(ch);
+        Mockito.when(ctx.executor()).thenReturn(executor);
         idBatchSizeTrackerMap.put(0L, new FixedBatchSizeTracker(appendBlockSize));
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
         origionalLogLevel = ResourceLeakDetector.getLevel();
@@ -175,7 +351,7 @@ public class AppendEncodeDecodeTest {
     }
 
     private void sendAndVerifyEvents(String segment, UUID writerId, int numEvents, int eventSize,
-            int expectedMessages) throws Exception {
+                                     int expectedMessages) throws Exception {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         ArrayList<Object> received = setupAppend(segment, writerId, fakeNetwork);
@@ -192,6 +368,7 @@ public class AppendEncodeDecodeTest {
         received.remove(received.size() - 1);
         verify(received, numEvents, eventSize);
     }
+
 
     @Test
     public void testFlushBeforeEndOfBlock() throws Exception {
@@ -220,6 +397,66 @@ public class AppendEncodeDecodeTest {
         assertEquals(size + TYPE_PLUS_LENGTH_SIZE, one.getData().readableBytes());
         KeepAlive two = (KeepAlive) received.get(1);
         assertEquals(keepAlive, two);
+    }
+
+    @Test
+    public void testblockTimeout() throws Exception {
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        byte[] content = new byte[100];
+        Arrays.fill(content, (byte) 1);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
+        Append msg = new Append("segment", writerId, 1, event, 1);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        ArrayList<Object> received = new ArrayList<>();
+        commandEncoder.encode(ctx, msg, fakeNetwork);
+        read(fakeNetwork, received);
+        assertEquals(2, received.size());
+        Append readAppend = (Append) received.get(1);
+        assertEquals(msg.data.readableBytes(), readAppend.data.readableBytes());
+        assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
+
+    }
+
+    @Test(expected = InvalidMessageException.class)
+    public void testInvalidAppendEventNumber() throws Exception {
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        byte[] content = new byte[100];
+        Arrays.fill(content, (byte) 1);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
+        Append msg = new Append("segment", writerId, 1, event, 1);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        commandEncoder.encode(ctx, msg, fakeNetwork);
+        Append invalidMsg = new Append("segment", writerId, 0, event, 1);
+        commandEncoder.encode(ctx, invalidMsg, fakeNetwork);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testInvalidAppendConditional() throws Exception {
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        byte[] content = new byte[100];
+        Arrays.fill(content, (byte) 1);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
+        Append msg = new Append("segment", writerId, 1, event, 1);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        commandEncoder.encode(ctx, msg, fakeNetwork);
+        Append invalidMsg = new Append("segment", writerId, 2, event, 0, 1);
+        commandEncoder.encode(ctx, invalidMsg, fakeNetwork);
     }
 
     @Test
