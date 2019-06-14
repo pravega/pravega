@@ -27,7 +27,9 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+
 import lombok.NonNull;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -38,13 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 @ToString
 @Slf4j
 public class JsonWebToken {
-
-    public final static String TOKEN_KEY_PREFIX = "pra-";
-
-    /*
-     * Using this variable for disambiguating the constructor invoked.
-     */
-    private static final Integer NULLINT = null;
 
     private final String subject;
     private final String audience;
@@ -57,17 +52,17 @@ public class JsonWebToken {
     private SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS512;
 
     public JsonWebToken(String subject, String audience, byte[] signingKey) {
-        this(subject, audience, signingKey, NULLINT, null);
+        this(subject, audience, signingKey, Optional.empty(), null);
     }
 
     public JsonWebToken(@NonNull String subject, @NonNull String audience, @NonNull byte[] signingKey,
-                        Integer timeToLiveInSeconds,
+                        @NonNull Optional<Integer> timeToLiveInSeconds,
                         Map<String, Object> resourcePermissionClaims) {
 
-        if (timeToLiveInSeconds != null) {
+        if (timeToLiveInSeconds.isPresent()) {
             // timetoLiveInSeconds = -1 implies that the token never expires.
             // timeToLiveInSeconds = 0 implies token immediately expires.
-            Preconditions.checkArgument(timeToLiveInSeconds >= -1);
+            Preconditions.checkArgument(timeToLiveInSeconds.get() >= -1);
         }
 
         this.subject = subject;
@@ -76,8 +71,8 @@ public class JsonWebToken {
 
         this.currentInstant = Instant.now();
 
-        if (timeToLiveInSeconds != null && timeToLiveInSeconds != -1) {
-            this.expirationTime = Date.from(this.currentInstant.plusSeconds(timeToLiveInSeconds));
+        if (timeToLiveInSeconds.isPresent() && timeToLiveInSeconds.get() != -1) {
+            this.expirationTime = Date.from(this.currentInstant.plusSeconds(timeToLiveInSeconds.get()));
         }
         this.permissionsByResource = resourcePermissionClaims;
     }

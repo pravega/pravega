@@ -25,6 +25,8 @@ import io.pravega.shared.security.token.JsonWebToken;
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
@@ -91,6 +93,6 @@ public class PravegaInterceptor implements ServerInterceptor {
         customClaims.put("*", String.valueOf(READ_UPDATE));
 
         return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
-                null, customClaims).toCompactString();
+                Optional.ofNullable(null), customClaims).toCompactString();
     }
 }

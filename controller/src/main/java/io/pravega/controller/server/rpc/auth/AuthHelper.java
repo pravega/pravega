@@ -15,6 +15,8 @@ import io.pravega.auth.AuthorizationException;
 import io.pravega.shared.security.token.JsonWebToken;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+
 import lombok.AllArgsConstructor;
 
 /**
@@ -25,11 +27,15 @@ public class AuthHelper {
 
     private final boolean isAuthEnabled;
     private final String tokenSigningKey;
-    private final Integer accessTokenTtlInSeconds;
+    private final Optional<Integer> accessTokenTtlInSeconds;
+
+    public AuthHelper(boolean isAuthEnabled, String tokenSigningKey, Integer tokenTtlInSeconds) {
+        this(isAuthEnabled, tokenSigningKey, Optional.ofNullable(tokenTtlInSeconds));
+    }
 
     @VisibleForTesting
     public static AuthHelper getDisabledAuthHelper() {
-        return new AuthHelper(false, "", -1);
+        return new AuthHelper(false, "", Optional.of(-1));
     }
 
     public boolean isAuthorized(String resource, AuthHandler.Permissions permission) {
