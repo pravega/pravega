@@ -25,7 +25,7 @@ public class AuthHelper {
 
     private final boolean isAuthEnabled;
     private final String tokenSigningKey;
-    private final int accessTokenTtlInSeconds;
+    private final Integer accessTokenTtlInSeconds;
 
     @VisibleForTesting
     public static AuthHelper getDisabledAuthHelper() {

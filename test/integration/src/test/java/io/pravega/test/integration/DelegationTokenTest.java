@@ -41,7 +41,7 @@ public class DelegationTokenTest {
 
     /*
      * Note: No normal happy path integration tests were added here, as those scenarios are already covered in
-     * other tests elsewhere which do that anyway (using the default token TTL and valid auth credentials).
+     * other tests elsewhere. (using the default token TTL and valid auth credentials).
      */
 
     @Test(timeout = 20000)

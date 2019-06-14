@@ -38,5 +38,14 @@ public class GRPCServerConfigImplTest {
         assertNotNull(config.toString());
     }
 
+    @Test
+    public void toStringReturnsSuccessfullyWithAccessTokenTtlNull() {
+        GRPCServerConfigImpl config = new GRPCServerConfigImpl(9090, null,
+                9090, true, null, true,
+                "", " ", "secret", null, "/cert.pem",
+                false, true);
+        assertNotNull(config.toString());
+    }
+
     // endregion
 }

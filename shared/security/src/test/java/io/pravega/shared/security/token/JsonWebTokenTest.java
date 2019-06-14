@@ -46,6 +46,14 @@ public class JsonWebTokenTest {
     }
 
     @Test
+    public void testCtorRejectsInvalidTtl() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new JsonWebToken("subject", "audience", "signingKeyString".getBytes(),
+                        -2, null)
+        );
+    }
+
+    @Test
     public void testPopulatesTokenWithAllInputs() throws TokenException {
         Map<String, Object> customClaims = new HashMap<>();
         //customClaims.put("abc", "READ_UPDATE");

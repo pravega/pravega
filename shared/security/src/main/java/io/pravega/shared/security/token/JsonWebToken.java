@@ -10,6 +10,7 @@
 package io.pravega.shared.security.token;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
@@ -62,13 +63,19 @@ public class JsonWebToken {
     public JsonWebToken(@NonNull String subject, @NonNull String audience, @NonNull byte[] signingKey,
                         Integer timeToLiveInSeconds,
                         Map<String, Object> resourcePermissionClaims) {
+
+        if (timeToLiveInSeconds != null) {
+            // timetoLiveInSeconds = -1 implies that the token never expires.
+            // timeToLiveInSeconds = 0 implies token immediately expires.
+            Preconditions.checkArgument(timeToLiveInSeconds >= -1);
+        }
+
         this.subject = subject;
         this.audience = audience;
         this.signingKey = signingKey.clone();
 
         this.currentInstant = Instant.now();
 
-        // timetoLiveInSeconds = -1 implies that the token never expires.
         if (timeToLiveInSeconds != null && timeToLiveInSeconds != -1) {
             this.expirationTime = Date.from(this.currentInstant.plusSeconds(timeToLiveInSeconds));
         }
