@@ -40,6 +40,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStore.COMPLETED_TRANSACTIONS_BATCHES_TABLE;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.doAnswer;
@@ -347,6 +348,39 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
             status = testStore.transactionStatus(scope, stream, txnId4, null, executor).join();
             assertEquals(status, TxnStatus.COMMITTED);
         }
+    }
+
+    @Test
+    public void testFindStaleBatches() {
+        PravegaTablesStreamMetadataStore store = (PravegaTablesStreamMetadataStore) this.store;
+
+        List<String> batches = Arrays.asList("5", "1", "6", "2", "7", "3", "8", "4", "0");
+        List<String> stale = store.findStaleBatches(batches);
+        assertEquals(batches.size() - 2, stale.size());
+        assertFalse(stale.contains("8"));
+        assertFalse(stale.contains("7"));
+
+        batches = stale;
+        stale = store.findStaleBatches(batches);
+        assertEquals(batches.size() - 2, stale.size());
+        assertFalse(stale.contains("6"));
+        assertFalse(stale.contains("5"));
+
+        batches = stale;
+        stale = store.findStaleBatches(batches);
+        assertEquals(batches.size() - 2, stale.size());
+        assertFalse(stale.contains("4"));
+        assertFalse(stale.contains("3"));
+
+        batches = stale;
+        stale = store.findStaleBatches(batches);
+        assertEquals(batches.size() - 2, stale.size());
+        assertFalse(stale.contains("2"));
+        assertFalse(stale.contains("1"));
+
+        batches = stale;
+        stale = store.findStaleBatches(batches);
+        assertTrue(stale.isEmpty());
     }
 
     private Set<Integer> getAllBatches(PravegaTablesStreamMetadataStore testStore) {

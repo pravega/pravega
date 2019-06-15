@@ -29,7 +29,6 @@ import org.apache.curator.framework.CuratorFramework;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -87,19 +86,7 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
         List<String> batches = new ArrayList<>();
         return withCompletion(storeHelper.expectingDataNotFound(storeHelper.getAllKeys(COMPLETED_TRANSACTIONS_BATCHES_TABLE)
                                                          .collectRemaining(batches::add)
-                                                         .thenApply(v -> {
-                                                                     // retain latest two and delete remainder.
-                                                                     if (batches.size() > 2) {
-                                                                         List<String> list = batches
-                                                                                 .stream().sorted(Comparator.comparingLong(Long::parseLong))
-                                                                                 .collect(Collectors.toList());
-
-                                                                         return list.subList(0, batches.size() - 2);
-                                                                     } else {
-                                                                         return new ArrayList<String>();
-                                                                     }
-                                                                 }
-                                                         )
+                                                         .thenApply(v -> findStaleBatches(batches))
                                                          .thenCompose(toDeleteList -> {
                                                              log.debug("deleting batches {} on new scheme", toDeleteList);
 
@@ -114,6 +101,41 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                                                  .collect(Collectors.toList()))
                                                                            .thenCompose(v -> storeHelper.removeEntries(COMPLETED_TRANSACTIONS_BATCHES_TABLE, toDeleteList));
                                                          }), null), executor);
+    }
+
+    @VisibleForTesting
+    List<String> findStaleBatches(List<String> batches) {
+        // exclude latest two batches and return remainder.
+        if (batches.size() > 2) {
+            int biggestIndex = Integer.MIN_VALUE;
+            int secondIndex = Integer.MIN_VALUE;
+            long biggest = Long.MIN_VALUE;
+            long second = Long.MIN_VALUE;
+            for (int i = 0; i < batches.size(); i++) {
+                long element = Long.parseLong(batches.get(i));
+                if (element > biggest) {
+                    secondIndex = biggestIndex;
+                    second = biggest;
+                    biggest = element;
+                    biggestIndex = i;
+                } else if (element > second) {
+                    secondIndex = i;
+                    second = element;
+                }
+            }
+
+            List<String> list = new ArrayList<>(batches);
+
+            list.remove(biggestIndex);
+            if (biggestIndex < secondIndex) {
+                list.remove(secondIndex - 1);
+            } else {
+                list.remove(secondIndex);
+            }
+            return list;
+        } else {
+            return new ArrayList<>();
+        }
     }
 
     @VisibleForTesting
