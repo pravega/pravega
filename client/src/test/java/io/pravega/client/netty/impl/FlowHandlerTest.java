@@ -15,6 +15,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
+import io.netty.channel.ChannelPromise;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
@@ -79,6 +80,8 @@ public class FlowHandlerTest {
     private EventLoop loop;
     @Mock
     private ChannelFuture completedFuture;
+    @Mock
+    private ChannelPromise promise;
 
     @BeforeClass
     public static void beforeClass() {
@@ -94,6 +97,8 @@ public class FlowHandlerTest {
         when(ctx.channel()).thenReturn(ch);
         when(ch.eventLoop()).thenReturn(loop);
         when(ch.writeAndFlush(any(Object.class))).thenReturn(completedFuture);
+        when(ch.write(any(Object.class))).thenReturn(completedFuture);
+        when(ch.newPromise()).thenReturn(promise);
 
         flowHandler = new FlowHandler("testConnection");
     }
@@ -214,6 +219,16 @@ public class FlowHandlerTest {
         flowHandler.channelUnregistered(ctx);
         assertFalse(flowHandler.isConnectionEstablished());
         assertThrows(ConnectionFailedException.class, () -> clientConnection.send(appendCmd));
+        WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
+        clientConnection.sendAsync(cmd, Assert::assertNotNull);
+        clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
+    }
+
+    @Test
+    public void testSendAsync() throws Exception {
+        @Cleanup
+        ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
+        flowHandler.channelRegistered(ctx);
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, Assert::assertNotNull);
         clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
