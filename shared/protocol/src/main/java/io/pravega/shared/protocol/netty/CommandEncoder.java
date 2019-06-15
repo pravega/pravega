@@ -28,7 +28,6 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -76,7 +75,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private int bytesLeftInBlock;
     private long tokenCounter;
 
-    @Data
+    @RequiredArgsConstructor
     private static final class Session {
         private final UUID id;
         private long lastEventNumber = -1L;
