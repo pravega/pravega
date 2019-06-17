@@ -129,7 +129,7 @@ public class SegmentHelperMock {
             return CompletableFuture.runAsync(() -> {
                 synchronized (lock) {
                     mapOfTables.putIfAbsent(tableName, new HashMap<>());
-                    mapOfTablesPosition.put(tableName, new HashMap<>());
+                    mapOfTablesPosition.putIfAbsent(tableName, new HashMap<>());
                 }
             }, executor);
         }).when(helper).createTableSegment(anyString(), anyString(), anyLong());
