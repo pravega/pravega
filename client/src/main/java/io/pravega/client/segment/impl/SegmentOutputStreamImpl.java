@@ -284,13 +284,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final class ResponseProcessor extends FailingReplyProcessor {
         @Override
         public void connectionDropped() {
-            log.trace("connectionDropped");
+            log.info("Received connectionDropped for writer {}", writerId);
             failConnection(new ConnectionFailedException("Connection dropped for writer " + writerId));
         }
         
         @Override
         public void wrongHost(WrongHost wrongHost) {
-            log.trace("wrongHost");
+            log.info("Received wrongHost for writer {}", writerId);
             failConnection(new ConnectionFailedException(wrongHost.toString()));
         }
 
@@ -312,6 +312,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
+            log.info("Received noSuchSegment for writer {}", writerId);
             final String segment = noSuchSegment.getSegment();
             if (StreamSegmentNameUtils.isTransactionSegment(segment)) {
                 log.info("Transaction Segment: {} no longer exists since the txn is aborted. {}", noSuchSegment.getSegment(),
@@ -328,7 +329,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void dataAppended(DataAppended dataAppended) {
-            log.trace("Received ack: {}", dataAppended);
+            log.trace("Received dataAppended ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
             long previousAckLevel = dataAppended.getPreviousEventNumber();
             try {
@@ -341,7 +342,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void appendSetup(AppendSetup appendSetup) {
-            log.info("Received AppendSetup {}", appendSetup);
+            log.info("Received appendSetup {}", appendSetup);
             long ackLevel = appendSetup.getLastEventNumber();
             ackUpTo(ackLevel);
             List<Append> toRetransmit = state.getAllInflight()
@@ -411,13 +412,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void processingFailure(Exception error) {
-            log.trace("processingFailure");
+            log.info("Received processingFailure with {}", error);
             failConnection(error);
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Token check failed {}", authTokenCheckFailed);
+            log.info("Received authTokenCheckFailed with {}", authTokenCheckFailed);
             failConnection(new TokenException(authTokenCheckFailed.toString()));
         }
     }

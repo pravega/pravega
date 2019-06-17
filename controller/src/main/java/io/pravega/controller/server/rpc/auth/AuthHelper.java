@@ -72,12 +72,8 @@ public class AuthHelper {
             Map<String, Object> claims = new HashMap<>();
             claims.put(resource, String.valueOf(expectedLevel));
 
-            return new JsonWebToken("segmentstoreresource",
-                            "segmentstore",
-                                    tokenSigningKey.getBytes(),
-                                    this.accessTokenTTLInSeconds,
-                                    claims)
-                    .toCompactString();
+            return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
+                            this.accessTokenTTLInSeconds, claims).toCompactString();
         } else {
             return "";
         }
