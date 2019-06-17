@@ -27,11 +27,7 @@ public class AuthHelper {
 
     private final boolean isAuthEnabled;
     private final String tokenSigningKey;
-    private final Optional<Integer> accessTokenTtlInSeconds;
-
-    public AuthHelper(boolean isAuthEnabled, String tokenSigningKey, Integer tokenTtlInSeconds) {
-        this(isAuthEnabled, tokenSigningKey, Optional.ofNullable(tokenTtlInSeconds));
-    }
+    private final Optional<Integer> accessTokenTTLInSeconds;
 
     @VisibleForTesting
     public static AuthHelper getDisabledAuthHelper() {
@@ -79,7 +75,7 @@ public class AuthHelper {
             return new JsonWebToken("segmentstoreresource",
                             "segmentstore",
                                     tokenSigningKey.getBytes(),
-                                    this.accessTokenTtlInSeconds,
+                                    this.accessTokenTTLInSeconds,
                                     claims)
                     .toCompactString();
         } else {

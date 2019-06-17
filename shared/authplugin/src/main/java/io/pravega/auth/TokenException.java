@@ -9,6 +9,9 @@
  */
 package io.pravega.auth;
 
+/**
+ * Superclass for exceptions that can be thrown while handling delegation tokens.
+ */
 public class TokenException extends AuthException {
 
     private static final long serialVersionUID = 1L;

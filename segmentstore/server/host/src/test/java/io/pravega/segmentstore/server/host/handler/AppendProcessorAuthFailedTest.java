@@ -9,10 +9,8 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
-import io.pravega.auth.AuthHandler;
 import io.pravega.auth.TokenException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
-import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.UUID;
@@ -33,17 +31,8 @@ public class AppendProcessorAuthFailedTest {
         connection = mock(ServerConnection.class);
 
         processor = new AppendProcessor(store, connection, new FailingRequestProcessor(),
-                new DelegationTokenVerifier() {
-                    @Override
-                    public boolean isTokenValid(String resource, String token, AuthHandler.Permissions expectedLevel) {
-                        return false;
-                    }
-
-                    @Override
-                    public void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
-                            throws TokenException {
-                        throw new TokenException("Token verification failed.");
-                    }
+                (resource, token, expectedLevel) -> {
+                    throw new TokenException("Token verification failed.");
                 });
     }
 

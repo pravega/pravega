@@ -185,7 +185,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey(),
-                    serviceConfig.getGRPCServerConfig().get().getAccessTokenTtlInSeconds());
+                    serviceConfig.getGRPCServerConfig().get().getAccessTokenTTLInSeconds());
             
             SegmentHelper segmentHelper = segmentHelperRef.get();
             log.info("Creating the stream store");

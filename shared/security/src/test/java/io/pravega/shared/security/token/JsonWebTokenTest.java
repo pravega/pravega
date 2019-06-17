@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,6 +10,7 @@
 package io.pravega.shared.security.token;
 
 import io.jsonwebtoken.Claims;
+import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
 import java.util.HashMap;
 import java.util.Map;
@@ -79,4 +80,18 @@ public class JsonWebTokenTest {
        Claims allClaims = JsonWebToken.parseClaims(token, "signingKeyString".getBytes());
        assertNull(allClaims.getExpiration());
    }
+
+   @Test
+   public void testParseClaimsThrowsExceptionWhenTokenIsNull() {
+       assertThrows(InvalidTokenException.class,
+               () ->  JsonWebToken.parseClaims(null, "token".getBytes())
+       );
+   }
+
+    @Test
+    public void testParseClaimsThrowsExceptionWhenSigningKeyIsNull() throws TokenException {
+        assertThrows(IllegalArgumentException.class,
+                () ->  JsonWebToken.parseClaims("abx.mno.xyz", null)
+        );
+    }
 }

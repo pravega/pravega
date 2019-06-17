@@ -209,7 +209,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             tokenVerifier.verifyToken(segment, delegationToken, READ);
             isTokenValid = true;
         } catch (TokenException e) {
-            log.warn(e.getMessage(), e);
             handleException(requestId, segment, operation, e);
             isTokenValid = false;
         }

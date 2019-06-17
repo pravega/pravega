@@ -9,6 +9,11 @@
  */
 package io.pravega.auth;
 
+/**
+ * Indicates that the token has expired.
+ *
+ * Expiry for a JWT is determined based on 'exp' claim, as described here: https://tools.ietf.org/html/rfc7519#section-4.1.4.
+ */
 public class TokenExpiredException extends TokenException {
 
     private static final long serialVersionUID = 1L;

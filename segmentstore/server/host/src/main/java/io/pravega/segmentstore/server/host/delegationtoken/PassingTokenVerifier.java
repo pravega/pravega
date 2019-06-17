@@ -18,10 +18,5 @@ import io.pravega.auth.AuthHandler;
  */
 public class PassingTokenVerifier implements DelegationTokenVerifier {
     @Override
-    public boolean isTokenValid(String resource, String token, AuthHandler.Permissions expectedLevel) {
-        return true;
-    }
-
-    @Override
     public void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel) {}
 }

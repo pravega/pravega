@@ -27,8 +27,6 @@ import org.junit.Test;
 import static io.pravega.auth.AuthHandler.Permissions.READ;
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class TokenVerifierImplTest {
 
@@ -38,7 +36,6 @@ public class TokenVerifierImplTest {
 
         // No exception is expected here.
         tokenVerifier.verifyToken("xyz", null, READ);
-        assertTrue(tokenVerifier.isTokenValid("xyz", null, READ));
     }
 
     @Test
@@ -48,7 +45,6 @@ public class TokenVerifierImplTest {
         assertThrows(InvalidTokenException.class,
                 () -> tokenVerifier.verifyToken("xyz", null, READ)
         );
-        assertFalse(tokenVerifier.isTokenValid("xyz", null, READ));
     }
 
     @Test
@@ -59,7 +55,6 @@ public class TokenVerifierImplTest {
         assertThrows(TokenExpiredException.class,
                 () -> tokenVerifier.verifyToken("xyz", tokenWithExpiry, READ)
         );
-        assertFalse(tokenVerifier.isTokenValid("xyz", tokenWithExpiry, READ));
     }
 
     @Test
@@ -69,7 +64,6 @@ public class TokenVerifierImplTest {
 
         // No exception is expected here.
         tokenVerifier.verifyToken("s1", tokenWithExpiry, READ_UPDATE);
-        assertTrue(tokenVerifier.isTokenValid("s1", tokenWithExpiry, READ_UPDATE));
     }
 
     @Test
@@ -80,7 +74,6 @@ public class TokenVerifierImplTest {
         assertThrows(InvalidClaimException.class,
                 () -> tokenVerifier.verifyToken("xyz", tokenWithClaim, READ)
         );
-        assertFalse(tokenVerifier.isTokenValid("xyz", tokenWithClaim, READ));
     }
 
     @Test
@@ -91,7 +84,6 @@ public class TokenVerifierImplTest {
         assertThrows(InvalidClaimException.class,
                 () -> tokenVerifier.verifyToken("abc", tokenWithClaim, READ_UPDATE)
         );
-        assertFalse(tokenVerifier.isTokenValid("xyz", tokenWithClaim, READ));
     }
 
     @Test
@@ -100,11 +92,9 @@ public class TokenVerifierImplTest {
 
         String tokenWithWildcardClaim = prepareJwt("*, READ_UPDATE", Integer.MAX_VALUE);
         tokenVerifier.verifyToken("xyz", tokenWithWildcardClaim, READ);
-        assertTrue(tokenVerifier.isTokenValid("xyz", tokenWithWildcardClaim, READ));
 
         String tokenWithSpecificClaim = prepareJwt("abc, READ_UPDATE", Integer.MAX_VALUE);
         tokenVerifier.verifyToken("abc", tokenWithSpecificClaim, READ);
-        assertTrue(tokenVerifier.isTokenValid("abc", tokenWithSpecificClaim, READ));
     }
 
     @Test

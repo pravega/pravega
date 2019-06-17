@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -11,6 +11,7 @@ package io.pravega.shared.security.token;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jws;
@@ -25,7 +26,6 @@ import io.pravega.auth.TokenException;
 import io.pravega.auth.TokenExpiredException;
 import java.time.Instant;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -41,20 +41,51 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class JsonWebToken {
 
+    /**
+     * The value of the JWT "sub" (Subject) claim (https://tools.ietf.org/html/rfc7519#section-4.1.2)
+     */
     private final String subject;
+
+    /**
+     * The value of the JWT "aud" (Sudience) claim (https://tools.ietf.org/html/rfc7519#section-4.1.3)
+     */
     private final String audience;
+
+    /**
+     * The key used for signing the JWT.
+     */
     private final byte[] signingKey;
 
-    private Date expirationTime;
-    private Instant currentInstant;
+    /**
+     * The value of the JWT "exp" (Expiration Time) claim (https://tools.ietf.org/html/rfc7519#section-4.1.4).
+     */
+    private final Date expirationTime;
 
-    private Map<String, Object> permissionsByResource;
-    private SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS512;
+    private final Instant currentInstant;
+    private final Map<String, Object> permissionsByResource;
+    private final SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS512;
 
+    /**
+     * Creates a new instance of this class.
+     *
+     * @param subject the subject of the token
+     * @param audience the intended recipient of the token
+     * @param signingKey the signing key to be used for generating the token signature
+     */
     public JsonWebToken(String subject, String audience, byte[] signingKey) {
         this(subject, audience, signingKey, Optional.empty(), null);
     }
 
+    /**
+     * Creates a new instance of this class.
+     *
+     * @param subject the subject of the token
+     * @param audience the intended recipient of the token
+     * @param signingKey the signing key to be used for generating the token signature
+     * @param timeToLiveInSeconds number of seconds relating to the current time after which the token should expire
+     * @param resourcePermissionClaims a {@link java.util.Map} object with entries comprising of
+     *                                 Pravega resource representation as key and permission as value
+     */
     public JsonWebToken(@NonNull String subject, @NonNull String audience, @NonNull byte[] signingKey,
                         @NonNull Optional<Integer> timeToLiveInSeconds,
                         Map<String, Object> resourcePermissionClaims) {
@@ -73,6 +104,8 @@ public class JsonWebToken {
 
         if (timeToLiveInSeconds.isPresent() && timeToLiveInSeconds.get() != -1) {
             this.expirationTime = Date.from(this.currentInstant.plusSeconds(timeToLiveInSeconds.get()));
+        } else {
+            this.expirationTime = null;
         }
         this.permissionsByResource = resourcePermissionClaims;
     }
@@ -111,6 +144,13 @@ public class JsonWebToken {
     @VisibleForTesting
     static Claims parseClaims(String token, byte[] signingKey) throws TokenExpiredException,
             InvalidTokenException, TokenException {
+
+        if (Strings.isNullOrEmpty(token)) {
+            throw new InvalidTokenException("Token is null or empty");
+        }
+        // We don't need to validate signingKey as the code below will throw IllegalArgumentException if signingKey
+        // is null.
+
         try {
             Jws<Claims> claimsJws = Jwts.parser()
                     .setSigningKey(signingKey)
@@ -119,23 +159,24 @@ public class JsonWebToken {
             return claimsJws.getBody();
         } catch (ExpiredJwtException e) {
             throw new TokenExpiredException(e);
-        } catch (MalformedJwtException | SignatureException | IllegalArgumentException e) {
+        } catch (MalformedJwtException | SignatureException e) {
             throw new InvalidTokenException(e);
         } catch (JwtException e) {
             throw new TokenException(e);
         }
     }
 
+    /**
+     * Fetches claims from a given token.
+     *
+     * @param token the token to fetch the claims from
+     * @param signingKey the key that was used for signing the token
+     * @return a Set view of the mappings contained in this Claims map extracted from the token.
+     *
+     * @throws TokenException if any failure in parsing the token or extracting the claims occurs
+     */
     public static Set<Map.Entry<String, Object>> fetchClaims(String token, byte[] signingKey)
             throws TokenException {
         return parseClaims(token, signingKey).entrySet();
-    }
-
-    public static Map<String, Object> extractCustomClaims(String token, byte[] signingKey) throws TokenException {
-        Claims claims = parseClaims(token, signingKey);
-
-        Map<String, Object> result = new HashMap<>();
-        claims.entrySet().forEach(entry -> result.put(entry.getKey(), entry.getValue()));
-        return result;
     }
 }

@@ -9,6 +9,9 @@
  */
 package io.pravega.auth;
 
+/**
+ * Indicates that the token did not contain a claim being made during token verification.
+ */
 public class InvalidClaimException extends TokenException {
 
     private static final long serialVersionUID = 1L;

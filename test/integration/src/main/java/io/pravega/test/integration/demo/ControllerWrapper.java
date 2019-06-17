@@ -137,7 +137,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .requestTracingEnabled(true)
                 .authorizationEnabled(enableAuth)
                 .tokenSigningKey(tokenSigningKey)
-                .accessTokenTtlInSeconds(accessTokenTtlInSeconds)
+                .accessTokenTTLInSeconds(accessTokenTtlInSeconds)
                 .userPasswordFile(passwordAuthHandlerInputFilePath)
                 .build();
 

@@ -9,6 +9,14 @@
  */
 package io.pravega.auth;
 
+/**
+ * Indicates that the delegation token is invalid.
+ *
+ * The token may be invalid due to these and other reasons:
+ *     - The token is malformed.
+ *     - The token has unexpected content. An example of this is when the token doesn't contain any standard or custom claim.
+ *     - Failed to calculate token signature or to verify it.
+ */
 public class InvalidTokenException extends TokenException {
 
     private static final long serialVersionUID = 1L;

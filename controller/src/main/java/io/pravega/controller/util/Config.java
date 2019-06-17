@@ -331,7 +331,7 @@ public final class Config {
                 .tlsTrustStore(Config.TLS_TRUST_STORE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)
                 .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
-                .accessTokenTtlInSeconds(Config.ACCESS_TOKEN_TTL_IN_SECONDS)
+                .accessTokenTTLInSeconds(Config.ACCESS_TOKEN_TTL_IN_SECONDS)
                 .replyWithStackTraceOnError(Config.REPLY_WITH_STACK_TRACE_ON_ERROR)
                 .requestTracingEnabled(Config.REQUEST_TRACING_ENABLED)
                 .build();

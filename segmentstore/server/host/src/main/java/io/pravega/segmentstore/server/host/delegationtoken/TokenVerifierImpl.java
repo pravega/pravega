@@ -27,8 +27,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class TokenVerifierImpl implements DelegationTokenVerifier {
 
-    private boolean isAuthEnabled;
-    private byte[] tokenSigningKey;
+    private final boolean isAuthEnabled;
+    private final byte[] tokenSigningKey;
 
     public TokenVerifierImpl(AutoScalerConfig config) {
         this(config.isAuthEnabled(), config.getTokenSigningKey());
@@ -40,17 +40,8 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
         if (isAuthEnabled) {
             Exceptions.checkNotNullOrEmpty(tokenSigningKeyBasis, "tokenSigningKeyBasis");
             this.tokenSigningKey = tokenSigningKeyBasis.getBytes();
-        }
-    }
-
-    @Override
-    public boolean isTokenValid(String resource, String token, AuthHandler.Permissions expectedLevel) {
-        try {
-            verifyToken(resource, token, expectedLevel);
-            return true;
-        } catch (TokenException e) {
-            log.warn(e.getMessage(), e);
-            return false;
+        } else {
+            tokenSigningKey = null;
         }
     }
 
@@ -62,42 +53,47 @@ public class TokenVerifierImpl implements DelegationTokenVerifier {
             // All key value pairs inside the payload are returned, including standard fields such as sub (for subject),
             // aud (for audience), iat, exp, as well as custom fields of the form "<resource> -> <permission>" set by
             // Pravega.
-            Set<Map.Entry<String, Object>> claims =
-                    JsonWebToken.fetchClaims(token, tokenSigningKey);
+            Set<Map.Entry<String, Object>> claims = JsonWebToken.fetchClaims(token, tokenSigningKey);
+
+            if (claims == null) {
+                throw new InvalidTokenException("Token has no claims.");
+            }
 
             Optional<Map.Entry<String, Object>> matchingClaim = claims.stream()
-                    .filter(entry -> entryMatchesResource(entry, resource) &&
+                    .filter(entry -> resourceMatchesClaimKey(entry.getKey(), resource) &&
                                      expectedLevel.compareTo(AuthHandler.Permissions.valueOf(entry.getValue().toString())) <= 0)
                     .findFirst();
 
             if (!matchingClaim.isPresent()) {
                 log.trace(String.format("No matching claim found for resource [%s] and permission [%s] in token [%s].",
-                        resource, expectedLevel.toString(), token));
+                        resource, expectedLevel, token));
 
                 throw new InvalidClaimException(String.format(
                         "No matching claim found for resource: [%s] and permission: [%s] in the delegation token.",
-                        resource, expectedLevel.toString()));
+                        resource, expectedLevel));
 
             }
         }
     }
 
-    private boolean entryMatchesResource(Map.Entry<String, Object> entry, String resource) {
-        return resource.equals(entry.getKey()) // exact match
-
-               /*
-                * Examples of matches:
-                *   - Entry = "abc/, ...", resource = "abc/xyx"
-                */
-               || entry.getKey().endsWith("/") && resource.startsWith(entry.getKey())
-
-               /*
-                * Examples of matches:
-                *    1) Entry = "_system/_requeststream, READ_UPDATE", resource = "_system/_requeststream/0.#epoch.0"
-                */
-               || resource.startsWith(entry.getKey() + "/")
-
-               // The wildcard character matches in entry matches every possible resource.
-               || entry.getKey().equals("*");
+    /**
+     * Returns whether the specified resource} string matches the given claim key.
+     *
+     * @param claimKey
+     * @param resource
+     * @return
+     */
+    private boolean resourceMatchesClaimKey(String claimKey, String resource) {
+        /*
+         * Examples of the conditions when the claimKey (key of the key-value pair claim) matches the resource are:
+         *      1) claimKey = "myscope", resource = "myscope"
+         *      2) claimKey = "abc/", resource = "abc/xyx"
+         *      3) claimKey = "_system/_requeststream", resource = "_system/_requeststream/0.#epoch.0"
+         *      4) claimKey = "*" (the wildcard character)
+         */
+        return resource.equals(claimKey) // example 1
+               || claimKey.endsWith("/") && resource.startsWith(claimKey) // example 2
+               || resource.startsWith(claimKey + "/") // example 3
+               || claimKey.equals("*"); // 4
     }
 }
