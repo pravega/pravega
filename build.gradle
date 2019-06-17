@@ -396,7 +396,6 @@ project('segmentstore:server:host') {
         compile project(':segmentstore:storage:impl')
         compile project(':bindings')
         compile project(':segmentstore:server')
-        compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -617,7 +616,6 @@ project('controller') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
