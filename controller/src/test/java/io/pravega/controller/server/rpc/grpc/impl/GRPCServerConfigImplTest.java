@@ -10,8 +10,10 @@
 package io.pravega.controller.server.rpc.grpc.impl;
 
 import org.junit.Test;
+import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl.GRPCServerConfigImplBuilder;
 
 import static org.junit.Assert.assertNotNull;
+
 
 public class GRPCServerConfigImplTest {
 
@@ -21,29 +23,59 @@ public class GRPCServerConfigImplTest {
     // doing that is that the method is hand-rolled and there is a bit of logic there that isn't entirely unlikely to fail.
 
     @Test
-    public void toStringReturnsSuccessfullyWithAllConfigSpecified() {
-        GRPCServerConfigImpl config = new GRPCServerConfigImpl(9090, "localhost",
-                9090, true, "/passwd", true,
-                "/cert.pem", "./key.pem", "secret", 300, "/cert.pem",
-                true, true);
+    public void testToStringReturnsSuccessfullyWithAllConfigSpecified() {
+        GRPCServerConfigImpl config = new GRPCServerConfigImplBuilder().port(9090)
+                .publishedRPCHost("localhost")
+                .publishedRPCPort(9090)
+                .authorizationEnabled(true)
+                .userPasswordFile("/passwd")
+                .tlsEnabled(true)
+                .tlsCertFile("/cert.pem")
+                .tlsKeyFile("./key.pem")
+                .tokenSigningKey("secret")
+                .accessTokenTTLInSeconds(200)
+                .tlsTrustStore("/cert.pem")
+                .replyWithStackTraceOnError(true)
+                .requestTracingEnabled(true)
+                .build();
         assertNotNull(config.toString());
     }
 
     @Test
-    public void toStringReturnsSuccessfullyWithSomeConfigNullOrEmpty() {
-        GRPCServerConfigImpl config = new GRPCServerConfigImpl(9090, null,
-                9090, true, null, true,
-                "", " ", "secret", 300, "/cert.pem",
-                false, true);
+    public void testToStringReturnsSuccessfullyWithSomeConfigNullOrEmpty() {
+        GRPCServerConfigImpl config = new GRPCServerConfigImplBuilder().port(9090)
+                .publishedRPCHost(null)
+                .publishedRPCPort(9090)
+                .authorizationEnabled(true)
+                .userPasswordFile(null)
+                .tlsEnabled(true)
+                .tlsCertFile("")
+                .tlsKeyFile("")
+                .tokenSigningKey("secret")
+                .accessTokenTTLInSeconds(300)
+                .tlsTrustStore("/cert.pem")
+                .replyWithStackTraceOnError(false)
+                .requestTracingEnabled(true)
+                .build();
         assertNotNull(config.toString());
     }
 
     @Test
-    public void toStringReturnsSuccessfullyWithAccessTokenTtlNull() {
-        GRPCServerConfigImpl config = new GRPCServerConfigImpl(9090, null,
-                9090, true, null, true,
-                "", " ", "secret", null, "/cert.pem",
-                false, true);
+    public void testToStringReturnsSuccessfullyWithAccessTokenTtlNull() {
+        GRPCServerConfigImpl config = new GRPCServerConfigImplBuilder().port(9090)
+                .publishedRPCHost("localhost")
+                .publishedRPCPort(9090)
+                .authorizationEnabled(true)
+                .userPasswordFile("/passwd")
+                .tlsEnabled(true)
+                .tlsCertFile("/cert.pem")
+                .tlsKeyFile("./key.pem")
+                .tokenSigningKey("secret")
+                .accessTokenTTLInSeconds(null)
+                .tlsTrustStore("/cert.pem")
+                .replyWithStackTraceOnError(true)
+                .requestTracingEnabled(true)
+                .build();
         assertNotNull(config.toString());
     }
 
