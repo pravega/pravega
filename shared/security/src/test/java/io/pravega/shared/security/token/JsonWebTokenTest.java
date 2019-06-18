@@ -14,7 +14,6 @@ import io.pravega.auth.InvalidTokenException;
 import io.pravega.auth.TokenException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import org.junit.Test;
 
@@ -52,7 +51,7 @@ public class JsonWebTokenTest {
     public void testCtorRejectsInvalidTtl() {
         assertThrows(IllegalArgumentException.class,
                 () -> new JsonWebToken("subject", "audience", "signingKeyString".getBytes(),
-                        Optional.ofNullable(-2), null)
+                        -2, null)
         );
     }
 
@@ -62,7 +61,7 @@ public class JsonWebTokenTest {
         //customClaims.put("abc", "READ_UPDATE");
 
         String token =  new JsonWebToken("subject", "audience", "signingKeyString".getBytes(),
-                                        Optional.ofNullable(Integer.MAX_VALUE), customClaims)
+                                        Integer.MAX_VALUE, customClaims)
                             .toCompactString();
 
         Claims allClaims = JsonWebToken.parseClaims(token, "signingKeyString".getBytes());
@@ -74,7 +73,7 @@ public class JsonWebTokenTest {
    @Test
    public void testTokenDoesNotContainExpiryWhenTtlIsMinusOne() throws TokenException {
        String token =  new JsonWebToken("subject", "audience", "signingKeyString".getBytes(),
-               Optional.ofNullable(-1), null)
+               -1, null)
                .toCompactString();
 
        Claims allClaims = JsonWebToken.parseClaims(token, "signingKeyString".getBytes());

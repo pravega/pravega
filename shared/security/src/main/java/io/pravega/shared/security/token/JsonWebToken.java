@@ -27,7 +27,6 @@ import io.pravega.auth.TokenExpiredException;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import lombok.NonNull;
@@ -73,7 +72,7 @@ public class JsonWebToken {
      * @param signingKey the signing key to be used for generating the token signature
      */
     public JsonWebToken(String subject, String audience, byte[] signingKey) {
-        this(subject, audience, signingKey, Optional.empty(), null);
+        this(subject, audience, signingKey, null, null);
     }
 
     /**
@@ -87,13 +86,13 @@ public class JsonWebToken {
      *                                 Pravega resource representation as key and permission as value
      */
     public JsonWebToken(@NonNull String subject, @NonNull String audience, @NonNull byte[] signingKey,
-                        @NonNull Optional<Integer> timeToLiveInSeconds,
+                        Integer timeToLiveInSeconds,
                         Map<String, Object> resourcePermissionClaims) {
 
-        if (timeToLiveInSeconds.isPresent()) {
+        if (timeToLiveInSeconds != null) {
             // timetoLiveInSeconds = -1 implies that the token never expires.
             // timeToLiveInSeconds = 0 implies token immediately expires.
-            Preconditions.checkArgument(timeToLiveInSeconds.get() >= -1);
+            Preconditions.checkArgument(timeToLiveInSeconds >= -1);
         }
 
         this.subject = subject;
@@ -102,9 +101,10 @@ public class JsonWebToken {
 
         this.currentInstant = Instant.now();
 
-        if (timeToLiveInSeconds.isPresent() && timeToLiveInSeconds.get() != -1) {
-            this.expirationTime = Date.from(this.currentInstant.plusSeconds(timeToLiveInSeconds.get()));
+        if (timeToLiveInSeconds != null && timeToLiveInSeconds != -1) {
+            this.expirationTime = Date.from(this.currentInstant.plusSeconds(timeToLiveInSeconds));
         } else {
+            // Token never expires.
             this.expirationTime = null;
         }
         this.permissionsByResource = resourcePermissionClaims;

@@ -31,7 +31,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final String tlsCertFile;
     private final String tlsKeyFile;
     private final String tokenSigningKey;
-    private final Optional<Integer> accessTokenTTLInSeconds;
+    private final Integer accessTokenTTLInSeconds;
     private final String tlsTrustStore;
     private final boolean replyWithStackTraceOnError;
     private final boolean requestTracingEnabled;
@@ -66,7 +66,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.tlsKeyFile = tlsKeyFile;
         this.tlsTrustStore = tlsTrustStore;
         this.tokenSigningKey = tokenSigningKey;
-        this.accessTokenTTLInSeconds = Optional.ofNullable(accessTokenTTLInSeconds);
+        this.accessTokenTTLInSeconds = accessTokenTTLInSeconds;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.requestTracingEnabled = requestTracingEnabled;
     }
@@ -91,8 +91,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                         Strings.isNullOrEmpty(userPasswordFile) ? "unspecified" : "specified"))
                 .append(String.format("tokenSigningKey is %s, ",
                         Strings.isNullOrEmpty(tokenSigningKey) ? "unspecified" : "specified"))
-                .append(accessTokenTTLInSeconds.isPresent() ?
-                    String.format("accessTokenTTLInSeconds: %s, ", accessTokenTTLInSeconds.get()) : "unspecified")
+                .append(String.format("accessTokenTTLInSeconds: %s, ", accessTokenTTLInSeconds))
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))

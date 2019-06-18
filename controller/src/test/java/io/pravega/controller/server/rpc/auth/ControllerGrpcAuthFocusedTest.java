@@ -78,7 +78,6 @@ import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -146,7 +145,7 @@ public class ControllerGrpcAuthFocusedTest {
                         .credentials(new DefaultCredentials(DEFAULT_PASSWORD, UserNames.ADMIN))
                         .build());
 
-        AuthHelper authHelper = new AuthHelper(true, "secret", Optional.of(300));
+        AuthHelper authHelper = new AuthHelper(true, "secret", 300);
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 EXECUTOR, "host", authHelper, requestTracker);

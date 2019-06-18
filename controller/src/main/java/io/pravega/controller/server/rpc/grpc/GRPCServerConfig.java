@@ -93,7 +93,7 @@ public interface GRPCServerConfig extends ServerConfig {
      *
      * @return time-to-live value of the access token in seconds.
      */
-    Optional<Integer> getAccessTokenTTLInSeconds();
+    Integer getAccessTokenTTLInSeconds();
 
     /**
      * Returns whether the controller should send back to the client a full stack trace describing an error upon a

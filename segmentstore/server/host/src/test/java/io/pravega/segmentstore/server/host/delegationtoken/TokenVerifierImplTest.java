@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.junit.Test;
 
@@ -118,7 +117,7 @@ public class TokenVerifierImplTest {
             permissionsByResource.put(resource, permission);
         }
         JsonWebToken token = new JsonWebToken("segmentstoreresource",
-                "segmentstore", "secret".getBytes(), Optional.ofNullable(ttlInSeconds), permissionsByResource);
+                "segmentstore", "secret".getBytes(), ttlInSeconds, permissionsByResource);
         return token.toCompactString();
     }
 
