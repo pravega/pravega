@@ -91,7 +91,6 @@ public class FlowHandlerTest {
     @Before
     public void setUp() throws Exception {
         flow = new Flow(10, 0);
-        when(buffer.readableBytes()).thenReturn(10);
         appendCmd = new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, flow.asLong());
 
         when(ctx.channel()).thenReturn(ch);

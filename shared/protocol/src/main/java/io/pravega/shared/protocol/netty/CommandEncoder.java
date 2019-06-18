@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.RequiredArgsConstructor;
@@ -68,12 +69,12 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
-    private long currentToken = RESET_TOKEN;
+    private AtomicLong tokenCounter = new AtomicLong(0);
     private String segmentBeingAppendedTo;
     private UUID writerIdPerformingAppends;
     private int currentBlockSize;
     private int bytesLeftInBlock;
-    private long tokenCounter;
+
 
     @RequiredArgsConstructor
     private static final class Session {
@@ -88,66 +89,57 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         log.trace("Encoding message to send over the wire {}", msg);
         if (msg instanceof Append) {
             Append append = (Append) msg;
+            if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
+                breakFromAppend(null, null, out);
+            }
+            ByteBuf data = append.getData().slice();
+            int msgSize = data.readableBytes();
+            AppendBatchSizeTracker blockSizeSupplier = null;
             Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
             validateAppend(append, session);
-            if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
-                breakFromAppend(out);
+            session.lastEventNumber = append.getEventNumber();
+            session.eventCount++;
+            if (appendTracker != null) {
+                blockSizeSupplier = appendTracker.apply(append.getFlowId());
+                blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
             }
-            if (bytesLeftInBlock == 0 && appendTracker != null) {
-                final AppendBatchSizeTracker blockSizeSupplier = appendTracker.apply(append.getFlowId());
-                currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
+            if (bytesLeftInBlock == 0) {
+                if (blockSizeSupplier != null) {
+                    currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
+                } else {
+                    currentBlockSize = msgSize + TYPE_PLUS_LENGTH_SIZE;
+                }
                 bytesLeftInBlock = currentBlockSize;
                 segmentBeingAppendedTo = append.segment;
                 writerIdPerformingAppends = append.writerId;
                 writeMessage(new AppendBlock(session.id), out);
-                if (ctx != null) {
-                    tokenCounter++;
-                    if (tokenCounter == RESET_TOKEN) {
-                        tokenCounter++;
-                    }
-                    currentToken = tokenCounter;
-                    ctx.executor().schedule(new BlockTimeouter(ctx.channel(), currentToken),
+                if (ctx != null && blockSizeSupplier != null && currentBlockSize > (msgSize + TYPE_PLUS_LENGTH_SIZE)) {
+                    ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
                                             blockSizeSupplier.getBatchTimeout(),
                                             TimeUnit.MILLISECONDS);
                 }
             }
-
-            session.lastEventNumber = append.getEventNumber();
-            session.eventCount++;
-            ByteBuf data = append.getData().slice();
-            int msgSize = data.readableBytes();
             // Is there enough space for a subsequent message after this one?
             if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {
                 out.writeBytes(data);
                 bytesLeftInBlock -= msgSize;
             } else {
-                int bytesInBlock = bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE;
-                ByteBuf dataInsideBlock = data.readSlice(bytesInBlock);
-                ByteBuf dataRemainging = data;
-                writeMessage(new PartialEvent(dataInsideBlock), out);
-                writeMessage(new AppendBlockEnd(append.writerId,
-                                                currentBlockSize - bytesLeftInBlock,
-                                                dataRemainging,
-                                                session.eventCount,
-                                                session.lastEventNumber,
-                                                append.getRequestId()), out);
-                bytesLeftInBlock = 0;
-                session.eventCount = 0;
-                currentToken = RESET_TOKEN;
+                ByteBuf dataInsideBlock = data.readSlice(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE);
+                breakFromAppend(dataInsideBlock, data, out);
             }
         } else if (msg instanceof SetupAppend) {
-            breakFromAppend(out);
+            breakFromAppend(null, null, out);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
                               new Session(setup.getWriterId(), setup.getRequestId()));
         } else if (msg instanceof BlockTimeout) {
             BlockTimeout timeoutMsg = (BlockTimeout) msg;
-            if (currentToken == timeoutMsg.token) {
-                breakFromAppend(out);
+            if (tokenCounter.get() == timeoutMsg.token) {
+                breakFromAppend(null, null, out);
             }
         } else if (msg instanceof WireCommand) {
-            breakFromAppend(out);
+            breakFromAppend(null, null, out);
             writeMessage((WireCommand) msg, out);
         } else {
             throw new IllegalArgumentException("Expected a wire command and found: " + msg);
@@ -169,20 +161,23 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 "Bug in CommandEncoder.encode, block is too small.");
     }
 
-    private void breakFromAppend(ByteBuf out) {
+    private void breakFromAppend(ByteBuf data, ByteBuf pendingData, ByteBuf out) {
         if (bytesLeftInBlock != 0) {
-            writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
+            if (data != null) {
+                writeMessage(new PartialEvent(data), out);
+            } else {
+                writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
+            }
             Session session = setupSegments.get(new SimpleImmutableEntry<>(segmentBeingAppendedTo, writerIdPerformingAppends));
-
             writeMessage(new AppendBlockEnd(session.id,
                     currentBlockSize - bytesLeftInBlock,
-                    null,
+                    pendingData,
                     session.eventCount,
                     session.lastEventNumber, session.requestId), out);
             bytesLeftInBlock = 0;
             currentBlockSize = 0;
             session.eventCount = 0;
-            currentToken = RESET_TOKEN;
+            tokenCounter.incrementAndGet();
         }
         segmentBeingAppendedTo = null;
         writerIdPerformingAppends = null;
@@ -223,13 +218,15 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     @RequiredArgsConstructor
-    private static final class BlockTimeouter implements Runnable {
+    private final class BlockTimeouter implements Runnable {
         private final Channel channel;
         private final long token;
 
         @Override
         public void run() {
-            channel.writeAndFlush(new BlockTimeout(token));
+            if (tokenCounter.get() == token) {
+                channel.writeAndFlush(new BlockTimeout(token));
+            }
         }
     }
 

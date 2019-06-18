@@ -407,7 +407,7 @@ public class AppendEncodeDecodeTest {
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
-        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(3));
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
         Append msg = new Append("segment", writerId, 1, event, 1);
         CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
@@ -416,11 +416,7 @@ public class AppendEncodeDecodeTest {
         ArrayList<Object> received = new ArrayList<>();
         commandEncoder.encode(ctx, msg, fakeNetwork);
         read(fakeNetwork, received);
-        assertEquals(2, received.size());
-        Append readAppend = (Append) received.get(1);
-        assertEquals(msg.data.readableBytes(), readAppend.data.readableBytes());
-        assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
-
+        assertEquals(1, received.size());
     }
 
     @Test(expected = InvalidMessageException.class)
