@@ -30,6 +30,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
@@ -353,8 +354,16 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Unsupported Operation '{}'.", doingWhat, u);
             connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
         } else {
-            log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
+            logError(segment, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
+        }
+    }
+
+    private void logError(String segment, Throwable u) {
+        if (u instanceof IllegalContainerStateException) {
+            log.warn("Error (Segment = '{}', Operation = 'append'): {}.", segment, u.toString());
+        } else {
+            log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
         }
     }
 
