@@ -148,16 +148,22 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     @Override
-    public void deleteSegment(String segmentName) {
-        getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(segmentName));
-        getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(segmentName));
-        getDynamicLogger().freezeCounter(SEGMENT_READ_BYTES, segmentTags(segmentName));
+    public void deleteSegment(String streamSegmentName) {
+        // Do not close the counter of parent segment when delete transaction segment.
+        if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
+            getDynamicLogger().freezeCounter(SEGMENT_READ_BYTES, segmentTags(streamSegmentName));
+        }
     }
 
     @Override
     public void sealSegment(String streamSegmentName) {
-        getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
-        getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
+        // Do not close the counter of parent segment when seal transaction segment.
+        if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
+        }
         if (getSegmentAggregate(streamSegmentName) != null) {
             cache.invalidate(streamSegmentName);
             reporter.notifySealed(streamSegmentName);

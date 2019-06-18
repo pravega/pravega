@@ -103,6 +103,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 }
             });
             counter.add(delta);
+            log.debug("Metrics: increased counter {} by {} ", keys.getCacheKey(), delta);
         } catch (ExecutionException e) {
             log.error("Error while countersCache create counter", e);
         }
@@ -115,10 +116,12 @@ public class DynamicLoggerImpl implements DynamicLogger {
         Counter counter = countersCache.getIfPresent(keys.getCacheKey());
         if (counter != null) {
             counter.clear();
+            log.debug("Metrics: cleared counter {}", keys.getCacheKey());
         } else {
             counter = underlying.createCounter(keys.getRegistryKey(), tags);
         }
         counter.add(value);
+        log.debug("Metrics: increased counter {} by {} ", keys.getCacheKey(), value);
         countersCache.put(keys.getCacheKey(), counter);
     }
 
@@ -128,6 +131,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
         Counter counter = countersCache.getIfPresent(keys.getCacheKey());
         if (counter != null) {
             metrics.remove(counter.getId());
+            log.debug("Metrics: removed counter {} from registry.", keys.getCacheKey());
         }
         countersCache.invalidate(keys.getRegistryKey());
     }
@@ -145,6 +149,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 }
             });
             gauge.setSupplier(value::doubleValue);
+            log.debug("Metrics: set supplier for gauge {}; and current value is {}", keys.getCacheKey(), value.doubleValue());
         } catch (ExecutionException e) {
             log.error("Error accessing gauge through gaugesCache", e);
         }
@@ -156,6 +161,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
         Gauge gauge = gaugesCache.getIfPresent(keys.getCacheKey());
         if (gauge != null) {
             metrics.remove(gauge.getId());
+            log.debug("Metrics: removed gauge {} from registry", keys.getCacheKey());
         }
         gaugesCache.invalidate(keys.getCacheKey());
     }
@@ -173,6 +179,7 @@ public class DynamicLoggerImpl implements DynamicLogger {
                 }
             });
             meter.recordEvents(number);
+            log.debug("Metrics: record meter {} for event {}", keys.getCacheKey(), number);
         } catch (ExecutionException e) {
             log.error("Error while metersCache create meter", e);
         }
