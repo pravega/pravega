@@ -65,8 +65,6 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 @Slf4j
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
-    private static final long RESET_TOKEN = 0;
-
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
     private AtomicLong tokenCounter = new AtomicLong(0);
@@ -74,7 +72,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private UUID writerIdPerformingAppends;
     private int currentBlockSize;
     private int bytesLeftInBlock;
-
 
     @RequiredArgsConstructor
     private static final class Session {
@@ -229,5 +226,4 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             }
         }
     }
-
 }

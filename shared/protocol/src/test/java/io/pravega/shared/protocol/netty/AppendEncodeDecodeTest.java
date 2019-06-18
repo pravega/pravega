@@ -38,6 +38,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.Executors;
 
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +68,7 @@ public class AppendEncodeDecodeTest {
     private Level origionalLogLevel;
 
     private EventExecutor executor =  new EventExecutor() {
+        private final ScheduledExecutorService schedular  = Executors.newSingleThreadScheduledExecutor();
         @Override
         public EventExecutor next() {
             return null;
@@ -158,7 +161,7 @@ public class AppendEncodeDecodeTest {
 
         @Override
         public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-            command.run();
+            schedular.schedule(command, delay, unit);
             return null;
         }
 
@@ -311,7 +314,15 @@ public class AppendEncodeDecodeTest {
         // Simulate an error by directly sending AppendBlockEnd.
         appendDecoder.processCommand((WireCommand) appendBlock);
     }
-    
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testIlligalWireCommand() throws Exception {
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        CommandEncoder commandEncoder = new CommandEncoder(null);
+        commandEncoder.encode(ctx, null, fakeNetwork);
+    }
+
     @Test
     public void testVerySmallBlockSize() throws Exception {
         @Cleanup("release")
@@ -399,6 +410,7 @@ public class AppendEncodeDecodeTest {
         assertEquals(keepAlive, two);
     }
 
+
     @Test
     public void testAppendWithoutBatchTracker() throws Exception {
         @Cleanup("release")
@@ -435,9 +447,17 @@ public class AppendEncodeDecodeTest {
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
         ArrayList<Object> received = new ArrayList<>();
+        Mockito.when(ch.writeAndFlush(Mockito.any())).thenAnswer(i -> {
+           commandEncoder.encode(ctx, i.getArgument(0), fakeNetwork);
+           return null;
+        });
         commandEncoder.encode(ctx, msg, fakeNetwork);
+        Thread.sleep(idBatchSizeTrackerMap.get(1L).getBatchTimeout() + 100);
         read(fakeNetwork, received);
-        assertEquals(1, received.size());
+        assertEquals(2, received.size());
+        Append readAppend = (Append) received.get(1);
+        assertEquals(msg.data.readableBytes(), readAppend.data.readableBytes());
+        assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
     }
 
     @Test(expected = InvalidMessageException.class)
