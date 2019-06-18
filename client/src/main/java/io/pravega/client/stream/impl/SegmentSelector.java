@@ -81,6 +81,13 @@ public class SegmentSelector {
         return currentSegments.getSegmentForKey(routingKey);
     }
 
+    /**
+     * Refresh segment writers corresponding to the successors of the sealed segment and return inflight event list of the sealed segment.
+     * The segment writer for sealed segment is not removed.
+     * @param sealedSegment The sealed segment.
+     * @param segmentSealedCallback Sealed segment callback.
+     * @return List of pending events.
+     */
     public List<PendingEvent> refreshSegmentEventWritersUponSealed(Segment sealedSegment, Consumer<Segment> segmentSealedCallback) {
         StreamSegmentsWithPredecessors successors = Futures.getAndHandleExceptions(
                 controller.getSuccessors(sealedSegment), t -> {
@@ -110,6 +117,15 @@ public class SegmentSelector {
         return updateSegments(Futures.getAndHandleExceptions(
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new),
                 segmentSealedCallBack);
+    }
+
+    /**
+     * Remove a segment writer.
+     * @param segment The segment whose writer should be removed.
+     */
+    @Synchronized
+    void removeSegmentWriter(Segment segment) {
+        writers.remove(segment);
     }
 
     @Synchronized
@@ -142,7 +158,7 @@ public class SegmentSelector {
         currentSegments = currentSegments.withReplacementRange(sealedSegment, successors);
         createMissingWriters(segmentSealedCallback, currentSegments.getDelegationToken());
         log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
-        return writers.remove(sealedSegment).getUnackedEventsOnSeal();
+        return writers.get(sealedSegment).getUnackedEventsOnSeal();
     }
 
     @Synchronized

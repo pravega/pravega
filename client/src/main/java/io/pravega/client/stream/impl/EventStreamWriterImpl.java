@@ -142,7 +142,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         retransmitPool.execute(() -> {
             Retry.indefinitelyWithExpBackoff(config.getInitalBackoffMillis(), config.getBackoffMultiple(),
                                              config.getMaxBackoffMillis(),
-                                             t -> log.error("Encountered excemption when handeling a sealed segment: ", t))
+                                             t -> log.error("Encountered exception when handling a sealed segment: ", t))
                  .run(() -> {
                      /*
                       * Using writeSealLock prevents concurrent segmentSealedCallback for different segments
@@ -157,6 +157,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                          log.info("Sealing segment {} ", toSeal);
                          while (toSeal != null) {
                              resend(selector.refreshSegmentEventWritersUponSealed(toSeal, segmentSealedCallBack));
+                             // remove segment writer after resending inflight events of the sealed segment.
+                             selector.removeSegmentWriter(toSeal);
                              /* In the case of segments merging Flush ensures there can't be anything left
                               * inflight that will need to be resent to the new segment when the write lock
                               * is released. (To preserve order)
@@ -380,7 +382,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
             return;
         }
         pinger.close();
-        synchronized (writeFlushLock) { 
+        synchronized (writeFlushLock) {
             boolean success = false;
             while (!success) {
                 success = true;
