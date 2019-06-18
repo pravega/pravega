@@ -81,9 +81,14 @@ public class TaskStoreFactoryForTests {
 
             CompletableFuture<Void> lf = latch.get();
             if (lf != null && first.getAndSet(false)) {
+                log.debug("Waiting on the second thread to request the lock and complete the future");
                 lf.join();
             } else if (lf != null) {
+                log.debug("I'm the second thread, completing the future");
                 lf.complete(null);
+                latch.set(null);
+            } else {
+                log.debug("Latch is null");
             }
 
             return future;
@@ -120,9 +125,14 @@ public class TaskStoreFactoryForTests {
 
             CompletableFuture<Void> lf = latch.get();
             if (lf != null && first.getAndSet(false)) {
+                log.debug("Waiting on the second thread to request the lock and complete the future");
                 lf.join();
             } else if (lf != null) {
+                log.debug("I'm the second thread, completing the future");
                 lf.complete(null);
+                latch.set(null);
+            } else {
+                log.debug("Latch is null");
             }
 
             return future;
