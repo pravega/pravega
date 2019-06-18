@@ -129,23 +129,20 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
 
     @Test
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
-        try {
-            createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
+        createWriters(clientFactory, NUM_WRITERS, scope, STREAM_NAME);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, STREAM_NAME, NUM_READERS);
 
-            //run the failover test
-            performFailoverForTestsInvolvingTxns();
+        //run the failover test
+        performFailoverForTestsInvolvingTxns();
 
-            stopWriters();
-            waitForTxnsToComplete();
-            stopReaders();
-            validateResults();
+        stopWriters();
+        waitForTxnsToComplete();
+        stopReaders();
+        validateResults();
 
-            cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+        cleanUp(scope, STREAM_NAME, readerGroupManager, readerGroupName); //cleanup if validation is successful.
 
-            log.info("Test MultiReaderWriterTxnWithFailOver succeeds");
-        } finally {
-            testState.checkForAnomalies();
-        }
+        testState.checkForAnomalies();
+        log.info("Test MultiReaderWriterTxnWithFailOver succeeds");
     }
 }

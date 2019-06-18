@@ -132,20 +132,6 @@ public abstract class AbstractService implements Service {
 
         // generate Pravega Spec.
         final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
-        final ImmutableMap<String, String> options = ImmutableMap.<String, String>builder()
-                // Segment store properties.
-                .put("autoScale.muteInSeconds", "120")
-                .put("autoScale.cooldownInSeconds", "120")
-                .put("autoScale.cacheExpiryInSeconds", "120")
-                .put("autoScale.cacheCleanUpInSeconds", "120")
-                .put("curator-default-session-timeout", "10000")
-                .put("bookkeeper.bkAckQuorumSize", "3")
-                .put("hdfs.replaceDataNodesOnFailure", "false")
-                // Controller properties.
-                .put("controller.transaction.maxLeaseValue", "60000")
-                .put("controller.retention.frequencyMinutes", "2")
-                .put("log.level", "DEBUG")
-                .build();
 
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                                                                                       .put("segmentStoreReplicas", segmentStoreCount)
