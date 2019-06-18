@@ -38,6 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -58,6 +59,11 @@ import lombok.val;
 class ContainerKeyIndex implements AutoCloseable {
     //region Members
 
+    /**
+     * The maximum unindexed length ({@link SegmentProperties#getLength() - {@link TableAttributes#INDEX_OFFSET}}) of a
+     * Segment for which {@link #cacheTailIndex} can be invoked.
+     */
+    private static final int MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024 * 1024;
     @Getter
     private final IndexReader indexReader;
     private final ScheduledExecutorService executor;
@@ -138,7 +144,7 @@ class ContainerKeyIndex implements AutoCloseable {
      * </ul>
      */
     <T> CompletableFuture<T> executeIfEmpty(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> action, TimeoutTimer timer) {
-        return this.recoveryTracker.waitIfNeeded(segment, () -> this.conditionalUpdateProcessor.addWithFilter(
+        return this.recoveryTracker.waitIfNeeded(segment, ignored -> this.conditionalUpdateProcessor.addWithFilter(
                 conditionKey -> conditionKey.getKey() == segment.getSegmentId(),
                 () -> isTableSegmentEmpty(segment, timer)
                         .thenCompose(isEmpty -> {
@@ -248,7 +254,7 @@ class ContainerKeyIndex implements AutoCloseable {
             return CompletableFuture.completedFuture(result);
         } else {
             // Fetch information for missing hashes.
-            return this.recoveryTracker.waitIfNeeded(segment, () -> getBucketOffsetFromSegment(segment, result, toLookup, timer));
+            return this.recoveryTracker.waitIfNeeded(segment, cacheUpdated -> getBucketOffsetFromSegment(segment, result, toLookup, cacheUpdated, timer));
         }
     }
 
@@ -267,12 +273,12 @@ class ContainerKeyIndex implements AutoCloseable {
     CompletableFuture<Long> getBucketOffsetDirect(DirectSegmentAccess segment, UUID keyHash, TimeoutTimer timer) {
         // Get the bucket offset from the segment, which will update the cache if actually newer.
         return this.recoveryTracker.waitIfNeeded(segment,
-                () -> getBucketOffsetFromSegment(segment, Collections.synchronizedMap(new HashMap<>()), Collections.singleton(keyHash), timer)
+                cacheUpdated -> getBucketOffsetFromSegment(segment, Collections.synchronizedMap(new HashMap<>()), Collections.singleton(keyHash), cacheUpdated, timer)
                         .thenApply(result -> result.get(keyHash)));
     }
 
     private CompletableFuture<Map<UUID, Long>> getBucketOffsetFromSegment(DirectSegmentAccess segment, Map<UUID, Long> result,
-                                                                          Collection<UUID> toLookup, TimeoutTimer timer) {
+                                                                          Collection<UUID> toLookup, boolean tryCache, TimeoutTimer timer) {
         return this.indexReader
                 .locateBuckets(segment, toLookup, timer)
                 .thenApplyAsync(bucketsByHash -> {
@@ -280,12 +286,16 @@ class ContainerKeyIndex implements AutoCloseable {
                         UUID keyHash = e.getKey();
                         TableBucket bucket = e.getValue();
 
-                        // Cache the bucket's location, but only if its path is complete.
+                        // Cache the bucket's location, but only if it exists.
                         if (bucket.exists()) {
                             // Update the cache information.
                             long highestOffset = this.cache.includeExistingKey(
                                     segment.getSegmentId(), keyHash, bucket.getSegmentOffset());
                             result.put(keyHash, highestOffset);
+                        } else if (tryCache) {
+                            // We were instructed to retry the cache.
+                            val existingValue = this.cache.get(segment.getSegmentId(), keyHash);
+                            result.put(keyHash, existingValue == null || existingValue.isRemoval() ? TableKey.NOT_EXISTS : existingValue.getSegmentOffset());
                         } else {
                             // Inexistent bucket. What we are looking for does not exist. Do not update the information
                             // in the cache as this would have the potential to fill up the cache with useless keys
@@ -320,7 +330,7 @@ class ContainerKeyIndex implements AutoCloseable {
             return this.indexReader.getBackpointerOffset(segment, offset, timeout);
         } else {
             // Nothing in the tail cache; look it up in the index.
-            return this.recoveryTracker.waitIfNeeded(segment, () -> this.indexReader.getBackpointerOffset(segment, offset, timeout));
+            return this.recoveryTracker.waitIfNeeded(segment, ignored -> this.indexReader.getBackpointerOffset(segment, offset, timeout));
         }
     }
 
@@ -507,7 +517,52 @@ class ContainerKeyIndex implements AutoCloseable {
     CompletableFuture<Map<UUID, CacheBucketOffset>> getUnindexedKeyHashes(DirectSegmentAccess segment) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         return this.recoveryTracker.waitIfNeeded(segment,
-                () -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));
+                ignored -> CompletableFuture.completedFuture(this.cache.getTailHashes(segment.getSegmentId())));
+    }
+
+    /**
+     * Reads the tail section (beyond {@link TableAttributes#INDEX_OFFSET}) of the given segment and caches the latest
+     * values recorded there in the tail index.
+     *
+     * The operation will not execute if any of the following is true:
+     * - The tail section has a length of 0.
+     * - The tail section has a length exceeding {@link #MAX_TAIL_CACHE_PRE_INDEX_LENGTH}.
+     *
+     * NOTE: this does not peform a proper recovery nor does it update the durable index - it simply caches the values.
+     * The {@link WriterTableProcessor} must be used to update the index.
+     *
+     * @param segment       A {@link DirectSegmentAccess} representing the Segment for which to cache the tail index.
+     * @param getKeyOffsets A {@link GetKeyOffsets} function that, when invoked, will read the updated keys between the
+     *                      given arguments.
+     * @param timer         Timer for the operation.
+     * @return A CompletableFuture that will indicate when the operation is completed.
+     */
+    CompletableFuture<Void> cacheTailIndex(DirectSegmentAccess segment, GetKeyOffsets getKeyOffsets, TimeoutTimer timer) {
+        SegmentProperties sp = segment.getInfo();
+        long lastIndexedOffset = this.indexReader.getLastIndexedOffset(sp);
+        long segmentLength = sp.getLength();
+        long tailIndexLength = segmentLength - lastIndexedOffset;
+        if (lastIndexedOffset >= segmentLength) {
+            // Fully caught up. Nothing else to do.
+            log.debug("{}: Table Segment {} fully indexed.", this.traceObjectId, segment.getSegmentId());
+            return CompletableFuture.completedFuture(null);
+        } else if (tailIndexLength > MAX_TAIL_CACHE_PRE_INDEX_LENGTH) {
+            log.debug("{}: Table Segment {} cannot perform tail-caching because tail index too long ({}).", this.traceObjectId,
+                    segment.getSegmentId(), tailIndexLength);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        log.debug("{}: Tail-caching started for Table Segment {}. LastIndexedOffset={}, SegmentLength={}.",
+                this.traceObjectId, segment.getSegmentId(), lastIndexedOffset, segmentLength);
+        this.recoveryTracker.beginRecovery(segment.getSegmentId(), segmentLength);
+        return getKeyOffsets
+                .apply(segment, lastIndexedOffset, (int) tailIndexLength, timer)
+                .thenAcceptAsync(updates -> {
+                    this.cache.includeTailCache(segment.getSegmentId(), updates);
+                    log.debug("{}: Tail-caching complete for Table Segment {}. Update Count={}.",
+                            this.traceObjectId, segment.getSegmentId(), updates.size());
+                    this.recoveryTracker.updateSegmentIndexOffset(segment.getSegmentId(), segmentLength, updates.size() > 0);
+                }, this.executor);
     }
 
     //endregion
@@ -546,6 +601,17 @@ class ContainerKeyIndex implements AutoCloseable {
          * @param indexOffset The current Index Offset. -1 means it has been evicted and tasks should be cancelled.
          */
         void updateSegmentIndexOffset(long segmentId, long indexOffset) {
+            updateSegmentIndexOffset(segmentId, indexOffset, false);
+        }
+
+        /**
+         * Updates the SegmentIndexOffset for the given Segment and releases any blocked tasks, if appropriate.
+         *
+         * @param segmentId    The Segment id.
+         * @param indexOffset  The current Index Offset. -1 means it has been evicted and tasks should be cancelled.
+         * @param cacheUpdated True if the cache was updated during the recovery process.
+         */
+        void updateSegmentIndexOffset(long segmentId, long indexOffset, boolean cacheUpdated) {
             boolean removed = indexOffset < 0;
             RecoveryTask task;
             synchronized (this) {
@@ -578,9 +644,23 @@ class ContainerKeyIndex implements AutoCloseable {
                 } else {
                     // Notify whoever is waiting that it's all clear to execute.
                     log.debug("{}: TableSegment {} fully recovered; triggering dependent tasks.", traceObjectId, segmentId);
-                    task.task.complete(null);
+                    task.task.complete(cacheUpdated);
                 }
             }
+        }
+
+        /**
+         * Notifies that a recovery for the given segment has begun. Any operations that require this Table Segment to be
+         * fully indexed will now be blocked until this recovery task completes.
+         *
+         * @param segmentId     The Segment Id to begin recovery on.
+         * @param segmentLength The current length of the segment.
+         * @return A {@link RecoveryTask} that tracks the Table Segment's recovery.
+         */
+        synchronized RecoveryTask beginRecovery(long segmentId, long segmentLength) {
+            RecoveryTask task = new RecoveryTask(segmentLength);
+            this.recoveryTasks.put(segmentId, task);
+            return task;
         }
 
         /**
@@ -588,12 +668,13 @@ class ContainerKeyIndex implements AutoCloseable {
          * If the Segment's Index is up-to-date, the given task is executed right away.
          *
          * @param segment   The Segment to execute the task on.
-         * @param toExecute A Supplier that, when invoked, will execute a task and return a CompletableFuture which will
-         *                  complete when the task is done.
+         * @param toExecute A Function that, when invoked, will execute a task and return a CompletableFuture which will
+         *                  complete when the task is done. The argument to this Function is a boolean indicating whether
+         *                  the Cache has been updated during the recovery.
          * @param <T>       Return type.
          * @return A CompletableFuture that will be completed when the task is done.
          */
-        <T> CompletableFuture<T> waitIfNeeded(DirectSegmentAccess segment, Supplier<CompletableFuture<T>> toExecute) {
+        <T> CompletableFuture<T> waitIfNeeded(DirectSegmentAccess segment, Function<Boolean, CompletableFuture<T>> toExecute) {
             RecoveryTask task = null;
             synchronized (this) {
                 if (!this.recoveredSegments.contains(segment.getSegmentId())) {
@@ -610,8 +691,7 @@ class ContainerKeyIndex implements AutoCloseable {
                         } else {
                             // Need to catch up. Setup a RecoveryTask that will be completed once we are notified that
                             // the Segment's LastIndexedOffset is at least the current length.
-                            task = new RecoveryTask(segmentLength);
-                            this.recoveryTasks.put(segment.getSegmentId(), task);
+                            task = beginRecovery(segment.getSegmentId(), segmentLength);
                         }
                     }
                 }
@@ -619,20 +699,25 @@ class ContainerKeyIndex implements AutoCloseable {
 
             if (task == null) {
                 // No recovery task. Execute right away.
-                return toExecute.get();
+                return toExecute.apply(false);
             } else {
                 // A recovery task is registered. Queue behind it.
                 log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
-                return task.task.thenComposeAsync(ignored -> toExecute.get(), executor);
+                return task.task.thenComposeAsync(toExecute, executor);
             }
         }
 
         @RequiredArgsConstructor
         private class RecoveryTask {
             final long triggerIndexOffset;
-            final CompletableFuture<Void> task = new CompletableFuture<>();
+            final CompletableFuture<Boolean> task = new CompletableFuture<>();
         }
     }
 
     //endregion
+
+    @FunctionalInterface
+    interface GetKeyOffsets {
+        CompletableFuture<Map<UUID, CacheBucketOffset>> apply(DirectSegmentAccess segment, long fromOffset, int length, TimeoutTimer timer);
+    }
 }

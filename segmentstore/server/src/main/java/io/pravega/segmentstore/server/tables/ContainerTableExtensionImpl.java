@@ -20,6 +20,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
+import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.contracts.tables.IteratorItem;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
@@ -31,12 +32,15 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
 import io.pravega.segmentstore.storage.CacheFactory;
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -49,6 +53,7 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -137,6 +142,16 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         }
 
         return Collections.singletonList(new WriterTableProcessor(new TableWriterConnectorImpl(metadata), this.executor));
+    }
+
+    @Override
+    public CompletableFuture<Void> cacheTailIndex(String segmentName, Duration timeout) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        logRequest("cacheTailIndex", segmentName);
+        val timer = new TimeoutTimer(timeout);
+        return this.segmentContainer
+                .forSegment(segmentName, timer.getRemaining())
+                .thenComposeAsync(segment -> this.keyIndex.cacheTailIndex(segment, this::readUpdates, timer), this.executor);
     }
 
     //endregion
@@ -316,6 +331,30 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         byte[] s = new byte[serializationLength];
         serializer.accept(toCommit, s);
         return segment.append(s, null, timeout);
+    }
+
+    private CompletableFuture<Map<UUID, CacheBucketOffset>> readUpdates(@NonNull DirectSegmentAccess segment, long fromOffset, int length, @NonNull TimeoutTimer timer) {
+        Preconditions.checkArgument(fromOffset >= 0, "fromOffset must be a non-negative number.");
+        Preconditions.checkArgument(length > 0, "length must be a positive integer.");
+        ReadResult rr = segment.read(fromOffset, length, timer.getRemaining());
+        return AsyncReadResultProcessor
+                .processAll(rr, this.executor, timer.getRemaining())
+                .thenApply(inputStream -> collectLatestOffsets(inputStream, fromOffset, length));
+    }
+
+    @SneakyThrows(IOException.class)
+    private Map<UUID, CacheBucketOffset> collectLatestOffsets(InputStream input, long startOffset, int maxLength) {
+        val entries = new HashMap<UUID, CacheBucketOffset>();
+        long nextOffset = startOffset;
+        final long maxOffset = startOffset + maxLength;
+        while (nextOffset < maxOffset) {
+            val e = AsyncTableEntryReader.readEntryComponents(input, nextOffset, this.serializer);
+            val hash = this.hasher.hash(e.getKey());
+            entries.put(hash, new CacheBucketOffset(nextOffset, e.getHeader().isDeletion()));
+            nextOffset += e.getHeader().getTotalLength();
+        }
+
+        return entries;
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState,

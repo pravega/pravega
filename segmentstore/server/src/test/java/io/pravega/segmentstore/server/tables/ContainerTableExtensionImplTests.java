@@ -412,7 +412,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val data = generateTestData(context);
 
         // Process each such batch in turn.
-        for (val current : data) {
+        for (int i = 0; i < data.size(); i++) {
+            val current = data.get(i);
+
             // First, add the updates from this iteration to the index, but do not flush them. The only long-term effect
             // of this is writing the data to the Segment.
             try (val ext = context.createExtension()) {
@@ -431,6 +433,11 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 long segmentLength = context.segment().getInfo().getLength();
                 AssertExtensions.assertGreaterThan("Expected some unindexed data.", lastIndexedOffset, segmentLength);
 
+                // We test 3 cases: 1) Preindexing with no Processor, 2) Processor with no Preindexing and 3) both.
+                boolean usePreIndex = i % 3 < 2;  // 0 and 1
+                boolean useProcessor = i % 3 > 0; // 1 and 2
+                Assert.assertTrue("At least one recovery method expected.", usePreIndex || useProcessor);
+
                 // Verify get requests are blocked.
                 val blockedKey = current.expectedEntries.keySet().stream().findFirst().orElse(null);
                 val blockedGet = ext.get(SEGMENT_NAME, Collections.singletonList(blockedKey), TIMEOUT);
@@ -439,12 +446,19 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                         () -> blockedGet.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
                         ex -> ex instanceof TimeoutException);
 
-                // Create, populate, and flush the processor.
-                @Cleanup
-                val processor = (WriterTableProcessor) ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
-                addToProcessor(lastIndexedOffset, (int) (segmentLength - lastIndexedOffset), processor);
-                processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+                if (usePreIndex) {
+                    // Use pre-indexing.
+                    ext.cacheTailIndex(SEGMENT_NAME, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                }
+
+                if (useProcessor) {
+                    // Create, populate, and flush the processor.
+                    @Cleanup
+                    val processor = (WriterTableProcessor) ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
+                    addToProcessor(lastIndexedOffset, (int) (segmentLength - lastIndexedOffset), processor);
+                    processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+                }
 
                 val blockedGetResult = blockedGet.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.assertEquals("Unexpected completion result for previously blocked get.",

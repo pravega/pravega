@@ -208,6 +208,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
                         // are not required for accepting new operations and can still start in the background.
                         notifyStarted();
+
+                        // Request that the Metadata Store pre-cache the index. We do not care if or when this task finishes
+                        // successfully or whether it failed. It is not meant to provide any critical services to the Segment
+                        // Container, rather it is meant to perform certain optimizations that can help later on.
+                        this.metadataStore.cacheIndex(this.config.getMetadataStoreInitTimeout());
                     } else {
                         doStop(ex);
                     }
