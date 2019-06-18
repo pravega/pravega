@@ -400,6 +400,27 @@ public class AppendEncodeDecodeTest {
     }
 
     @Test
+    public void testAppendWithoutBatchTracker() throws Exception {
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        byte[] content = new byte[100];
+        Arrays.fill(content, (byte) 1);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        Append msg = new Append("segment", writerId, 1, event, 1);
+        CommandEncoder commandEncoder = new CommandEncoder(null);
+        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        ArrayList<Object> received = new ArrayList<>();
+        commandEncoder.encode(ctx, msg, fakeNetwork);
+        read(fakeNetwork, received);
+        assertEquals(2, received.size());
+        Append readAppend = (Append) received.get(1);
+        assertEquals(msg.data.readableBytes(), readAppend.data.readableBytes());
+        assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
+    }
+
+    @Test
     public void testblockTimeout() throws Exception {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
