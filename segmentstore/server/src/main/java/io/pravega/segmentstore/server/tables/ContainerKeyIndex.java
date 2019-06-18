@@ -659,7 +659,7 @@ class ContainerKeyIndex implements AutoCloseable {
          */
         synchronized RecoveryTask beginRecovery(long segmentId, long segmentLength) {
             RecoveryTask task = new RecoveryTask(segmentLength);
-            this.recoveryTasks.put(segmentId, task);
+            this.recoveryTasks.putIfAbsent(segmentId, task);
             return task;
         }
 
