@@ -181,6 +181,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
+            this.metadataStore.close();
             this.extensions.values().forEach(SegmentContainerExtension::close);
             Futures.await(Services.stopAsync(this, this.executor));
             this.metadataCleaner.close();
