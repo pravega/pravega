@@ -46,6 +46,7 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
@@ -53,6 +54,7 @@ import lombok.val;
  * of recently used Keys for faster access.
  */
 @ThreadSafe
+@Slf4j
 class ContainerKeyIndex implements AutoCloseable {
     //region Members
 
@@ -64,6 +66,7 @@ class ContainerKeyIndex implements AutoCloseable {
     private final MultiKeySequentialProcessor<Map.Entry<Long, UUID>> conditionalUpdateProcessor;
     private final RecoveryTracker recoveryTracker;
     private final AtomicBoolean closed;
+    private final String traceObjectId;
 
     //endregion
 
@@ -86,6 +89,7 @@ class ContainerKeyIndex implements AutoCloseable {
         this.conditionalUpdateProcessor = new MultiKeySequentialProcessor<>(this.executor);
         this.recoveryTracker = new RecoveryTracker();
         this.closed = new AtomicBoolean();
+        this.traceObjectId = String.format("KeyIndex[%d]", containerId);
     }
 
     //endregion
@@ -99,6 +103,7 @@ class ContainerKeyIndex implements AutoCloseable {
             this.cacheManager.unregister(this.cache);
             this.cache.close();
             this.recoveryTracker.close();
+            log.info("{}: Closed.", this.traceObjectId);
         }
     }
 
@@ -529,6 +534,9 @@ class ContainerKeyIndex implements AutoCloseable {
 
             ObjectClosedException ex = new ObjectClosedException(ContainerKeyIndex.this);
             toCancel.forEach(t -> t.task.completeExceptionally(ex));
+            if (!toCancel.isEmpty()) {
+                log.info("{}: Canceling {} tasks that were waiting on Table Segment recovery.", traceObjectId, toCancel.size());
+            }
         }
 
         /**
@@ -552,6 +560,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 if (task != null && !removed) {
                     if (indexOffset < task.triggerIndexOffset) {
                         // There is a task, but the trigger condition is not met.
+                        log.debug("{}: For TableSegment {}, IndexOffset={}, TriggerOffset={}.", traceObjectId, segmentId, indexOffset, task.triggerIndexOffset);
                         task = null;
                     } else {
                         // Segment is fully recovered.
@@ -564,9 +573,11 @@ class ContainerKeyIndex implements AutoCloseable {
             if (task != null) {
                 if (removed) {
                     // Normally nobody should be waiting on this, but in case they did, there's nothing we can do about it now.
+                    log.debug("{}: TableSegment {} evicted; cancelling dependent tasks.", traceObjectId, segmentId);
                     task.task.cancel(true);
                 } else {
                     // Notify whoever is waiting that it's all clear to execute.
+                    log.debug("{}: TableSegment {} fully recovered; triggering dependent tasks.", traceObjectId, segmentId);
                     task.task.complete(null);
                 }
             }
@@ -611,6 +622,7 @@ class ContainerKeyIndex implements AutoCloseable {
                 return toExecute.get();
             } else {
                 // A recovery task is registered. Queue behind it.
+                log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
                 return task.task.thenComposeAsync(ignored -> toExecute.get(), executor);
             }
         }

@@ -356,7 +356,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
         } else if (u instanceof CancellationException) {
             // Cancellation exception is thrown when the Operation processor is shutting down.
-            log.info("Closing connection '{}' while performing append on Segment '{}' due to {}.", connection, segment, u.getMessage());
+            log.info("Closing connection '{}' while performing append on Segment '{}' due to {}.", connection, segment, u.toString());
             connection.close();
         } else {
             logError(segment, u);
