@@ -43,6 +43,7 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
@@ -947,7 +948,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             invokeSafely(connection::send, new OperationUnsupported(requestId, operation, clientReplyStackTrace), failureHandler);
         } else if (u instanceof BadOffsetException) {
             BadOffsetException badOffset = (BadOffsetException) u;
-            log.info(requestId, "Segment '{}' is truncated and cannot perform operation '{}' at offset '{}'", operation, offset);
+            log.info(requestId, "Segment '{}' is truncated and cannot perform operation '{}' at offset '{}'", segment, operation, offset);
             invokeSafely(connection::send, new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset(),
                                                                   clientReplyStackTrace, offset), failureHandler);
         } else if (u instanceof TableSegmentNotEmptyException) {
@@ -960,12 +961,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version.", segment);
             invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
         } else {
-            log.error(requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, u);
+            logError(requestId, segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
             throw new IllegalStateException("Unknown exception.", u);
         }
 
         return null;
+    }
+
+    private void logError(long requestId, String segment, String operation, Throwable u) {
+        if (u instanceof IllegalContainerStateException) {
+            log.warn(requestId, "Error (Segment = '{}', Operation = '{}'): {}", segment, operation, u.toString());
+        } else {
+            log.error(requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, u);
+        }
     }
 
     private void recordStatForTransaction(SegmentProperties sourceInfo, String targetSegmentName) {
