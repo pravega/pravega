@@ -581,17 +581,17 @@ class ContainerKeyIndex implements AutoCloseable {
 
         @Override
         public void close() {
-            List<RecoveryTask> toCancel;
+            HashMap<Long, RecoveryTask> toCancel;
             synchronized (this) {
-                toCancel = new ArrayList<>(this.recoveryTasks.values());
+                toCancel = new HashMap<>(this.recoveryTasks);
                 this.recoveryTasks.clear();
             }
 
             ObjectClosedException ex = new ObjectClosedException(ContainerKeyIndex.this);
-            toCancel.forEach(t -> t.task.completeExceptionally(ex));
-            if (!toCancel.isEmpty()) {
-                log.info("{}: Canceling {} tasks that were waiting on Table Segment recovery.", traceObjectId, toCancel.size());
-            }
+            toCancel.forEach((segmentId, task) -> {
+                task.task.completeExceptionally(ex);
+                log.info("{}: Cancelled one or more tasks that were waiting on Table Segment {} recovery.", traceObjectId, segmentId);
+            });
         }
 
         /**
