@@ -42,6 +42,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -65,6 +66,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final long SHORT_TIMEOUT_MILLIS = TIMEOUT.toMillis() / 3;
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
+    private static final Duration SHORT_RECOVERY_TIMEOUT = Duration.ofSeconds(1);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -535,6 +537,63 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     }
 
     /**
+     * Checks the ability for the {@link ContainerKeyIndex} class to cancel recovery-bound tasks if recovery took too long.
+     */
+    @Test
+    public void testRecoveryTimeout() throws Exception {
+        val s = new EntrySerializer();
+        @Cleanup
+        val context = new TestContext(SHORT_RECOVERY_TIMEOUT);
+
+        // Setup the segment with initial attributes.
+        val iw = new IndexWriter(HASHER, executorService());
+        context.segment.updateAttributes(TableAttributes.DEFAULT_VALUES);
+
+        // Generate initial set of keys.
+        val keys = generateUnversionedKeys(BATCH_SIZE, context);
+        val entries1 = new ArrayList<TableEntry>(keys.size());
+        long offset = 0;
+        val hashes = new ArrayList<UUID>();
+        val keysWithOffsets = new HashMap<UUID, KeyWithOffset>();
+        for (val k : keys) {
+            val hash = HASHER.hash(k.getKey());
+            hashes.add(hash);
+            keysWithOffsets.put(hash, new KeyWithOffset(new HashedArray(k.getKey()), offset));
+            offset += k.getKey().getLength();
+        }
+
+        // Write some garbage data to the segment, but make it longer than the threshold to trigger pre-caching; we don't
+        // want to deal with that now since we can't control its runtime.
+        context.segment.append(new byte[TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1], null, TIMEOUT).join();
+
+        // Update the index, but keep the LastIndexedOffset at 0.
+        val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
+        Collection<BucketUpdate> bucketUpdates = buckets.entrySet().stream()
+                                                        .map(e -> {
+                                                            val builder = BucketUpdate.forBucket(e.getValue());
+                                                            val ko = keysWithOffsets.get(e.getKey());
+                                                            builder.withKeyUpdate(new BucketUpdate.KeyUpdate(ko.key, ko.offset, ko.offset, false));
+                                                            return builder.build();
+                                                        })
+                                                        .collect(Collectors.toList());
+        iw.updateBuckets(context.segment, bucketUpdates, 0L, 0, keysWithOffsets.size(), TIMEOUT).join();
+
+        // Issue a request and verify it times out.
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Request did not fail when recovery timed out.",
+                () -> context.index.getBucketOffsets(context.segment, hashes, context.timer),
+                ex -> ex instanceof TimeoutException);
+
+        // Verify that a new operation will be unblocked if we notify that the recovery completed successfully.
+        val get1 = context.index.getBucketOffsets(context.segment, hashes, context.timer);
+        context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), context.segment.getInfo().getLength());
+        val result1 = get1.get(SHORT_RECOVERY_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val expected1 = new HashMap<UUID, Long>();
+        keysWithOffsets.forEach((k, o) -> expected1.put(k, o.offset));
+        AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after a retry.", expected1, result1);
+    }
+
+    /**
      * Checks the functionality of the {@link ContainerKeyIndex#executeIfEmpty} method.
      */
     @Test
@@ -750,6 +809,12 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         final Random random;
 
         TestContext() {
+            // This is for most tests. Due to variability in test environments, we do not want to set a very small value
+            // for most tests; we will customize this only for those tests that we want to test this feature on.
+            this(ContainerKeyIndex.RECOVERY_TIMEOUT);
+        }
+
+        TestContext(Duration recoveryTimeout) {
             this.cacheFactory = new InMemoryCacheFactory();
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
             this.segment = new SegmentMock(executorService());
@@ -773,6 +838,11 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             @Override
             protected long getMaxTailCachePreIndexLength() {
                 return TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH;
+            }
+
+            @Override
+            protected Duration getRecoveryTimeout() {
+                return SHORT_RECOVERY_TIMEOUT;
             }
         }
     }
