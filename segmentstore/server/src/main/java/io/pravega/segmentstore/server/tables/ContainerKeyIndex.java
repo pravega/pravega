@@ -634,16 +634,16 @@ class ContainerKeyIndex implements AutoCloseable {
 
         @Override
         public void close() {
-            HashMap<Long, RecoveryTask> toCancel;
+            List<RecoveryTask> toCancel;
             synchronized (this) {
-                toCancel = new HashMap<>(this.recoveryTasks);
+                toCancel = new ArrayList<>(this.recoveryTasks.values());
                 this.recoveryTasks.clear();
             }
 
             ObjectClosedException ex = new ObjectClosedException(ContainerKeyIndex.this);
-            toCancel.forEach((segmentId, task) -> {
+            toCancel.forEach(task -> {
                 task.task.completeExceptionally(ex);
-                log.info("{}: Cancelled one or more tasks that were waiting on Table Segment {} recovery.", traceObjectId, segmentId);
+                log.info("{}: Cancelled one or more tasks that were waiting on Table Segment {} recovery.", traceObjectId, task.segmentId);
             });
         }
 
