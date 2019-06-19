@@ -284,13 +284,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final class ResponseProcessor extends FailingReplyProcessor {
         @Override
         public void connectionDropped() {
-            log.info("Received connectionDropped for writer {}", writerId);
             failConnection(new ConnectionFailedException("Connection dropped for writer " + writerId));
         }
         
         @Override
         public void wrongHost(WrongHost wrongHost) {
-            log.info("Received wrongHost for writer {}", writerId);
             failConnection(new ConnectionFailedException(wrongHost.toString()));
         }
 
@@ -412,13 +410,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void processingFailure(Exception error) {
-            log.info("Received processingFailure with {}", error);
             failConnection(error);
         }
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.info("Received authTokenCheckFailed with {}", authTokenCheckFailed);
             failConnection(new TokenException(authTokenCheckFailed.toString()));
         }
     }
@@ -525,7 +521,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
     
     private void failConnection(Throwable e) {
-        log.info("Failing connection for writer {} with exception {}", writerId, e.toString());
+        log.warn("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));
         reconnect();
     }

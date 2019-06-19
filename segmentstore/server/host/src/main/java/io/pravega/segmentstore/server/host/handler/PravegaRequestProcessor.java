@@ -210,7 +210,6 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             isTokenValid = true;
         } catch (TokenException e) {
             handleException(requestId, segment, operation, e);
-            isTokenValid = false;
         }
         return isTokenValid;
     }
