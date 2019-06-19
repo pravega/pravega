@@ -68,7 +68,7 @@ public class AppendEncodeDecodeTest {
     private Level origionalLogLevel;
 
     private EventExecutor executor =  new EventExecutor() {
-        private final ScheduledExecutorService schedular  = Executors.newSingleThreadScheduledExecutor();
+        private final ScheduledExecutorService scheduler  = Executors.newSingleThreadScheduledExecutor();
         @Override
         public EventExecutor next() {
             return null;
@@ -161,7 +161,7 @@ public class AppendEncodeDecodeTest {
 
         @Override
         public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-            schedular.schedule(command, delay, unit);
+            scheduler.schedule(command, delay, unit);
             return null;
         }
 
