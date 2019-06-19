@@ -548,12 +548,9 @@ class ContainerKeyIndex implements AutoCloseable {
         long tailIndexLength = segmentLength - lastIndexedOffset;
         if (lastIndexedOffset >= segmentLength) {
             // Fully caught up. Nothing else to do.
-            System.out.println(String.format("%s: Table Segment %s fully indexed.", this.traceObjectId, segment.getSegmentId()));
             log.debug("{}: Table Segment {} fully indexed.", this.traceObjectId, segment.getSegmentId());
             return;
         } else if (tailIndexLength > getMaxTailCachePreIndexLength()) {
-            System.out.println(String.format("%s: Table Segment %s cannot perform tail-caching because tail index too long (%s).", this.traceObjectId,
-                    segment.getSegmentId(), tailIndexLength));
             log.debug("{}: Table Segment {} cannot perform tail-caching because tail index too long ({}).", this.traceObjectId,
                     segment.getSegmentId(), tailIndexLength);
             return;
@@ -561,8 +558,6 @@ class ContainerKeyIndex implements AutoCloseable {
 
         // Read the tail section of the segment and process its updates. All of this should already be in the cache so
         // we are not going to do any Storage reads.
-        System.out.println(String.format("%s: Tail-caching started for Table Segment %s. LastIndexedOffset=%s, SegmentLength=%s.",
-                this.traceObjectId, segment.getSegmentId(), lastIndexedOffset, segmentLength));
         log.debug("{}: Tail-caching started for Table Segment {}. LastIndexedOffset={}, SegmentLength={}.",
                 this.traceObjectId, segment.getSegmentId(), lastIndexedOffset, segmentLength);
         ReadResult rr = segment.read(lastIndexedOffset, (int) tailIndexLength, TAIL_CACHE_TIMEOUT);
@@ -574,8 +569,6 @@ class ContainerKeyIndex implements AutoCloseable {
 
                     // Incorporate that into the cache.
                     this.cache.includeTailCache(segment.getSegmentId(), updates);
-                    System.out.println(String.format("%s: Tail-caching complete for Table Segment %s. Update Count=%s.",
-                            this.traceObjectId, segment.getSegmentId(), updates.size()));
                     log.debug("{}: Tail-caching complete for Table Segment {}. Update Count={}.",
                             this.traceObjectId, segment.getSegmentId(), updates.size());
 
@@ -584,7 +577,6 @@ class ContainerKeyIndex implements AutoCloseable {
                     this.recoveryTracker.updateSegmentIndexOffset(segment.getSegmentId(), segmentLength, updates.size() > 0);
                 }, this.executor)
                 .exceptionally(ex -> {
-                    ex.printStackTrace();
                     log.warn("{}: Tail-caching failed for Table Segment {}.", this.traceObjectId, segment.getSegmentId(), Exceptions.unwrap(ex));
                     return null;
                 });
@@ -758,7 +750,8 @@ class ContainerKeyIndex implements AutoCloseable {
                 }
 
                 // A recovery task is registered. Queue behind it.
-                log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
+                log.debug("{}: TableSegment {} is not fully recovered (LastIndexedOffset={}, SegmentLength{}). Queuing 1 task.",
+                        traceObjectId, segment.getSegmentId(), lastIndexedOffset, segmentLength);
                 return task.task.thenComposeAsync(toExecute, executor);
             }
         }
