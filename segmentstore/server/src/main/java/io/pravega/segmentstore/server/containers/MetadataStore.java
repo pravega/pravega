@@ -104,22 +104,12 @@ public abstract class MetadataStore implements AutoCloseable {
     }
 
     /**
-     * Initializes the MetadataStore, if necessary. These are tasks that can be executed without the owning Segment
-     * Container running, but which are required for its proper functioning.
+     * Initializes the MetadataStore, if necessary.
      *
      * @param timeout Timeout for the operation.
      * @return A CompletableFuture that, when completed, will indicate the initialization is done.
      */
     abstract CompletableFuture<Void> initialize(Duration timeout);
-
-    /**
-     * Attempts to load the Metadata Index (if any) in memory. This is an optional task that can be run in parallel with
-     * other methods, whose purpose is to optimize subsequent calls.
-     *
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate the index has been cached.
-     */
-    abstract CompletableFuture<Void> cacheIndex(Duration timeout);
 
     //endregion
 

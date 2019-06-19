@@ -26,7 +26,6 @@ import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableStore;
-import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.time.Duration;
 import java.util.Collection;
@@ -49,7 +48,7 @@ import lombok.val;
 @Slf4j
 class TableMetadataStore extends MetadataStore {
     //region Members
-    private final ContainerTableExtension tableStore;
+    private final TableStore tableStore;
     private final String metadataSegmentName;
     private final AtomicBoolean initialized;
 
@@ -63,7 +62,7 @@ class TableMetadataStore extends MetadataStore {
      * @param tableStore A {@link TableStore} to use.
      * @param executor   The executor to use for async operations.
      */
-    TableMetadataStore(Connector connector, @NonNull ContainerTableExtension tableStore, Executor executor) {
+    TableMetadataStore(Connector connector, @NonNull TableStore tableStore, Executor executor) {
         super(connector, executor);
         this.tableStore = tableStore;
         this.metadataSegmentName = StreamSegmentNameUtils.getMetadataSegmentName(connector.getContainerMetadata().getContainerId());
@@ -88,11 +87,6 @@ class TableMetadataStore extends MetadataStore {
                     this.initialized.set(true);
                     log.info("{}: Metadata Segment pinned. Name = '{}', Id = '{}'", this.traceObjectId, this.metadataSegmentName, segmentId);
                 });
-    }
-
-    @Override
-    public CompletableFuture<Void> cacheIndex(Duration timeout) {
-        return this.tableStore.cacheTailIndex(this.metadataSegmentName, timeout);
     }
 
     @Override

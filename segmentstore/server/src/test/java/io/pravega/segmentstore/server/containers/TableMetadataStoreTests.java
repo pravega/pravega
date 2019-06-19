@@ -12,16 +12,11 @@ package io.pravega.segmentstore.server.containers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.server.TableStoreMock;
-import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
-import io.pravega.segmentstore.server.WriterSegmentProcessor;
-import io.pravega.segmentstore.server.tables.ContainerTableExtension;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
 import java.time.Duration;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -82,9 +77,6 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
             this.metadataStore
                     .initialize(TIMEOUT)
                     .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-            this.metadataStore
-                    .cacheIndex(TIMEOUT)
-                    .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         }
 
         @Override
@@ -108,7 +100,7 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
             super.close();
         }
 
-        private class TestTableStore extends TableStoreMock implements ContainerTableExtension {
+        private class TestTableStore extends TableStoreMock {
             private final AtomicInteger getCount = new AtomicInteger();
             private final AtomicReference<ErrorInjector<Exception>> putErrorInjector = new AtomicReference<>();
             private final AtomicReference<ErrorInjector<Exception>> getErrorInjectorSync = new AtomicReference<>();
@@ -151,21 +143,6 @@ public class TableMetadataStoreTests extends MetadataStoreTestBase {
                                        this.getCount.incrementAndGet();
                                        return result;
                                    }));
-            }
-
-            @Override
-            public CompletableFuture<Void> cacheTailIndex(String segmentName, Duration timeout) {
-                // TODO: anything?
-                return CompletableFuture.completedFuture(null);
-            }
-
-            @Override
-            public void close() {
-            }
-
-            @Override
-            public Collection<WriterSegmentProcessor> createWriterSegmentProcessors(UpdateableSegmentMetadata metadata) {
-                return Collections.emptyList();
             }
         }
     }
