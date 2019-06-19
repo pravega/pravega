@@ -150,7 +150,6 @@ public abstract class AbstractService implements Service {
                                                                                     .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
                                                                                     .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
                                                                                     .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
-                                                                                    //.put("options", props.getProperties())
                                                                                     .put("options", props)
                                                                                     .put("image", ImmutableMap.of("repository", pravegaImg))
                                                                                     .put("tier2", tier2Spec())
@@ -166,13 +165,6 @@ public abstract class AbstractService implements Service {
                                          .put("version", VERSION)
                                          .build())
                 .build();
-    }
-
-    private Map<String, Object> getImageSpec(String imageName, String tag) {
-        return ImmutableMap.<String, Object>builder().put("repository", imageName)
-                                                     .put("tag", tag)
-                                                     .put("pullPolicy", IMAGE_PULL_POLICY)
-                                                     .build();
     }
 
     private Map<String, Object> tier2Spec() {
@@ -209,15 +201,15 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    private Map<String, Object> getResources(String limits_cpu, String limits_mem, String requests_cpu, String requests_mem) {
+    private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
         return ImmutableMap.<String, Object>builder()
-                .put("limits",ImmutableMap.builder()
-                                    .put("cpu", limits_cpu)
-                                    .put("memory", limits_mem)
+                .put("limits", ImmutableMap.builder()
+                                    .put("cpu", limitsCpu)
+                                    .put("memory", limitsMem)
                                     .build())
-                .put("requests",ImmutableMap.builder()
-                                    .put("cpu", requests_cpu)
-                                    .put("memory", requests_mem)
+                .put("requests", ImmutableMap.builder()
+                                    .put("cpu", requestsCpu)
+                                    .put("memory", requestsMem)
                                     .build())
                 .build();
     }
