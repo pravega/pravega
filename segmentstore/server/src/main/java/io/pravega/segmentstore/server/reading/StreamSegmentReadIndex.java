@@ -224,7 +224,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // every single byte in the entry has been truncated out.
                 long lastOffset = entry.getLastStreamSegmentOffset();
                 boolean canRemove = entry.isDataEntry()
-                        && lastOffset <= this.metadata.getStorageLength()
+                        && lastOffset < this.metadata.getStorageLength()
                         && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
                 if (canRemove) {
                     toRemove.add(entry);
