@@ -149,7 +149,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @Override
     public void deleteSegment(String streamSegmentName) {
-        // Do not close the counter of parent segment when delete transaction segment.
+        // Do not close the counter of parent segment when deleting transaction segment.
         if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
             getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
             getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
@@ -159,7 +159,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
 
     @Override
     public void sealSegment(String streamSegmentName) {
-        // Do not close the counter of parent segment when seal transaction segment.
+        // Do not close the counter of parent segment when sealing transaction segment.
         if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
             getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
             getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));

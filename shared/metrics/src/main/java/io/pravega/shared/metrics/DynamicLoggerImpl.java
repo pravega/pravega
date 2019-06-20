@@ -95,18 +95,18 @@ public class DynamicLoggerImpl implements DynamicLogger {
     public void incCounterValue(String name, long delta, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(delta);
-        long traceId = LoggerHelpers.traceEnter(log, "Metrics: incCounterValue", name, delta, tags);
+        long traceId = LoggerHelpers.traceEnter(log, "incCounterValue", name, delta, tags);
         try {
             MetricsNames.MetricKey keys = metricKey(name, tags);
             Counter counter = countersCache.get(keys.getCacheKey(), new Callable<Counter>() {
                 @Override
                 public Counter call() throws Exception {
-                    LoggerHelpers.traceLeave(log, "Metrics: createCounter", traceId, keys.getRegistryKey(), tags);
+                    LoggerHelpers.traceLeave(log, "createCounter", traceId, keys.getRegistryKey(), tags);
                     return underlying.createCounter(keys.getRegistryKey(), tags);
                 }
             });
             counter.add(delta);
-            LoggerHelpers.traceLeave(log, "Metrics: counter.add", traceId, counter.get(), delta);
+            LoggerHelpers.traceLeave(log, "counter.add", traceId, counter.get(), delta);
         } catch (ExecutionException e) {
             log.error("Error while countersCache create counter", e);
         }
@@ -115,50 +115,50 @@ public class DynamicLoggerImpl implements DynamicLogger {
     @Override
     public void updateCounterValue(String name, long value, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
-        long traceId = LoggerHelpers.traceEnter(log, "Metrics: updateCounterValue", name, value, tags);
+        long traceId = LoggerHelpers.traceEnter(log, "updateCounterValue", name, value, tags);
         MetricsNames.MetricKey keys = metricKey(name, tags);
         Counter counter = countersCache.getIfPresent(keys.getCacheKey());
         if (counter != null) {
             counter.clear();
-            LoggerHelpers.traceLeave(log, "Metrics: counter.clear", traceId, counter.getId());
+            LoggerHelpers.traceLeave(log, "counter.clear", traceId, counter.getId());
         } else {
             counter = underlying.createCounter(keys.getRegistryKey(), tags);
-            LoggerHelpers.traceLeave(log, "Metrics: createCounter", traceId, keys.getRegistryKey(), tags);
+            LoggerHelpers.traceLeave(log, "createCounter", traceId, keys.getRegistryKey(), tags);
         }
         counter.add(value);
-        LoggerHelpers.traceLeave(log, "Metrics: counter.add", traceId, counter.getId(), value);
+        LoggerHelpers.traceLeave(log, "counter.add", traceId, counter.getId(), value);
         countersCache.put(keys.getCacheKey(), counter);
     }
 
     @Override
     public void freezeCounter(String name, String... tags) {
-        long traceId = LoggerHelpers.traceEnter(log, "Metrics: freezeCounter", name, tags);
+        long traceId = LoggerHelpers.traceEnter(log, "freezeCounter", name, tags);
         MetricsNames.MetricKey keys = metricKey(name, tags);
         Counter counter = countersCache.getIfPresent(keys.getCacheKey());
         if (counter != null) {
             metrics.remove(counter.getId());
-            LoggerHelpers.traceLeave(log, "Metrics: metrics.remove", traceId, counter.getId());
+            LoggerHelpers.traceLeave(log, "metrics.remove", traceId, counter.getId());
         }
         countersCache.invalidate(keys.getRegistryKey());
-        LoggerHelpers.traceLeave(log, "Metrics: counterCache.invalidate", traceId, keys.getRegistryKey());
+        LoggerHelpers.traceLeave(log, "counterCache.invalidate", traceId, keys.getRegistryKey());
     }
 
     @Override
     public <T extends Number> void reportGaugeValue(String name, T value, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(value);
-        long traceId = LoggerHelpers.traceEnter(log, "Metrics: reportGaugeValue", name, value, tags);
+        long traceId = LoggerHelpers.traceEnter(log, "reportGaugeValue", name, value, tags);
         try {
             MetricsNames.MetricKey keys = metricKey(name, tags);
             Gauge gauge = gaugesCache.get(keys.getCacheKey(), new Callable<Gauge>() {
                 @Override
                 public Gauge call() throws Exception {
-                    LoggerHelpers.traceLeave(log, "Metrics: registerGauge", traceId, keys.getRegistryKey(), value.doubleValue(), tags);
+                    LoggerHelpers.traceLeave(log, "registerGauge", traceId, keys.getRegistryKey(), value.doubleValue(), tags);
                     return underlying.registerGauge(keys.getRegistryKey(), value::doubleValue, tags);
                 }
             });
             gauge.setSupplier(value::doubleValue);
-            LoggerHelpers.traceLeave(log, "Metrics: gauge.setSupplier", traceId, gauge.getId(), value.doubleValue());
+            LoggerHelpers.traceLeave(log, "gauge.setSupplier", traceId, gauge.getId(), value.doubleValue());
         } catch (ExecutionException e) {
             log.error("Error accessing gauge through gaugesCache", e);
         }
@@ -166,33 +166,33 @@ public class DynamicLoggerImpl implements DynamicLogger {
 
     @Override
     public void freezeGaugeValue(String name, String... tags) {
-        long traceId = LoggerHelpers.traceEnter(log, "Metrics: freezeGaugeValue", name, tags);
+        long traceId = LoggerHelpers.traceEnter(log, "freezeGaugeValue", name, tags);
         MetricsNames.MetricKey keys = metricKey(name, tags);
         Gauge gauge = gaugesCache.getIfPresent(keys.getCacheKey());
         if (gauge != null) {
             metrics.remove(gauge.getId());
-            LoggerHelpers.traceLeave(log, "Metrics: metrics.remove", traceId, gauge.getId());
+            LoggerHelpers.traceLeave(log, "metrics.remove", traceId, gauge.getId());
         }
         gaugesCache.invalidate(keys.getCacheKey());
-        LoggerHelpers.traceLeave(log, "Metrics: gaugeCache.invalidate", traceId, keys.getCacheKey());
+        LoggerHelpers.traceLeave(log, "gaugeCache.invalidate", traceId, keys.getCacheKey());
     }
 
     @Override
     public void recordMeterEvents(String name, long number, String... tags) {
         Exceptions.checkNotNullOrEmpty(name, "name");
         Preconditions.checkNotNull(number);
-        long traceId = LoggerHelpers.traceEnter(log, "Metrics: recordMeterEvents", name, number, tags);
+        long traceId = LoggerHelpers.traceEnter(log, "recordMeterEvents", name, number, tags);
         MetricsNames.MetricKey keys = metricKey(name, tags);
         try {
             Meter meter = metersCache.get(keys.getCacheKey(), new Callable<Meter>() {
                 @Override
                 public Meter call() throws Exception {
-                    LoggerHelpers.traceLeave(log, "Metrics: createMeter", traceId, keys.getRegistryKey(), tags);
+                    LoggerHelpers.traceLeave(log, "createMeter", traceId, keys.getRegistryKey(), tags);
                     return underlying.createMeter(keys.getRegistryKey(), tags);
                 }
             });
             meter.recordEvents(number);
-            LoggerHelpers.traceLeave(log, "Metrics: meter.recordEvents", traceId, meter.getId(), number);
+            LoggerHelpers.traceLeave(log, "meter.recordEvents", traceId, meter.getId(), number);
         } catch (ExecutionException e) {
             log.error("Error while metersCache create meter", e);
         }
