@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import io.netty.buffer.ByteBuf;
-import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -205,12 +205,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     }
 
     private boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
-        if (!tokenVerifier.verifyToken(segment, delegationToken, READ)) {
-            log.warn(requestId, "Delegation token verification failed.");
-            handleException(requestId, segment, operation, new AuthenticationException("Token verification failed"));
-            return false;
+        boolean isTokenValid = false;
+        try {
+            tokenVerifier.verifyToken(segment, delegationToken, READ);
+            isTokenValid = true;
+        } catch (TokenException e) {
+            handleException(requestId, segment, operation, e);
         }
-        return true;
+        return isTokenValid;
     }
 
     /**
@@ -938,10 +940,9 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             log.info(requestId, "Closing connection {} while performing {} due to {}.",
                      connection, operation, u.toString());
             connection.close();
-        } else if (u instanceof AuthenticationException) {
-            log.warn(requestId, "Authentication error during '{}'.", operation);
+        } else if (u instanceof TokenException) {
+            log.warn(requestId, "Token verification failed during '{}'.", operation);
             invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace), failureHandler);
-            connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn(requestId, "Unsupported Operation '{}'.", operation, u);
             invokeSafely(connection::send, new OperationUnsupported(requestId, operation, clientReplyStackTrace), failureHandler);

@@ -9,55 +9,91 @@
  */
 package io.pravega.segmentstore.server.host.delegationtoken;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
-import io.jsonwebtoken.JwtException;
-import io.jsonwebtoken.Jwts;
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.InvalidClaimException;
+import io.pravega.auth.InvalidTokenException;
+import io.pravega.auth.TokenException;
+import io.pravega.auth.TokenExpiredException;
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+
+import io.pravega.shared.security.token.JsonWebToken;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class TokenVerifierImpl implements DelegationTokenVerifier {
-    private final AutoScalerConfig config;
+
+    private final boolean isAuthEnabled;
+    private final byte[] tokenSigningKey;
 
     public TokenVerifierImpl(AutoScalerConfig config) {
-        this.config = config;
+        this(config.isAuthEnabled(), config.getTokenSigningKey());
     }
 
-    @Override
-    public boolean verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel) {
-        if (config.isAuthEnabled()) {
-            try {
-                Jws<Claims> claims = Jwts.parser()
-                                         .setSigningKey(config.getTokenSigningKey().getBytes())
-                                         .parseClaimsJws(token);
-                Optional<Map.Entry<String, Object>> matchingClaim = claims.getBody().entrySet().stream().filter(entry ->
-                        validateEntry(entry, resource)
-                        && expectedLevel.compareTo(AuthHandler.Permissions.valueOf(entry.getValue().toString()))
-                        <= 0).findFirst();
-                if (matchingClaim.isPresent()) {
-                    log.debug("Found a matching claim {} for resource {}", matchingClaim, resource);
-                    return true;
-                } else {
-                    log.debug("Could not find a matching claim {} for resource {} in claims {}",
-                            expectedLevel, resource, claims);
-                    return false;
-                }
-            } catch (JwtException e) {
-                log.warn("Claim verification failed for resource {} because {}", resource, e);
-                return false;
-            }
+    @VisibleForTesting
+    public TokenVerifierImpl(boolean isAuthEnabled, String tokenSigningKeyBasis) {
+        this.isAuthEnabled = isAuthEnabled;
+        if (isAuthEnabled) {
+            Exceptions.checkNotNullOrEmpty(tokenSigningKeyBasis, "tokenSigningKeyBasis");
+            this.tokenSigningKey = tokenSigningKeyBasis.getBytes();
         } else {
-            return true;
+            tokenSigningKey = null;
         }
     }
 
-    private boolean validateEntry(Map.Entry<String, Object> entry, String resource) {
-        return (entry.getKey().endsWith("/") && resource.startsWith(entry.getKey()))
-                    ||  resource.startsWith(entry.getKey() + "/")
-                || entry.getKey().equals("*");
+    @Override
+    public void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
+            throws TokenExpiredException, InvalidTokenException, InvalidClaimException, TokenException {
+        if (isAuthEnabled) {
+
+            // All key value pairs inside the payload are returned, including standard fields such as sub (for subject),
+            // aud (for audience), iat, exp, as well as custom fields of the form "<resource> -> <permission>" set by
+            // Pravega.
+            Set<Map.Entry<String, Object>> claims = JsonWebToken.fetchClaims(token, tokenSigningKey);
+
+            if (claims == null) {
+                throw new InvalidTokenException("Token has no claims.");
+            }
+
+            Optional<Map.Entry<String, Object>> matchingClaim = claims.stream()
+                    .filter(entry -> resourceMatchesClaimKey(entry.getKey(), resource) &&
+                                     expectedLevel.compareTo(AuthHandler.Permissions.valueOf(entry.getValue().toString())) <= 0)
+                    .findFirst();
+
+            if (!matchingClaim.isPresent()) {
+                log.debug(String.format("No matching claim found for resource [%s] and permission [%s] in token [%s].",
+                        resource, expectedLevel, token));
+
+                throw new InvalidClaimException(String.format(
+                        "No matching claim found for resource: [%s] and permission: [%s] in the delegation token.",
+                        resource, expectedLevel));
+
+            }
+        }
+    }
+
+    /**
+     * Returns whether the specified resource} string matches the given claim key.
+     *
+     * @param claimKey
+     * @param resource
+     * @return
+     */
+    private boolean resourceMatchesClaimKey(String claimKey, String resource) {
+        /*
+         * Examples of the conditions when the claimKey (key of the key-value pair claim) matches the resource are:
+         *      1) claimKey = "myscope", resource = "myscope"
+         *      2) claimKey = "abc/", resource = "abc/xyx"
+         *      3) claimKey = "_system/_requeststream", resource = "_system/_requeststream/0.#epoch.0"
+         *      4) claimKey = "*" (the wildcard character)
+         */
+        return resource.equals(claimKey) // example 1
+               || claimKey.endsWith("/") && resource.startsWith(claimKey) // example 2
+               || resource.startsWith(claimKey + "/") // example 3
+               || claimKey.equals("*"); // 4
     }
 }
