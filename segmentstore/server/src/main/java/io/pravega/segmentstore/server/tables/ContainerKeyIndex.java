@@ -742,16 +742,14 @@ class ContainerKeyIndex implements AutoCloseable {
                 // No recovery task. Execute right away.
                 return toExecute.apply(false);
             } else {
+                log.debug("{}: TableSegment {} is not fully recovered. Queuing 1 task.", traceObjectId, segment.getSegmentId());
                 if (firstTask) {
                     setupRecoveryTask(task);
                     assert lastIndexedOffset >= 0;
-                    log.debug("{}: Triggering tail-caching for Table Segment {}.", traceObjectId, segment.getSegmentId());
                     triggerCacheTailIndex(segment, lastIndexedOffset, segmentLength);
                 }
 
                 // A recovery task is registered. Queue behind it.
-                log.debug("{}: TableSegment {} is not fully recovered (LastIndexedOffset={}, SegmentLength{}). Queuing 1 task.",
-                        traceObjectId, segment.getSegmentId(), lastIndexedOffset, segmentLength);
                 return task.task.thenComposeAsync(toExecute, executor);
             }
         }
