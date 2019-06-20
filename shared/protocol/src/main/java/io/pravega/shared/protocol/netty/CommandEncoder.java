@@ -86,14 +86,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         log.trace("Encoding message to send over the wire {}", msg);
         if (msg instanceof Append) {
             Append append = (Append) msg;
+            Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
+            validateAppend(append, session);
             if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
                 breakFromAppend(null, null, out);
             }
             ByteBuf data = append.getData().slice();
             int msgSize = data.readableBytes();
             AppendBatchSizeTracker blockSizeSupplier = null;
-            Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
-            validateAppend(append, session);
             session.lastEventNumber = append.getEventNumber();
             session.eventCount++;
             if (appendTracker != null) {
