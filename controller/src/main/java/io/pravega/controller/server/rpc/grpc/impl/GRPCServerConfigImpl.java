@@ -31,6 +31,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     private final String tlsCertFile;
     private final String tlsKeyFile;
     private final String tokenSigningKey;
+    private final Integer accessTokenTTLInSeconds;
     private final String tlsTrustStore;
     private final boolean replyWithStackTraceOnError;
     private final boolean requestTracingEnabled;
@@ -38,7 +39,8 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
     @Builder
     public GRPCServerConfigImpl(final int port, final String publishedRPCHost, final Integer publishedRPCPort,
                                 boolean authorizationEnabled, String userPasswordFile, boolean tlsEnabled,
-                                String tlsCertFile, String tlsKeyFile, String tokenSigningKey, String tlsTrustStore,
+                                String tlsCertFile, String tlsKeyFile, String tokenSigningKey,
+                                Integer accessTokenTTLInSeconds, String tlsTrustStore,
                                 boolean replyWithStackTraceOnError, boolean requestTracingEnabled) {
 
         Preconditions.checkArgument(port > 0, "Invalid port.");
@@ -47,6 +49,11 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         }
         if (publishedRPCPort != null) {
             Preconditions.checkArgument(publishedRPCPort > 0, "publishedRPCPort should be a positive integer");
+        }
+        if (accessTokenTTLInSeconds != null) {
+            Preconditions.checkArgument(accessTokenTTLInSeconds == -1 || accessTokenTTLInSeconds >= 0,
+                    "accessTokenTtlInSeconds should be -1 (token never expires), 0 (token immediately expires) "
+                            + "or a positive integer representing the number of seconds after which the token expires.");
         }
 
         this.port = port;
@@ -59,6 +66,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
         this.tlsKeyFile = tlsKeyFile;
         this.tlsTrustStore = tlsTrustStore;
         this.tokenSigningKey = tokenSigningKey;
+        this.accessTokenTTLInSeconds = accessTokenTTLInSeconds;
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
         this.requestTracingEnabled = requestTracingEnabled;
     }
@@ -83,6 +91,7 @@ public class GRPCServerConfigImpl implements GRPCServerConfig {
                         Strings.isNullOrEmpty(userPasswordFile) ? "unspecified" : "specified"))
                 .append(String.format("tokenSigningKey is %s, ",
                         Strings.isNullOrEmpty(tokenSigningKey) ? "unspecified" : "specified"))
+                .append(String.format("accessTokenTTLInSeconds: %s, ", accessTokenTTLInSeconds))
 
                 // TLS config
                 .append(String.format("tlsEnabled: %b, ", tlsEnabled))

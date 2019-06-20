@@ -11,7 +11,7 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenException;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -193,7 +193,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     log.warn("Connection for segment {} on writer {} failed due to: {}", segmentName, writerId, message);
                 }
             }
-            if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException) {
+            if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException
+                    || throwable instanceof TokenException) {
                 setupConnection.releaseExceptionally(throwable);
             } else if (failSetupConnection) {
                 setupConnection.releaseExceptionallyAndReset(throwable);                
@@ -309,6 +310,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
+            log.info("Received noSuchSegment for writer {}", writerId);
             final String segment = noSuchSegment.getSegment();
             if (StreamSegmentNameUtils.isTransactionSegment(segment)) {
                 log.info("Transaction Segment: {} no longer exists since the txn is aborted. {}", noSuchSegment.getSegment(),
@@ -325,7 +327,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void dataAppended(DataAppended dataAppended) {
-            log.trace("Received ack: {}", dataAppended);
+            log.trace("Received dataAppended ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
             long previousAckLevel = dataAppended.getPreviousEventNumber();
             try {
@@ -338,7 +340,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void appendSetup(AppendSetup appendSetup) {
-            log.info("Received AppendSetup {}", appendSetup);
+            log.info("Received appendSetup {}", appendSetup);
             long ackLevel = appendSetup.getLastEventNumber();
             ackUpTo(ackLevel);
             List<Append> toRetransmit = state.getAllInflight()
@@ -413,8 +415,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth failed {}", authTokenCheckFailed);
-            failConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+            failConnection(new TokenException(authTokenCheckFailed.toString()));
         }
     }
 
@@ -520,7 +521,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
     
     private void failConnection(Throwable e) {
-        log.info("Failing connection for writer {} with exception {}", writerId, e.toString());
+        log.warn("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));
         reconnect();
     }
@@ -558,6 +559,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          }
                          return connectionSetupFuture.exceptionally(t -> {
                              Throwable exception = Exceptions.unwrap(t);
+                             if (exception instanceof TokenException) {
+                                 log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
+                                         writerId, segmentName);
+                                 return null;
+                             }
                              if (exception instanceof SegmentSealedException) {
                                  log.info("Ending reconnect attempts on writer {} to {} because segment is sealed", writerId, segmentName);
                                  return null;
