@@ -57,7 +57,7 @@ public class SegmentAggregatesTest {
         TestSegmentAggregatesEvents aggregates = new TestSegmentAggregatesEvents(1);
 
         // generate a traffic of 5 events per second for 30 minutes
-        for (int i = 0; i < 30 * 60; i ++) {
+        for (int i = 0; i < 30 * 60; i++) {
             aggregates.update(0, 1);
             aggregates.update(0, 1);
             aggregates.update(0, 1);
@@ -80,7 +80,7 @@ public class SegmentAggregatesTest {
         TestSegmentAggregatesThroughput aggregates = new TestSegmentAggregatesThroughput(1);
 
         // generate a traffic of 250 * 5 = 1250 bytes per second for 30 minutes
-        for (int i = 0; i < 30 * 60; i ++) {
+        for (int i = 0; i < 30 * 60; i++) {
             // we are deliberately keeping dataLength less than 1024 for each update
             aggregates.update(250, 0);
             aggregates.update(250, 0);
