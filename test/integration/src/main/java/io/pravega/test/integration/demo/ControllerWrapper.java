@@ -78,6 +78,18 @@ public class ControllerWrapper implements AutoCloseable {
                              final int containerCount, int restPort,
                              boolean enableAuth, String passwordAuthHandlerInputFilePath, String tokenSigningKey) {
 
+        this(connectionString, disableEventProcessor, disableControllerCluster, controllerPort,
+                serviceHost, servicePort, containerCount, restPort,
+                enableAuth, passwordAuthHandlerInputFilePath, tokenSigningKey, 600);
+    }
+
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableControllerCluster,
+                             final int controllerPort, final String serviceHost, final int servicePort,
+                             final int containerCount, int restPort,
+                             boolean enableAuth, String passwordAuthHandlerInputFilePath,
+                             String tokenSigningKey, int accessTokenTtlInSeconds) {
+
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
                 .initialSleepInterval(500)
                 .maxRetries(10)
@@ -125,6 +137,7 @@ public class ControllerWrapper implements AutoCloseable {
                 .requestTracingEnabled(true)
                 .authorizationEnabled(enableAuth)
                 .tokenSigningKey(tokenSigningKey)
+                .accessTokenTTLInSeconds(accessTokenTtlInSeconds)
                 .userPasswordFile(passwordAuthHandlerInputFilePath)
                 .build();
 
