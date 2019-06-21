@@ -71,6 +71,16 @@ public class PositionImpl extends PositionInternal {
     public Map<Segment, Long> getOwnedSegmentsWithOffsets() {
         return Collections.unmodifiableMap(ownedSegments);
     }
+    
+    @Override
+    Map<SegmentWithRange, Long> getOwnedSegmentRangesWithOffsets() {
+        HashMap<SegmentWithRange, Long> result = new HashMap<>();
+        for (Entry<Segment, Long> entry : ownedSegments.entrySet()) {
+            result.put(new SegmentWithRange(entry.getKey(), segmentRanges.get(entry.getKey())), entry.getValue());
+        }
+        return result;
+    }
+
 
     @Override
     public Set<Segment> getCompletedSegments() {

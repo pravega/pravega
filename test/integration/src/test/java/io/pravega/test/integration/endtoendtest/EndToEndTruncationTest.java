@@ -92,11 +92,10 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class EndToEndTruncationTest {
 
-    private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
-    private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
-    private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
+    private int controllerPort;
+    private URI controllerURI; 
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
@@ -112,6 +111,9 @@ public class EndToEndTruncationTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
+        controllerPort = TestUtils.getAvailableListenPort();
+        controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
+        int servicePort = TestUtils.getAvailableListenPort();
         server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 

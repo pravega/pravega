@@ -53,6 +53,13 @@ public class SegmentWithRange {
         public Pair<Double, Double> asPair() {
             return Pair.of(low, high);
         }
+        
+        public boolean overlapsWith(Range other) {
+            if (high <= other.low || low >= other.high) {
+                return false;
+            }
+            return true;
+        }
     }
     
 }
