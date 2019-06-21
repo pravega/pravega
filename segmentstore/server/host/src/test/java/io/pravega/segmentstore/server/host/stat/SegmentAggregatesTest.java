@@ -15,6 +15,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.Test;
 
+import static org.junit.Assert.assertTrue;
+
 public class SegmentAggregatesTest {
     private final AtomicLong currentTime = new AtomicLong();
 
@@ -48,6 +50,53 @@ public class SegmentAggregatesTest {
                 aggregates.getTenMinuteRate() > 0 && aggregates.getTwentyMinuteRate() > 0;
     }
 
+    @Test
+    public void aggregateByEvent() {
+        setClock(0);
+        // test events per second
+        TestSegmentAggregatesEvents aggregates = new TestSegmentAggregatesEvents(1);
+
+        // generate a traffic of 5 events per second for 30 minutes
+        for (int i = 0; i < 30 * 60; i++) {
+            aggregates.update(0, 1);
+            aggregates.update(0, 1);
+            aggregates.update(0, 1);
+            aggregates.update(0, 1);
+            aggregates.update(0, 1);
+            setClock(i * 1000);
+        }
+
+        // the computed rates should be greater than 1 kbps
+        assertTrue(aggregates.getTwoMinuteRate() > 4.5 && aggregates.getTwoMinuteRate() < 5.5);
+        assertTrue(aggregates.getFiveMinuteRate() > 4.5 && aggregates.getFiveMinuteRate() < 5.5);
+        assertTrue(aggregates.getTenMinuteRate() > 4.5 && aggregates.getTenMinuteRate() < 5.5);
+        assertTrue(aggregates.getTwentyMinuteRate() > 4.5 && aggregates.getTwentyMinuteRate() < 5.5);
+    }
+
+    @Test
+    public void aggregateByThroughput() {
+        setClock(0);
+        // test bytes per second
+        TestSegmentAggregatesThroughput aggregates = new TestSegmentAggregatesThroughput(1);
+
+        // generate a traffic of 250 * 5 = 1250 bytes per second for 30 minutes
+        for (int i = 0; i < 30 * 60; i++) {
+            // we are deliberately keeping dataLength less than 1024 for each update
+            aggregates.update(250, 0);
+            aggregates.update(250, 0);
+            aggregates.update(250, 0);
+            aggregates.update(250, 0);
+            aggregates.update(250, 0);
+            setClock(i * 1000);
+        }
+
+        // the computed rates should be greater than 1 kbps
+        assertTrue(aggregates.getTwoMinuteRate() > 1.0 && aggregates.getTwoMinuteRate() < 1.5);
+        assertTrue(aggregates.getFiveMinuteRate() > 1.0 && aggregates.getFiveMinuteRate() < 1.5);
+        assertTrue(aggregates.getTenMinuteRate() > 1.0 && aggregates.getTenMinuteRate() < 1.5);
+        assertTrue(aggregates.getTwentyMinuteRate() > 1.0 && aggregates.getTwentyMinuteRate() < 1.5);
+    }
+    
     @Test
     public void aggregateTxn() {
         setClock(Duration.ofMinutes(10).toMillis() - Duration.ofSeconds(5).toMillis());
