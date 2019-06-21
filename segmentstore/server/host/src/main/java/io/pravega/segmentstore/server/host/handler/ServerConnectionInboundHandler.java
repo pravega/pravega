@@ -40,7 +40,12 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Request cmd = (Request) msg;
-        log.debug("Processing request: {}", cmd);
+        if (cmd.mustLog()) {
+            log.debug("Received request: {}", cmd);
+        } else {
+            log.trace("Received request: {}", cmd);
+        }
+
         RequestProcessor requestProcessor = processor.get();
         if (requestProcessor == null) {
             throw new IllegalStateException("No command processor set for connection");
