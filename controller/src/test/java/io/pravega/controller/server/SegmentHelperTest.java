@@ -341,7 +341,8 @@ public class SegmentHelperTest {
         requestId = ((MockConnection) (factory.connection)).getRequestId();
         factory.rp.process(new WireCommands.TableSegmentNotEmpty(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
-                                      ex -> ex instanceof ConnectionFailedException);
+                                      ex -> ex instanceof WireCommandFailedException &&
+                                              (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableSegmentNotEmpty));
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteTableSegment("", true, "", 0L);
         validateAuthTokenCheckFailed(factory, futureSupplier);
