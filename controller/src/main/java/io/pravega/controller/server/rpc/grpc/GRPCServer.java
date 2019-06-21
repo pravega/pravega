@@ -47,7 +47,8 @@ public class GRPCServer extends AbstractIdleService {
     public GRPCServer(ControllerService controllerService, GRPCServerConfig serverConfig, RequestTracker requestTracker) {
         this.objectId = "gRPCServer";
         this.config = serverConfig;
-        AuthHelper authHelper = new AuthHelper(serverConfig.isAuthorizationEnabled(), serverConfig.getTokenSigningKey());
+        AuthHelper authHelper = new AuthHelper(serverConfig.isAuthorizationEnabled(),
+                serverConfig.getTokenSigningKey(), serverConfig.getAccessTokenTTLInSeconds());
         ServerBuilder<?> builder = ServerBuilder
                 .forPort(serverConfig.getPort())
                 .addService(ServerInterceptors.intercept(new ControllerServiceImpl(controllerService, authHelper, requestTracker,
