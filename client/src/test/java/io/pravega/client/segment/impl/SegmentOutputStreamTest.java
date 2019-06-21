@@ -267,7 +267,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, controller, cf, cid, segmentSealedCallback, RETRY_SCHEDULE, "");
-        
+
         output.reconnect();
         cf.getProcessor(uri).appendSetup(new AppendSetup(1, SEGMENT, cid, 0));
         output.write(PendingEvent.withoutHeader(null, getBuffer("test1"), new CompletableFuture<>()));
