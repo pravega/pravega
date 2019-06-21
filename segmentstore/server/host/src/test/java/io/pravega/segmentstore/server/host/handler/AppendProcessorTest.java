@@ -9,7 +9,10 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableLatch;
@@ -18,14 +21,24 @@ import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.AppendDecoder;
+import io.pravega.shared.protocol.netty.CommandDecoder;
+import io.pravega.shared.protocol.netty.CommandEncoder;
+import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
+import io.pravega.shared.protocol.netty.Reply;
+import io.pravega.shared.protocol.netty.Request;
+import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.test.common.AssertExtensions;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -40,6 +53,13 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
+import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -49,6 +69,7 @@ import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -348,6 +369,36 @@ public class AppendProcessorTest {
         verify(mockedRecorder, never()).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
     }
 
+    @Test(timeout = 5000)
+    public void testAppendFailChannelClose() throws Exception {
+        String streamSegmentName = "scope/stream/testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
+
+        // Setup mocks.
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        setupGetAttributes(streamSegmentName, clientId, store);
+
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        result.completeExceptionally(new RuntimeException("Fake exception for testing"));
+        when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
+                .thenReturn(result);
+
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+
+        // Send a setup append WireCommand.
+        Reply reply = sendRequest(channel, new SetupAppend(requestId, clientId, streamSegmentName, ""));
+        assertEquals(new AppendSetup(1, streamSegmentName, clientId, 0), reply);
+
+        // Send an append which will cause a RuntimeException to be thrown by the store.
+        reply = sendRequest(channel, new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null,
+                                                requestId));
+        assertNull("No WireCommand reply is expected", reply);
+        // Verify that the channel is closed by the AppendProcessor.
+        assertEventuallyEquals(false, channel::isOpen, 3000);
+    }
+
     @Test
     public void testEventNumbers() {
         String streamSegmentName = "scope/stream/testAppendSegment";
@@ -561,5 +612,34 @@ public class AppendProcessorTest {
     private void setupGetAttributes(String streamSegmentName, UUID clientId, long eventNumber, StreamSegmentStore store) {
         when(store.getAttributes(streamSegmentName, Collections.singleton(clientId), true, AppendProcessor.TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(Collections.singletonMap(clientId, eventNumber)));
+    }
+
+    private EmbeddedChannel createChannel(StreamSegmentStore store) {
+        ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
+        EmbeddedChannel channel = new EmbeddedChannel(new ExceptionLoggingHandler(""),
+                                                      new CommandEncoder(null),
+                                                      new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
+                                                      new CommandDecoder(),
+                                                      new AppendDecoder(),
+                                                      lsh);
+        lsh.setRequestProcessor(new AppendProcessor(store, lsh, new PravegaRequestProcessor(store, mock(TableStore.class), lsh), null));
+        return channel;
+    }
+
+    private Reply sendRequest(EmbeddedChannel channel, Request request) throws Exception {
+        channel.writeInbound(request);
+        Object encodedReply = channel.readOutbound();
+        for (int i = 0; encodedReply == null && i < 50; i++) {
+            channel.runPendingTasks();
+            Thread.sleep(10);
+            encodedReply = channel.readOutbound();
+        }
+        if (encodedReply == null) {
+            return null;
+        }
+        WireCommand decoded = CommandDecoder.parseCommand((ByteBuf) encodedReply);
+        ((ByteBuf) encodedReply).release();
+        assertNotNull(decoded);
+        return (Reply) decoded;
     }
 }
