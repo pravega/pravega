@@ -110,7 +110,7 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 123L, SEGMENT_TAGS);
         verify(context.dynamicLogger).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 2, SEGMENT_TAGS);
 
-        // Append metrics txn.
+        // Append the 1st metrics txn.
         val txnName = StreamSegmentNameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
         context.statsRecorder.recordAppend(txnName, 321L, 5, elapsed);
         verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_BYTES), 123L);
@@ -119,6 +119,16 @@ public class SegmentStatsRecorderTest extends ThreadPooledTestSuite {
         verify(context.dynamicLogger, times(1)).incCounterValue(MetricsNames.globalMetricName(MetricsNames.SEGMENT_WRITE_EVENTS), 5);
         verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.SEGMENT_WRITE_BYTES, 321L, segmentTags(txnName));
         verify(context.dynamicLogger, never()).incCounterValue(MetricsNames.SEGMENT_WRITE_EVENTS, 5, segmentTags(txnName));
+
+        // Delete the 1st txn segment, this shouldn't affect the parent segment
+        context.statsRecorder.deleteSegment(txnName);
+
+        // Append the 2nd metrics txn.
+        val txnName2 = StreamSegmentNameUtils.getTransactionNameFromId(STREAM_SEGMENT_NAME, UUID.randomUUID());
+        context.statsRecorder.recordAppend(txnName2, 321L, 5, elapsed);
+
+        // Seal the 2nd txn segment, this shouldn't affect the parent segment
+        context.statsRecorder.sealSegment(txnName2);
 
         // Read metrics.
         context.statsRecorder.read(STREAM_SEGMENT_NAME, 123);
