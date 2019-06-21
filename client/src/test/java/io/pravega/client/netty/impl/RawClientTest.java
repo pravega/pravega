@@ -19,18 +19,22 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class RawClientTest {
+    private static final Duration RAWCLIENT_REQUEST_TIMEOUT = Duration.ofSeconds(Integer.MAX_VALUE);
 
     private final long requestId = 1L;
 
@@ -45,7 +49,7 @@ public class RawClientTest {
         connectionFactory.provideConnection(endpoint, connection);
         RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
-        rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
+        rawClient.sendRequest(1, new WireCommands.Hello(0, 0), RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor());
         Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.Hello(0, 0)),
                                              Mockito.any(ClientConnection.CompletedCallback.class));
         rawClient.close();
@@ -66,7 +70,7 @@ public class RawClientTest {
 
         UUID id = UUID.randomUUID();
         ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER), requestId);
-        CompletableFuture<Reply> future = rawClient.sendRequest(1, request);
+        CompletableFuture<Reply> future = rawClient.sendRequest(1, request, RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor());
         Mockito.verify(connection).sendAsync(Mockito.eq(request),
                                              Mockito.any(ClientConnection.CompletedCallback.class));
         assertFalse(future.isDone());
@@ -88,11 +92,28 @@ public class RawClientTest {
 
         RawClient rawClient = new RawClient(endpoint, connectionFactory);
 
-        rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
+        rawClient.sendRequest(1, new WireCommands.Hello(0, 0), RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor());
         Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.Hello(0, 0)),
                 Mockito.any(ClientConnection.CompletedCallback.class));
         rawClient.close();
         Mockito.verify(connection).close();
     }
 
+    @Test
+    public void testRequestReplyTimeout() {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, connection);
+        @Cleanup
+        RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
+
+        UUID id = UUID.randomUUID();
+        ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER), requestId);
+        CompletableFuture<Reply> future = rawClient.sendRequest(1, request, Duration.ofSeconds(0), connectionFactory.getInternalExecutor());
+        assertThrows(TimeoutException.class, () -> future.join());
+    }
 }

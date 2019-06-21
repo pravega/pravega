@@ -22,11 +22,13 @@ import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.Hello;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -130,13 +132,23 @@ public class RawClient implements AutoCloseable {
         }
     }
 
-    public <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(long requestId, T request) {
+    public <T extends Request & WireCommand> CompletableFuture<Reply> sendRequest(long requestId, T request,
+                                                                                  Duration timeout,
+                                                                                  ScheduledExecutorService executor) {
         return connection.thenCompose(c -> {
             log.debug("Sending request: {}", request);
             CompletableFuture<Reply> reply = new CompletableFuture<>();
             synchronized (lock) {
                 requests.put(requestId, reply);
             }
+            CompletableFuture<Void> timer = Futures.futureWithTimeout(timeout, executor);
+            Futures.onTimeout(timer, ex -> {
+                synchronized (lock) {
+                    requests.remove(requestId);
+                }
+                reply.completeExceptionally(ex);
+                closeConnection(ex);
+            });
             c.sendAsync(request, cfe -> {
                 if (cfe != null) {
                     synchronized (lock) {
@@ -145,6 +157,7 @@ public class RawClient implements AutoCloseable {
                     reply.completeExceptionally(cfe);
                     closeConnection(cfe);
                 }
+                timer.completeExceptionally(new InterruptedException());
             });
             return reply;
         });

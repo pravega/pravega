@@ -27,6 +27,7 @@ import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,6 +40,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 class ConditionalOutputStreamImpl implements ConditionalOutputStream {
+    private static final Duration RAWCLIENT_REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
     private final UUID writerId;
     private final Segment segmentId;
@@ -72,7 +74,9 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                             SetupAppend setup = new SetupAppend(requestId, writerId,
                                                                 segmentId.getScopedName(),
                                                                 delegationToken);
-                            val reply = client.sendRequest(requestId, setup);
+                            val reply = client.sendRequest(requestId, setup,
+                                                           RAWCLIENT_REQUEST_TIMEOUT,
+                                                           connectionFactory.getInternalExecutor());
                             AppendSetup appendSetup = transformAppendSetup(reply.join());
                             if (appendSetup.getLastEventNumber() >= appendSequence) {
                                 return true;
@@ -81,7 +85,9 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                         long requestId = client.getFlow().getNextSequenceNumber();
                         val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
                                                             new Event(Unpooled.wrappedBuffer(data)), requestId);
-                        val reply = client.sendRequest(requestId, request);
+                        val reply = client.sendRequest(requestId, request,
+                                                       RAWCLIENT_REQUEST_TIMEOUT,
+                                                       connectionFactory.getInternalExecutor());
                         return transformDataAppended(reply.join());
                     });
         } 

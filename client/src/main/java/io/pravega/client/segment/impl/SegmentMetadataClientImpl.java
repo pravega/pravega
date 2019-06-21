@@ -30,6 +30,8 @@ import io.pravega.shared.protocol.netty.WireCommands.StreamSegmentInfo;
 import io.pravega.shared.protocol.netty.WireCommands.TruncateSegment;
 import io.pravega.shared.protocol.netty.WireCommands.UpdateSegmentAttribute;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,6 +45,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class SegmentMetadataClientImpl implements SegmentMetadataClient {
     private static final RetryWithBackoff RETRY_SCHEDULE = Retry.withExpBackoff(1, 10, 9, 30000);
+    private static final Duration RAWCLIENT_REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
     private final Segment segmentId;
     private final Controller controller;
@@ -115,7 +118,9 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         log.debug("Getting segment info for segment: {}", segmentId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new GetStreamSegmentInfo(requestId, segmentId.getScopedName(), delegationToken))
+        return connection.sendRequest(requestId,
+                                      new GetStreamSegmentInfo(requestId, segmentId.getScopedName(), delegationToken),
+                                      RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor())
                          .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
     }
     
@@ -124,7 +129,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
         return connection.sendRequest(requestId,
-                                      new GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, delegationToken))
+                                      new GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, delegationToken),
+                                      RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor())
                          .thenApply(r -> transformReply(r, WireCommands.SegmentAttribute.class));
     }
 
@@ -135,7 +141,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         long requestId = connection.getFlow().getNextSequenceNumber();
         return connection.sendRequest(requestId,
                                       new UpdateSegmentAttribute(requestId, segmentId.getScopedName(), attributeId,
-                                                                 value, expected, delegationToken))
+                                                                 value, expected, delegationToken),
+                                      RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor())
                          .thenApply(r -> transformReply(r, SegmentAttributeUpdated.class));
     }
 
@@ -143,7 +150,9 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         log.trace("Truncating segment: {}", segment);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new TruncateSegment(requestId, segment.getScopedName(), offset, delegationToken))
+        return connection.sendRequest(requestId,
+                                     new TruncateSegment(requestId, segment.getScopedName(), offset, delegationToken),
+                                     RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor())
                          .thenApply(r -> transformReply(r, SegmentTruncated.class));
     }
     
@@ -151,7 +160,8 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         log.trace("Sealing segment: {}", segment);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId, new SealSegment(requestId, segment.getScopedName(), delegationToken))
+        return connection.sendRequest(requestId, new SealSegment(requestId, segment.getScopedName(), delegationToken),
+                                      RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor())
                          .thenApply(r -> transformReply(r, SegmentSealed.class));
     }
 
