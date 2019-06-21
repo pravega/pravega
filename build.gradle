@@ -157,10 +157,12 @@ project('shared:security') {
         compile project(':common')
         compile project(':shared:authplugin')
         compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
-        
-        // since Java 9, JAXB is not bundled with Java SE, so we need them explicitly here.
+
+        // Adding JAXB API and the reference implementation as a dependency here, since they are not available
+        // in newer Java SE versions (9 and newer).
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
         compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+
         testCompile project(':test:testcommon')
     }
 
