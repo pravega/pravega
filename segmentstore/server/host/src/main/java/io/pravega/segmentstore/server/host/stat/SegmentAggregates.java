@@ -112,6 +112,8 @@ abstract class SegmentAggregates {
 
     protected abstract long getUpdateCountDelta(long dataLength, int numOfEvents);
 
+    protected abstract double getRate(double rate);
+
     boolean isScalingEnabled() {
         return true;
     }
@@ -173,19 +175,19 @@ abstract class SegmentAggregates {
     }
 
     synchronized double getTwoMinuteRate() {
-        return twoMinuteRate;
+        return getRate(twoMinuteRate);
     }
 
     synchronized double getFiveMinuteRate() {
-        return fiveMinuteRate;
+        return getRate(fiveMinuteRate);
     }
 
     synchronized double getTenMinuteRate() {
-        return tenMinuteRate;
+        return getRate(tenMinuteRate);
     }
 
     synchronized double getTwentyMinuteRate() {
-        return twentyMinuteRate;
+        return getRate(twentyMinuteRate);
     }
 
     boolean reportIfNeeded(Duration reportingDuration) {
@@ -215,7 +217,12 @@ abstract class SegmentAggregates {
 
         @Override
         protected long getUpdateCountDelta(long dataLength, int numOfEvents) {
-            return dataLength / 1024;
+            return dataLength;
+        }
+
+        @Override
+        protected double getRate(double rate) {
+            return rate / 1024;
         }
     }
 
@@ -232,6 +239,11 @@ abstract class SegmentAggregates {
         @Override
         protected long getUpdateCountDelta(long dataLength, int numOfEvents) {
             return numOfEvents;
+        }
+
+        @Override
+        protected double getRate(double rate) {
+            return rate;
         }
     }
 
@@ -253,6 +265,11 @@ abstract class SegmentAggregates {
         @Override
         protected long getUpdateCountDelta(long dataLength, int numOfEvents) {
             return 0;
+        }
+
+        @Override
+        protected double getRate(double rate) {
+            return rate;
         }
     }
 
