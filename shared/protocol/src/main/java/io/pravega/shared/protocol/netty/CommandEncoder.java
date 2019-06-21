@@ -67,7 +67,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
-    private AtomicLong tokenCounter = new AtomicLong(0);
+    private final AtomicLong tokenCounter = new AtomicLong(0);
     private String segmentBeingAppendedTo;
     private UUID writerIdPerformingAppends;
     private int currentBlockSize;
@@ -91,26 +91,26 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
                 breakFromAppend(null, null, out);
             }
-            ByteBuf data = append.getData().slice();
-            int msgSize = data.readableBytes();
-            AppendBatchSizeTracker blockSizeSupplier = null;
+            final ByteBuf data = append.getData().slice();
+            final int msgSize = data.readableBytes();
+            final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
+                    appendTracker.apply(append.getFlowId());
+
             session.lastEventNumber = append.getEventNumber();
             session.eventCount++;
-            if (appendTracker != null) {
-                blockSizeSupplier = appendTracker.apply(append.getFlowId());
+            if (blockSizeSupplier != null) {
                 blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
             }
             if (bytesLeftInBlock == 0) {
+                currentBlockSize = msgSize + TYPE_PLUS_LENGTH_SIZE;
                 if (blockSizeSupplier != null) {
-                    currentBlockSize = Math.max(TYPE_PLUS_LENGTH_SIZE, blockSizeSupplier.getAppendBlockSize());
-                } else {
-                    currentBlockSize = msgSize + TYPE_PLUS_LENGTH_SIZE;
+                    currentBlockSize = Math.max(currentBlockSize, blockSizeSupplier.getAppendBlockSize());
                 }
                 bytesLeftInBlock = currentBlockSize;
                 segmentBeingAppendedTo = append.segment;
                 writerIdPerformingAppends = append.writerId;
                 writeMessage(new AppendBlock(session.id), out);
-                if (ctx != null && blockSizeSupplier != null && currentBlockSize > (msgSize + TYPE_PLUS_LENGTH_SIZE)) {
+                if (ctx != null && currentBlockSize > (msgSize + TYPE_PLUS_LENGTH_SIZE)) {
                     ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
                                             blockSizeSupplier.getBatchTimeout(),
                                             TimeUnit.MILLISECONDS);
