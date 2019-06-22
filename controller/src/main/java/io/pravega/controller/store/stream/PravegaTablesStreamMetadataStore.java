@@ -19,6 +19,8 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.HistoryTimeSeriesRecord;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
 import lombok.AccessLevel;
@@ -229,6 +231,57 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
                                                 }
                                             });
                           }), executor);
+    }
+
+    @Override
+    public CompletableFuture<HistoryTimeSeriesRecord> getHistoryTimeSeriesRecord(final String scope, final String streamName,
+                                                                                 final int epoch, final OperationContext context,
+                                                                                 final Executor executor) {
+        PravegaTablesStream stream = (PravegaTablesStream) getStream(scope, streamName, context);
+        int historyChunkSize = HistoryTimeSeries.HISTORY_CHUNK_SIZE;
+        int historyChunk = epoch / historyChunkSize;
+
+        return stream.getHistoryTimeSeriesChunkData(historyChunk, true)
+                .thenApply(x -> {
+                    HistoryTimeSeries timeSeries = x.getObject();
+
+                    return timeSeries.getHistoryRecords().stream()
+                            .filter(record -> record.getEpoch() == epoch)
+                            .findAny()
+                            .orElse(null);
+                });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkSegmentSealed(final String scope, final String streamName, final long segmentId,
+                                                         final OperationContext context, final Executor executor) {
+        PravegaTablesStream stream = (PravegaTablesStream) getStream(scope, streamName, context);
+
+        return stream.getSegmentSealedRecordData(segmentId).handle((x, e) -> {
+            if (e != null) {
+                if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                    return false;
+                } else {
+                    throw new CompletionException(e);
+                }
+            }
+            return true;
+        });
+    }
+
+    @Override
+    public CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunkRecent(final String scope, final String streamName,
+                                                                                final OperationContext context, final Executor executor) {
+        PravegaTablesStream stream = (PravegaTablesStream) getStream(scope, streamName, context);
+
+        return stream.getActiveEpoch(true)
+                .thenCompose(epoch -> {
+                    int historyChunkSize = HistoryTimeSeries.HISTORY_CHUNK_SIZE;
+                    int historyChunk = epoch.getEpoch() / historyChunkSize;
+
+                    return stream.getHistoryTimeSeriesChunkData(historyChunk, true)
+                            .thenApply(VersionedMetadata::getObject);
+                });
     }
 
     @Override

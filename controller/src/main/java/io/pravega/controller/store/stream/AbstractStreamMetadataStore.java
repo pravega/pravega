@@ -63,7 +63,7 @@ import java.util.stream.Collectors;
  * Implementation of create and update queries are delegated to the specific implementations of this abstract class.
  */
 @Slf4j
-public abstract class AbstractStreamMetadataStore implements StreamMetadataStore {
+public abstract class AbstractStreamMetadataStore implements ExtendedStreamMetadataStore {
     public static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
     public static final Predicate<Throwable> DATA_NOT_EMPTY_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotEmptyException;
 
@@ -405,7 +405,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         Stream stream = getStream(scope, streamName, context);
         return withCompletion(stream.isStreamCutValid(streamCut), executor);
     }
-
 
     @Override
     public CompletableFuture<VersionedMetadata<EpochTransitionRecord>> submitScale(final String scope,

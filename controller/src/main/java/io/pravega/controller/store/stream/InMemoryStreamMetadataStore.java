@@ -12,10 +12,13 @@ package io.pravega.controller.store.stream;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.StreamConfiguration;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.AtomicInt96;
 import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.index.InMemoryHostIndex;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.HistoryTimeSeriesRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.DeleteScopeStatus;
 import lombok.Synchronized;
@@ -28,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
 /**
@@ -261,6 +265,91 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         Preconditions.checkArgument(oldLastActiveSegment == null || lastActiveSegment >= oldLastActiveSegment);
         log.debug("Recording last segment {} for stream {}/{} on deletion.", lastActiveSegment, scope, stream);
         return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<HistoryTimeSeriesRecord> getHistoryTimeSeriesRecord(final String scope, final String streamName,
+                                                                                 final int epoch, final OperationContext context,
+                                                                                 final Executor executor) {
+        if (scopes.containsKey(scope)) {
+            String scopeStreamName = scopedStreamName(scope, streamName);
+            if (!streams.containsKey(scopeStreamName)) {
+                return Futures.
+                        failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeStreamName));
+            }
+
+            int historyChunkSize = HistoryTimeSeries.HISTORY_CHUNK_SIZE;
+            int historyChunk = epoch / historyChunkSize;
+
+            return streams.get(scopeStreamName).getHistoryTimeSeriesChunkData(historyChunk, true)
+                    .thenApply(x -> {
+                        HistoryTimeSeries timeSeries = x.getObject();
+
+                        return timeSeries.getHistoryRecords().stream()
+                                    .filter(record -> record.getEpoch() == epoch)
+                                    .findAny()
+                                    .orElse(null);
+                    });
+
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scope));
+        }
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<Boolean> checkSegmentSealed(final String scope, final String streamName, final long segmentId,
+                                                         final OperationContext context, final Executor executor) {
+        if (scopes.containsKey(scope)) {
+            String scopeStreamName = scopedStreamName(scope, streamName);
+            if (!streams.containsKey(scopeStreamName)) {
+                return Futures.
+                        failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeStreamName));
+            }
+
+            return streams.get(scopeStreamName).getSegmentSealedRecordData(segmentId).handle((x, e) -> {
+                if (e != null) {
+                    if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                        return false;
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                }
+                return true;
+            });
+
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scope));
+        }
+    }
+
+    @Override
+    @Synchronized
+    public CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunkRecent(final String scope, final String streamName,
+                                                                                final OperationContext context, final Executor executor) {
+        if (scopes.containsKey(scope)) {
+            String scopeStreamName = scopedStreamName(scope, streamName);
+            if (!streams.containsKey(scopeStreamName)) {
+                return Futures.
+                        failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scopeStreamName));
+            }
+
+            return streams.get(scopeStreamName).getActiveEpoch(true)
+                    .thenCompose(epoch -> {
+                        int historyChunkSize = HistoryTimeSeries.HISTORY_CHUNK_SIZE;
+                        int historyChunk = epoch.getEpoch() / historyChunkSize;
+
+                        return streams.get(scopeStreamName).getHistoryTimeSeriesChunkData(historyChunk, true)
+                                .thenApply(VersionedMetadata::getObject);
+                    });
+
+        } else {
+            return Futures.
+                    failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, scope));
+        }
     }
     
     private String scopedStreamName(final String scopeName, final String streamName) {

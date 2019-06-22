@@ -17,6 +17,8 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.store.index.ZKHostIndex;
+import io.pravega.controller.store.stream.records.HistoryTimeSeries;
+import io.pravega.controller.store.stream.records.HistoryTimeSeriesRecord;
 import io.pravega.controller.util.Config;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -227,6 +229,57 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
                 .thenCompose(id -> zkScope.removeStreamFromScope(name, id)),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                 .thenCompose(v -> super.deleteStream(scope, name, context, executor));
+    }
+
+    @Override
+    public CompletableFuture<HistoryTimeSeriesRecord> getHistoryTimeSeriesRecord(final String scope, final String streamName,
+                                                                                 final int epoch, final OperationContext context,
+                                                                                 final Executor executor) {
+        ZKStream zkStream = (ZKStream) getStream(scope, streamName, context);
+        int historyChunkSize = HistoryTimeSeries.HISTORY_CHUNK_SIZE;
+        int historyChunk = epoch / historyChunkSize;
+
+        return zkStream.getHistoryTimeSeriesChunkData(historyChunk, true)
+                .thenApply(x -> {
+                    HistoryTimeSeries timeSeries = x.getObject();
+
+                    return timeSeries.getHistoryRecords().stream()
+                            .filter(record -> record.getEpoch() == epoch)
+                            .findAny()
+                            .orElse(null);
+                });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkSegmentSealed(final String scope, final String streamName, final long segmentId,
+                                                         final OperationContext context, final Executor executor) {
+        ZKStream zkStream = (ZKStream) getStream(scope, streamName, context);
+
+        return zkStream.getSegmentSealedRecordData(segmentId).handle((x, e) -> {
+            if (e != null) {
+                if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
+                    return false;
+                } else {
+                    throw new CompletionException(e);
+                }
+            }
+            return true;
+        });
+    }
+
+    @Override
+    public CompletableFuture<HistoryTimeSeries> getHistoryTimeSeriesChunkRecent(final String scope, final String streamName,
+                                                                                final OperationContext context, final Executor executor) {
+        ZKStream zkStream = (ZKStream) getStream(scope, streamName, context);
+
+        return zkStream.getActiveEpoch(true)
+                .thenCompose(epoch -> {
+                    int historyChunkSize = HistoryTimeSeries.HISTORY_CHUNK_SIZE;
+                    int historyChunk = epoch.getEpoch() / historyChunkSize;
+
+                    return zkStream.getHistoryTimeSeriesChunkData(historyChunk, true)
+                            .thenApply(VersionedMetadata::getObject);
+                });
     }
 
     @VisibleForTesting
