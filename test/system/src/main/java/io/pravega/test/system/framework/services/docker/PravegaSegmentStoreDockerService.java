@@ -139,7 +139,8 @@ public class PravegaSegmentStoreDockerService extends DockerBasedService {
             });
         } else {
             // Set HDFS as the default for Tier2.
-            stringList.add("HDFS_URL=" + hdfsUri.getHost() + ":8020");
+            //stringList.add("HDFS_URL=" + hdfsUri.getHost() + ":8020");
+            stringList.add("HDFS_URL=10.240.135.46:8020");
             stringList.add("TIER2_STORAGE=HDFS");
         }
     }

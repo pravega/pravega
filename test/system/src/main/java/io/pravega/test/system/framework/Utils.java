@@ -109,12 +109,11 @@ public class Utils {
     public static Service createPravegaSegmentStoreService(final URI zkUri, final URI contUri) {
         URI hdfsUri = null;
         if (DOCKER_BASED) {
-            /**Service hdfsService = new HDFSDockerService("hdfs");
+            Service hdfsService = new HDFSDockerService("hdfs");
             if (!hdfsService.isRunning()) {
                 hdfsService.start(true);
             }
-            hdfsUri = hdfsService.getServiceDetails().get(0);**/
-            hdfsUri = URI.create("10.240.135.46:8020");
+            hdfsUri = hdfsService.getServiceDetails().get(0);
         }
 
         String serviceId = "segmentstore";
