@@ -10,7 +10,6 @@
 package io.pravega.test.system.framework.services.docker;
 
 import com.spotify.docker.client.messages.ContainerConfig;
-import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
 import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
@@ -23,14 +22,13 @@ import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 import static com.spotify.docker.client.messages.swarm.RestartPolicy.RESTART_POLICY_ANY;
+import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 
 @Slf4j
 public class BookkeeperDockerService extends DockerBasedService {
@@ -65,9 +63,6 @@ public class BookkeeperDockerService extends DockerBasedService {
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.service.name", serviceName);
 
-        Mount mount2 = Mount.builder().type("volume").source("bookkeeper-logs")
-                .target("/opt/dl_all/distributedlog-service/logs/")
-                .build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<String> stringList = new ArrayList<>();
         String env1 = "ZK_URL=" + zk;
@@ -82,13 +77,12 @@ public class BookkeeperDockerService extends DockerBasedService {
         stringList.add(env5);
 
         final TaskSpec taskSpec = TaskSpec
-                .builder().restartPolicy(RestartPolicy.builder().maxAttempts(1).condition(RESTART_POLICY_ANY).build())
+                .builder().restartPolicy(RestartPolicy.builder().maxAttempts(3).condition(RESTART_POLICY_ANY).build())
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
                         .labels(labels)
                         .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
-                        .mounts(Arrays.asList(mount2))
                         .env(stringList).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()

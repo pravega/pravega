@@ -98,6 +98,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
 
     /**
      * Returns the number of open flows.
+     * @return Flow count.
      */
     public int getOpenFlowCount() {
         return flowIdReplyProcessorMap.size();

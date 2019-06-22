@@ -152,6 +152,33 @@ project('shared:authplugin') {
     }
 }
 
+project('shared:security') {
+    dependencies {
+        compile project(':common')
+        compile project(':shared:authplugin')
+        compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
+
+        // Adding JAXB API and the reference implementation as a dependency here, since they are not available
+        // in newer Java SE versions (9 and newer).
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+
+        testCompile project(':test:testcommon')
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion
+        }
+        source {
+            sourceSets.main.java
+        }
+        failOnError = false
+        options.addBooleanOption("Xdoclint:none", true)
+    }
+}
+
 project ('shared:cluster') {
     dependencies {
         compile project(':common')
@@ -367,6 +394,7 @@ project('segmentstore:server:host') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(":shared:security")
         compile project(':shared:cluster')
         compile project(':segmentstore:contracts')
         compile project(':client')
@@ -374,7 +402,6 @@ project('segmentstore:server:host') {
         compile project(':segmentstore:storage:impl')
         compile project(':bindings')
         compile project(':segmentstore:server')
-        compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -576,6 +603,7 @@ project('controller') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(":shared:security")
         compile project(":shared:controller-api")
         compile project(':shared:cluster')
         compile project(":client")
@@ -594,7 +622,6 @@ project('controller') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
@@ -933,6 +960,7 @@ task publishAllJars() {
     dependsOn ':client:publish'
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
+    dependsOn ':shared:security'
     dependsOn ':shared:protocol:publish'
     dependsOn ':segmentstore:contracts:publish'
     dependsOn ':segmentstore:storage:publish'

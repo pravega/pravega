@@ -11,7 +11,7 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenException;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -193,7 +193,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     log.warn("Connection for segment {} on writer {} failed due to: {}", segmentName, writerId, message);
                 }
             }
-            if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException) {
+            if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException
+                    || throwable instanceof TokenException) {
                 setupConnection.releaseExceptionally(throwable);
             } else if (failSetupConnection) {
                 setupConnection.releaseExceptionallyAndReset(throwable);                
@@ -283,7 +284,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final class ResponseProcessor extends FailingReplyProcessor {
         @Override
         public void connectionDropped() {
-            failConnection(new ConnectionFailedException());
+            failConnection(new ConnectionFailedException("Connection dropped for writer " + writerId));
         }
         
         @Override
@@ -309,6 +310,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void noSuchSegment(NoSuchSegment noSuchSegment) {
+            log.info("Received noSuchSegment for writer {}", writerId);
             final String segment = noSuchSegment.getSegment();
             if (StreamSegmentNameUtils.isTransactionSegment(segment)) {
                 log.info("Transaction Segment: {} no longer exists since the txn is aborted. {}", noSuchSegment.getSegment(),
@@ -325,7 +327,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void dataAppended(DataAppended dataAppended) {
-            log.trace("Received ack: {}", dataAppended);
+            log.trace("Received dataAppended ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
             long previousAckLevel = dataAppended.getPreviousEventNumber();
             try {
@@ -338,7 +340,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void appendSetup(AppendSetup appendSetup) {
-            log.info("Received AppendSetup {}", appendSetup);
+            log.info("Received appendSetup {}", appendSetup);
             long ackLevel = appendSetup.getLastEventNumber();
             ackUpTo(ackLevel);
             List<Append> toRetransmit = state.getAllInflight()
@@ -413,8 +415,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth failed {}", authTokenCheckFailed);
-            failConnection(new AuthenticationException(authTokenCheckFailed.toString()));
+            failConnection(new TokenException(authTokenCheckFailed.toString()));
         }
     }
 
@@ -433,7 +434,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 // list.
                 connection = Futures.getThrowingException(getConnection());
             } catch (SegmentSealedException | NoSuchSegmentException e) {
-                // Add the event to inflight, this will be resent to the succesor during the execution of resendToSuccessorsCallback
+                // Add the event to inflight, this will be resent to the successor during the execution of resendToSuccessorsCallback
                 state.addToInflight(event);
                 return;
             }
@@ -456,7 +457,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         if (state.isClosed()) {
             throw new IllegalStateException("SegmentOutputStream is already closed", state.getException());
         }
-        if (state.isAlreadySealed()) {
+        if (state.needSuccessors.get()) {
             throw new SegmentSealedException(this.segmentName);
         }
         if (state.getConnection() == null) {
@@ -496,6 +497,14 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             try {
                 ClientConnection connection = Futures.getThrowingException(getConnection());
                 connection.send(new KeepAlive());
+            } catch (SegmentSealedException | NoSuchSegmentException e) {
+                if (StreamSegmentNameUtils.isTransactionSegment(segmentName)) {
+                    log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
+                                     "committed/aborted. Details: {}", e.getMessage());
+                    failConnection(e);
+                } else {
+                    log.info("Exception observed while obtaining connection during flush. Details: {} ", e.getMessage());
+                }
             } catch (Exception e) {
                 failConnection(e);
             }
@@ -512,7 +521,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     }
     
     private void failConnection(Throwable e) {
-        log.info("Failing connection for writer {} with exception {}", writerId, e.toString());
+        log.warn("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));
         reconnect();
     }
@@ -528,12 +537,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                                              retrySchedule.getMaxDelay(),
                                              t -> log.warn(writerId + " Failed to connect: ", t))
                  .runAsync(() -> {
-                     log.debug("Running reconnect for segment:{} writerID: {}", segmentName, writerId);
-                     if (state.isClosed() || state.isAlreadySealed()) {
+                     log.debug("Running reconnect for segment {} writer {}", segmentName, writerId);
+                     if (state.isClosed() || state.needSuccessors.get()) {
+                         // stop reconnect when writer is closed or resend inflight to successors has been triggered.
                          return CompletableFuture.completedFuture(null);
                      }
                      Preconditions.checkState(state.getConnection() == null);
-                     log.info("Fetching endpoint for segment {}, writerID: {}", segmentName, writerId);
+                     log.info("Fetching endpoint for segment {}, writer {}", segmentName, writerId);
                      return controller.getEndpointForSegment(segmentName).thenComposeAsync((PravegaNodeUri uri) -> {
                          log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
                          return connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);
@@ -549,6 +559,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          }
                          return connectionSetupFuture.exceptionally(t -> {
                              Throwable exception = Exceptions.unwrap(t);
+                             if (exception instanceof TokenException) {
+                                 log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
+                                         writerId, segmentName);
+                                 return null;
+                             }
                              if (exception instanceof SegmentSealedException) {
                                  log.info("Ending reconnect attempts on writer {} to {} because segment is sealed", writerId, segmentName);
                                  return null;
