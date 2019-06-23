@@ -29,7 +29,7 @@ public class ServiceConfig {
 
     public static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount");
     public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 30);
-    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPoolSize", 400);
+    public static final Property<Integer> STORAGE_THREAD_POOL_SIZE = Property.named("storageThreadPoolSize", 200);
     public static final Property<Integer> LISTENING_PORT = Property.named("listeningPort", 12345);
     public static final Property<Integer> PUBLISHED_PORT = Property.named("publishedPort");
     public static final Property<String> LISTENING_IP_ADDRESS = Property.named("listeningIPAddress", "");
