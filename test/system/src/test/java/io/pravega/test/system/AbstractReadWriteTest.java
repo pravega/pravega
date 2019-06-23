@@ -221,6 +221,8 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                 Transaction<String> transaction = null;
 
                 try {
+                    Exceptions.handleInterrupted(() -> Thread.sleep(100));
+
                     transaction = writer.beginTxn();
                     String uniqueRoutingKey = transaction.getTxnId().toString();
                     long seqNumber = 0;
