@@ -37,8 +37,8 @@ abstract class AbstractFailoverTests extends AbstractReadWriteTest {
     static final String AUTO_SCALE_STREAM = "testReadWriteAndAutoScaleStream";
     static final String SCALE_STREAM = "testReadWriteAndScaleStream";
     //Duration for which the system test waits for writes/reads to happen post failover.
-    //10s (SessionTimeout) + 10s (RebalanceContainers) + 30s (For Container recovery + start) + NetworkDelays
-    static final int WAIT_AFTER_FAILOVER_MILLIS = 60 * 1000;
+    //10s (SessionTimeout) + 10s (RebalanceContainers) + 20s (For Container recovery + start) + NetworkDelays
+    static final int WAIT_AFTER_FAILOVER_MILLIS = 40 * 1000;
 
     Service controllerInstance;
     Service segmentStoreInstance;
