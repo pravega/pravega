@@ -7,7 +7,6 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-//package io.pravega.test.integration.endtoendtest;
 package io.pravega.local;
 
 import io.pravega.client.ClientConfig;
