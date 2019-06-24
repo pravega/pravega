@@ -1061,4 +1061,23 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         // Verify no further reconnection attempts which involves sending of SetupAppend wire command.
         order.verifyNoMoreInteractions();
     }
+
+    @Test(timeout = 10000)
+    public void testConnectAndSendWithConnectionPooling() throws SegmentSealedException, ConnectionFailedException {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+                                                                     RETRY_SCHEDULE, "");
+        output.reconnect();
+        verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+
+        sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1);
+        verifyNoMoreInteractions(connection);
+    }
 }
