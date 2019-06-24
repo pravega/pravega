@@ -25,6 +25,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.Flush;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -337,7 +338,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0)));
         assertEquals(false, acked.isCompletedExceptionally());
         assertEquals(true, acked.isDone());
-        verify(connection, Mockito.atMost(1)).send(new WireCommands.KeepAlive());
+        verify(connection, Mockito.atMost(1)).send(new Flush(SEGMENT, cid));
         verify(connection).close();
         verifyNoMoreInteractions(connection);
     }
@@ -369,7 +370,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
-        order.verify(connection).send(new WireCommands.KeepAlive());
+        order.verify(connection).send(new Flush(SEGMENT, cid));
         
         CompletableFuture<Void> acked2 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked2));
@@ -379,7 +380,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 2, 1)));
         assertEquals(false, acked2.isCompletedExceptionally());
         assertEquals(true, acked2.isDone());
-        order.verify(connection).send(new WireCommands.KeepAlive());
+        order.verify(connection).send(new Flush(SEGMENT, cid));
         order.verifyNoMoreInteractions();
     }
 
@@ -409,7 +410,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
-        order.verify(connection).send(new WireCommands.KeepAlive());
+        order.verify(connection).send(new Flush(SEGMENT, cid));
 
         //simulate missed ack
 
@@ -450,7 +451,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
-        order.verify(connection).send(new WireCommands.KeepAlive());
+        order.verify(connection).send(new Flush(SEGMENT, cid));
 
         //simulate bad ack
 
@@ -546,7 +547,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 cf.getProcessor(uri).connectionDropped();
                 throw new ConnectionFailedException();
             }
-        }).doNothing().when(connection).send(new WireCommands.KeepAlive());
+        }).doNothing().when(connection).send(new Flush(SEGMENT, cid));
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -567,8 +568,8 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0));
         });
         // Verify the order of WireCommands sent.
-        inOrder.verify(connection).send(new WireCommands.KeepAlive());
-        // Two SetupAppend WireCommands are sent since the connection is dropped right after the first KeepAlive WireCommand is sent.
+        inOrder.verify(connection).send(new Flush(SEGMENT, cid));
+        // Two SetupAppend WireCommands are sent since the connection is dropped right after the first Flush WireCommand is sent.
         // The second SetupAppend WireCommand is sent while trying to re-establish connection.
         inOrder.verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
         // Ensure the pending append is sent over the connection. The exact verification of the append data is performed while setting up
@@ -728,11 +729,11 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         assertEquals(false, ack.isDone());
 
         final CountDownLatch connectionDroppedLatch = new CountDownLatch(1);
-        Mockito.doThrow(new ConnectionFailedException()).when(connection).send(new WireCommands.KeepAlive());
+        Mockito.doThrow(new ConnectionFailedException()).when(connection).send(new Flush(SEGMENT, cid));
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
-                // The segment writer will try to reconnect once the connection is failed post sending a KeepAlive.
+                // The segment writer will try to reconnect once the connection is failed post sending a Flush.
                 // enable a response for AppendSetup only after the connection dropped is dropped.
                 connectionDroppedLatch.await();
                 cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 1));
@@ -860,7 +861,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
             output.getUnackedEventsOnSeal();
         });
-        verify(connection).send(new WireCommands.KeepAlive());
+        verify(connection).send(new Flush(SEGMENT, cid));
         verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, ack.isDone());
     }

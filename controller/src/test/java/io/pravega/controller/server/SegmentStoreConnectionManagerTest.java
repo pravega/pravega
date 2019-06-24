@@ -14,6 +14,7 @@ import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.Flush;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -396,6 +397,11 @@ public class SegmentStoreConnectionManagerTest {
 
         @Override
         public void send(Append append) throws ConnectionFailedException {
+
+        }
+
+        @Override
+        public void send(Flush flush) throws ConnectionFailedException {
 
         }
 

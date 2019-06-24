@@ -11,6 +11,7 @@ package io.pravega.client.netty.impl;
 
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
+import io.pravega.shared.protocol.netty.Flush;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
 
@@ -37,7 +38,16 @@ public interface ClientConnection extends AutoCloseable {
      * @throws ConnectionFailedException The connection has died, and can no longer be used.
      */
     void send(Append append) throws ConnectionFailedException;
-    
+
+    /**
+     * flushes the pending events.
+     *
+     * @param flush flush the pending message.
+     * @throws ConnectionFailedException The connection has died, and can no longer be used.
+     */
+    void send(Flush flush) throws ConnectionFailedException;
+
+
     /**
      * Sends a wire command asynchronously.
      *

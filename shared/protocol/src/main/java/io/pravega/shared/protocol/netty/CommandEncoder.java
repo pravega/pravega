@@ -139,6 +139,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         } else if (msg instanceof WireCommand) {
             breakFromAppend(out);
             writeMessage((WireCommand) msg, out);
+        } else if (msg instanceof  Flush) {
+            Flush cmd = (Flush) msg;
+            if (cmd.getSegment().equals(segmentBeingAppendedTo) && cmd.getWriteID().equals(writerIdPerformingAppends)) {
+                breakFromAppend(out);
+            }
         } else {
             throw new IllegalArgumentException("Expected a wire command and found: " + msg);
         }
