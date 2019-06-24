@@ -115,6 +115,11 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> checkStreamExists(final String scope, final String streamName) {
+        return controller.checkStreamExists(scope, streamName);
+    }
+
+    @Override
     public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {

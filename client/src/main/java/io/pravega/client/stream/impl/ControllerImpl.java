@@ -39,6 +39,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.Retry;
+import io.pravega.controller.stream.api.grpc.v1.Controller.CheckStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateTxnRequest;
@@ -291,6 +292,30 @@ public class ControllerImpl implements Controller {
                 }
                 LoggerHelpers.traceLeave(log, "deleteScope", traceId, scopeName, requestId);
             });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> checkStreamExists(final String scope, final String streamName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+
+        final long requestId = requestIdGenerator.get();
+        long traceId = LoggerHelpers.traceEnter(log, "checkStreamExists", scope, streamName, requestId);
+
+        final CompletableFuture<CheckStreamStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<CheckStreamStatus> callback = new RPCAsyncCallback<>(requestId, "checkStreamExists");
+            new ControllerClientTagger(client).withTag(requestId, "checkStreamExists", scope, streamName)
+                    .checkStreamExists(ModelHelper.createStreamInfo(scope, streamName), callback);
+            return callback.getFuture();
+        }, this.executor);
+        return result.thenApply(CheckStreamStatus::getResponse)
+                .whenComplete((x, e) -> {
+                if (e != null) {
+                    log.warn(requestId, "checkStreamExists failed: ", e);
+                }
+                LoggerHelpers.traceLeave(log, "checkStreamExists", traceId, scope, streamName, requestId);
+              });
     }
 
     @Override
@@ -1079,6 +1104,10 @@ public class ControllerImpl implements Controller {
 
         public void createStream(StreamConfig streamConfig, RPCAsyncCallback<CreateStreamStatus> callback) {
             clientStub.createStream(streamConfig, callback);
+        }
+
+        public void checkStreamExists(StreamInfo streamInfo, RPCAsyncCallback<CheckStreamStatus> callback) {
+            clientStub.checkStreamExists(streamInfo, callback);
         }
 
         public void scale(ScaleRequest scaleRequest, RPCAsyncCallback<ScaleResponse> callback) {

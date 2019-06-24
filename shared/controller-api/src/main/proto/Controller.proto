@@ -22,6 +22,7 @@ service ControllerService {
     rpc truncateStream(StreamCut) returns (UpdateStreamStatus);
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
+    rpc checkStreamExists(StreamInfo) returns (CheckStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
     /* Deprecated RPC: https://github.com/pravega/pravega/issues/3760 */
@@ -80,6 +81,10 @@ message DeleteStreamStatus {
         STREAM_NOT_SEALED = 3;
     }
     Status status = 1;
+}
+
+message CheckStreamStatus {
+   bool response = 1;
 }
 
 message CreateScopeStatus {

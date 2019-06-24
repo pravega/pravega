@@ -129,6 +129,13 @@ public class ControllerService {
                   }, executor);
     }
 
+    public CompletableFuture<Boolean> checkStreamExists(final String scope,
+                                                       final String stream) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        return streamStore.checkStreamExists(scope, stream);
+    }
+
     public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {
         Preconditions.checkNotNull(streamConfig, "streamConfig");
         Timer timer = new Timer();
