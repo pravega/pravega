@@ -25,6 +25,6 @@ public class SynchronizerConfig implements Serializable {
     EventWriterConfig eventWriterConfig;
     
     public static class SynchronizerConfigBuilder {
-        private EventWriterConfig eventWriterConfig = EventWriterConfig.builder().build();
+        private EventWriterConfig eventWriterConfig = EventWriterConfig.builder().enableConnectionPooling(true).build();
     }
 }
