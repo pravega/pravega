@@ -47,6 +47,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import io.pravega.test.common.InlineExecutor;
 import lombok.Getter;
 import lombok.val;
 import org.junit.Test;
@@ -692,6 +693,7 @@ public class SegmentHelperTest {
         @Getter
         private ReplyProcessor rp;
         private ClientConnection connection;
+        private ScheduledExecutorService executor;
 
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
@@ -713,7 +715,10 @@ public class SegmentHelperTest {
 
         @Override
         public ScheduledExecutorService getInternalExecutor() {
-            return null;
+            if (executor == null) {
+                this.executor = new InlineExecutor();
+            }
+            return executor;
         }
 
         @Override
