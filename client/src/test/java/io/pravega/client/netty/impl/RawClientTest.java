@@ -34,8 +34,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class RawClientTest {
-    private static final Duration RAWCLIENT_REQUEST_TIMEOUT = Duration.ofSeconds(Integer.MAX_VALUE);
-
     private final long requestId = 1L;
 
     @Test
@@ -49,7 +47,7 @@ public class RawClientTest {
         connectionFactory.provideConnection(endpoint, connection);
         RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
-        rawClient.sendRequest(1, new WireCommands.Hello(0, 0), RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor());
+        rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
         Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.Hello(0, 0)),
                                              Mockito.any(ClientConnection.CompletedCallback.class));
         rawClient.close();
@@ -70,7 +68,7 @@ public class RawClientTest {
 
         UUID id = UUID.randomUUID();
         ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER), requestId);
-        CompletableFuture<Reply> future = rawClient.sendRequest(1, request, RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor());
+        CompletableFuture<Reply> future = rawClient.sendRequest(1, request);
         Mockito.verify(connection).sendAsync(Mockito.eq(request),
                                              Mockito.any(ClientConnection.CompletedCallback.class));
         assertFalse(future.isDone());
@@ -92,7 +90,7 @@ public class RawClientTest {
 
         RawClient rawClient = new RawClient(endpoint, connectionFactory);
 
-        rawClient.sendRequest(1, new WireCommands.Hello(0, 0), RAWCLIENT_REQUEST_TIMEOUT, connectionFactory.getInternalExecutor());
+        rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
         Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.Hello(0, 0)),
                 Mockito.any(ClientConnection.CompletedCallback.class));
         rawClient.close();
@@ -113,7 +111,7 @@ public class RawClientTest {
 
         UUID id = UUID.randomUUID();
         ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER), requestId);
-        CompletableFuture<Reply> future = rawClient.sendRequest(1, request, Duration.ofSeconds(0), connectionFactory.getInternalExecutor());
+        CompletableFuture<Reply> future = rawClient.sendRequest(1, request, Duration.ofSeconds(0));
         assertThrows(TimeoutException.class, () -> future.join());
     }
 }

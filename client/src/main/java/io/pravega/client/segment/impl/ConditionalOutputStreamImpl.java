@@ -75,8 +75,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                                                                 segmentId.getScopedName(),
                                                                 delegationToken);
                             val reply = client.sendRequest(requestId, setup,
-                                                           RAWCLIENT_REQUEST_TIMEOUT,
-                                                           connectionFactory.getInternalExecutor());
+                                                           RAWCLIENT_REQUEST_TIMEOUT);
                             AppendSetup appendSetup = transformAppendSetup(reply.join());
                             if (appendSetup.getLastEventNumber() >= appendSequence) {
                                 return true;
@@ -86,8 +85,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                         val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
                                                             new Event(Unpooled.wrappedBuffer(data)), requestId);
                         val reply = client.sendRequest(requestId, request,
-                                                       RAWCLIENT_REQUEST_TIMEOUT,
-                                                       connectionFactory.getInternalExecutor());
+                                                       RAWCLIENT_REQUEST_TIMEOUT);
                         return transformDataAppended(reply.join());
                     });
         } 
