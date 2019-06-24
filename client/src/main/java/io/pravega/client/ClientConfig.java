@@ -62,7 +62,7 @@ public class ClientConfig implements Serializable {
     private final boolean validateHostName;
 
     /**
-     * Maximum number of connections per Segment store.
+     * Maximum number of connections per Segment store to be used by connection pooling.
      */
     private final int maxConnectionsPerSegmentStore;
 
