@@ -219,7 +219,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         return CompletableFuture.runAsync(() -> {
             while (!stopFlag.get()) {
                 Transaction<String> transaction = null;
-                Exceptions.handleInterrupted(() -> Thread.sleep(100));
+
                 try {
                     transaction = writer.beginTxn();
                     String uniqueRoutingKey = transaction.getTxnId().toString();
