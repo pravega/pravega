@@ -59,7 +59,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     static final int WRITER_MAX_RETRY_ATTEMPTS = 20;
     static final int NUM_EVENTS_PER_TRANSACTION = 50;
     static final int RK_RENEWAL_RATE_TRANSACTION = NUM_EVENTS_PER_TRANSACTION / 2;
-    static final int TRANSACTION_TIMEOUT = 59 * 1000;
+    static final int TRANSACTION_TIMEOUT = 120 * 1000;
     static final int RK_RENEWAL_RATE_WRITER = 500;
     static final int SCALE_WAIT_ITERATIONS = 12;
     private static final int READ_TIMEOUT = 1000;
@@ -219,7 +219,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         return CompletableFuture.runAsync(() -> {
             while (!stopFlag.get()) {
                 Transaction<String> transaction = null;
-
+                Exceptions.handleInterrupted(() -> Thread.sleep(100));
                 try {
                     transaction = writer.beginTxn();
                     String uniqueRoutingKey = transaction.getTxnId().toString();
