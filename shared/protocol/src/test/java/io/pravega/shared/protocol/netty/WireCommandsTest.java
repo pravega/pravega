@@ -621,11 +621,13 @@ public class WireCommandsTest {
         testCommand(new WireCommands.KeepAlive());
     }
 
-    @Test
-    public void testFlush() {
+    @Test(expected = IOException.class)
+    public void testFlush() throws IOException {
+        ByteArrayOutputStream bout = new ByteArrayOutputStream();
         WireCommands.Flush flush = new WireCommands.Flush(uuid, testString1);
         assertEquals(uuid, flush.getWriterId());
         assertEquals(testString1, flush.getSegment());
+        flush.writeFields(new DataOutputStream(bout));
     }
 
     @Test

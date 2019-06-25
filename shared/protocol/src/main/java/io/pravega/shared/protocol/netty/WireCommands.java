@@ -2089,6 +2089,7 @@ public final class WireCommands {
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            throw new IOException("Invalid Wire I/O for flush");
         }
     }
 }
