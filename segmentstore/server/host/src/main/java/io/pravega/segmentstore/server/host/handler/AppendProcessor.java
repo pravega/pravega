@@ -16,7 +16,7 @@ import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthHandler;
-import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -30,6 +30,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
@@ -54,6 +55,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
@@ -70,8 +72,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int HIGH_WATER_MARK = 128 * 1024;
-    private static final int LOW_WATER_MARK = 64 * 1024;
+    private static final int HIGH_WATER_MARK = 640 * 1024; // 640KB
+    private static final int LOW_WATER_MARK = 320 * 1024;  // 320KB
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore store;
     private final ServerConnection connection;
@@ -151,12 +153,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         String newSegment = setupAppend.getSegment();
         UUID writer = setupAppend.getWriterId();
         log.info("Setting up appends for writer: {} on segment: {}", writer, newSegment);
-        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(newSegment,
-                setupAppend.getDelegationToken(), AuthHandler.Permissions.READ_UPDATE)) {
-            log.warn("Delegation token verification failed");
-            handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
-                    "Update Segment Attribute", new AuthenticationException("Token verification failed"));
-            return;
+
+        if (this.tokenVerifier != null) {
+            try {
+                tokenVerifier.verifyToken(newSegment,
+                                          setupAppend.getDelegationToken(),
+                                          AuthHandler.Permissions.READ_UPDATE);
+            } catch (TokenException e) {
+                handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
+                        "Update Segment Attribute", e);
+                return;
+            }
         }
 
         // Get the last Event Number for this writer from the Store. This operation (cache=true) will automatically put
@@ -345,16 +352,27 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
             connection.close();
-        } else if (u instanceof AuthenticationException) {
+        } else if (u instanceof TokenException) {
             log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace));
-            connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", doingWhat, u);
             connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
+        } else if (u instanceof CancellationException) {
+            // Cancellation exception is thrown when the Operation processor is shutting down.
+            log.info("Closing connection '{}' while performing append on Segment '{}' due to {}.", connection, segment, u.getMessage());
+            connection.close();
+        } else {
+            logError(segment, u);
+            connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
+        }
+    }
+
+    private void logError(String segment, Throwable u) {
+        if (u instanceof IllegalContainerStateException) {
+            log.warn("Error (Segment = '{}', Operation = 'append'): {}.", segment, u.toString());
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
-            connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
         }
     }
 

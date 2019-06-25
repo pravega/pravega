@@ -159,12 +159,13 @@ public class StreamCutImpl extends StreamCutInternal {
 
         @Override
         protected byte getWriteVersion() {
-            return 0;
+            return 1;
         }
 
         @Override
         protected void declareVersions() {
             version(0).revision(0, this::write00, this::read00);
+            version(1).revision(0, this::write10, this::read10);
         }
 
         private void read00(RevisionDataInput revisionDataInput, StreamCutBuilder builder) throws IOException {
@@ -181,6 +182,22 @@ public class StreamCutImpl extends StreamCutInternal {
             Map<Segment, Long> map = cut.getPositions();
             revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactLong(s.getSegmentId()),
                                         (out, offset) -> out.writeCompactLong(offset));
+        }
+
+        private void read10(RevisionDataInput revisionDataInput, StreamCutBuilder builder) throws IOException {
+            Stream stream = Stream.of(revisionDataInput.readUTF());
+            builder.stream(stream);
+            Map<Segment, Long> map = revisionDataInput.readMap(in -> new Segment(stream.getScope(),
+                                                                                 stream.getStreamName(), in.readCompactLong()),
+                                                               RevisionDataInput::readCompactSignedLong);
+            builder.positions(map);
+        }
+
+        private void write10(StreamCutInternal cut, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeUTF(cut.getStream().getScopedName());
+            Map<Segment, Long> map = cut.getPositions();
+            revisionDataOutput.writeMap(map, (out, s) -> out.writeCompactLong(s.getSegmentId()),
+                                        RevisionDataOutput::writeCompactSignedLong);
         }
     }
 

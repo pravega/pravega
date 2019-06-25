@@ -31,11 +31,12 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import io.pravega.controller.util.Config;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.Controller;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
+import lombok.extern.slf4j.Slf4j;
 
 
 @Slf4j
@@ -65,6 +66,29 @@ public class ControllerWrapper implements AutoCloseable {
                              final boolean disableControllerCluster,
                              final int controllerPort, final String serviceHost, final int servicePort,
                              final int containerCount, int restPort) {
+
+        this(connectionString, disableEventProcessor, disableControllerCluster, controllerPort,
+                serviceHost, servicePort, containerCount, restPort,
+                false, null, null);
+    }
+
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableControllerCluster,
+                             final int controllerPort, final String serviceHost, final int servicePort,
+                             final int containerCount, int restPort,
+                             boolean enableAuth, String passwordAuthHandlerInputFilePath, String tokenSigningKey) {
+
+        this(connectionString, disableEventProcessor, disableControllerCluster, controllerPort,
+                serviceHost, servicePort, containerCount, restPort,
+                enableAuth, passwordAuthHandlerInputFilePath, tokenSigningKey, 600);
+    }
+
+    public ControllerWrapper(final String connectionString, final boolean disableEventProcessor,
+                             final boolean disableControllerCluster,
+                             final int controllerPort, final String serviceHost, final int servicePort,
+                             final int containerCount, int restPort,
+                             boolean enableAuth, String passwordAuthHandlerInputFilePath,
+                             String tokenSigningKey, int accessTokenTtlInSeconds) {
 
         ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(connectionString)
                 .initialSleepInterval(500)
@@ -111,6 +135,10 @@ public class ControllerWrapper implements AutoCloseable {
                 .publishedRPCPort(controllerPort)
                 .replyWithStackTraceOnError(false)
                 .requestTracingEnabled(true)
+                .authorizationEnabled(enableAuth)
+                .tokenSigningKey(tokenSigningKey)
+                .accessTokenTTLInSeconds(accessTokenTtlInSeconds)
+                .userPasswordFile(passwordAuthHandlerInputFilePath)
                 .build();
 
         Optional<RESTServerConfig> restServerConfig = restPort > 0 ?
@@ -131,6 +159,7 @@ public class ControllerWrapper implements AutoCloseable {
         controllerServiceMain = new ControllerServiceMain(serviceConfig);
         controllerServiceMain.startAsync();
     }
+
 
     public boolean awaitTasksModuleInitialization(long timeout, TimeUnit timeUnit) throws InterruptedException {
         return this.controllerServiceMain.awaitServiceStarting().awaitTasksModuleInitialization(timeout, timeUnit);

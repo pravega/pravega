@@ -14,6 +14,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
+import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -101,17 +102,19 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
                 "ReadTxnWriteAutoScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
                 "ReadTxnWriteAutoScaleWithFailoverTest-controller");
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                                         .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                         .clientConfig(clientConfig)
                                          .maxBackoffMillis(5000).build(),
                 controllerExecutorService);
         testState = new TestState(true);
-        streamManager = new StreamManagerImpl( ClientConfig.builder().controllerURI(controllerURIDirect).build());
+        streamManager = new StreamManagerImpl(clientConfig);
         createScopeAndStream(scope, stream, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
-        clientFactory = new ClientFactoryImpl(scope, controller);
-        readerGroupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerURIDirect).build());
+
+        clientFactory = new ClientFactoryImpl(scope, controller, new ConnectionFactoryImpl(clientConfig));
+        readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
     }
 
     @After
@@ -131,42 +134,39 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
 
     @Test
     public void readTxnWriteAutoScaleWithFailoverTest() throws Exception {
-        try {
-            createWriters(clientFactory, INIT_NUM_WRITERS, scope, stream);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
+        createWriters(clientFactory, INIT_NUM_WRITERS, scope, stream);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
 
-            //run the failover test before scaling
-            performFailoverForTestsInvolvingTxns();
+        //run the failover test before scaling
+        performFailoverForTestsInvolvingTxns();
 
-            //bring the instances back to 3 before performing failover during scaling
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        //bring the instances back to 3 before performing failover during scaling
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, stream);
+        addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, stream);
 
-            //run the failover test while scaling
-            performFailoverForTestsInvolvingTxns();
+        //run the failover test while scaling
+        performFailoverForTestsInvolvingTxns();
 
-            waitForScaling(scope, stream, config);
+        waitForScaling(scope, stream, config);
 
-            //bring the instances back to 3 before performing failover
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        //bring the instances back to 3 before performing failover
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            //run the failover test after scaling
-            performFailoverForTestsInvolvingTxns();
+        //run the failover test after scaling
+        performFailoverForTestsInvolvingTxns();
 
-            stopWriters();
-            waitForTxnsToComplete();
-            stopReaders();
-            validateResults();
+        stopWriters();
+        waitForTxnsToComplete();
+        stopReaders();
+        validateResults();
 
-            cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-            log.info("Test ReadTxnWriteAutoScaleWithFailover succeeds");
-        } finally {
-            testState.checkForAnomalies();
-        }
+        cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+        testState.checkForAnomalies();
+        log.info("Test ReadTxnWriteAutoScaleWithFailover succeeds");
     }
 }

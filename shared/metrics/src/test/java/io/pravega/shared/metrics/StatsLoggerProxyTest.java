@@ -138,7 +138,7 @@ public class StatsLoggerProxyTest {
         }
 
         @Override
-        public <T extends Number> Gauge registerGauge(String name, Supplier<T> value, String... tags) {
+        public Gauge registerGauge(String name, Supplier<Number> supplier, String... tags) {
             return create(name, tags);
         }
 
@@ -234,6 +234,15 @@ public class StatsLoggerProxyTest {
 
         }
 
+        @Override
+        public Supplier<Number> getSupplier() {
+            return () -> 5;
+        }
+
+        @Override
+        public void setSupplier(Supplier<Number> supplier) {
+
+        }
         //endregion
     }
 }

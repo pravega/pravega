@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.Cleanup;
@@ -511,6 +512,34 @@ public class AppendProcessorTest {
         verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
         verify(connection, atLeast(0)).resumeReading();
         verify(connection).send(new OperationUnsupported(requestId, "appending data", ""));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+    }
+
+    @Test
+    public void testCancellationException() {
+        String streamSegmentName = "scope/stream/testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        AppendProcessor processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), null);
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
+                .thenReturn(Futures.failedFuture(new CancellationException("OperationProcessor is shutting down")));
+
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
+        verify(store).append(streamSegmentName,
+                             data,
+                             updateEventNumber(clientId, data.length),
+                             AppendProcessor.TIMEOUT);
+
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection, atLeast(0)).resumeReading();
+        verify(connection).close();
         verifyNoMoreInteractions(connection);
         verifyNoMoreInteractions(store);
     }

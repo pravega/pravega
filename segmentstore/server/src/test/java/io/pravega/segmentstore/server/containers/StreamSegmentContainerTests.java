@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
@@ -1449,8 +1450,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         AssertExtensions.assertSuppliedFutureThrows(
                 "Original container did not reject an append operation after being fenced out.",
                 () -> container1.append(segmentNames.get(0), new byte[1], null, TIMEOUT),
-                ex -> ex instanceof DataLogWriterNotPrimaryException
-                        || ex instanceof IllegalContainerStateException);
+                ex -> ex instanceof DataLogWriterNotPrimaryException      // Write fenced.
+                        || ex instanceof ObjectClosedException            // Write accepted, but OperationProcessor shuts down while processing it.
+                        || ex instanceof IllegalContainerStateException); // Write rejected due to Container not running.
 
         // Verify we can still write to the second container.
         container2.append(segmentNames.get(0), 0, new byte[1], null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);

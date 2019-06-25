@@ -53,11 +53,10 @@ public final class Config {
     public static final String RPC_PUBLISHED_SERVER_HOST;
     public static final int RPC_PUBLISHED_SERVER_PORT;
 
-    //Pravega Service endpoint configuration. Used only for a standalone single node deployment.
+    // Pravega Service endpoint configuration. Used only for a standalone single node deployment.
     public static final String SERVICE_HOST;
     public static final int SERVICE_PORT;
 
-    //Store configuration.
     //HostStore configuration.
     public static final int HOST_STORE_CONTAINER_COUNT;
 
@@ -65,6 +64,8 @@ public final class Config {
     public static final boolean HOST_MONITOR_ENABLED;
     public static final String CLUSTER_NAME;
     public static final int CLUSTER_MIN_REBALANCE_INTERVAL;
+
+    // Security configuration
     public static final boolean AUTHORIZATION_ENABLED;
     public static final String USER_PASSWORD_FILE;
     public static final boolean TLS_ENABLED;
@@ -72,10 +73,12 @@ public final class Config {
     public static final String TLS_CERT_FILE;
     public static final String TLS_TRUST_STORE;
     public static final String TOKEN_SIGNING_KEY;
+    public static final int ACCESS_TOKEN_TTL_IN_SECONDS;
+
     public static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR;
     public static final boolean REQUEST_TRACING_ENABLED;
 
-    //Zookeeper configuration.
+    // Zookeeper configuration.
     public static final String ZK_URL;
     public static final int ZK_RETRY_SLEEP_MS;
     public static final int ZK_MAX_RETRIES;
@@ -84,7 +87,7 @@ public final class Config {
     public static final String ZK_TRUSTSTORE_FILE_PATH;
     public static final String ZK_TRUSTSTORE_PASSWORD_FILE_PATH;
 
-    //REST server configuration
+    // REST server configuration
     public static final String REST_SERVER_IP;
     public static final int REST_SERVER_PORT;
     public static final String REST_KEYSTORE_FILE_PATH;
@@ -151,6 +154,7 @@ public final class Config {
     private static final Property<Boolean> PROPERTY_AUTH_ENABLED = Property.named("auth.enabled", false);
     private static final Property<String> PROPERTY_AUTH_PASSWORD_FILE = Property.named("auth.userPasswordFile", "");
     private static final Property<String> PROPERTY_TOKEN_SIGNING_KEY = Property.named("auth.tokenSigningKey", "");
+    private static final Property<Integer> PROPERTY_ACCESS_TOKEN_TTL_SECONDS = Property.named("auth.accessTokenTtlSeconds", 600);
 
     private static final Property<Boolean> PROPERTY_TLS_ENABLED = Property.named("auth.tlsEnabled", false);
     private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("auth.tlsCertFile", "");
@@ -203,6 +207,7 @@ public final class Config {
         AUTHORIZATION_ENABLED = p.getBoolean(PROPERTY_AUTH_ENABLED);
         USER_PASSWORD_FILE = p.get(PROPERTY_AUTH_PASSWORD_FILE);
         TOKEN_SIGNING_KEY = p.get(PROPERTY_TOKEN_SIGNING_KEY);
+        ACCESS_TOKEN_TTL_IN_SECONDS = p.getInt(PROPERTY_ACCESS_TOKEN_TTL_SECONDS);
 
         TLS_ENABLED = p.getBoolean(PROPERTY_TLS_ENABLED);
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
@@ -338,6 +343,7 @@ public final class Config {
                 .tlsTrustStore(Config.TLS_TRUST_STORE)
                 .tlsKeyFile(Config.TLS_KEY_FILE)
                 .tokenSigningKey(Config.TOKEN_SIGNING_KEY)
+                .accessTokenTTLInSeconds(Config.ACCESS_TOKEN_TTL_IN_SECONDS)
                 .replyWithStackTraceOnError(Config.REPLY_WITH_STACK_TRACE_ON_ERROR)
                 .requestTracingEnabled(Config.REQUEST_TRACING_ENABLED)
                 .build();

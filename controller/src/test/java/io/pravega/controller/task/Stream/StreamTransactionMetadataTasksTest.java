@@ -458,7 +458,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStore, 
                 SegmentHelperMock.getFailingSegmentHelperMock(), executor, "host", 
-                new AuthHelper(this.authEnabled, "secret"));
+                new AuthHelper(this.authEnabled, "secret", 600));
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         // Create ControllerService.
@@ -503,7 +503,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new AuthHelper(this.authEnabled, "secret"));
+                new AuthHelper(this.authEnabled, "secret", 600));
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -574,7 +574,7 @@ public class StreamTransactionMetadataTasksTest {
         // Create transaction tasks.
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock,
                                                       SegmentHelperMock.getSegmentHelperMock(), executor, "host",
-                                                      new AuthHelper(this.authEnabled, "secret"));
+                                                      new AuthHelper(this.authEnabled, "secret", 300));
         txnTasks.initializeStreamWriters(commitWriter, abortWriter);
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
@@ -607,7 +607,7 @@ public class StreamTransactionMetadataTasksTest {
         // region close before initialize
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new AuthHelper(this.authEnabled, "secret"));
+                new AuthHelper(this.authEnabled, "secret", 300));
         CompletableFuture<Void> future = txnTasks.writeCommitEvent(new CommitEvent("scope", "stream", 0));
         assertFalse(future.isDone());
 
@@ -618,7 +618,7 @@ public class StreamTransactionMetadataTasksTest {
         // region test initialize writers with client factory
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new AuthHelper(this.authEnabled, "secret"));
+                new AuthHelper(this.authEnabled, "secret", 300));
 
         future = txnTasks.writeCommitEvent(new CommitEvent("scope", "stream", 0));
 
@@ -645,7 +645,7 @@ public class StreamTransactionMetadataTasksTest {
         // region test method calls and initialize writers with direct writer set up method call
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new AuthHelper(this.authEnabled, "secret"));
+                new AuthHelper(this.authEnabled, "secret", 300));
 
         streamStore.createScope(SCOPE).join();
         streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();
@@ -675,7 +675,7 @@ public class StreamTransactionMetadataTasksTest {
 
         txnTasks = new StreamTransactionMetadataTasks(streamStoreMock, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new AuthHelper(this.authEnabled, "secret"));
+                new AuthHelper(this.authEnabled, "secret", 300));
 
         streamStore.createScope(SCOPE).join();
         streamStore.createStream(SCOPE, STREAM, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), 1L, null, executor).join();

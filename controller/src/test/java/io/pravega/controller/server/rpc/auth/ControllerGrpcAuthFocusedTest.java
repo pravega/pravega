@@ -145,7 +145,7 @@ public class ControllerGrpcAuthFocusedTest {
                         .credentials(new DefaultCredentials(DEFAULT_PASSWORD, UserNames.ADMIN))
                         .build());
 
-        AuthHelper authHelper = new AuthHelper(true, "secret");
+        AuthHelper authHelper = new AuthHelper(true, "secret", 300);
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 EXECUTOR, "host", authHelper, requestTracker);
