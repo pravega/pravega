@@ -31,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -85,14 +86,14 @@ public class RawClient implements AutoCloseable {
         }
     }
 
-    public RawClient(PravegaNodeUri uri, ConnectionFactory connectionFactory) {
+    public RawClient(@NonNull PravegaNodeUri uri, @NonNull ConnectionFactory connectionFactory) {
         this.segmentId = null;
         this.connectionFactory = connectionFactory;
         this.connection = connectionFactory.establishConnection(flow, uri, responseProcessor);
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
-    public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
+    public RawClient(@NonNull Controller controller, @NonNull ConnectionFactory connectionFactory, @NonNull Segment segmentId) {
         this.segmentId = segmentId;
         this.connectionFactory = connectionFactory;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
@@ -163,7 +164,7 @@ public class RawClient implements AutoCloseable {
                     reply.completeExceptionally(cfe);
                     closeConnection(cfe);
                 }
-                timer.completeExceptionally(new InterruptedException());
+                timer.cancel(true);
             });
             return reply;
         });

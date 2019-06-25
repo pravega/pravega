@@ -695,6 +695,10 @@ public class SegmentHelperTest {
         private ClientConnection connection;
         private ScheduledExecutorService executor;
 
+        public MockConnectionFactory() {
+            this.executor = new InlineExecutor();
+        }
+
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
             if (failConnection.get()) {
@@ -715,9 +719,6 @@ public class SegmentHelperTest {
 
         @Override
         public ScheduledExecutorService getInternalExecutor() {
-            if (executor == null) {
-                this.executor = new InlineExecutor();
-            }
             return executor;
         }
 
