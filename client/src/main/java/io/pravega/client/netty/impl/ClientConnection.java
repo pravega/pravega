@@ -37,7 +37,7 @@ public interface ClientConnection extends AutoCloseable {
      * @throws ConnectionFailedException The connection has died, and can no longer be used.
      */
     void send(Append append) throws ConnectionFailedException;
-
+    
     /**
      * Sends a wire command asynchronously.
      *
