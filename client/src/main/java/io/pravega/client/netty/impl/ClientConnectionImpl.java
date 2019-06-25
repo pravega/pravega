@@ -19,7 +19,6 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
-import io.pravega.shared.protocol.netty.Flush;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
@@ -60,14 +59,6 @@ public class ClientConnectionImpl implements ClientConnection {
         batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
     }
-
-
-    @Override
-    public void send(Flush flush) throws ConnectionFailedException {
-        checkClientConnectionClosed();
-        Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(flush), ConnectionFailedException::new);
-    }
-
 
     @Override
     public void sendAsync(WireCommand cmd, CompletedCallback callback) {

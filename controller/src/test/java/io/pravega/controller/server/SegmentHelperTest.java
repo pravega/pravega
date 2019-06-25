@@ -29,7 +29,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.Flush;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -746,12 +745,6 @@ public class SegmentHelperTest {
         public void send(Append append) throws ConnectionFailedException {
 
         }
-
-        @Override
-        public void send(Flush flush) throws ConnectionFailedException {
-
-        }
-
 
         @Override
         public void sendAsync(WireCommand cmd, CompletedCallback callback) {

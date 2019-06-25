@@ -20,6 +20,7 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.WireCommands.Flush;
 import java.io.IOException;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.HashMap;
@@ -136,14 +137,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             if (currentBlockSize == timeoutMsg.ifStillBlockSize) {
                 breakFromAppend(out);
             }
-        } else if (msg instanceof WireCommand) {
-            breakFromAppend(out);
-            writeMessage((WireCommand) msg, out);
-        } else if (msg instanceof  Flush) {
-            Flush cmd = (Flush) msg;
-            if (cmd.getSegment().equals(segmentBeingAppendedTo) && cmd.getWriteID().equals(writerIdPerformingAppends)) {
+        } else if (msg instanceof Flush) {
+            Flush flush = (Flush) msg;
+            if (flush.getSegment().equals(segmentBeingAppendedTo) && flush.getWriterId().equals(writerIdPerformingAppends)) {
                 breakFromAppend(out);
             }
+        } else if (msg instanceof WireCommand) {
+                breakFromAppend(out);
+                writeMessage((WireCommand) msg, out);
         } else {
             throw new IllegalArgumentException("Expected a wire command and found: " + msg);
         }

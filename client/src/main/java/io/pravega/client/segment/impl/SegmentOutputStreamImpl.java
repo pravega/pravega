@@ -24,7 +24,6 @@ import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableFutureLatch;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.Flush;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -36,6 +35,7 @@ import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentIsSealed;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.WrongHost;
+import io.pravega.shared.protocol.netty.WireCommands.Flush;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -496,7 +496,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         if (numInflight != 0) {
             try {
                 ClientConnection connection = Futures.getThrowingException(getConnection());
-                connection.send(new Flush(segmentName, writerId));
+                connection.send(new Flush(writerId, segmentName));
             } catch (SegmentSealedException | NoSuchSegmentException e) {
                 if (StreamSegmentNameUtils.isTransactionSegment(segmentName)) {
                     log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
