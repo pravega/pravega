@@ -225,6 +225,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                     String uniqueRoutingKey = transaction.getTxnId().toString();
                     long seqNumber = 0;
                     for (int j = 1; j <= NUM_EVENTS_PER_TRANSACTION; j++) {
+                        Exceptions.handleInterrupted(() -> Thread.sleep(100));
                         // The content of events is generated following the pattern routingKey:seq_number. In this case,
                         // the context of the routing key is the transaction.
                         transaction.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + seqNumber);
