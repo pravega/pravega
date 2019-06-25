@@ -622,6 +622,13 @@ public class WireCommandsTest {
     }
 
     @Test
+    public void testFlush() {
+        WireCommands.Flush flush = new WireCommands.Flush(uuid, testString1);
+        assertEquals(uuid, flush.getWriterId());
+        assertEquals(testString1, flush.getSegment());
+    }
+
+    @Test
     public void testUpdateTableEntries() throws IOException {
         List<Map.Entry<WireCommands.TableKey, WireCommands.TableValue>> entries = Arrays.asList(
                 new SimpleImmutableEntry<>(new WireCommands.TableKey(buf, l), new WireCommands.TableValue(buf)),

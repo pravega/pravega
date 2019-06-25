@@ -20,6 +20,7 @@ import io.netty.util.ResourceLeakDetector.Level;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.WireCommands.Flush;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -199,17 +200,14 @@ public class AppendEncodeDecodeTest {
         ArrayList<Object> received = setupAppend(streamName, writerId, fakeNetwork);
 
         append(streamName, writerId, size, 0, size, fakeNetwork);
-        read(fakeNetwork, received);
 
-        KeepAlive keepAlive = new KeepAlive();
-        encoder.encode(null, keepAlive, fakeNetwork);
+        Flush flush = new Flush(writerId, streamName);
+        encoder.encode(null, flush, fakeNetwork);
         read(fakeNetwork, received);
-        assertEquals(2, received.size());
+        assertEquals(1, received.size());
 
         Append one = (Append) received.get(0);
         assertEquals(size + TYPE_PLUS_LENGTH_SIZE, one.getData().readableBytes());
-        KeepAlive two = (KeepAlive) received.get(1);
-        assertEquals(keepAlive, two);
     }
 
     @Test
