@@ -62,6 +62,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceBlockingStub;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -415,6 +416,24 @@ public class ControllerGrpcAuthFocusedTest {
         assertEquals(1, response.getStreamsList().size());
     }
 
+    @Test
+    public void listStreamThrowsExceptionWhenUserHasNoAccessToScope() {
+        // Arrange
+        createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
+                prepareFromFixedScaleTypePolicy(2));
+
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE2_READ, DEFAULT_PASSWORD);
+        Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope("scope1").build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act and assert
+        AssertExtensions.assertThrows("Expected auth failure.",
+                () -> stub.listStreamsInScope(request),
+                e -> e.getMessage().contains("UNAUTHENTICATED"));
+    }
+
     //region Private methods
 
     private static TxnId decode(UUID txnId) {
@@ -527,6 +546,7 @@ public class ControllerGrpcAuthFocusedTest {
                 writer.write(credentialsAndAclAsString(UserNames.ADMIN,  defaultPassword, "*,READ_UPDATE;"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER, defaultPassword, "/,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "scope1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE2_READ, defaultPassword, "scope2,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "scope1/stream1,READ_UPDATE"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "scope1/stream1,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "scope1/stream2,READ"));
@@ -547,6 +567,7 @@ public class ControllerGrpcAuthFocusedTest {
         private final static String ADMIN = "admin";
         private final static String SCOPE_READER = "scopereader";
         private final static String SCOPE1_READ = "scope1read";
+        private final static String SCOPE2_READ = "scope2read";
         private final static String SCOPE1_STREAM1_READUPDATE = "authSc1Str1";
         private final static String SCOPE1_STREAM1_READ = "authSc1Str1readonly";
         private final static String SCOPE1_STREAM2_READ = "authSc1Str2readonly";
