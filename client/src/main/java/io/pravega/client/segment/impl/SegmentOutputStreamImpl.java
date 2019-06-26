@@ -69,6 +69,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     @Getter
     private final String segmentName;
+    @VisibleForTesting
+    @Getter
     private final boolean useConnectionPooling;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
