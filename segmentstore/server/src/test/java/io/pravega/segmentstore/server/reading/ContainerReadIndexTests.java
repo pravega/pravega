@@ -804,7 +804,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     public void testCacheEviction() throws Exception {
         // Create a CachePolicy with a set number of generations and a known max size.
         // Each generation contains exactly one entry, so the number of generations is also the number of entries.
-        final int appendSize = 100;
+        // We append one byte at each time. This allows us to test edge cases as well by having the finest precision when
+        // it comes to selecting which bytes we want evicted and which kept.
+        final int appendSize = 1;
         final int entriesPerSegment = 100; // This also doubles as number of generations (each generation, we add one append for each segment).
         final int cacheMaxSize = SEGMENT_COUNT * entriesPerSegment * appendSize;
         final int postStorageEntryCount = entriesPerSegment / 4; // 25% of the entries are beyond the StorageOffset
