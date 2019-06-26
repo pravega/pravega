@@ -67,50 +67,52 @@ public class HostStoreTest {
     }
 
     @Test(timeout = 10000L)
-    public void zkHostStoreTests() {
-        try {
-            @Cleanup
-            TestingServer zkTestServer = new TestingServerStarter().start();
+    public void zkHostStoreTests() throws Exception {
+        @Cleanup
+        TestingServer zkTestServer = new TestingServerStarter().start();
 
-            ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkTestServer.getConnectString())
-                    .initialSleepInterval(2000)
-                    .maxRetries(1)
-                    .sessionTimeoutMs(10 * 1000)
-                    .namespace("hostStoreTest/" + UUID.randomUUID())
-                    .build();
-            StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkTestServer.getConnectString())
+                .initialSleepInterval(2000)
+                .maxRetries(1)
+                .sessionTimeoutMs(10 * 1000)
+                .namespace("hostStoreTest/" + UUID.randomUUID())
+                .build();
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
 
-            @Cleanup
-            StoreClient storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
+        @Cleanup
+        StoreClient storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
 
-            HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
-                    .hostMonitorEnabled(true)
-                    .hostMonitorMinRebalanceInterval(10)
-                    .containerCount(containerCount)
-                    .build();
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
+                .hostMonitorEnabled(true)
+                .hostMonitorMinRebalanceInterval(10)
+                .containerCount(containerCount)
+                .build();
 
-            // Create ZK based host store.
-            HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
+        // Update host store map.
+        Map<Host, Set<Integer>> hostContainerMap = HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount);
 
-            CompletableFuture<Void> latch = new CompletableFuture<>();
-            ((ZKHostStore) hostStore).addListener(() -> {
-                latch.complete(null);
-            });
-            // Update host store map.
-            Map<Host, Set<Integer>> hostContainerMap = HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount);
-            hostStore.updateHostContainersMap(hostContainerMap);
-            latch.join();
-            validateStore(hostStore);
+        // Create ZK based host store.
+        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
+        CompletableFuture<Void> latch1 = new CompletableFuture<>();
+        CompletableFuture<Void> latch2 = new CompletableFuture<>();
+        ((ZKHostStore) hostStore).addListener(() -> {
+            // With the addition of updateMap() in tryInit(), this listener is actually called twice, and we need to
+            // wait for the second operation to complete (related to updateHostContainersMap()).
+            if (latch1.isDone()) {
+                latch2.complete(null);
+            }
+            latch1.complete(null);
+        });
+        hostStore.updateHostContainersMap(hostContainerMap);
+        latch1.join();
+        latch2.join();
+        validateStore(hostStore);
 
-            // verify that a new hostStore is initialized with map set by previous host store. 
-            HostControllerStore hostStore2 = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
+        // verify that a new hostStore is initialized with map set by previous host store.
+        HostControllerStore hostStore2 = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
 
-            Map<Host, Set<Integer>> map = hostStore2.getHostContainersMap();
-            assertEquals(hostContainerMap, map);
-        } catch (Exception e) {
-            log.error("Unexpected error", e);
-            Assert.fail();
-        }
+        Map<Host, Set<Integer>> map = hostStore2.getHostContainersMap();
+        assertEquals(hostContainerMap, map);
     }
 
     private void validateStore(HostControllerStore hostStore) {

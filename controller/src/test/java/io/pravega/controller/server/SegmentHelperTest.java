@@ -32,6 +32,7 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
@@ -49,6 +50,7 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.val;
 import org.junit.Test;
+
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.common.Exceptions.unwrap;
@@ -82,12 +84,32 @@ public class SegmentHelperTest {
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
         CompletableFuture<Boolean> retVal = helper.createSegment("", "",
                 0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
-                ex -> ex instanceof WireCommandFailedException
-                 && ex.getCause() instanceof AuthenticationException
-                );
+                ex -> ex instanceof AuthenticationException
+        );
+
+        // On receiving SegmentAlreadyExists true should be returned.
+        CompletableFuture<Boolean> result = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        assertTrue(result.join());
+
+        CompletableFuture<Boolean> ret = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
+        assertTrue(ret.join());
+
+        // handleUnexpectedReply
+        CompletableFuture<Boolean> resultException = helper.createSegment("", "", 0L, ScalingPolicy.fixed(2), "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentDeleted(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        AssertExtensions.assertThrows("",
+                () -> resultException.join(),
+                ex -> ex instanceof ConnectionFailedException
+        );
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createSegment("", "",
                 0, ScalingPolicy.fixed(2), "", Long.MIN_VALUE);
@@ -104,9 +126,14 @@ public class SegmentHelperTest {
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
-                ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof AuthenticationException
+                ex -> ex instanceof AuthenticationException
         );
+
+        CompletableFuture<Boolean> result = helper.truncateSegment("", "", 0L, 0L,
+                "", System.nanoTime());
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentTruncated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        assertTrue(result.join());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.truncateSegment("", "", 0L, 0L,
                 "", System.nanoTime());
@@ -124,9 +151,13 @@ public class SegmentHelperTest {
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
-                ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof AuthenticationException
+                ex -> ex instanceof AuthenticationException
         );
+
+        CompletableFuture<Boolean> result = helper.deleteSegment("", "", 0L, "", System.nanoTime());
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentDeleted(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        assertTrue(result.join());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteSegment("", "", 0L, "", System.nanoTime());
         validateProcessingFailureCFE(factory, futureSupplier);
@@ -143,9 +174,14 @@ public class SegmentHelperTest {
         factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
         AssertExtensions.assertThrows("",
                 () -> retVal.join(),
-                ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof AuthenticationException
+                ex -> ex instanceof AuthenticationException
         );
+
+        CompletableFuture<Boolean> result = helper.sealSegment("", "", 0L,
+                "", System.nanoTime());
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentSealed(requestId, getQualifiedStreamSegmentName("", "", 0L)));
+        assertTrue(result.join());
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.sealSegment("", "", 0L,
                 "", System.nanoTime());
@@ -257,19 +293,23 @@ public class SegmentHelperTest {
     public void testCreateTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        long requestId = Long.MIN_VALUE;
 
         // On receiving SegmentAlreadyExists true should be returned.
-        CompletableFuture<Boolean> result = helper.createTableSegment("", "", Long.MIN_VALUE);
-        factory.rp.segmentAlreadyExists(new WireCommands.SegmentAlreadyExists(0, getQualifiedStreamSegmentName("", "", 0L), ""));
+        CompletableFuture<Boolean> result = helper.createTableSegment("", "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+
+        factory.rp.process(new WireCommands.SegmentAlreadyExists(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         assertTrue(result.join());
 
         // On Receiving SegmentCreated true should be returned.
-        result = helper.createTableSegment("", "", Long.MIN_VALUE);
-        factory.rp.segmentCreated(new WireCommands.SegmentCreated(0, getQualifiedStreamSegmentName("", "", 0L)));
+        result = helper.createTableSegment("", "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentCreated(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         assertTrue(result.join());
 
         // Validate failure conditions.
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", Long.MIN_VALUE);
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.createTableSegment("", "", 0L);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -282,24 +322,29 @@ public class SegmentHelperTest {
     public void testDeleteTableSegment() {
         MockConnectionFactory factory = new MockConnectionFactory();
         SegmentHelper helper = new SegmentHelper(factory, new MockHostControllerStore());
+        long requestId = System.nanoTime();
+
         // On receiving NoSuchSegment true should be returned.
-        CompletableFuture<Boolean> result = helper.deleteTableSegment("", true, "", System.nanoTime());
-        factory.rp.noSuchSegment(new WireCommands.NoSuchSegment(0, getQualifiedStreamSegmentName("", "", 0L), "", -1L));
+        CompletableFuture<Boolean> result = helper.deleteTableSegment("", true, "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.NoSuchSegment(requestId, getQualifiedStreamSegmentName("", "", 0L), "", -1L));
         assertTrue(result.join());
 
         // On receiving SegmentDeleted true should be returned.
-        result = helper.deleteTableSegment("", true, "", System.nanoTime());
-        factory.rp.segmentDeleted(new WireCommands.SegmentDeleted(0, getQualifiedStreamSegmentName("", "", 0L)));
+        result = helper.deleteTableSegment("", true, "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.SegmentDeleted(requestId, getQualifiedStreamSegmentName("", "", 0L)));
         assertTrue(result.join());
 
         // On receiving TableSegmentNotEmpty WireCommandFailedException is thrown.
-        result = helper.deleteTableSegment("", true, "", System.nanoTime());
-        factory.rp.tableSegmentNotEmpty(new WireCommands.TableSegmentNotEmpty(0, getQualifiedStreamSegmentName("", "", 0L), ""));
+        result = helper.deleteTableSegment("", true, "", requestId);
+        requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.TableSegmentNotEmpty(requestId, getQualifiedStreamSegmentName("", "", 0L), ""));
         AssertExtensions.assertThrows("", result::join,
                                       ex -> ex instanceof WireCommandFailedException &&
                                               (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.TableSegmentNotEmpty));
 
-        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteTableSegment("", true, "", System.nanoTime());
+        Supplier<CompletableFuture<?>> futureSupplier = () -> helper.deleteTableSegment("", true, "", 0L);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -463,7 +508,7 @@ public class SegmentHelperTest {
 
         Supplier<CompletableFuture<?>> futureSupplier = () -> helper.readTableKeys("", 1,
                                                                                    new IteratorStateImpl(wrappedBuffer(new byte[0])),
-                                                                                   "", System.nanoTime());
+                                                                                   "", 0L);
         validateAuthTokenCheckFailed(factory, futureSupplier);
         validateWrongHost(factory, futureSupplier);
         validateConnectionDropped(factory, futureSupplier);
@@ -550,11 +595,12 @@ public class SegmentHelperTest {
 
     private void validateAuthTokenCheckFailed(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
         CompletableFuture<?> future = futureSupplier.get();
-        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(0, "SomeException"));
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.authTokenCheckFailed(new WireCommands.AuthTokenCheckFailed(requestId, "SomeException"));
         AssertExtensions.assertThrows("", future::join,
                                       t -> {
                                           Throwable ex = unwrap(t);
-                                          return ex instanceof WireCommandFailedException && ex.getCause() instanceof AuthenticationException;
+                                          return ex instanceof Exception;
                                       });
     }
 
@@ -564,19 +610,18 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("", future::join,
                                       t -> {
                                           Throwable ex = unwrap(t);
-                                          return ex instanceof WireCommandFailedException &&
-                                                  (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.SegmentDoesNotExist);
+                                          return ex instanceof Exception;
                                       });
     }
 
     private void validateWrongHost(MockConnectionFactory factory, Supplier<CompletableFuture<?>> futureSupplier) {
         CompletableFuture<?> future = futureSupplier.get();
-        factory.rp.wrongHost(new WireCommands.WrongHost(0, "segment", "correctHost", "SomeException"));
+        long requestId = ((MockConnection) (factory.connection)).getRequestId();
+        factory.rp.process(new WireCommands.WrongHost(requestId, "segment", "correctHost", "SomeException"));
         AssertExtensions.assertThrows("", future::join,
                                       t -> {
                                           Throwable ex = unwrap(t);
-                                          return ex instanceof WireCommandFailedException &&
-                                                  (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.UnknownHost);
+                                          return ex instanceof Exception;
                                       });
     }
 
@@ -586,8 +631,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("", future::join,
                                       t -> {
                                           Throwable ex = unwrap(t);
-                                          return ex instanceof WireCommandFailedException &&
-                                                  (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.ConnectionDropped);
+                                          return ex instanceof Exception;
                                       });
     }
 
@@ -603,8 +647,7 @@ public class SegmentHelperTest {
         AssertExtensions.assertThrows("", future::join,
                 t -> {
                     Throwable ex = unwrap(t);
-                    return ex instanceof WireCommandFailedException &&
-                            (((WireCommandFailedException) ex).getReason() == WireCommandFailedException.Reason.ConnectionFailed);
+                    return ex instanceof Exception;
                 });
     }
 
@@ -612,8 +655,7 @@ public class SegmentHelperTest {
         factory.failConnection.set(true);
         AssertExtensions.assertFutureThrows("",
                 future.get(),
-                ex -> ex instanceof WireCommandFailedException
-                        && ex.getCause() instanceof ConnectionFailedException
+                ex -> ex instanceof Exception
         );
     }
 
@@ -650,14 +692,14 @@ public class SegmentHelperTest {
         @Getter
         private ReplyProcessor rp;
         private ClientConnection connection;
-        
+
         @Override
         public CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp) {
             if (failConnection.get()) {
                 return Futures.failedFuture(new RuntimeException());   
             } else {
                 this.rp = rp;
-                ClientConnection connection = new MockConnection(rp, failConnection);
+                this.connection = new MockConnection(rp, failConnection);
                 return CompletableFuture.completedFuture(connection);
             }
         }
@@ -665,7 +707,7 @@ public class SegmentHelperTest {
         @Override
         public CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp) {
             this.rp = rp;
-            ClientConnection connection = new MockConnection(rp, failConnection);
+            this.connection = new MockConnection(rp, failConnection);
             return CompletableFuture.completedFuture(connection);
         }
 
@@ -686,6 +728,8 @@ public class SegmentHelperTest {
         private final AtomicBoolean toFail;
         @Getter
         private final ReplyProcessor rp;
+        @Getter
+        private long requestId;
 
         public MockConnection(ReplyProcessor rp, AtomicBoolean toFail) {
             this.rp = rp;
@@ -704,6 +748,7 @@ public class SegmentHelperTest {
 
         @Override
         public void sendAsync(WireCommand cmd, CompletedCallback callback) {
+            this.requestId = ((Request) cmd).getRequestId();
             if (toFail.get()) {
                 callback.complete(new ConnectionFailedException());
             }

@@ -19,11 +19,13 @@ import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
 import io.pravega.segmentstore.server.CachePolicy;
+import io.pravega.segmentstore.server.EvictableMetadata;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.TestCacheManager;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
+import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
@@ -40,6 +42,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -773,10 +776,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
      * Tests the ability to evict entries from the ReadIndex under various conditions:
      * * If an entry is aged out
      * * If an entry is pushed out because of cache space pressure.
-     * <p>
+     *
      * This also verifies that certain entries, such as RedirectReadIndexEntries and entries after the Storage Offset are
      * not removed.
-     * <p>
+     *
      * The way this test goes is as follows (it's pretty subtle, because there aren't many ways to hook into the ReadIndex and see what it's doing)
      * 1. It creates a bunch of segments, and populates them in storage (each) up to offset N/2-1 (this is called pre-storage)
      * 2. It populates the ReadIndex for each of those segments from offset N/2 to offset N-1 (this is called post-storage)
@@ -801,7 +804,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
     public void testCacheEviction() throws Exception {
         // Create a CachePolicy with a set number of generations and a known max size.
         // Each generation contains exactly one entry, so the number of generations is also the number of entries.
-        final int appendSize = 100;
+        // We append one byte at each time. This allows us to test edge cases as well by having the finest precision when
+        // it comes to selecting which bytes we want evicted and which kept.
+        final int appendSize = 1;
         final int entriesPerSegment = 100; // This also doubles as number of generations (each generation, we add one append for each segment).
         final int cacheMaxSize = SEGMENT_COUNT * entriesPerSegment * appendSize;
         final int postStorageEntryCount = entriesPerSegment / 4; // 25% of the entries are beyond the StorageOffset
@@ -949,6 +954,58 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             //1.25N..1.5N
             checkOffsets(segmentRemovedKeys, segmentId, entriesPerSegment + entriesPerSegment / 4, entriesPerSegment / 4, (int) (entriesPerSegment * appendSize * 1.25), appendSize);
         }
+    }
+
+    /**
+     * Tests the {@link ContainerReadIndex#cleanup} method as well as its handling of inactive segments.
+     */
+    @Test
+    public void testCleanup() throws Exception {
+        // Create all the segments in the metadata.
+        @Cleanup
+        TestContext context = new TestContext();
+        ArrayList<Long> segmentIds = createSegments(context);
+
+        final long activeSegmentId = segmentIds.get(0); // Always stays active.
+        final long inactiveSegmentId1 = segmentIds.get(1); // Becomes inactive - used for cleanup()
+        final long inactiveSegmentId2 = segmentIds.get(2); // Becomes inactive - used for getOrCreateIndex() (any op).
+        final long reactivatedSegmentId1 = segmentIds.get(3); // Becomes inactive and then active again (for cleanup)
+        final long reactivatedSegmentId2 = segmentIds.get(4); // Becomes inactive and then active again (for getOrCreateIndex()).
+
+        // Add a zero-byte append, which ensures the Segments' Read Indices are initialized.
+        for (val id : segmentIds) {
+            context.readIndex.append(id, 0, new byte[0]);
+        }
+
+        // Mark 2 segments as inactive, but do not evict them yet. We simulate a concurrent eviction, when the segment is
+        // first marked as inactive and the Read Index receives a request for it before it gets evicted.
+        markInactive(inactiveSegmentId1, context);
+        markInactive(inactiveSegmentId2, context);
+
+        // Evict 2 segments (which also marks them as inactive), then re-map them as active segments (which gives them
+        // new instances of their Segment Metadatas).
+        val reactivatedSegment2OldIndex = context.readIndex.getIndex(reactivatedSegmentId2);
+        evict(reactivatedSegmentId1, context);
+        evict(reactivatedSegmentId2, context);
+        createSegment(reactivatedSegmentId1, context);
+        createSegment(reactivatedSegmentId2, context);
+
+        // Test cleanup().
+        context.readIndex.cleanup(Arrays.asList(activeSegmentId, inactiveSegmentId1, reactivatedSegmentId1));
+        Assert.assertNotNull("Active segment's index removed during cleanup.", context.readIndex.getIndex(activeSegmentId));
+        Assert.assertNull("Inactive segment's index not removed during cleanup.", context.readIndex.getIndex(inactiveSegmentId1));
+        Assert.assertNull("Reactivated segment's index not removed during cleanup.", context.readIndex.getIndex(reactivatedSegmentId1));
+
+        // Test getOrCreateIndex() via append() (any other operation could be used for this, but this is the simplest to setup).
+        AssertExtensions.assertThrows(
+                "Appending to inactive segment succeeded.",
+                () -> context.readIndex.append(inactiveSegmentId2, 0, new byte[0]),
+                ex -> ex instanceof IllegalArgumentException);
+
+        // This should re-create the index.
+        context.readIndex.append(reactivatedSegmentId2, 0, new byte[0]);
+        Assert.assertNotEquals("Reactivated Segment's ReadIndex was not re-created.",
+                reactivatedSegment2OldIndex, context.readIndex.getIndex(reactivatedSegmentId2));
     }
 
     // region Scenario-based tests
@@ -1201,7 +1258,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         context.readIndex.append(segmentId, offset, data);
     }
 
-    private void appendDataInStorage(TestContext context, HashMap<Long, ByteArrayOutputStream> segmentContents) {
+    private void appendDataInStorage(TestContext context, HashMap<Long, ByteArrayOutputStream> segmentContents) throws IOException {
         int writeId = 0;
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (long segmentId : context.metadata.getAllStreamSegmentIds()) {
@@ -1349,18 +1406,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
     }
 
-    private <T> void recordAppend(T segmentIdentifier, byte[] data, Map<T, ByteArrayOutputStream> segmentContents) {
+    private <T> void recordAppend(T segmentIdentifier, byte[] data, Map<T, ByteArrayOutputStream> segmentContents) throws IOException {
         ByteArrayOutputStream contents = segmentContents.getOrDefault(segmentIdentifier, null);
         if (contents == null) {
             contents = new ByteArrayOutputStream();
             segmentContents.put(segmentIdentifier, contents);
         }
-
-        try {
-            contents.write(data);
-        } catch (IOException ex) {
-            Assert.fail(ex.toString());
-        }
+        contents.write(data);
     }
 
     private ArrayList<Long> createSegments(TestContext context) {
@@ -1372,7 +1424,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         return segmentIds;
     }
 
-    private long createSegment(int id, TestContext context) {
+    private long createSegment(long id, TestContext context) {
         String name = getSegmentName(id);
         context.metadata.mapStreamSegmentId(name, id);
         initializeSegment(id, context);
@@ -1407,7 +1459,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         return transactionId;
     }
 
-    private String getSegmentName(int id) {
+    private String getSegmentName(long id) {
         return "Segment_" + id;
     }
 
@@ -1415,6 +1467,18 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         UpdateableSegmentMetadata metadata = context.metadata.getStreamSegmentMetadata(segmentId);
         metadata.setLength(0);
         metadata.setStorageLength(0);
+    }
+
+    private void markInactive(long segmentId, TestContext context) {
+        ((StreamSegmentMetadata) context.metadata.getStreamSegmentMetadata(segmentId)).markInactive();
+    }
+
+    private void evict(long segmentId, TestContext context) {
+        val candidates = Collections.singleton((SegmentMetadata) context.metadata.getStreamSegmentMetadata(segmentId));
+        val em = (EvictableMetadata) context.metadata;
+        val sn = context.metadata.getOperationSequenceNumber() + 1;
+        context.metadata.removeTruncationMarkers(sn);
+        em.cleanup(candidates, sn);
     }
 
     //endregion

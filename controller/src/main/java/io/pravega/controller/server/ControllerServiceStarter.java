@@ -184,7 +184,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             segmentHelperRef.compareAndSet(null, new SegmentHelper(connectionFactory, hostStore));
 
             AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
+                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey(),
+                    serviceConfig.getGRPCServerConfig().get().getAccessTokenTTLInSeconds());
             
             SegmentHelper segmentHelper = segmentHelperRef.get();
             log.info("Creating the stream store");
@@ -404,6 +405,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 transactionMetrics.close();
             }
 
+            log.info("Finishing controller service shutDown");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
     }

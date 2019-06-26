@@ -35,6 +35,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
@@ -81,7 +82,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
     private final Pinger pinger;
     
     EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool) {
+                          Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool,
+                          ScheduledExecutorService internalExecutor) {
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
@@ -90,7 +92,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
         this.retransmitPool = Preconditions.checkNotNull(retransmitPool);
-        this.pinger = new Pinger(config, stream, controller);
+        this.pinger = new Pinger(config, stream, controller, internalExecutor);
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
     }
@@ -140,7 +142,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         retransmitPool.execute(() -> {
             Retry.indefinitelyWithExpBackoff(config.getInitalBackoffMillis(), config.getBackoffMultiple(),
                                              config.getMaxBackoffMillis(),
-                                             t -> log.error("Encountered excemption when handeling a sealed segment: ", t))
+                                             t -> log.error("Encountered exception when handling a sealed segment: ", t))
                  .run(() -> {
                      /*
                       * Using writeSealLock prevents concurrent segmentSealedCallback for different segments
@@ -155,6 +157,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                          log.info("Sealing segment {} ", toSeal);
                          while (toSeal != null) {
                              resend(selector.refreshSegmentEventWritersUponSealed(toSeal, segmentSealedCallBack));
+                             // remove segment writer after resending inflight events of the sealed segment.
+                             selector.removeSegmentWriter(toSeal);
                              /* In the case of segments merging Flush ensures there can't be anything left
                               * inflight that will need to be resent to the new segment when the write lock
                               * is released. (To preserve order)
@@ -378,7 +382,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
             return;
         }
         pinger.close();
-        synchronized (writeFlushLock) { 
+        synchronized (writeFlushLock) {
             boolean success = false;
             while (!success) {
                 success = true;

@@ -63,6 +63,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
     static final int RK_RENEWAL_RATE_WRITER = 500;
     static final int SCALE_WAIT_ITERATIONS = 12;
     private static final int READ_TIMEOUT = 1000;
+    private static final int WRITE_THROTTLING_TIME = 100;
 
     final String readerName = "reader";
     ScheduledExecutorService executorService;
@@ -179,7 +180,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
             long seqNumber = 0;
             while (!stopFlag.get()) {
                 try {
-                    Exceptions.handleInterrupted(() -> Thread.sleep(100));
+                    Exceptions.handleInterrupted(() -> Thread.sleep(WRITE_THROTTLING_TIME));
 
                     // The content of events is generated following the pattern routingKey:seq_number, where
                     // seq_number is monotonically increasing for every routing key, being the expected delta between
@@ -203,6 +204,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                 } catch (Throwable e) {
                     log.error("Test exception in writing events: ", e);
                     testState.getWriteException.set(e);
+                    break;
                 }
             }
             log.info("Completed writing");
@@ -224,6 +226,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                     String uniqueRoutingKey = transaction.getTxnId().toString();
                     long seqNumber = 0;
                     for (int j = 1; j <= NUM_EVENTS_PER_TRANSACTION; j++) {
+                        Exceptions.handleInterrupted(() -> Thread.sleep(WRITE_THROTTLING_TIME));
                         // The content of events is generated following the pattern routingKey:seq_number. In this case,
                         // the context of the routing key is the transaction.
                         transaction.writeEvent(uniqueRoutingKey, uniqueRoutingKey + RK_VALUE_SEPARATOR + seqNumber);
@@ -294,6 +297,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
                 } catch (Throwable e) {
                     log.error("Test exception in reading events: ", e);
                     testState.getReadException.set(e);
+                    break;
                 }
             }
             log.info("Completed reading");
@@ -403,7 +407,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
                 EventWriterConfig.builder().build());
         for (int i = initialPoint; i < totalEvents + initialPoint; i++) {
-            writer.writeEvent(String.valueOf(i)).join();
+            writer.writeEvent(String.format("%03d", i)).join(); // this ensures the event size is constant.
             log.debug("Writing event: {} to stream {}.", streamName + String.valueOf(i), streamName);
         }
     }
@@ -484,7 +488,7 @@ abstract class AbstractReadWriteTest extends AbstractSystemTest {
         }
     }
 
-    private <T> void closeReader(EventStreamReader<T> reader) {
+    protected <T> void closeReader(EventStreamReader<T> reader) {
         try {
             log.info("Closing reader");
             reader.close();

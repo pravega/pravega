@@ -117,7 +117,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         this.timer = Preconditions.checkNotNull(timer, "timer");
         this.executor = Preconditions.checkNotNull(executor, "executor");
         this.lastFlush = new AtomicReference<>(timer.getElapsed());
-        this.lastAddedOffset = new AtomicLong(-1); // Will be set properly in initialize().
+        this.lastAddedOffset = new AtomicLong(-1); // Will be set properly after we process a StorageOperation.
         this.mergeTransactionCount = new AtomicInteger();
         this.truncateCount = new AtomicInteger();
         this.hasSealPending = new AtomicBoolean();
@@ -398,7 +398,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             // and it means this operation has already been applied to the index.
             Map<UUID, Long> attributes = getExtendedAttributes(operation);
             if (!attributes.isEmpty()) {
-                AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(this.metadata.getStorageLength(), operation.getSequenceNumber());
+                AggregatedAppendOperation aggregatedAppend = getOrCreateAggregatedAppend(this.lastAddedOffset.get(), operation.getSequenceNumber());
                 aggregatedAppend.includeAttributes(attributes);
             }
         }
@@ -1065,19 +1065,26 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         return handleAttributeException(this.dataSource.sealAttributes(this.metadata.getId(), timeout));
     }
 
+    /**
+     * Deletes the Segment handled by this {@link SegmentAggregator} instance and its Attributes, and updates the internal
+     * Metadata and any other state to reflect the fact. This will also delete any other Segments that have pending Mergers
+     * into this Segment, including any associated Attributes. Upon a successful completion, the internal Metadata and
+     * {@link SegmentAggregator} state will be updated to reflect the Storage deletion.
+     *
+     * @param timer Timer for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate that the Segment and any other Storage
+     * structures associated with it have been deleted.
+     */
     private CompletableFuture<WriterFlushResult> deleteSegment(TimeoutTimer timer) {
         // Delete the Segment from Storage, but also delete any source Segments that had pending mergers. If we do not,
         // we will be left with orphaned Segments in Storage.
         CompletableFuture<Void> deleteFuture;
         if (this.handle.get() == null) {
-            // Segment does not exist in Storage.
-            deleteFuture = CompletableFuture.completedFuture(null);
+            // Segment does not exist in Storage (most likely due to no data appended to it). However the Attribute Index
+            // may exist since we may have persisted attribute updates. Make sure it is cleaned up in that case.
+            deleteFuture = this.dataSource.deleteAllAttributes(metadata, timer.getRemaining());
         } else {
-            deleteFuture = Futures
-                    .exceptionallyExpecting(
-                            this.storage.delete(this.handle.get(), timer.getRemaining()),
-                            ex -> ex instanceof StreamSegmentNotExistsException,
-                            null);
+            deleteFuture = deleteSegmentAndAttributes(handle.get(), this.metadata, timer);
         }
 
         return deleteFuture
@@ -1093,6 +1100,38 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 }, this.executor);
     }
 
+    /**
+     * Deletes a Segment and its Attributes from Storage. The Segment to delete need not be the same Segment handled by
+     * this SegmentAggregator instance.
+     *
+     * This method does not update any metadata or any other in-memory state.
+     *
+     * @param handle   A {@link SegmentHandle} representing the Segment to delete.
+     *                 this SegmentAggregator instance.
+     * @param metadata The {@link SegmentMetadata} for the Segment to delete.
+     * @param timer    Timer for the operation.
+     * @return A CompletableFuture that, when completed, will indicate the given Segment and its Attributes have been
+     * deleted from Storage. This method will not fail if either the Segment or its Attributes do not exist in Storage.
+     */
+    private CompletableFuture<Void> deleteSegmentAndAttributes(SegmentHandle handle, SegmentMetadata metadata, TimeoutTimer timer) {
+        assert handle.getSegmentName().equals(metadata.getName());
+        return CompletableFuture.allOf(
+                Futures.exceptionallyExpecting(
+                        this.storage.delete(handle, timer.getRemaining()),
+                        ex -> ex instanceof StreamSegmentNotExistsException,
+                        null),
+                this.dataSource.deleteAllAttributes(metadata, timer.getRemaining()));
+    }
+
+    /**
+     * Deletes all Segments from Storage that have a pending Merge into the Segment handled by this {@link SegmentAggregator}
+     * instance. This will also delete other Storage structures related to those segments (such as Attributes) and will
+     * update the internal Metadata to reflect the deletion.
+     *
+     * @param timer Timer for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate all Segments with pending mergers have
+     * been deleted from Storage.
+     */
     private CompletableFuture<Void> deleteUnmergedSourceSegments(TimeoutTimer timer) {
         if (this.mergeTransactionCount.get() == 0) {
             return CompletableFuture.completedFuture(null);
@@ -1109,7 +1148,7 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
                 toDelete.add(Futures
                         .exceptionallyExpecting(
                                 this.storage.openWrite(m.getName())
-                                            .thenCompose(handle -> this.storage.delete(handle, timer.getRemaining()))
+                                            .thenCompose(handle -> deleteSegmentAndAttributes(handle, m, timer))
                                             .thenAcceptAsync(v -> updateMetadataPostDeletion(m), this.executor),
                                 ex -> ex instanceof StreamSegmentNotExistsException,
                                 null));
@@ -1126,17 +1165,28 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         if (this.handle.get() == null) {
             // No handle so, the segment must not exist yet. Attempt to create it, then run what we wanted to.
             assert this.metadata.getStorageLength() == 0 : "no handle yet but metadata indicates Storage Segment not empty";
-            long rolloverSize = this.metadata.getAttributes().getOrDefault(Attributes.ROLLOVER_SIZE, -1L);
-            SegmentRollingPolicy rollingPolicy = rolloverSize < 0 ? SegmentRollingPolicy.NO_ROLLING : new SegmentRollingPolicy(rolloverSize);
+            long rolloverSize = this.metadata.getAttributes().getOrDefault(Attributes.ROLLOVER_SIZE, SegmentRollingPolicy.NO_ROLLING.getMaxLength());
             return Futures
-                    .exceptionallyExpecting(
-                            this.storage.create(this.metadata.getName(), rollingPolicy, timeout),
+                    .exceptionallyComposeExpecting(
+                            this.storage.create(this.metadata.getName(), new SegmentRollingPolicy(rolloverSize), timeout),
                             ex -> ex instanceof StreamSegmentExistsException,
-                            null)
+                            () -> {
+                                // This happens if we have more than one concurrent instances of the owning SegmentContainer
+                                // running at the same time. Both SegmentAggregator instances were initialized when the Segment
+                                // did not exist, and both knew about an append that would eventually make it to Storage. One
+                                // of them managed to create the Segment (and write something to it), but the other still assumed
+                                // the Segment did not exist - so we end up in here. We need to get a handle of the segment
+                                // and continue with whatever we were doing. If there is a mismatch (length, sealed, etc.),
+                                // then the normal reconciliation algorithm will kick in once it is discovered and if the
+                                // segment has already been fenced out, openWrite() will throw the appropriate exception
+                                // which will be handled upstream.
+                                log.info("{}: Segment did not exist in Storage when initialize() was called, but does now.", this.traceObjectId);
+                                return this.storage.openWrite(this.metadata.getName());
+                            })
                     .thenComposeAsync(handle -> {
                         this.handle.set(handle);
                         return toRun.get();
-                    });
+                    }, this.executor);
         } else {
             // Segment already exists. Execute what we were supposed to.
             return toRun.get();

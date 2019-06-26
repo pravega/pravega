@@ -13,6 +13,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
 import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.impl.ControllerServiceConfigImpl;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
@@ -53,51 +54,36 @@ public abstract class ControllerServiceStarterTest {
     }
 
     @Before
-    public abstract void setup();
+    public abstract void setup() throws Exception;
 
     @After
-    public abstract void tearDown();
+    public abstract void tearDown() throws Exception;
 
     @Test
-    public void testStartStop() {
+    public void testStartStop() throws URISyntaxException {
         Assert.assertNotNull(storeClient);
         ControllerServiceStarter starter = new ControllerServiceStarter(createControllerServiceConfig(), storeClient, 
                 SegmentHelperMock.getSegmentHelperMockForTables(executor));
         starter.startAsync();
-
-        try {
-            starter.awaitRunning();
-        } catch (IllegalStateException e) {
-            log.error("Error awaiting starter to get ready");
-            Assert.fail("Error awaiting starter to get ready");
-        }
+        starter.awaitRunning();
 
         // Now, that starter has started, perform some rpc operations.
-        URI uri;
-        try {
-            uri = new URI( (enableAuth ? "tls" : "tcp") + "://localhost:" + grpcPort);
-        } catch (URISyntaxException e) {
-            log.error("Error creating controller URI", e);
-            Assert.fail("Error creating controller URI");
-            return;
-        }
+        URI uri = new URI( (enableAuth ? "tls" : "tcp") + "://localhost:" + grpcPort);
 
         final String testScope = "testScope";
-        StreamManager streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(uri)
-                                                                        .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                                                                        .trustStore("../config/cert.pem").build());
+        StreamManager streamManager = new StreamManagerImpl(
+                ClientConfig.builder().controllerURI(uri)
+                                      .credentials(new DefaultCredentials(
+                                              SecurityConfigDefaults.AUTH_ADMIN_PASSWORD, SecurityConfigDefaults.AUTH_ADMIN_USERNAME))
+                                      .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                            .build());
 
         streamManager.createScope(testScope);
         streamManager.deleteScope(testScope);
         streamManager.close();
 
         starter.stopAsync();
-        try {
-            starter.awaitTerminated();
-        } catch (IllegalStateException e) {
-            log.error("Error awaiting termination of starter");
-            Assert.fail("Error awaiting termination of starter");
-        }
+        starter.awaitTerminated();
     }
 
     protected ControllerServiceConfig createControllerServiceConfig() {
@@ -124,9 +110,9 @@ public abstract class ControllerServiceStarterTest {
                                                                   .port(grpcPort)
                                                                   .authorizationEnabled(enableAuth)
                                                                   .tlsEnabled(enableAuth)
-                                                                  .tlsCertFile("../config/cert.pem")
-                                                                  .tlsKeyFile("../config/key.pem")
-                                                                  .userPasswordFile("../config/passwd")
+                                                                  .tlsCertFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
+                                                                  .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
+                                                                  .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
                                                                   .build()))
                 .restServerConfig(Optional.empty())
                 .build();

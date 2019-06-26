@@ -28,7 +28,7 @@ import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 @Slf4j
 public class ZookeeperDockerService extends DockerBasedService {
 
-    private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
+    private static final String ZK_IMAGE = "zookeeper:3.5.4-beta";
     private final long instances = 1;
     private final double cpu = 1.0 * Math.pow(10.0, 9.0);
     private final long mem = 1024 * 1024 * 1024L;

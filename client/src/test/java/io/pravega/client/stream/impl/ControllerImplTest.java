@@ -18,12 +18,14 @@ import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.common.Exceptions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -78,8 +80,9 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import lombok.extern.slf4j.Slf4j;
+import java.util.function.Predicate;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.After;
@@ -394,7 +397,7 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void getSegmentsImmediatlyFollowing(SegmentId request, StreamObserver<SuccessorResponse> responseObserver) {
+            public void getSegmentsImmediatelyFollowing(SegmentId request, StreamObserver<SuccessorResponse> responseObserver) {
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     Map<SegmentId, Pair<Double, Double>> result = new HashMap<>();
                     if (request.getSegmentId() == 0) {
@@ -605,11 +608,34 @@ public class ControllerImplTest {
             @Override
             public void pingTransaction(PingTxnRequest request,
                     StreamObserver<PingTxnStatus> responseObserver) {
-                if (request.getStreamInfo().getStream().equals("stream1")) {
-                    responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build());
-                    responseObserver.onCompleted();
-                } else {
-                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                switch (request.getStreamInfo().getStream()) {
+                    case "stream1":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream2":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.LEASE_TOO_LARGE).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream3":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.MAX_EXECUTION_TIME_EXCEEDED).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream4":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.DISCONNECTED).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream5":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.COMMITTED).build());
+                        responseObserver.onCompleted();
+                        break;
+                    case "stream6":
+                        responseObserver.onNext(PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.ABORTED).build());
+                        responseObserver.onCompleted();
+                        break;
+                    default:
+                        responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                        break;
                 }
             }
 
@@ -664,8 +690,8 @@ public class ControllerImplTest {
             }
 
             @Override
-            public void getDelegationToken(io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo request,
-                                           io.grpc.stub.StreamObserver<io.pravega.controller.stream.api.grpc.v1.Controller.DelegationToken> responseObserver) {
+            public void getDelegationToken(StreamInfo request,
+                                           StreamObserver<Controller.DelegationToken> responseObserver) {
                 responseObserver.onNext(Controller.DelegationToken.newBuilder().setDelegationToken("token").build());
                 responseObserver.onCompleted();
             }
@@ -728,8 +754,8 @@ public class ControllerImplTest {
         serverBuilder = NettyServerBuilder.forPort(serverPort)
                                           .addService(testServerImpl);
         if (testSecure) {
-         serverBuilder = serverBuilder.useTransportSecurity(new File("../config/cert.pem"),
-                 new File("../config/key.pem"));
+         serverBuilder = serverBuilder.useTransportSecurity(new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
+                 new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
         }
         testGRPCServer = serverBuilder
                 .build()
@@ -739,7 +765,7 @@ public class ControllerImplTest {
                 .clientConfig(
                         ClientConfig.builder().controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                     .credentials(new DefaultCredentials("1111_aaaa", "admin"))
-                                    .trustStore("../config/cert.pem")
+                                    .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                     .build())
                 .retryAttempts(1).build(), executor);
     }
@@ -757,14 +783,15 @@ public class ControllerImplTest {
         NettyChannelBuilder builder = NettyChannelBuilder.forAddress("localhost", serverPort)
                                                          .keepAliveTime(10, TimeUnit.SECONDS);
         if (testSecure) {
-            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
+            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
+                    new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
         } else {
             builder = builder.usePlaintext();
         }
         @Cleanup
         final ControllerImpl controller = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
-                                                                        .trustStore("../config/cert.pem")
+                                                                        .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
                                     .retryAttempts(1).build(),
@@ -782,7 +809,9 @@ public class ControllerImplTest {
                                                                  .permitKeepAliveTime(5, TimeUnit.SECONDS);
 
         if (testSecure) {
-           testServerBuilder = testServerBuilder.useTransportSecurity(new File("../config/cert.pem"), new File("../config/key.pem"));
+           testServerBuilder = testServerBuilder.useTransportSecurity(
+                   new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
+                   new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH));
         }
 
         Server testServer = testServerBuilder.build()
@@ -791,14 +820,15 @@ public class ControllerImplTest {
         builder = NettyChannelBuilder.forAddress("localhost", serverPort2)
                            .keepAliveTime(10, TimeUnit.SECONDS);
         if (testSecure) {
-            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(new File("../config/cert.pem")).build());
+            builder = builder.sslContext(GrpcSslContexts.forClient().trustManager(
+                    new File(SecurityConfigDefaults.TLS_CA_CERT_PATH)).build());
         } else {
             builder = builder.usePlaintext();
         }
         @Cleanup
         final ControllerImpl controller1 = new ControllerImpl(builder,
                 ControllerImplConfig.builder().clientConfig(ClientConfig.builder()
-                                                                        .trustStore("../config/cert.pem")
+                                                                        .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                         .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
                                                                         .build())
                                     .retryAttempts(1).build(), this.executor);
@@ -817,7 +847,7 @@ public class ControllerImplTest {
         final ControllerImpl controller1 = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                          .trustStore("../config/cert.pem").build())
+                                          .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH).build())
                 .retryAttempts(3).build(), this.executor);
         CompletableFuture<Boolean> createStreamStatus = controller1.createStream("scope1", "streamretryfailure", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
@@ -839,7 +869,7 @@ public class ControllerImplTest {
         final ControllerImpl controller2 = new ControllerImpl( ControllerImplConfig.builder()
                 .clientConfig(ClientConfig.builder()
                                           .controllerURI(URI.create((testSecure ? "tls://" : "tcp://") + "localhost:" + serverPort))
-                                          .trustStore("../config/cert.pem").build())
+                                          .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH).build())
                 .retryAttempts(4).build(), this.executor);
         createStreamStatus = controller2.createStream("scope1", "streamretrysuccess", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(1))
@@ -1000,7 +1030,7 @@ public class ControllerImplTest {
     }
 
     @Test
-    public void testGetSegmentsImmediatlyFollowing() throws Exception {
+    public void testGetSegmentsImmediatelyFollowing() throws Exception {
         CompletableFuture<Map<Segment, List<Long>>> successors;
         successors = controllerClient.getSuccessors(new Segment("scope1", "stream1", 0L))
                 .thenApply(StreamSegmentsWithPredecessors::getSegmentToPredecessor);
@@ -1128,12 +1158,36 @@ public class ControllerImplTest {
 
     @Test
     public void testPingTransaction() throws Exception {
-        CompletableFuture<Void> transaction;
-        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream1"), UUID.randomUUID(), 0);
-        assertTrue(transaction.get() == null);
 
+        Predicate<Throwable> isPingFailedException = t -> t instanceof PingFailedException;
+
+        CompletableFuture<Transaction.PingStatus> transaction;
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream1"), UUID.randomUUID(), 0);
+        assertEquals(transaction.get(), Transaction.PingStatus.OPEN);
+
+        // controller returns error with status LEASE_TOO_LARGE
         transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream2"), UUID.randomUUID(), 0);
-        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, isPingFailedException);
+
+        // controller returns error with status MAX_EXECUTION_TIME_EXCEEDED
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream3"), UUID.randomUUID(), 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, isPingFailedException);
+
+        // controller returns error with status DISCONNECTED
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream4"), UUID.randomUUID(), 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction,  isPingFailedException);
+
+        // controller returns error with status COMMITTED
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream5"), UUID.randomUUID(), 0);
+        assertEquals(transaction.get(), Transaction.PingStatus.COMMITTED);
+
+        // controller returns error with status ABORTED
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream6"), UUID.randomUUID(), 0);
+        assertEquals(transaction.get(), Transaction.PingStatus.ABORTED);
+
+        // controller fails with internal exception causing the controller client to retry.
+        transaction = controllerClient.pingTransaction(new StreamImpl("scope1", "stream7"), UUID.randomUUID(), 0);
+        AssertExtensions.assertFutureThrows("Should throw Exception", transaction, t -> t instanceof RetriesExhaustedException);
     }
 
     @Test

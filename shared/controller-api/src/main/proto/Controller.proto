@@ -24,7 +24,9 @@ service ControllerService {
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
+    /* Deprecated RPC: https://github.com/pravega/pravega/issues/3760 */
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
+    rpc getSegmentsImmediatelyFollowing(SegmentId) returns(SuccessorResponse);
     rpc getSegmentsBetween(StreamCutRange) returns (StreamCutRangeResponse);
     rpc scale(ScaleRequest) returns (ScaleResponse);
     rpc checkScale(ScaleStatusRequest) returns (ScaleStatusResponse);
@@ -117,6 +119,9 @@ message PingTxnStatus {
         MAX_EXECUTION_TIME_EXCEEDED = 2;
         SCALE_GRACE_TIME_EXCEEDED = 3 [deprecated=true];
         DISCONNECTED = 4;
+        COMMITTED = 5;
+        ABORTED = 6;
+        UNKNOWN = 7;
     }
     Status status = 1;
 }

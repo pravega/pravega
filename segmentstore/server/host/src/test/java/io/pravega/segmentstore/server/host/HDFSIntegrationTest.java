@@ -63,6 +63,11 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     //region StreamSegmentStoreTestBase Implementation
 
     @Override
+    protected boolean appendAfterMerging() {
+        return false; // HDFS is slow enough as it is; adding this would cause the test to take even longer.
+    }
+
+    @Override
     protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId) {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
         return ServiceBuilder

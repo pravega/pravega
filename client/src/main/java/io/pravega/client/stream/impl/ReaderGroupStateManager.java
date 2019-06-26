@@ -59,7 +59,7 @@ import static io.pravega.common.concurrent.Futures.getAndHandleExceptions;
  * needed by calling {@link #findSegmentToReleaseIfRequired()}
  * 
  * Finally when a segment is sealed it may have one or more successors. So when a reader comes to the end of a
- * segment it should call {@link #handleEndOfSegment(Segment, boolean)}  so that it can continue reading from the
+ * segment it should call {@link #handleEndOfSegment(Segment)} so that it can continue reading from the
  * successor to that segment.
  */
 @Slf4j
@@ -136,7 +136,7 @@ public class ReaderGroupStateManager {
             if (segments == null) {
                 return;
             }
-            log.debug("Removing reader {} from reader grop. CurrentState is: {}", readerId, state);
+            log.debug("Removing reader {} from reader group. CurrentState is: {}. Position is: {}.", readerId, state, lastPosition);
             updates.add(new RemoveReader(readerId, lastPosition == null ? Collections.emptyMap()
                     : lastPosition.asImpl().getOwnedSegmentsWithOffsets()));
         });

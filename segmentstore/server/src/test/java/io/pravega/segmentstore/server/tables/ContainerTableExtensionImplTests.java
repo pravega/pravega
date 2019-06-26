@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -114,6 +115,51 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
 
         checkIterators(Collections.emptyMap(), context.ext);
 
+        context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT).join();
+        Assert.assertNull("Segment not deleted", context.segment());
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Segment not deleted.",
+                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                ex -> ex instanceof StreamSegmentNotExistsException);
+    }
+
+    /**
+     * Tests the ability to delete a TableSegment, but only if it is empty.
+     */
+    @Test
+    public void testDeleteIfEmpty() {
+        @Cleanup
+        val context = new TestContext();
+        context.ext.createSegment(SEGMENT_NAME, TIMEOUT).join();
+        val key1 = new ByteArraySegment("key1".getBytes());
+        val key2 = new ByteArraySegment("key2".getBytes());
+        val value = new ByteArraySegment("value".getBytes());
+        context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key1, value)), TIMEOUT).join();
+
+        // key1 is present.
+        AssertExtensions.assertSuppliedFutureThrows(
+                "deleteSegment(mustBeEmpty==true) worked with non-empty segment #1.",
+                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                ex -> ex instanceof TableSegmentNotEmptyException);
+
+        // Remove key1 and insert key2.
+        context.ext.remove(SEGMENT_NAME, Collections.singleton(TableKey.unversioned(key1)), TIMEOUT).join();
+        context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key2, value)), TIMEOUT).join();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "deleteSegment(mustBeEmpty==true) worked with non-empty segment #2.",
+                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                ex -> ex instanceof TableSegmentNotEmptyException);
+
+        // Remove key2 and reinsert it.
+        context.ext.remove(SEGMENT_NAME, Collections.singleton(TableKey.unversioned(key2)), TIMEOUT).join();
+        context.ext.put(SEGMENT_NAME, Collections.singletonList(TableEntry.notExists(key2, value)), TIMEOUT).join();
+        AssertExtensions.assertSuppliedFutureThrows(
+                "deleteSegment(mustBeEmpty==true) worked with non-empty segment #3.",
+                () -> context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT),
+                ex -> ex instanceof TableSegmentNotEmptyException);
+
+        // Remove key2.
+        context.ext.remove(SEGMENT_NAME, Collections.singleton(TableKey.unversioned(key2)), TIMEOUT).join();
         context.ext.deleteSegment(SEGMENT_NAME, true, TIMEOUT).join();
         Assert.assertNull("Segment not deleted", context.segment());
         AssertExtensions.assertSuppliedFutureThrows(
