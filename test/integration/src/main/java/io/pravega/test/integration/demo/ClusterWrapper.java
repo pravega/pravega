@@ -130,7 +130,7 @@ public class ClusterWrapper {
             passwordInputFile = createAuthFile(this.passwordAuthHandlerEntries);
         }
 
-        segmentStoreServer = new PravegaConnectionListener(false, "localhost", segmentStorePort, store, tableStore,
+        segmentStoreServer = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
             new TokenVerifierImpl(isAuthEnabled, tokenSigningKeyBasis),
             null, null, true);

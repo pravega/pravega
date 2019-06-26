@@ -45,14 +45,18 @@ public class ServiceConfig {
     public static final Property<DataLogType> DATALOG_IMPLEMENTATION = Property.named("dataLogImplementation", DataLogType.INMEMORY);
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
-    public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
-    public static final Property<String> CERT_FILE = Property.named("certFile", "");
-    public static final Property<String> KEY_FILE = Property.named("keyFile", "");
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
     public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
     public static final Property<String> INSTANCE_ID = Property.named("instanceId", "");
+
+    // TLS-related config for the service
+    public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
+    public static final Property<String> CERT_FILE = Property.named("certFile", "");
+    public static final Property<String> KEY_FILE = Property.named("keyFile", "");
+    public static final Property<Boolean> ENABLE_TLS_RELOAD = Property.named("enableTlsReload", false);
+
 
     public static final String COMPONENT_CODE = "pravegaservice";
 
@@ -216,7 +220,7 @@ public class ServiceConfig {
     private final boolean readOnlySegmentStore;
 
     /**
-     * Enables TLS support for the serer.
+     * Enables TLS support for the server.
      */
     @Getter
     private final boolean enableTls;
@@ -232,6 +236,12 @@ public class ServiceConfig {
      */
     @Getter
     private final String keyFile;
+
+    /**
+     * Enables automatic reloading of SSL/TLS when the TLS certificate is modified.
+     */
+    @Getter
+    private final boolean enableTlsReload;
 
     /**
      * The CachePolicy, as defined in this configuration.
@@ -304,6 +314,7 @@ public class ServiceConfig {
         this.enableTls = properties.getBoolean(ENABLE_TLS);
         this.keyFile = properties.get(KEY_FILE);
         this.certFile = properties.get(CERT_FILE);
+        this.enableTlsReload = properties.getBoolean(ENABLE_TLS_RELOAD);
         long cachePolicyMaxSize = properties.getLong(CACHE_POLICY_MAX_SIZE);
         int cachePolicyMaxTime = properties.getInt(CACHE_POLICY_MAX_TIME);
         int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);
@@ -354,6 +365,7 @@ public class ServiceConfig {
                         Strings.isNullOrEmpty(certFile) ? "unspecified" : "specified"))
                 .append(String.format("keyFile is %s, ",
                         Strings.isNullOrEmpty(keyFile) ? "unspecified" : "specified"))
+                .append(String.format("enableTlsReload: %b, ", enableTlsReload))
                 .append(String.format("cachePolicy is %s, ", (cachePolicy != null) ? cachePolicy.toString() : "null"))
                 .append(String.format("replyWithStackTraceOnError: %b, ", replyWithStackTraceOnError))
                 .append(String.format("instanceId: %s", instanceId))

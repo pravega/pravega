@@ -118,7 +118,7 @@ public class EndToEndTransactionOrderTest {
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                                 .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
-        server = new PravegaConnectionListener(false, "localhost", 12345, store, tableStore,
+        server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true);
         server.startListening();
 

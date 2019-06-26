@@ -72,7 +72,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
     // TLS related params
     private final boolean tlsEnabled; // whether TLS is enabled for segment store
-    private final boolean tlsReloadEnabled = true; // whether to reload TLS certificate
+    private final boolean tlsReloadEnabled; // whether to reload TLS certificate
     private final String pathToTlsCertFile;
     private final String pathToTlsKeyFile;
     private final ExecutorService executor; // used if tls reload is enabled
@@ -91,13 +91,14 @@ public final class PravegaConnectionListener implements AutoCloseable {
      */
     @VisibleForTesting
     public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore) {
-        this(enableTls, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
+        this(enableTls, false, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
                 new PassingTokenVerifier(), null, null, true);
     }
 
     /**
      * Creates a new instance of the PravegaConnectionListener class.
-     * @param enableTls       Whether to use SSL.
+     * @param enableTls          Whether to use SSL/TLS.
+     * @param enableTlsReload    Whether to reload TLS when the X.509 certificate file is replaced.
      * @param host               The name of the host to listen to.
      * @param port               The port to listen on.
      * @param streamSegmentStore The SegmentStore to delegate all requests to.
@@ -109,10 +110,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
      * @param keyFile            Path to be key file to be used for TLS.
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
      */
-    public PravegaConnectionListener(boolean enableTls, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
+    public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, boolean replyWithStackTraceOnError) {
         this.tlsEnabled = enableTls;
+        this.tlsReloadEnabled = enableTlsReload;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
