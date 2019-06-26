@@ -26,11 +26,11 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
+import io.pravega.common.io.FileModificationWatcher;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
@@ -41,31 +41,41 @@ import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
-import java.io.File;
+import lombok.extern.slf4j.Slf4j;
+
 import javax.net.ssl.SSLException;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 /**
  * Hands off any received data from a client to the CommandProcessor.
  */
+@Slf4j
 public final class PravegaConnectionListener implements AutoCloseable {
     //region Members
 
-    private final boolean ssl;
     private final String host;
     private final int port;
     private final StreamSegmentStore store;
     private final TableStore tableStore;
     private final DelegationTokenVerifier tokenVerifier;
-    private final String certFile;
-    private final String keyFile;
+
     private Channel serverChannel;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private final SegmentStatsRecorder statsRecorder;
     private final TableSegmentStatsRecorder tableStatsRecorder;
     private final boolean replyWithStackTraceOnError;
+
+    // TLS related params
+    private final boolean tlsEnabled; // whether TLS is enabled for segment store
+    private final boolean tlsReloadEnabled = true; // whether to reload TLS certificate
+    private final String pathToTlsCertFile;
+    private final String pathToTlsKeyFile;
+    private final ExecutorService executor; // used if tls reload is enabled
 
     //endregion
 
@@ -74,20 +84,20 @@ public final class PravegaConnectionListener implements AutoCloseable {
     /**
      * Creates a new instance of the PravegaConnectionListener class listening on localhost with no StatsRecorder.
      *
-     * @param ssl                Whether to use SSL.
+     * @param enableTls       Whether to use SSL.
      * @param port               The port to listen on.
      * @param streamSegmentStore The SegmentStore to delegate all requests to.
      * @param tableStore         The SegmentStore to delegate all requests to.
      */
     @VisibleForTesting
-    public PravegaConnectionListener(boolean ssl, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore) {
-        this(ssl, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
+    public PravegaConnectionListener(boolean enableTls, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore) {
+        this(enableTls, "localhost", port, streamSegmentStore, tableStore, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
                 new PassingTokenVerifier(), null, null, true);
     }
 
     /**
      * Creates a new instance of the PravegaConnectionListener class.
-     * @param ssl                Whether to use SSL.
+     * @param enableTls       Whether to use SSL.
      * @param host               The name of the host to listen to.
      * @param port               The port to listen on.
      * @param streamSegmentStore The SegmentStore to delegate all requests to.
@@ -99,18 +109,18 @@ public final class PravegaConnectionListener implements AutoCloseable {
      * @param keyFile            Path to be key file to be used for TLS.
      * @param replyWithStackTraceOnError Whether to send a server-side exceptions to the client in error messages.
      */
-    public PravegaConnectionListener(boolean ssl, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
+    public PravegaConnectionListener(boolean enableTls, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, boolean replyWithStackTraceOnError) {
-        this.ssl = ssl;
+        this.tlsEnabled = enableTls;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");
         this.tableStatsRecorder = Preconditions.checkNotNull(tableStatsRecorder, "tableStatsRecorder");
-        this.certFile = certFile;
-        this.keyFile = keyFile;
+        this.pathToTlsCertFile = certFile;
+        this.pathToTlsKeyFile = keyFile;
         InternalLoggerFactory.setDefaultFactory(Slf4JLoggerFactory.INSTANCE);
         if (tokenVerifier != null) {
             this.tokenVerifier = tokenVerifier;
@@ -118,6 +128,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
             this.tokenVerifier = new PassingTokenVerifier();
         }
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
+        if (this.tlsEnabled && this.tlsReloadEnabled) {
+            this.executor = Executors.newSingleThreadExecutor();
+        } else {
+            this.executor = null;
+        }
     }
 
     //endregion
@@ -125,14 +140,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
     public void startListening() {
         // Configure SSL.
         final SslContext sslCtx;
-        if (ssl) {
-            try {
-                sslCtx = SslContextBuilder.forServer(new File(this.certFile), new File(this.keyFile)).build();
-            } catch (SSLException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            sslCtx = null;
+        try {
+            sslCtx = TLSHelper.serverSslContext(tlsEnabled, this.pathToTlsCertFile, this.pathToTlsKeyFile);
+        } catch (SSLException e) {
+            log.warn(e.getMessage(), e);
+            throw new RuntimeException(e);
         }
         boolean nio = false;
         try {
@@ -152,10 +164,15 @@ public final class PravegaConnectionListener implements AutoCloseable {
          .childHandler(new ChannelInitializer<SocketChannel>() {
              @Override
              public void initChannel(SocketChannel ch) throws Exception {
+                 Channels.add(ch);
+
                  ChannelPipeline p = ch.pipeline();
                  if (sslCtx != null) {
-                     SslHandler handler = sslCtx.newHandler(ch.alloc());
-                     p.addLast(handler);
+                     SslHandler sslHandler = sslCtx.newHandler(ch.alloc());
+
+                     // We add a name to SSL/TLS handler, unlike the other handlers added later, to make it
+                     // easier to find and replace the handler.
+                     p.addLast(TLSHelper.TLS_HANDLER_NAME, sslHandler);
                  }
                  ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
                  p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
@@ -173,6 +190,18 @@ public final class PravegaConnectionListener implements AutoCloseable {
              }
          });
 
+        if (tlsEnabled && tlsReloadEnabled) {
+            log.debug("TLS reload is enabled, so setting up a FileChangeWatcher object to watch changes in file: {}",
+                    this.pathToTlsCertFile);
+            FileModificationWatcher tlsCertFileChangeWatcherTask = new FileModificationWatcher(
+                    this.pathToTlsCertFile,
+                    new TLSConfigChangeEventConsumer(this.pathToTlsCertFile, this.pathToTlsKeyFile));
+            tlsCertFileChangeWatcherTask.setDaemon(true);
+            this.executor.submit(tlsCertFileChangeWatcherTask);
+            log.info("Done setting up TLS reload, which in turn will be based on changes in file: {}",
+                    this.pathToTlsCertFile);
+        }
+
         // Start the server.
         serverChannel = b.bind(host, port).awaitUninterruptibly().channel();
     }
@@ -187,5 +216,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
         // Shut down all event loops to terminate all threads.
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
+        if (!executor.isShutdown()) {
+            executor.shutdown();
+        }
     }
 }
