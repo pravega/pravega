@@ -141,7 +141,7 @@ public abstract class AbstractService implements Service {
                 .put("bookkeeper.bkAckQuorumSize", "3")
                 .put("hdfs.replaceDataNodesOnFailure", "false")
                 // Controller properties.
-                .put("controller.transaction.maxLeaseValue", "60000")
+                .put("controller.transaction.maxLeaseValue", "120000")
                 .put("controller.retention.frequencyMinutes", "2")
                 .put("log.level", "DEBUG")
                 .build();
