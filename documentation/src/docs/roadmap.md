@@ -9,6 +9,8 @@ You may obtain a copy of the License at
 -->
 # Pravega Roadmap
 
+# Version 0.4
+
 # Version 0.3
 The following will be the primary feature focus areas for our upcoming release.
 
