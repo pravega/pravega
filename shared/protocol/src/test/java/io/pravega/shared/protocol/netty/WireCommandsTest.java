@@ -68,7 +68,7 @@ public class WireCommandsTest {
 
     @Test
     public void testAppendBlock() throws IOException {
-        testCommand(new WireCommands.AppendBlock(uuid));
+        testCommand(new WireCommands.AppendBlock());
     }
 
     @Test
