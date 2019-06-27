@@ -89,15 +89,16 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
             validateAppend(append, session);
             if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
-                breakFromAppend(null, null, out);
+                breakFromAppend(null, null, out, true);
             }
             final ByteBuf data = append.getData().slice();
             final int msgSize = data.readableBytes();
             final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
                     appendTracker.apply(append.getFlowId());
+            boolean isAppend = false;
 
             session.lastEventNumber = append.getEventNumber();
-            session.eventCount++;
+            session.eventCount += append.getEventCount();
             if (blockSizeSupplier != null) {
                 blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
             }
@@ -109,23 +110,30 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 bytesLeftInBlock = currentBlockSize;
                 segmentBeingAppendedTo = append.segment;
                 writerIdPerformingAppends = append.writerId;
-                writeMessage(new AppendBlock(), out);
                 if (ctx != null && currentBlockSize > (msgSize + TYPE_PLUS_LENGTH_SIZE)) {
+                    writeMessage(new AppendBlock(), currentBlockSize, out);
+                    isAppend = true;
                     ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
                                             blockSizeSupplier.getBatchTimeout(),
                                             TimeUnit.MILLISECONDS);
                 }
+            } else {
+                isAppend = true;
             }
             // Is there enough space for a subsequent message after this one?
-            if (bytesLeftInBlock - msgSize > TYPE_PLUS_LENGTH_SIZE) {
+            if (isAppend && ((bytesLeftInBlock - msgSize) > TYPE_PLUS_LENGTH_SIZE)) {
                 out.writeBytes(data);
                 bytesLeftInBlock -= msgSize;
             } else {
-                ByteBuf dataInsideBlock = data.readSlice(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE);
-                breakFromAppend(dataInsideBlock, data, out);
+                if (isAppend) {
+                    ByteBuf dataInsideBlock = data.readSlice(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE);
+                    breakFromAppend(dataInsideBlock, data, out, true);
+                } else {
+                    breakFromAppend(null, data, out, false);
+                }
             }
         } else if (msg instanceof SetupAppend) {
-            breakFromAppend(null, null, out);
+            breakFromAppend(null, null, out, true);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
@@ -133,10 +141,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         } else if (msg instanceof BlockTimeout) {
             BlockTimeout timeoutMsg = (BlockTimeout) msg;
             if (tokenCounter.get() == timeoutMsg.token) {
-                breakFromAppend(null, null, out);
+                breakFromAppend(null, null, out, true);
             }
         } else if (msg instanceof WireCommand) {
-            breakFromAppend(null, null, out);
+            breakFromAppend(null, null, out, true);
             writeMessage((WireCommand) msg, out);
         } else {
             throw new IllegalArgumentException("Expected a wire command and found: " + msg);
@@ -158,12 +166,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 "Bug in CommandEncoder.encode, block is too small.");
     }
 
-    private void breakFromAppend(ByteBuf data, ByteBuf pendingData, ByteBuf out) {
+    private void breakFromAppend(ByteBuf data, ByteBuf pendingData, ByteBuf out, boolean isAppend) {
         if (bytesLeftInBlock != 0) {
-            if (data != null) {
-                writeMessage(new PartialEvent(data), out);
-            } else {
-                writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
+            if (isAppend) {
+                if (data != null) {
+                    writeMessage(new PartialEvent(data), out);
+                } else {
+                    writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
+                }
             }
             Session session = setupSegments.get(new SimpleImmutableEntry<>(segmentBeingAppendedTo, writerIdPerformingAppends));
             writeMessage(new AppendBlockEnd(session.id,
@@ -181,7 +191,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     @SneakyThrows(IOException.class)
-    private void writeMessage(AppendBlock block, ByteBuf out) {
+    private void writeMessage(AppendBlock block, int blkSize, ByteBuf out) {
         int startIdx = out.writerIndex();
         ByteBufOutputStream bout = new ByteBufOutputStream(out);
         bout.writeInt(block.getType().getCode());
@@ -191,7 +201,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         bout.close();
         int endIdx = out.writerIndex();
         int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
-        out.setInt(startIdx + TYPE_SIZE, fieldsSize + currentBlockSize);
+        out.setInt(startIdx + TYPE_SIZE, fieldsSize + blkSize);
     }
 
     @SneakyThrows(IOException.class)

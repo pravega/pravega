@@ -504,14 +504,14 @@ public class AppendEncodeDecodeTest {
                             writerId,
                             numEvents,
                             eventSize,
-                            numEvents * (eventSize + TYPE_PLUS_LENGTH_SIZE) / appendBlockSize + 1);
+                            numEvents );
     }
 
     @Test
     public void testAppendSpanningBlockBound() throws Exception {
         int numEvents = 4;
         int size = (appendBlockSize * 3) / numEvents;
-        sendAndVerifyEvents(streamName, writerId, numEvents, size, 2);
+        sendAndVerifyEvents(streamName, writerId, numEvents, size, numEvents);
     }
 
     @Test
@@ -602,17 +602,17 @@ public class AppendEncodeDecodeTest {
         Append msg = new Append(streamName, writerId, 1, 1, Unpooled.EMPTY_BUFFER, null, 1);
         assertEquals(0, msg.data.readableBytes());
         encoder.encode(null, msg, fakeNetwork);
-        Append msg2 = new Append(streamName, writerId, 2, 1, Unpooled.EMPTY_BUFFER, null, 1);
-        Append msg3 = new Append(streamName, writerId, 3, 1, Unpooled.EMPTY_BUFFER, null, 1);
+        Append msg2 = new Append(streamName, writerId, 2, 2, Unpooled.EMPTY_BUFFER, null, 1);
+        Append msg3 = new Append(streamName, writerId, 3, 3, Unpooled.EMPTY_BUFFER, null, 1);
         encoder.encode(null, msg2, fakeNetwork);
         encoder.encode(null, msg3, fakeNetwork);
         encoder.encode(null, new KeepAlive(), fakeNetwork);
         ArrayList<Object> received = Lists.newArrayList();
         read(fakeNetwork, received);
-        assertEquals(3, received.size());
+        assertEquals(5, received.size());
         assertEquals(setupAppend, received.get(0));
-        assertEquals(new Append(streamName, writerId, 3, 3, Unpooled.EMPTY_BUFFER, null, 1), received.get(1));
-        assertEquals(new KeepAlive(), received.get(2));
+        assertEquals(new Append(streamName, writerId, 3, 3, Unpooled.EMPTY_BUFFER, null, 1), received.get(3));
+        assertEquals(new KeepAlive(), received.get(4));
     }
 
     @Test
@@ -628,7 +628,7 @@ public class AppendEncodeDecodeTest {
 
         append(streamName, writerId, size + size / 2, 2, size / 2, fakeNetwork);
         read(fakeNetwork, received);
-        assertEquals(1, received.size());
+        assertEquals(2, received.size());
 
         KeepAlive keepAlive = new KeepAlive();
         encoder.encode(null, keepAlive, fakeNetwork);
@@ -714,5 +714,4 @@ public class AppendEncodeDecodeTest {
         assertEquals(numValues - 1, currentValue);
         assertEquals(currentCount, sizeOfEachValue);
     }
-
 }
