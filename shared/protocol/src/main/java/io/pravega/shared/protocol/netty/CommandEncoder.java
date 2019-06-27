@@ -25,6 +25,8 @@ import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.List;
+import java.util.LinkedList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -33,6 +35,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 
@@ -72,13 +75,42 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private UUID writerIdPerformingAppends;
     private int currentBlockSize;
     private int bytesLeftInBlock;
+    private final List<Session> pendingWrites = new LinkedList<>();
 
     @RequiredArgsConstructor
-    private static final class Session {
+    private final class Session {
+        private static final int MAX_DATA_SIZE = 1024 * 1024;
         private final UUID id;
         private long lastEventNumber = -1L;
         private int eventCount;
         private final long requestId;
+        private ByteBuf data = null;
+
+
+        private void append(ByteBuf buffer, ByteBuf out) {
+            if (data == null) {
+                data = buffer;
+                pendingWrites.add(this);
+            } else {
+                data = wrappedBuffer(data, buffer);
+                if (data.readableBytes() > MAX_DATA_SIZE) {
+                    breakFromAppend(null, null, out, true);
+                    flush(out);
+                }
+            }
+        }
+
+        private void flush(ByteBuf out) {
+            if (data != null) {
+                writeMessage(new AppendBlockEnd(id, 0, data, eventCount, lastEventNumber, requestId), out);
+                data = null;
+            }
+        }
+    }
+
+    private void flushAll(ByteBuf out) {
+        pendingWrites.forEach(session -> session.flush(out));
+        pendingWrites.clear();
     }
 
     @Override
@@ -88,52 +120,55 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             Append append = (Append) msg;
             Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
             validateAppend(append, session);
-            if (!append.segment.equals(segmentBeingAppendedTo) || !append.getWriterId().equals(writerIdPerformingAppends)) {
-                breakFromAppend(null, null, out, true);
-            }
             final ByteBuf data = append.getData().slice();
             final int msgSize = data.readableBytes();
             final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
                     appendTracker.apply(append.getFlowId());
-            boolean isAppend = false;
-
             session.lastEventNumber = append.getEventNumber();
             session.eventCount += append.getEventCount();
             if (blockSizeSupplier != null) {
                 blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
             }
-            if (bytesLeftInBlock == 0) {
-                currentBlockSize = msgSize + TYPE_PLUS_LENGTH_SIZE;
-                if (blockSizeSupplier != null) {
-                    currentBlockSize = Math.max(currentBlockSize, blockSizeSupplier.getAppendBlockSize());
-                }
-                bytesLeftInBlock = currentBlockSize;
-                segmentBeingAppendedTo = append.segment;
-                writerIdPerformingAppends = append.writerId;
-                if (ctx != null && currentBlockSize > (msgSize + TYPE_PLUS_LENGTH_SIZE)) {
-                    writeMessage(new AppendBlock(), currentBlockSize, out);
-                    isAppend = true;
-                    ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
-                                            blockSizeSupplier.getBatchTimeout(),
-                                            TimeUnit.MILLISECONDS);
-                }
-            } else {
-                isAppend = true;
-            }
-            // Is there enough space for a subsequent message after this one?
-            if (isAppend && ((bytesLeftInBlock - msgSize) > TYPE_PLUS_LENGTH_SIZE)) {
-                out.writeBytes(data);
-                bytesLeftInBlock -= msgSize;
-            } else {
-                if (isAppend) {
-                    ByteBuf dataInsideBlock = data.readSlice(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE);
-                    breakFromAppend(dataInsideBlock, data, out, true);
+            if ((segmentBeingAppendedTo == null && writerIdPerformingAppends == null) ||
+                    (append.segment.equals(segmentBeingAppendedTo) && append.getWriterId().equals(writerIdPerformingAppends))) {
+                boolean isAppend = false;
+                if (bytesLeftInBlock == 0) {
+                    currentBlockSize = msgSize + TYPE_PLUS_LENGTH_SIZE;
+                    if (blockSizeSupplier != null) {
+                        currentBlockSize = Math.max(currentBlockSize, blockSizeSupplier.getAppendBlockSize());
+                    }
+                    bytesLeftInBlock = currentBlockSize;
+                    segmentBeingAppendedTo = append.segment;
+                    writerIdPerformingAppends = append.writerId;
+                    if (ctx != null && currentBlockSize > (msgSize + TYPE_PLUS_LENGTH_SIZE)) {
+                        writeMessage(new AppendBlock(), currentBlockSize, out);
+                        isAppend = true;
+                        ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
+                                blockSizeSupplier.getBatchTimeout(),
+                                TimeUnit.MILLISECONDS);
+                    }
                 } else {
-                    breakFromAppend(null, data, out, false);
+                    isAppend = true;
                 }
+                // Is there enough space for a subsequent message after this one?
+                if (isAppend && ((bytesLeftInBlock - msgSize) > TYPE_PLUS_LENGTH_SIZE)) {
+                    out.writeBytes(data);
+                    bytesLeftInBlock -= msgSize;
+                } else {
+                    if (isAppend) {
+                        ByteBuf dataInsideBlock = data.readSlice(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE);
+                        breakFromAppend(dataInsideBlock, data, out, true);
+                        flushAll(out);
+                    } else {
+                        breakFromAppend(null, data, out, false);
+                    }
+                }
+            } else {
+                session.append(data, out);
             }
         } else if (msg instanceof SetupAppend) {
             breakFromAppend(null, null, out, true);
+            flushAll(out);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
@@ -142,9 +177,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             BlockTimeout timeoutMsg = (BlockTimeout) msg;
             if (tokenCounter.get() == timeoutMsg.token) {
                 breakFromAppend(null, null, out, true);
+                flushAll(out);
             }
         } else if (msg instanceof WireCommand) {
             breakFromAppend(null, null, out, true);
+            flushAll(out);
             writeMessage((WireCommand) msg, out);
         } else {
             throw new IllegalArgumentException("Expected a wire command and found: " + msg);
