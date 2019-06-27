@@ -9,12 +9,9 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
-import io.netty.channel.group.ChannelGroup;
-
 import java.nio.file.WatchEvent;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import javax.net.ssl.SSLException;
 
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +25,7 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
      * A counter representing the number of times this object has been asked to
      * consume an event.
      */
-    private static final AtomicInteger countOfEventsConsumed = new AtomicInteger(0);
+    private static final AtomicInteger NUM_OF_CONFIG_CHANGES_SINCE_START = new AtomicInteger(0);
 
     private @NonNull final Channels channels;
 
@@ -39,7 +36,7 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
     }
 
     private void handleTlsConfigChange() {
-        log.info("Current reload count = {}", countOfEventsConsumed.incrementAndGet());
+        log.info("Current reload count = {}", NUM_OF_CONFIG_CHANGES_SINCE_START.incrementAndGet());
         channels.flushStopAndRefresh();
     }
 }
