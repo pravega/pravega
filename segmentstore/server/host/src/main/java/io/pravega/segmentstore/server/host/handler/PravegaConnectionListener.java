@@ -97,6 +97,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
     /**
      * Creates a new instance of the PravegaConnectionListener class.
+     *
      * @param enableTls          Whether to use SSL/TLS.
      * @param enableTlsReload    Whether to reload TLS when the X.509 certificate file is replaced.
      * @param host               The name of the host to listen to.
@@ -158,6 +159,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
             workerGroup = new NioEventLoopGroup();
         }
 
+        Channels channels = new Channels();
+
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
          .channel(nio ? NioServerSocketChannel.class : EpollServerSocketChannel.class)
@@ -166,7 +169,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
          .childHandler(new ChannelInitializer<SocketChannel>() {
              @Override
              public void initChannel(SocketChannel ch) throws Exception {
-                 Channels.add(ch);
+                 channels.add(ch);
 
                  ChannelPipeline p = ch.pipeline();
                  if (sslCtx != null) {
@@ -195,10 +198,12 @@ public final class PravegaConnectionListener implements AutoCloseable {
         if (tlsEnabled && tlsReloadEnabled) {
             log.debug("TLS reload is enabled, so setting up a FileChangeWatcher object to watch changes in file: {}",
                     this.pathToTlsCertFile);
+
             FileModificationWatcher tlsCertFileChangeWatcherTask = new FileModificationWatcher(
                     this.pathToTlsCertFile,
-                    new TLSConfigChangeEventConsumer(this.pathToTlsCertFile, this.pathToTlsKeyFile));
+                    new TLSConfigChangeEventConsumer(channels));
             tlsCertFileChangeWatcherTask.setDaemon(true);
+
             this.executor.submit(tlsCertFileChangeWatcherTask);
             log.info("Done setting up TLS reload, which in turn will be based on changes in file: {}",
                     this.pathToTlsCertFile);
