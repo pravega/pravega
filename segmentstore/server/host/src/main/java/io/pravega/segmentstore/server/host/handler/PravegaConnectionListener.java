@@ -168,8 +168,10 @@ public final class PravegaConnectionListener implements AutoCloseable {
          .handler(new LoggingHandler(LogLevel.INFO))
          .childHandler(new ChannelInitializer<SocketChannel>() {
              @Override
-             public void initChannel(SocketChannel ch) throws Exception {
-                 channels.add(ch);
+             public void initChannel(SocketChannel ch) {
+                 if (tlsEnabled && tlsReloadEnabled) {
+                     channels.add(ch);
+                 }
 
                  ChannelPipeline p = ch.pipeline();
                  if (sslCtx != null) {
