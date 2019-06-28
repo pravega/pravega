@@ -936,7 +936,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BYTE_BUFFER, requestId), failureHandler);
         } else if (u instanceof CancellationException) {
             log.info(requestId, "Closing connection {} while performing {} due to {}.",
-                     connection, operation, u.getMessage());
+                     connection, operation, u.toString());
             connection.close();
         } else if (u instanceof AuthenticationException) {
             log.warn(requestId, "Authentication error during '{}'.", operation);
