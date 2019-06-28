@@ -82,7 +82,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     private final class Session {
         private static final int MAX_BLOCK_SIZE = 1024 * 1024;  // 1MB
-        private static final int MAX_DATA_SIZE = 4 * 1024 * 1024; // 4MB
+        private static final int MAX_DATA_SIZE = 2 * 1024 * 1024; // 4MB
         private final UUID id;
         private long lastEventNumber = -1L;
         private int eventCount;
@@ -106,16 +106,17 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
                 if (totalBytes > MAX_DATA_SIZE) {
                     breakFromAppend(null, null, out, true);
-                    flush(out);
+                    flushAll(out);
                 }
             }
         }
 
         private void flush(ByteBuf out) {
             if (data != null) {
-                writeMessage(new AppendBlockEnd(id, 0, data, eventCount, lastEventNumber, requestId), out);
                 totalBytes -= data.readableBytes();
+                writeMessage(new AppendBlockEnd(id, 0, data, eventCount, lastEventNumber, requestId), out);
                 data = null;
+                eventCount = 0;
             }
         }
     }
