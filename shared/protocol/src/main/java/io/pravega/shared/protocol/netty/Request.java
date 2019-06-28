@@ -17,4 +17,8 @@ public interface Request {
     long getRequestId();
     
     void process(RequestProcessor cp);
+
+    default boolean mustLog() {
+        return true;
+    }
 }
