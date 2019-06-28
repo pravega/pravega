@@ -139,7 +139,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         } else if (msg instanceof Flush) {
             Flush flush = (Flush) msg;
             if (flush.getSegment().equals(segmentBeingAppendedTo) && flush.getWriterId().equals(writerIdPerformingAppends)) {
-                breakFromAppend(out);
+                breakFromAppend(null, null, out);
             }
         } else if (msg instanceof WireCommand) {
             breakFromAppend(null, null, out);
