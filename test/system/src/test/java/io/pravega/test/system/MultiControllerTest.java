@@ -47,6 +47,7 @@ public class MultiControllerTest extends AbstractSystemTest {
 
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
     private Service controllerService = null;
+    private Service segmentStoreService = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
     private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
 
@@ -88,11 +89,16 @@ public class MultiControllerTest extends AbstractSystemTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
         log.info("Controller Service discovery URI: {}", controllerURIDiscover);
+
+        segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerService.getServiceDetails().get(0));
     }
 
     @After
     public void tearDown() {
         ExecutorServiceHelpers.shutdown(executorService);
+        // The test scales down the controller instances to 0.
+        // Scale down the segment store instances to 0 to ensure the next tests start with a clean slate.
+        segmentStoreService.scaleService(0);
     }
 
     /**

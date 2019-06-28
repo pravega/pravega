@@ -72,8 +72,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int HIGH_WATER_MARK = 640 * 1024; // 640KB
-    private static final int LOW_WATER_MARK = 320 * 1024;  // 320KB
+    private static final int HIGH_WATER_MARK = 1024 * 1024; // 1MB
+    private static final int LOW_WATER_MARK = 640 * 1024;  // 640KB
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore store;
     private final ServerConnection connection;
@@ -360,7 +360,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
         } else if (u instanceof CancellationException) {
             // Cancellation exception is thrown when the Operation processor is shutting down.
-            log.info("Closing connection '{}' while performing append on Segment '{}' due to {}.", connection, segment, u.getMessage());
+            log.info("Closing connection '{}' while performing append on Segment '{}' due to {}.", connection, segment, u.toString());
             connection.close();
         } else {
             logError(segment, u);
