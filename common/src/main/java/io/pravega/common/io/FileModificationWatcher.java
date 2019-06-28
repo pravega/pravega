@@ -44,7 +44,7 @@ public class FileModificationWatcher extends Thread {
      */
     private final Consumer<WatchEvent<?>> callback;
 
-    private UncaughtExceptionHandler uncaughtExceptionalHandler = (t, e) -> handleException(t.getName(), e);
+    private final UncaughtExceptionHandler uncaughtExceptionalHandler = (t, e) -> handleException(t.getName(), e);
 
     public FileModificationWatcher(@NonNull String fileToWatch, @NonNull Consumer<WatchEvent<?>> callback) {
         super();
