@@ -12,35 +12,15 @@ package io.pravega.segmentstore.server.host.handler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.common.Exceptions;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import javax.net.ssl.SSLException;
 
+@Slf4j
 public class TLSHelper {
 
     static final String TLS_HANDLER_NAME = "tls";
-
-    /**
-     * Returns either null or a new instance of {@link SslContext} based on the specified arguments. A null is returned
-     * if argument {@code sslEnabled} is null.
-     *
-     * @param isTlsEnabled whether SSL/TLS is enabled.
-     * @param pathToCertificateFile the path to the PEM-encoded server certificate file
-     * @param pathToServerKeyFile the path to the PEM-encoded file containing the server's encrypted private key
-     * @return either null or a new instance of {@link SslContext} built from the specified
-     *         {@code pathToCertificateFile} and {@code pathToServerKeyFile}
-     * @throws NullPointerException if either {@code pathToCertificateFile} or {@code pathToServerKeyFile} is null
-     * @throws IllegalArgumentException if either {@code pathToCertificateFile} or {@code pathToServerKeyFile} is empty
-     * @throws SSLException if there is a failure in building the {@link SslContext}
-     */
-    static SslContext serverSslContext(boolean isTlsEnabled, String pathToCertificateFile, String pathToServerKeyFile)
-            throws SSLException {
-        if (isTlsEnabled) {
-            return createServerSslContext(pathToCertificateFile, pathToServerKeyFile);
-        } else {
-            return null;
-        }
-    }
 
     /**
      * Creates a new instance of {@link SslContext}.
@@ -50,12 +30,18 @@ public class TLSHelper {
      * @return a {@link SslContext} built from the specified {@code pathToCertificateFile} and {@code pathToServerKeyFile}
      * @throws NullPointerException if either {@code pathToCertificateFile} or {@code pathToServerKeyFile} is null
      * @throws IllegalArgumentException if either {@code pathToCertificateFile} or {@code pathToServerKeyFile} is empty
-     * @throws SSLException if there is a failure in building the {@link SslContext}
+     * @throws RuntimeException if there is a failure in building the {@link SslContext}
      */
-    static SslContext createServerSslContext(String pathToCertificateFile, String pathToServerKeyFile)
-            throws SSLException {
+    static SslContext createServerSslContext(String pathToCertificateFile, String pathToServerKeyFile) {
         Exceptions.checkNotNullOrEmpty(pathToCertificateFile, "pathToCertificateFile");
         Exceptions.checkNotNullOrEmpty(pathToServerKeyFile, "pathToServerKeyFile");
-        return SslContextBuilder.forServer(new File(pathToCertificateFile), new File(pathToServerKeyFile)).build();
+        SslContext result = null;
+        try {
+            result = SslContextBuilder.forServer(new File(pathToCertificateFile), new File(pathToServerKeyFile)).build();
+            log.debug("Done creating a new SSL Context for the server.");
+        } catch (SSLException e) {
+            throw new RuntimeException(e);
+        }
+        return result;
     }
 }

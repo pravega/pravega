@@ -141,14 +141,15 @@ public final class PravegaConnectionListener implements AutoCloseable {
     //endregion
 
     public void startListening() {
-        // Configure SSL.
-        final SslContext sslCtx;
-        try {
-            sslCtx = TLSHelper.serverSslContext(tlsEnabled, this.pathToTlsCertFile, this.pathToTlsKeyFile);
-        } catch (SSLException e) {
-            log.warn(e.getMessage(), e);
-            throw new RuntimeException(e);
+        final SslContext cachedSslCtx;
+        if (tlsEnabled && !tlsReloadEnabled) {
+            cachedSslCtx = TLSHelper.createServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
+            log.debug("Created a cached SSL Context based on given config tlsEnabled: [{}] and tlsReloadEnabled: [{}]",
+                    tlsEnabled, tlsReloadEnabled);
+        } else {
+            cachedSslCtx = null;
         }
+
         boolean nio = false;
         try {
             bossGroup = new EpollEventLoopGroup(1);
@@ -169,18 +170,30 @@ public final class PravegaConnectionListener implements AutoCloseable {
          .childHandler(new ChannelInitializer<SocketChannel>() {
              @Override
              public void initChannel(SocketChannel ch) {
-                 if (tlsEnabled && tlsReloadEnabled) {
-                     channels.add(ch);
-                 }
-
                  ChannelPipeline p = ch.pipeline();
-                 if (sslCtx != null) {
-                     SslHandler sslHandler = sslCtx.newHandler(ch.alloc());
+
+                 // Add SslHandler to the channel's pipeline, if TLS is enabled.
+                 if (tlsEnabled) {
+                     final SslContext sslContext;
+
+                     if (tlsReloadEnabled) {
+                         channels.add(ch);
+
+                         // Creating an SSL Context for each init ensures that the latest cert and key files are used for
+                         // any new channels.
+                         sslContext = TLSHelper.createServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
+                         log.debug("Done creating a new SSL context.");
+                     } else {
+                         sslContext = cachedSslCtx;
+                         log.debug("Reusing the cached SSL context.");
+                     }
+                     SslHandler sslHandler = sslContext.newHandler(ch.alloc());
 
                      // We add a name to SSL/TLS handler, unlike the other handlers added later, to make it
                      // easier to find and replace the handler.
                      p.addLast(TLSHelper.TLS_HANDLER_NAME, sslHandler);
                  }
+
                  ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
                  p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
                          new CommandEncoder(null),
@@ -188,6 +201,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          new CommandDecoder(),
                          new AppendDecoder(),
                          lsh);
+
                  lsh.setRequestProcessor(new AppendProcessor(store,
                          lsh,
                          new PravegaRequestProcessor(store, tableStore, lsh, statsRecorder, tableStatsRecorder, tokenVerifier, replyWithStackTraceOnError),
