@@ -123,6 +123,7 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image",
                                                                                              getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, PRAVEGA_BOOKKEEPER_VERSION))
                                                                                         .put("replicas", bookieCount)
+                                                                                        .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
                                                                                         .put("storage", ImmutableMap.builder()
                                                                                                                     .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
                                                                                                                     .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
@@ -137,7 +138,8 @@ public abstract class AbstractService implements Service {
                                                                                       .put("segmentStoreReplicas", segmentStoreCount)
                                                                                       .put("debugLogging", true)
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
-                                                                                      //.put("options", props.getProperties())
+                                                                                      .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
+                                                                                      .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
                                                                                       .put("options", props)
                                                                                       .put("image",
                                                                                        getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME, PRAVEGA_VERSION))
@@ -159,6 +161,19 @@ public abstract class AbstractService implements Service {
                                                      .put("tag", tag)
                                                      .put("pullPolicy", IMAGE_PULL_POLICY)
                                                      .build();
+    }
+
+    private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
+        return ImmutableMap.<String, Object>builder()
+                .put("limits", ImmutableMap.builder()
+                        .put("cpu", limitsCpu)
+                        .put("memory", limitsMem)
+                        .build())
+                .put("requests", ImmutableMap.builder()
+                        .put("cpu", requestsCpu)
+                        .put("memory", requestsMem)
+                        .build())
+                .build();
     }
 
     private Map<String, Object> tier2Spec() {
