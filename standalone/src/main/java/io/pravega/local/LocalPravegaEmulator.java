@@ -30,6 +30,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
     private String userName;
     private String passwdFile;
     private String keyFile;
+    private boolean enableTlsReload;
     private String jksKeyFile;
     private String jksTrustFile;
     private String keyPasswordFile;
@@ -58,6 +59,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .enableTls(enableTls)
                     .certFile(certFile)
                     .keyFile(keyFile)
+                    .enableTlsReload(enableTlsReload)
                     .jksKeyFile(jksKeyFile)
                     .jksTrustFile(jksTrustFile)
                     .keyPasswordFile(keyPasswordFile)
@@ -68,7 +70,8 @@ public class LocalPravegaEmulator implements AutoCloseable {
             this.inProcPravegaCluster.setControllerPorts(new int[]{controllerPort});
             this.inProcPravegaCluster.setSegmentStorePorts(new int[]{segmentStorePort});
             return new LocalPravegaEmulator(zkPort, controllerPort, segmentStorePort, restServerPort, enableRestServer,
-                    enableAuth, enableTls, certFile, passwd, userName, passwdFile, keyFile, jksKeyFile, jksTrustFile, keyPasswordFile,
+                    enableAuth, enableTls, certFile, passwd, userName, passwdFile, keyFile, enableTlsReload,
+                    jksKeyFile, jksTrustFile, keyPasswordFile,
                     inProcPravegaCluster);
         }
     }
@@ -92,6 +95,7 @@ public class LocalPravegaEmulator implements AutoCloseable {
                     .enableTls(conf.isEnableTls())
                     .certFile(conf.getCertFile())
                     .keyFile(conf.getKeyFile())
+                    .enableTlsReload(conf.isEnableSegmentStoreTlsReload())
                     .jksKeyFile(conf.getKeyStoreJKS())
                     .jksTrustFile(conf.getTrustStoreJKS())
                     .keyPasswordFile(conf.getKeyStoreJKSPasswordFile())
