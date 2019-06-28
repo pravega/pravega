@@ -22,11 +22,9 @@ import java.io.IOException;
  */
 public enum WireCommandType {
     HELLO(-127, WireCommands.Hello::readFrom),
-    FLUSH_SEGMENT(-126, null),
-    
-    PADDING(-1, WireCommands.Padding::readFrom),
-
+    FLUSH_SEGMENT(-3, null),
     PARTIAL_EVENT(-2, WireCommands.PartialEvent::readFrom),
+    PADDING(-1, WireCommands.Padding::readFrom),
 
     EVENT(0, null), // Is read manually.
 
