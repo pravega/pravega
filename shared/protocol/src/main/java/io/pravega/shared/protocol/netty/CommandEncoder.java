@@ -78,6 +78,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private final List<Session> pendingWrites = new LinkedList<>();
 
     @RequiredArgsConstructor
+
     private final class Session {
         private static final int MAX_DATA_SIZE = 1024 * 1024;
         private final UUID id;
@@ -202,6 +203,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
                 "Bug in CommandEncoder.encode, block is too small.");
     }
+
 
     private void breakFromAppend(ByteBuf data, ByteBuf pendingData, ByteBuf out, boolean isAppend) {
         if (bytesLeftInBlock != 0) {
