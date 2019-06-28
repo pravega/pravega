@@ -138,6 +138,25 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     /**
+     * Updates the tail cache for the given Table Segment with the given data, which represents a pre-index result of the
+     * tail section of the Segment.
+     *
+     * @param segmentId  Segment Id.
+     * @param keyOffsets A Map of KeyHashes to {@link CacheBucketOffset} instances that represents the latest values (including
+     *                   deletions) for all the pre-indexed keys).
+     */
+    void includeTailCache(long segmentId, Map<UUID, CacheBucketOffset> keyOffsets) {
+        SegmentKeyCache cache;
+        int generation;
+        synchronized (this.segmentCaches) {
+            generation = this.currentCacheGeneration;
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cache));
+        }
+
+        cache.includeTailCache(keyOffsets, generation);
+    }
+
+    /**
      * Updates the contents of a Cache Entry associated with the given Segment Id and KeyHash. This method cannot be
      * used to remove values.
      *
