@@ -76,11 +76,13 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private int currentBlockSize;
     private int bytesLeftInBlock;
     private final List<Session> pendingWrites = new LinkedList<>();
+    private long totalBytes = 0;
 
     @RequiredArgsConstructor
 
     private final class Session {
-        private static final int MAX_DATA_SIZE = 1024 * 1024;
+        private static final int MAX_BLOCK_SIZE = 1024 * 1024;  // 1MB
+        private static final int MAX_DATA_SIZE = 4 * 1024 * 1024; // 4MB
         private final UUID id;
         private long lastEventNumber = -1L;
         private int eventCount;
@@ -89,12 +91,20 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
 
         private void append(ByteBuf buffer, ByteBuf out) {
-            if (data == null) {
-                data = buffer;
-                pendingWrites.add(this);
-            } else {
-                data = wrappedBuffer(data, buffer);
-                if (data.readableBytes() > MAX_DATA_SIZE) {
+            if (buffer != null) {
+                totalBytes += buffer.readableBytes();
+                if (data == null) {
+                    data = buffer;
+                    pendingWrites.add(this);
+                } else {
+                    data = wrappedBuffer(data, buffer);
+                    if (data.readableBytes() > MAX_BLOCK_SIZE) {
+                        breakFromAppend(null, null, out, true);
+                        flush(out);
+                    }
+                }
+
+                if (totalBytes > MAX_DATA_SIZE) {
                     breakFromAppend(null, null, out, true);
                     flush(out);
                 }
@@ -104,14 +114,17 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         private void flush(ByteBuf out) {
             if (data != null) {
                 writeMessage(new AppendBlockEnd(id, 0, data, eventCount, lastEventNumber, requestId), out);
+                totalBytes -= data.readableBytes();
                 data = null;
             }
         }
     }
 
     private void flushAll(ByteBuf out) {
-        pendingWrites.forEach(session -> session.flush(out));
-        pendingWrites.clear();
+        if (totalBytes > 0) {
+            pendingWrites.forEach(session -> session.flush(out));
+            pendingWrites.clear();
+        }
     }
 
     @Override
