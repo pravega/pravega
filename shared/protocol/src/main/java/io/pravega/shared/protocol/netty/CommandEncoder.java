@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.List;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -75,7 +75,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private UUID writerIdPerformingAppends;
     private int currentBlockSize;
     private int bytesLeftInBlock;
-    private final List<Session> pendingWrites = new LinkedList<>();
+    private final List<Session> pendingWrites = new ArrayList<>();
     private long totalBytes = 0;
 
     @RequiredArgsConstructor
@@ -98,10 +98,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     pendingWrites.add(this);
                 } else {
                     data = wrappedBuffer(data, buffer);
-                    if (data.readableBytes() > MAX_BLOCK_SIZE) {
-                        breakFromAppend(null, null, out, true);
-                        flush(out);
-                    }
+                }
+                if (data.readableBytes() > MAX_BLOCK_SIZE) {
+                    breakFromAppend(null, null, out, true);
+                    flush(out);
                 }
 
                 if (totalBytes > MAX_DATA_SIZE) {
@@ -125,6 +125,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (totalBytes > 0) {
             pendingWrites.forEach(session -> session.flush(out));
             pendingWrites.clear();
+            totalBytes = 0;
         }
     }
 
