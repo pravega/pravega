@@ -753,7 +753,6 @@ public class SegmentHelperTest {
                 future.get(),
                 ex -> ex instanceof WireCommandFailedException &&
                 ((WireCommandFailedException) ex).getReason().equals(WireCommandFailedException.Reason.ConnectionFailed));
-        ;
     }
 
     private static class MockHostControllerStore implements HostControllerStore {
