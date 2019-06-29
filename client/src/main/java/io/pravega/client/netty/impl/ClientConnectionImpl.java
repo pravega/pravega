@@ -16,7 +16,6 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
@@ -34,14 +33,11 @@ public class ClientConnectionImpl implements ClientConnection {
     @VisibleForTesting
     @Getter
     private final FlowHandler nettyHandler;
-    private final AppendBatchSizeTracker batchSizeTracker;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    public ClientConnectionImpl(String connectionName, int flowId, AppendBatchSizeTracker batchSizeTracker,
-                                FlowHandler nettyHandler) {
+    public ClientConnectionImpl(String connectionName, int flowId, FlowHandler nettyHandler) {
         this.connectionName = connectionName;
         this.flowId = flowId;
-        this.batchSizeTracker = batchSizeTracker;
         this.nettyHandler = nettyHandler;
     }
 
@@ -56,7 +52,6 @@ public class ClientConnectionImpl implements ClientConnection {
     public void send(Append append) throws ConnectionFailedException {
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
-        batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
     }
 
@@ -98,7 +93,6 @@ public class ClientConnectionImpl implements ClientConnection {
         }
         PromiseCombiner combiner = new PromiseCombiner();
         for (Append append : appends) {
-            batchSizeTracker.recordAppend(append.getEventNumber(), append.getData().readableBytes());
             combiner.add(ch.write(append));
         }
         ch.flush();
