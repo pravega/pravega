@@ -9,14 +9,17 @@
  */
 package io.pravega.common.io;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.FileSystems;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import lombok.NonNull;
@@ -34,6 +37,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FileModificationWatcher extends Thread {
 
+    private static final AtomicInteger THREAD_NUM = new AtomicInteger();
+
     /**
      * The path of file to watch.
      */
@@ -44,18 +49,31 @@ public class FileModificationWatcher extends Thread {
      */
     private final Consumer<WatchEvent<?>> callback;
 
-    private final UncaughtExceptionHandler uncaughtExceptionalHandler = (t, e) -> handleException(t.getName(), e);
+    private final UncaughtExceptionHandler uncaughtExceptionalHandler = (t, e) -> logException(t.getName(), e);
 
-    public FileModificationWatcher(@NonNull String fileToWatch, @NonNull Consumer<WatchEvent<?>> callback) {
+    /**
+     * Creates a new instance of this class.
+     *
+     * @param fileToWatch the file to watch
+     * @param callback    the callback to invoke when a modification to the {@code fileToWatch} is detected
+     * @throws NullPointerException if either {@code fileToWatch} or {@code callback} is null
+     * @throws InvalidPathException if {@code fileToWatch} is invalid
+     * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
+     */
+    public FileModificationWatcher(@NonNull String fileToWatch, @NonNull Consumer<WatchEvent<?>> callback)
+            throws FileNotFoundException {
         super();
 
         this.pathOfFileToWatch = Paths.get(fileToWatch);
 
         if (!this.pathOfFileToWatch.toFile().exists()) {
-            throw new IllegalArgumentException(String.format("File [%s] does not exist.", fileToWatch));
+            throw new FileNotFoundException(String.format("File [%s] does not exist.", fileToWatch));
         }
         this.callback = callback;
         setUncaughtExceptionHandler(uncaughtExceptionalHandler);
+
+        // Set the name for this object/thread for identification purposes.
+        this.setName("file-update-watcher-" + THREAD_NUM.incrementAndGet());
     }
 
     @Override
@@ -66,20 +84,20 @@ public class FileModificationWatcher extends Thread {
         WatchService watchService = null;
         try {
             watchService = FileSystems.getDefault().newWatchService();
-            log.debug("Done creating watch service.");
+            log.debug("Done creating watch service for watching file at path: {}", this.pathOfFileToWatch);
 
             String fileName = this.pathOfFileToWatch.getFileName().toString();
             Path directoryPath = this.pathOfFileToWatch.getParent();
 
-            log.debug("Directory being watched is {}.", directoryPath);
+            log.debug("Directory being watched is {}", directoryPath);
 
             directoryPath.register(watchService,
                     StandardWatchEventKinds.ENTRY_MODIFY);
-            log.debug("Done setting up watch for modify entries.");
+            log.debug("Done setting up watch for modify entries for file at path: {}", this.pathOfFileToWatch);
 
             while (true) {
                 watchKey = watchService.take();
-                log.debug("Done setting up watch key.");
+                log.info("Done setting up watch key for watching file at path: {}", this.pathOfFileToWatch);
 
                 // Looks odd, right? Using the logic or de-duplicating file change events, as suggested by some here:
                 // https://stackoverflow.com/questions/16777869/java-7-watchservice-ignoring-multiple-occurrences-of-
@@ -87,13 +105,14 @@ public class FileModificationWatcher extends Thread {
                 Thread.sleep(200);
 
                 if (watchKey != null) {
-                    log.debug("Watch key is not null");
-
                     watchKey.pollEvents()
                             .stream()
-                            .filter(event -> // we only care about changes to the specified file.
-                                    event.context().toString().contains(fileName))
-                            .forEach(event ->  callback.accept(event)); // invoke the specified callback
+                            .filter( // we only care about changes to the specified file.
+                                    event -> event.context().toString().contains(fileName))
+                            .forEach( // invoke the specified callback
+                                    filteredEvent -> callback.accept(filteredEvent));
+                } else {
+                    log.debug("watchKey for file at path {} was null", this.pathOfFileToWatch);
                 }
 
                 boolean isKeyValid = watchKey.reset();
@@ -102,8 +121,12 @@ public class FileModificationWatcher extends Thread {
                     log.info("No longer watching file [{}]", this.pathOfFileToWatch);
                 }
             }
-        } catch (IOException | InterruptedException e) {
-            log.warn(e.getMessage(), e);
+        } catch (InterruptedException e) {
+            log.info("Thread {}, watching for modifications in file {}, interrupted with cause {}",
+                    this.getName(), this.pathOfFileToWatch, e.getMessage());
+            // Ignore.
+        } catch (IOException e) {
+            logException(this.getName(), e);
             throw new RuntimeException(e);
         } finally {
             if (watchKey != null) {
@@ -120,7 +143,7 @@ public class FileModificationWatcher extends Thread {
         }
     }
 
-    protected void handleException(String threadName, Throwable e) {
-        log.warn("Exception occurred from thread {}", threadName, e);
+    private void logException(String name, Throwable e) {
+        log.warn("Exception occurred from thread {}", name, e);
     }
 }

@@ -43,10 +43,7 @@ import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.net.ssl.SSLException;
-
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.io.FileNotFoundException;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
@@ -71,11 +68,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final boolean replyWithStackTraceOnError;
 
     // TLS related params
-    private final boolean tlsEnabled; // whether TLS is enabled for segment store
-    private final boolean tlsReloadEnabled; // whether to reload TLS certificate
+    private final boolean enableTls; // whether to enable TLS
+    private final boolean enableTlsReload; // whether to reload TLS certificate when the certificate changes
     private final String pathToTlsCertFile;
     private final String pathToTlsKeyFile;
-    private final ExecutorService executor; // used if tls reload is enabled
+    private FileModificationWatcher tlsCertFileChangeWatcherTask; // used only if tls reload is enabled
 
     //endregion
 
@@ -84,7 +81,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     /**
      * Creates a new instance of the PravegaConnectionListener class listening on localhost with no StatsRecorder.
      *
-     * @param enableTls       Whether to use SSL.
+     * @param enableTls          Whether to enable SSL/TLS.
      * @param port               The port to listen on.
      * @param streamSegmentStore The SegmentStore to delegate all requests to.
      * @param tableStore         The SegmentStore to delegate all requests to.
@@ -98,7 +95,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     /**
      * Creates a new instance of the PravegaConnectionListener class.
      *
-     * @param enableTls          Whether to use SSL/TLS.
+     * @param enableTls          Whether to enable SSL/TLS.
      * @param enableTlsReload    Whether to reload TLS when the X.509 certificate file is replaced.
      * @param host               The name of the host to listen to.
      * @param port               The port to listen on.
@@ -114,8 +111,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
     public PravegaConnectionListener(boolean enableTls, boolean enableTlsReload, String host, int port, StreamSegmentStore streamSegmentStore, TableStore tableStore,
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, boolean replyWithStackTraceOnError) {
-        this.tlsEnabled = enableTls;
-        this.tlsReloadEnabled = enableTlsReload;
+        this.enableTls = enableTls;
+        this.enableTlsReload = enableTlsReload;
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
@@ -131,21 +128,16 @@ public final class PravegaConnectionListener implements AutoCloseable {
             this.tokenVerifier = new PassingTokenVerifier();
         }
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
-        if (this.tlsEnabled && this.tlsReloadEnabled) {
-            this.executor = Executors.newSingleThreadExecutor();
-        } else {
-            this.executor = null;
-        }
     }
 
     //endregion
 
     public void startListening() {
         final SslContext cachedSslCtx;
-        if (tlsEnabled && !tlsReloadEnabled) {
+        if (enableTls && !enableTlsReload) {
             cachedSslCtx = TLSHelper.createServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
-            log.debug("Created a cached SSL Context based on given config tlsEnabled: [{}] and tlsReloadEnabled: [{}]",
-                    tlsEnabled, tlsReloadEnabled);
+            log.debug("Created a cached SSL Context based on given config enableTls: [{}] and enableTlsReload: [{}]",
+                    enableTls, enableTlsReload);
         } else {
             cachedSslCtx = null;
         }
@@ -173,10 +165,10 @@ public final class PravegaConnectionListener implements AutoCloseable {
                  ChannelPipeline p = ch.pipeline();
 
                  // Add SslHandler to the channel's pipeline, if TLS is enabled.
-                 if (tlsEnabled) {
+                 if (enableTls) {
                      final SslContext sslContext;
 
-                     if (tlsReloadEnabled) {
+                     if (enableTlsReload) {
                          channels.add(ch);
 
                          // Creating an SSL Context for each init ensures that the latest cert and key files are used for
@@ -211,20 +203,23 @@ public final class PravegaConnectionListener implements AutoCloseable {
              }
          });
 
-        if (tlsEnabled && tlsReloadEnabled) {
+        if (enableTls && enableTlsReload) {
             log.debug("TLS reload is enabled, so setting up a FileChangeWatcher object to watch changes in file: {}",
                     this.pathToTlsCertFile);
+            try {
+                tlsCertFileChangeWatcherTask = new FileModificationWatcher(
+                        this.pathToTlsCertFile,
+                        new TLSConfigChangeEventConsumer(channels));
+                tlsCertFileChangeWatcherTask.setDaemon(true);
 
-            FileModificationWatcher tlsCertFileChangeWatcherTask = new FileModificationWatcher(
-                    this.pathToTlsCertFile,
-                    new TLSConfigChangeEventConsumer(channels));
-            tlsCertFileChangeWatcherTask.setDaemon(true);
-
-            this.executor.submit(tlsCertFileChangeWatcherTask);
-            log.info("Done setting up TLS reload, which in turn will be based on changes in file: {}",
-                    this.pathToTlsCertFile);
+                tlsCertFileChangeWatcherTask.start();
+                log.info("Done setting up TLS reload, which in turn will be based on changes in file: {}",
+                        this.pathToTlsCertFile);
+            } catch (FileNotFoundException e) {
+                log.warn("Failed to setup a watcher on the file {}", this.pathToTlsCertFile, e);
+                throw new RuntimeException(e);
+            }
         }
-
         // Start the server.
         serverChannel = b.bind(host, port).awaitUninterruptibly().channel();
     }
@@ -239,8 +234,10 @@ public final class PravegaConnectionListener implements AutoCloseable {
         // Shut down all event loops to terminate all threads.
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
-        if (!executor.isShutdown()) {
-            executor.shutdown();
+
+        if (tlsCertFileChangeWatcherTask != null) {
+            log.info("Interrupting the file change watcher task for file {}", this.pathToTlsCertFile);
+            tlsCertFileChangeWatcherTask.interrupt();
         }
     }
 }

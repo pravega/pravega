@@ -17,6 +17,9 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * A {@link Consumer} that acts upon change in Segment Store SSL/TLS configuration change.
+ */
 @RequiredArgsConstructor
 @Slf4j
 public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
@@ -25,18 +28,18 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
      * A counter representing the number of times this object has been asked to
      * consume an event.
      */
-    private static final AtomicInteger NUM_OF_CONFIG_CHANGES_SINCE_START = new AtomicInteger(0);
+    private final AtomicInteger numOfConfigChangesSinceStart = new AtomicInteger(0);
 
     private @NonNull final Channels channels;
 
     @Override
     public void accept(WatchEvent<?> watchEvent) {
-        log.debug("Invoked for [{}]", watchEvent.context().toString());
+        log.debug("Invoked for [{}]", watchEvent.context());
         handleTlsConfigChange();
     }
 
     private void handleTlsConfigChange() {
-        log.info("Current reload count = {}", NUM_OF_CONFIG_CHANGES_SINCE_START.incrementAndGet());
+        log.info("Current reload count = {}", numOfConfigChangesSinceStart.incrementAndGet());
         channels.flushStopAndRefresh();
     }
 }

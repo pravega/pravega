@@ -24,9 +24,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * performed on the group.
  */
 @Slf4j
-public class Channels {
+public final class Channels {
 
-    private Lock sequential = new ReentrantLock();
+    private final Lock sequential = new ReentrantLock();
 
     // See info about ChannelGroups here: https://netty.io/4.1/api/io/netty/channel/group/ChannelGroup.html
     private ChannelGroup channels =
@@ -36,7 +36,7 @@ public class Channels {
         sequential.lock();
         try {
             channels.add(ch);
-            log.debug("Done adding channel [{}] to the group.", ch);
+            log.debug("Added channel [{}] to the group.", ch);
         } finally {
             sequential.unlock();
         }
@@ -62,20 +62,19 @@ public class Channels {
         try {
             future.await();
         } catch (InterruptedException e) {
-            log.warn(e.getMessage(), e);
+            log.warn("Exception encountered when awaiting for the channel group to close", e);
             // Ignore
         }
-        log.debug("Done triggering close of channel group {}", existingChannelGroup);
+        log.debug("Triggered close of channel group {}", existingChannelGroup);
 
         if (future.isCancelled()) {
             log.info("Connection cancelled by user.");
         } else if (!future.isSuccess()) {
             Throwable e = future.cause();
-            log.warn(e.getMessage(), e);
+            log.warn("Exception encountered when attempting to close the channel group {}", existingChannelGroup, e);
             // Ignore. Intentionally not rethrowing the exception, so that the system continues to function.
         } else {
-            log.info("Done closing the channel group, which implies that all channels in the group were "
-                    + "successfully closed.");
+            log.info("Channel group {} is closed", existingChannelGroup);
         }
     }
 }
