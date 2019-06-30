@@ -26,8 +26,8 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * This class can be used to create objects that monitor modifications to the specified file and perform a
- * specified action (in the form of a callback) upon modification detection.
+ * Monitors modifications to the specified file and perform a specified action (in the form of a callback) upon
+ * modification detection.
  *
  * Note that:
  * - The specified actions may trigger slightly later than when the file is actually modified.
