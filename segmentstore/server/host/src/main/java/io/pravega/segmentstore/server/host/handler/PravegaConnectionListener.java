@@ -37,6 +37,9 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
+import io.pravega.segmentstore.server.security.Channels;
+import io.pravega.segmentstore.server.security.TLSConfigChangeEventConsumer;
+import io.pravega.segmentstore.server.security.TLSHelper;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
@@ -135,7 +138,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     public void startListening() {
         final SslContext cachedSslCtx;
         if (enableTls && !enableTlsReload) {
-            cachedSslCtx = TLSHelper.createServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
+            cachedSslCtx = TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
             log.debug("Created a cached SSL Context based on given config enableTls: [{}] and enableTlsReload: [{}]",
                     enableTls, enableTlsReload);
         } else {
@@ -173,7 +176,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
                          // Creating an SSL Context for each init ensures that the latest cert and key files are used for
                          // any new channels.
-                         sslContext = TLSHelper.createServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
+                         sslContext = TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
                          log.debug("Done creating a new SSL context.");
                      } else {
                          sslContext = cachedSslCtx;

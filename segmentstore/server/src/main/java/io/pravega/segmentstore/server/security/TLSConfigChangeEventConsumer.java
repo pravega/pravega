@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.host.handler;
+package io.pravega.segmentstore.server.security;
 
 import java.nio.file.WatchEvent;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,6 +40,6 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
 
     private void handleTlsConfigChange() {
         log.info("Current reload count = {}", numOfConfigChangesSinceStart.incrementAndGet());
-        channels.flushStopAndRefresh();
+        channels.clear();
     }
 }

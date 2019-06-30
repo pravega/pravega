@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.host.handler;
+package io.pravega.segmentstore.server.security;
 
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -17,10 +17,13 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.File;
 import javax.net.ssl.SSLException;
 
+/**
+ * A helper class containing utility methods for TLS functionality in Segment Store.
+ */
 @Slf4j
 public class TLSHelper {
 
-    static final String TLS_HANDLER_NAME = "tls";
+    public static final String TLS_HANDLER_NAME = "tls";
 
     /**
      * Creates a new instance of {@link SslContext}.
@@ -32,7 +35,7 @@ public class TLSHelper {
      * @throws IllegalArgumentException if either {@code pathToCertificateFile} or {@code pathToServerKeyFile} is empty
      * @throws RuntimeException if there is a failure in building the {@link SslContext}
      */
-    static SslContext createServerSslContext(String pathToCertificateFile, String pathToServerKeyFile) {
+    public static SslContext newServerSslContext(String pathToCertificateFile, String pathToServerKeyFile) {
         Exceptions.checkNotNullOrEmpty(pathToCertificateFile, "pathToCertificateFile");
         Exceptions.checkNotNullOrEmpty(pathToServerKeyFile, "pathToServerKeyFile");
         SslContext result = null;
