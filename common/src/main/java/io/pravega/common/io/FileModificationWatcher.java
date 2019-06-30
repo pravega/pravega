@@ -76,6 +76,20 @@ public class FileModificationWatcher extends Thread {
         this.setName("file-update-watcher-" + THREAD_NUM.incrementAndGet());
     }
 
+    private String fileNameOfFileToWatch() {
+        Path fileName = this.pathOfFileToWatch.getFileName();
+        if (fileName != null) {
+            return fileName.toString();
+        } else {
+            throw new RuntimeException("File name is null");
+        }
+    }
+
+    private Path dirPathOfFileToWatch() {
+        assert this.pathOfFileToWatch != null;
+        return this.pathOfFileToWatch.getParent();
+    }
+
     @Override
     @SuppressWarnings("SleepWhileInLoop")
     public void run() {
@@ -86,11 +100,11 @@ public class FileModificationWatcher extends Thread {
             watchService = FileSystems.getDefault().newWatchService();
             log.debug("Done creating watch service for watching file at path: {}", this.pathOfFileToWatch);
 
-            String fileName = this.pathOfFileToWatch.getFileName().toString();
-            Path directoryPath = this.pathOfFileToWatch.getParent();
-
+            String fileName = fileNameOfFileToWatch();
+            Path directoryPath = dirPathOfFileToWatch();
             log.debug("Directory being watched is {}", directoryPath);
 
+            assert directoryPath != null;
             directoryPath.register(watchService,
                     StandardWatchEventKinds.ENTRY_MODIFY);
             log.debug("Done setting up watch for modify entries for file at path: {}", this.pathOfFileToWatch);
@@ -111,14 +125,15 @@ public class FileModificationWatcher extends Thread {
                                     event -> event.context().toString().contains(fileName))
                             .forEach( // invoke the specified callback
                                     filteredEvent -> callback.accept(filteredEvent));
+
+                    boolean isKeyValid = watchKey.reset();
+                    log.debug("Done resetting watch key, so that it can receive further event notifications.");
+                    if (!isKeyValid) {
+                        log.info("No longer watching file [{}]", this.pathOfFileToWatch);
+                        break;
+                    }
                 } else {
                     log.debug("watchKey for file at path {} was null", this.pathOfFileToWatch);
-                }
-
-                boolean isKeyValid = watchKey.reset();
-                log.debug("Done resetting watch key, so that it can receive further event notifications.");
-                if (!isKeyValid) {
-                    log.info("No longer watching file [{}]", this.pathOfFileToWatch);
                 }
             }
         } catch (InterruptedException e) {
