@@ -22,6 +22,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -396,18 +397,20 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     @Override
     public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
-        String scope = request.getScope().getScope();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStream", scope);
-        log.info(requestTag.getRequestId(), "listStream called for scope {}.", scope);
+        String scopeName = request.getScope().getScope();
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStream", scopeName);
+        log.info(requestTag.getRequestId(), "listStream called for scope {}.", scopeName);
         authenticateExecuteAndProcessResults(
-                () -> this.authHelper.checkAuthorization(AuthResourceRepresentation.ofScope(scope),
+                () -> this.authHelper.checkAuthorization(AuthResourceRepresentation.ofScope(scopeName),
                         AuthHandler.Permissions.READ),
                 delegationToken -> controllerService.listStreams(
-                        scope, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                        scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
                         .thenApply(response -> {
                              List<StreamInfo> streams = response.getKey().stream()
-                                     .filter(m -> authHelper.isAuthorized(m, AuthHandler.Permissions.READ))
-                                     .map(m -> StreamInfo.newBuilder().setScope(scope).setStream(m).build())
+                                     .filter(streamName -> authHelper.isAuthorized(
+                                             AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
+                                             AuthHandler.Permissions.READ))
+                                     .map(m -> StreamInfo.newBuilder().setScope(scopeName).setStream(m).build())
                                      .collect(Collectors.toList());
                              return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(streams)
                                      .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(
@@ -449,10 +452,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             result.whenComplete(
                     (value, ex) -> {
                         log.debug("result =  {}", value);
-                        logAndUntrackRequestTag(requestTag);
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);
-                            log.error("Controller api failed with error: {}", ex.getMessage(), ex);
+                            logError(requestTag, cause);
                             String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
                             streamObserver.onError(Status.INTERNAL
                                     .withCause(cause)
@@ -462,6 +464,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             streamObserver.onNext(value);
                             streamObserver.onCompleted();
                         }
+                        logAndUntrackRequestTag(requestTag);
                     });
         } catch (Exception e) {
             log.error(e.getMessage(), e);
@@ -481,6 +484,16 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         if (requestTag != null) {
             log.debug(requestTracker.untrackRequest(requestTag.getRequestDescriptor()),
                     "Untracking request: {}.", requestTag.getRequestDescriptor());
+        }
+    }
+
+    private void logError(RequestTag requestTag, Throwable cause) {
+        String tag = requestTag == null ? "none" : requestTag.getRequestDescriptor();
+
+        if (cause instanceof LockFailedException) {
+            log.warn("Controller API call with tag {} failed with: {}", tag, cause.getMessage());
+        } else {
+            log.error("Controller API call with tag {} failed with error: ", tag, cause);
         }
     }
 }

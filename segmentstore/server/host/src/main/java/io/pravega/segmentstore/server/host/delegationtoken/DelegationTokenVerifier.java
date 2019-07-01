@@ -10,17 +10,30 @@
 package io.pravega.segmentstore.server.host.delegationtoken;
 
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.InvalidClaimException;
+import io.pravega.auth.InvalidTokenException;
+import io.pravega.auth.TokenException;
+import io.pravega.auth.TokenExpiredException;
 
 /**
  * This interface represents the code on segment store side that verifies the delegation token.
  */
 public interface DelegationTokenVerifier {
+
     /**
-     * Verifies whether the token represents access to a given resource to the level expected.
-     * @param resource       The resource for which access is to be verified.
-     * @param token          The delegation token.
-     * @param expectedLevel  Maximum expected access to the given resoure after this verification.
-     * @return               true if the delegation token allows access to the resource for the expected level.
+     * Ensures that the given {@code token} represents specified {@code expectedLevel} of access on the
+     * given {@code resource}. It returns normally if the {@code token} grants {@code expectedLevel} of access,
+     * and throws an exception, otherwise.
+     *
+     * @param resource                the resource for which access is desired.
+     * @param token                   the access/delegation token.
+     * @param expectedLevel           maximum expected access to the given {@code resource}.
+     * @throws TokenExpiredException  if the {@code token} has expired
+     * @throws InvalidTokenException  if the {@code token} is invalid
+     * @throws InvalidClaimException  if the {@code token} does not contain the claim representing
+     *                                {@code expectedLevel} of access
+     * @throws TokenException         if any other failure condition is encountered
      */
-    boolean verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel);
+    void verifyToken(String resource, String token, AuthHandler.Permissions expectedLevel)
+            throws TokenExpiredException, InvalidTokenException, InvalidClaimException, TokenException;
 }
