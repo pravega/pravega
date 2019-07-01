@@ -35,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.netty.buffer.Unpooled.wrappedBuffer;
+import static io.netty.buffer.Unpooled.buffer;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 
@@ -84,21 +84,18 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private final class Session {
         private static final int MAX_BLOCK_SIZE = 512 * 1024;  // 512K
         private final UUID id;
-        private long lastEventNumber = -1L;
-        private int eventCount;
         private final long requestId;
-        private ByteBuf data = null;
-
+        private final ByteBuf data = buffer();
+        private long lastEventNumber = -1L;
+        private int eventCount = 0;
 
         private void append(ByteBuf buffer, ByteBuf out) {
-            if (buffer != null) {
+            if (buffer != null && buffer.readableBytes() > 0) {
                 totalBytes += buffer.readableBytes();
-                if (data == null) {
-                    data = buffer;
+                if (data.readableBytes() == 0) {
                     pendingWrites.add(this);
-                } else {
-                    data = wrappedBuffer(data, buffer);
                 }
+                data.writeBytes(buffer);
                 if (data.readableBytes() > MAX_BLOCK_SIZE) {
                     breakFromAppend(null, null, out, true);
                     flush(out);
@@ -112,13 +109,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
 
         private void flush(ByteBuf out) {
-            if (data != null) {
-                totalBytes = totalBytes - data.readableBytes();
-                if (totalBytes < 0) {
-                    totalBytes = 0;
-                }
+            if (data.readableBytes() > 0) {
+                totalBytes -= data.readableBytes();
                 writeMessage(new AppendBlockEnd(id, 0, data, eventCount, lastEventNumber, requestId), out);
-                data = null;
+                data.clear();
                 eventCount = 0;
             }
         }
