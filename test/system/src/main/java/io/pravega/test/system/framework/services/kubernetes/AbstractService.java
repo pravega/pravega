@@ -123,7 +123,7 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image",
                                                                                              getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME, PRAVEGA_BOOKKEEPER_VERSION))
                                                                                         .put("replicas", bookieCount)
-                                                                                        .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
+                                                                                        .put("resources", getResources("2000m", "4Gi", "1000m", "2Gi"))
                                                                                         .put("storage", ImmutableMap.builder()
                                                                                                                     .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
                                                                                                                     .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
