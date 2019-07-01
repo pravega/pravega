@@ -52,8 +52,10 @@ public class FileModificationWatcher extends Thread {
 
     private final UncaughtExceptionHandler uncaughtExceptionalHandler = (t, e) -> logException(t.getName(), e);
 
+    private boolean loopContinuously;
+
     /**
-     * Creates a new instance of this class.
+     * Creates a new instance.
      *
      * @param fileToWatch the file to watch
      * @param callback    the callback to invoke when a modification to the {@code fileToWatch} is detected
@@ -63,18 +65,37 @@ public class FileModificationWatcher extends Thread {
      */
     public FileModificationWatcher(@NonNull String fileToWatch, @NonNull Consumer<WatchEvent<?>> callback)
             throws FileNotFoundException {
+        this(Paths.get(fileToWatch), callback, true);
+    }
+
+    /**
+     * Creates a new instance.
+     *
+     * @param pathOfFileToWatch path of the file to watch
+     * @param callback          the callback to invoke when a modification to the {@code fileToWatch} is detected
+     * @param loopContinuously  whether to keep the thread look for file modification after one iteration. This option
+     *                          is useful for testing only.
+     * @throws InvalidPathException if {@code fileToWatch} is invalid
+     * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
+     * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
+     */
+    @VisibleForTesting
+    FileModificationWatcher(@NonNull Path pathOfFileToWatch, @NonNull Consumer<WatchEvent<?>> callback,
+                                   boolean loopContinuously)
+            throws FileNotFoundException {
         super();
 
-        this.pathOfFileToWatch = Paths.get(fileToWatch);
+        this.pathOfFileToWatch = pathOfFileToWatch;
 
         if (!this.pathOfFileToWatch.toFile().exists()) {
-            throw new FileNotFoundException(String.format("File [%s] does not exist.", fileToWatch));
+            throw new FileNotFoundException(String.format("File [%s] does not exist.", pathOfFileToWatch));
         }
         this.callback = callback;
         setUncaughtExceptionHandler(uncaughtExceptionalHandler);
 
         // Set the name for this object/thread for identification purposes.
         this.setName("file-update-watcher-" + THREAD_NUM.incrementAndGet());
+        this.loopContinuously = loopContinuously;
     }
 
     @VisibleForTesting
@@ -96,7 +117,6 @@ public class FileModificationWatcher extends Thread {
     @Override
     @SuppressWarnings("SleepWhileInLoop")
     public void run() {
-
         WatchKey watchKey = null;
         WatchService watchService = null;
         try {
@@ -108,13 +128,13 @@ public class FileModificationWatcher extends Thread {
             log.debug("Directory being watched is {}", directoryPath);
 
             assert directoryPath != null;
-            directoryPath.register(watchService,
-                    StandardWatchEventKinds.ENTRY_MODIFY);
+            directoryPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
             log.debug("Done setting up watch for modify entries for file at path: {}", this.pathOfFileToWatch);
 
+            int counter = 0;
             while (true) {
                 watchKey = watchService.take();
-                log.info("Done setting up watch key for watching file at path: {}", this.pathOfFileToWatch);
+                log.info("Retrieved and removed watch key for watching file at path: {}", this.pathOfFileToWatch);
 
                 // Looks odd, right? Using the logic or de-duplicating file change events, as suggested by some here:
                 // https://stackoverflow.com/questions/16777869/java-7-watchservice-ignoring-multiple-occurrences-of-
@@ -137,6 +157,9 @@ public class FileModificationWatcher extends Thread {
                     }
                 } else {
                     log.debug("watchKey for file at path {} was null", this.pathOfFileToWatch);
+                }
+                if (!loopContinuously) {
+                    break;
                 }
             }
         } catch (InterruptedException e) {
