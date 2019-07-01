@@ -160,6 +160,24 @@ public class ZKHostIndex implements HostIndex {
         return result;
     }
 
+    CompletableFuture<Void> sync(final String path) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+
+        try {
+            client.sync().inBackground((cli, event) -> {
+                if (event.getResultCode() == KeeperException.Code.OK.intValue()) {
+                    result.complete(null);
+                } else {
+                    result.completeExceptionally(translateErrorCode(path, event));
+                }
+                }, executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
+        return result;
+    }
+
     private CompletableFuture<List<String>> getChildren(String path) {
         CompletableFuture<List<String>> result = new CompletableFuture<>();
         try {
