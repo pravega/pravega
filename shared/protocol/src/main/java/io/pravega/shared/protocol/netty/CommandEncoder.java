@@ -89,6 +89,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         private long lastEventNumber = -1L;
         private int eventCount = 0;
 
+        private void recordAppend(Append append) {
+            lastEventNumber = append.getEventNumber();
+            eventCount += append.getEventCount();
+        }
+
         private void append(ByteBuf buffer, ByteBuf out) {
             if (buffer != null && buffer.readableBytes() > 0) {
                 totalBytes += buffer.readableBytes();
@@ -137,15 +142,15 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             final int msgSize = data.readableBytes();
             final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
                     appendTracker.apply(append.getFlowId());
-            session.lastEventNumber = append.getEventNumber();
-            session.eventCount += append.getEventCount();
+
             if (blockSizeSupplier != null) {
                 blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
             }
-            if ((segmentBeingAppendedTo == null && writerIdPerformingAppends == null) ||
+            if ((bytesLeftInBlock == 0) ||
                     (append.segment.equals(segmentBeingAppendedTo) && append.getWriterId().equals(writerIdPerformingAppends))) {
                 boolean isAppend = false;
                 if (bytesLeftInBlock == 0) {
+                    session.flush(out);
                     currentBlockSize = msgSize + TYPE_PLUS_LENGTH_SIZE;
                     if (blockSizeSupplier != null) {
                         currentBlockSize = Math.max(currentBlockSize, blockSizeSupplier.getAppendBlockSize());
@@ -163,6 +168,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 } else {
                     isAppend = true;
                 }
+                session.recordAppend(append);
                 // Is there enough space for a subsequent message after this one?
                 if (isAppend && ((bytesLeftInBlock - msgSize) > TYPE_PLUS_LENGTH_SIZE)) {
                     out.writeBytes(data);
@@ -177,6 +183,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     }
                 }
             } else {
+                session.recordAppend(append);
                 session.append(data, out);
             }
         } else if (msg instanceof SetupAppend) {
@@ -202,6 +209,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     private void validateAppend(Append append, Session session) {
+        if (append.eventCount <= 0) {
+            throw new InvalidMessageException("Invalid eventCount in the append.");
+        }
         if (session == null || !session.id.equals(append.getWriterId())) {
             throw new InvalidMessageException("Sending appends without setting up the append.");
         }

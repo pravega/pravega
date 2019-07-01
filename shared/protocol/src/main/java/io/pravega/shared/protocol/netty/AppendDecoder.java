@@ -105,6 +105,9 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
+            if (blockEnd.numEvents <= 0) {
+                throw new InvalidMessageException("Invalid number of events in block.");
+            }
             int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
             if ((currentBlock != null) && (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0)) {
                 throw new InvalidMessageException("Invalid SizeOfWholeEvents in block");
