@@ -150,7 +150,8 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
-        return storeHelper.getChildren(SCOPE_ROOT_PATH);
+        return storeHelper.getChildren(SCOPE_ROOT_PATH)
+                .thenApply(children -> children.stream().filter(x -> !x.equals(ZKScope.STREAMS_IN_SCOPE)).collect(Collectors.toList()));
     }
 
     @Override
