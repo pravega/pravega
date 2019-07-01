@@ -22,6 +22,7 @@ import java.nio.file.WatchService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+import com.google.common.annotations.VisibleForTesting;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -76,7 +77,8 @@ public class FileModificationWatcher extends Thread {
         this.setName("file-update-watcher-" + THREAD_NUM.incrementAndGet());
     }
 
-    private String fileNameOfFileToWatch() {
+    @VisibleForTesting
+    String nameOfFileToWatch() {
         Path fileName = this.pathOfFileToWatch.getFileName();
         if (fileName != null) {
             return fileName.toString();
@@ -85,7 +87,8 @@ public class FileModificationWatcher extends Thread {
         }
     }
 
-    private Path dirPathOfFileToWatch() {
+    @VisibleForTesting
+    Path directoryOfFileToWatch() {
         assert this.pathOfFileToWatch != null;
         return this.pathOfFileToWatch.getParent();
     }
@@ -100,8 +103,8 @@ public class FileModificationWatcher extends Thread {
             watchService = FileSystems.getDefault().newWatchService();
             log.debug("Done creating watch service for watching file at path: {}", this.pathOfFileToWatch);
 
-            String fileName = fileNameOfFileToWatch();
-            Path directoryPath = dirPathOfFileToWatch();
+            String fileName = nameOfFileToWatch();
+            Path directoryPath = directoryOfFileToWatch();
             log.debug("Directory being watched is {}", directoryPath);
 
             assert directoryPath != null;
