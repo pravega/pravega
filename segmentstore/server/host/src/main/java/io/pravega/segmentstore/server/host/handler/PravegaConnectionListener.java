@@ -177,7 +177,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                          // Creating an SSL Context for each init ensures that the latest cert and key files are used for
                          // any new channels.
                          sslContext = TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
-                         log.debug("Done creating a new SSL context.");
+                         log.debug("Created a new SSL context.");
                      } else {
                          sslContext = cachedSslCtx;
                          log.debug("Reusing the cached SSL context.");
