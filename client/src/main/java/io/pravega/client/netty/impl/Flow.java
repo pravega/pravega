@@ -46,7 +46,7 @@ public class Flow {
      * @return Flow.
      */
     public static Flow create() {
-        return new Flow(ID_GENERATOR.updateAndGet(i -> i == Integer.MAX_VALUE ? 0 : i + 1), 0);
+        return new Flow(ID_GENERATOR.updateAndGet(i -> i == Integer.MAX_VALUE ? 1 : i + 1), 0);
     }
 
     /**
@@ -57,6 +57,16 @@ public class Flow {
      */
     public static Flow from(long flowAsLong) {
         return new Flow((int) (flowAsLong >> 32), (int) flowAsLong);
+    }
+
+    /**
+     * Obtain a FlowID from a {@code long} representation.
+     *
+     * @param requestID request identifier.
+     * @return Flow ID.
+     */
+    public static int toFlowID(long requestID) {
+        return (int) (requestID >> 32);
     }
 
     /**
