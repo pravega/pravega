@@ -39,9 +39,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ZKScope implements Scope {
-
+    static final String STREAMS_IN_SCOPE = "_streamsinscope";
     private static final String SCOPE_PATH = "/store/%s";
-    private static final String STREAMS_IN_SCOPE_ROOT_PATH = "/store/streamsinscope/%s";
+    private static final String STREAMS_IN_SCOPE_ROOT_PATH = "/store/" + STREAMS_IN_SCOPE + "/%s";
     private static final String STREAMS_IN_SCOPE_ROOT_PATH_FORMAT = STREAMS_IN_SCOPE_ROOT_PATH + "/streams";
     private static final String COUNTER_PATH = STREAMS_IN_SCOPE_ROOT_PATH + "/counter";
     private static final Predicate<Throwable> DATA_NOT_FOUND_PREDICATE = e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException;
