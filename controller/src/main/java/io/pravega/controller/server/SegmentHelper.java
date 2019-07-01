@@ -251,10 +251,11 @@ public class SegmentHelper implements AutoCloseable {
                 .thenApply(r -> {
                     handleReply(requestId, r, connection, transactionName, WireCommands.MergeSegments.class, type);
                     if (r instanceof WireCommands.NoSuchSegment) {
-                        if (((WireCommands.NoSuchSegment) r).getSegment().equals(transactionName)) {
+                        WireCommands.NoSuchSegment reply = (WireCommands.NoSuchSegment) r;
+                        if (reply.getSegment().equals(transactionName)) {
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
                         } else {
-                            log.error(requestId, "Commit Transaction: Source segment {} not found.", ((WireCommands.NoSuchSegment) r).getSegment());
+                            log.error(requestId, "Commit Transaction: Source segment {} not found.", reply.getSegment());
                             return TxnStatus.newBuilder().setStatus(TxnStatus.Status.FAILURE).build();
                         }
                     } else {
@@ -637,10 +638,10 @@ public class SegmentHelper implements AutoCloseable {
                         log.warn(requestId, "Connection dropped");
                         throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.ConnectionFailed);
                     } else if (unwrap instanceof AuthenticationException) {
-                        log.warn(requestId, "Connection dropped");
+                        log.warn(requestId, "Authentication Exception");
                         throw new WireCommandFailedException(request.getType(), WireCommandFailedException.Reason.AuthFailed);
                     } else {
-                        log.error(requestId, "request failed", e);
+                        log.error(requestId, "Request failed", e);
                         throw new CompletionException(e);
                     }
                 });
