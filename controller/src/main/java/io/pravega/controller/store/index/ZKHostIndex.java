@@ -15,6 +15,7 @@
  */
 package io.pravega.controller.store.index;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
@@ -93,7 +94,8 @@ public class ZKHostIndex implements HostIndex {
     @Override
     public CompletableFuture<List<String>> getEntities(final String hostId) {
         Preconditions.checkNotNull(hostId);
-        return getChildren(getHostPath(hostId));
+        String hostPath = getHostPath(hostId);
+        return sync(hostPath).thenCompose(v -> getChildren(hostPath));
     }
 
     @Override
@@ -160,6 +162,7 @@ public class ZKHostIndex implements HostIndex {
         return result;
     }
 
+    @VisibleForTesting
     CompletableFuture<Void> sync(final String path) {
         final CompletableFuture<Void> result = new CompletableFuture<>();
 
