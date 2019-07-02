@@ -126,6 +126,11 @@ public class MockController implements Controller {
     }
 
     @Override
+    public CompletableFuture<Boolean> checkStreamExists(String scope, String streamName) {
+        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
     @Synchronized
     public CompletableFuture<Boolean> createStream(String scope, String streamName, StreamConfiguration streamConfig) {
         Stream stream = new StreamImpl(scope, streamName);
