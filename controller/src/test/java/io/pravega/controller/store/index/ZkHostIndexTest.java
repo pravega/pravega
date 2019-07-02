@@ -26,10 +26,12 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -65,5 +67,9 @@ public class ZkHostIndexTest {
         List<String> entities = index.getEntities(hostId).join();
         verify(index, times(1)).sync(any());
         assertEquals(entities.size(), 1);
+
+        Set<String> hosts = index.getHosts().join();
+        verify(index, times(2)).sync(any());
+        assertTrue(hosts.contains(hostId));
     }
 }

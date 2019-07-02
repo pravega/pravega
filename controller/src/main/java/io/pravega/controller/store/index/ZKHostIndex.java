@@ -100,7 +100,7 @@ public class ZKHostIndex implements HostIndex {
 
     @Override
     public CompletableFuture<Set<String>> getHosts() {
-        return getChildren(hostRoot).thenApply(list -> list.stream().collect(Collectors.toSet()));
+        return sync(hostRoot).thenCompose(v -> getChildren(hostRoot)).thenApply(list -> list.stream().collect(Collectors.toSet()));
     }
 
     private CompletableFuture<Void> createNode(CreateMode createMode, boolean createParents, String path, byte[] data) {
