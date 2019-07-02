@@ -325,6 +325,10 @@ public abstract class StreamMetadataStoreTest {
         store.deleteScope("Scope2").get();
         list = store.listScopes().get();
         assertEquals("List Scopes size", 2, list.size());
+
+        store.createStream("Scope3", "stream1", configuration1, System.currentTimeMillis(), null, executor).join();
+        list = store.listScopes().get();
+        assertEquals("List Scopes size", 2, list.size());
     }
 
     @Test
