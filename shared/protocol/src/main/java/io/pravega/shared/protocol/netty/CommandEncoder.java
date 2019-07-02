@@ -68,7 +68,7 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 @Slf4j
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
-    private static final int MAX_DATA_SIZE = 2 * 1024 * 1024; // 2MB
+    private static final int MAX_DATA_SIZE = 4 * 1024 * 1024; // 4MB
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
     private final AtomicLong tokenCounter = new AtomicLong(0);
@@ -82,7 +82,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     @RequiredArgsConstructor
 
     private final class Session {
-        private static final int MAX_BLOCK_SIZE = 512 * 1024;  // 512K
+        private static final int MAX_BLOCK_SIZE = 1024 * 1024;  // 1MB
+        private static final int MAX_EVENTS = 500;
         private final UUID id;
         private final long requestId;
         private final ByteBuf data = buffer();
@@ -101,14 +102,13 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     pendingWrites.add(this);
                 }
                 data.writeBytes(buffer);
-                if (data.readableBytes() > MAX_BLOCK_SIZE) {
-                    breakFromAppend(null, null, out, true);
-                    flush(out);
-                }
-
                 if (totalBytes > MAX_DATA_SIZE) {
                     breakFromAppend(null, null, out, true);
                     flushAll(out);
+                } else if ((data.readableBytes() > MAX_BLOCK_SIZE) ||
+                        ((data.readableBytes() > 0) && (eventCount > MAX_EVENTS))) {
+                    breakFromAppend(null, null, out, true);
+                    flush(out);
                 }
             }
         }
