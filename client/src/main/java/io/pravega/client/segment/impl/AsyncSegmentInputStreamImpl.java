@@ -220,7 +220,7 @@ class AsyncSegmentInputStreamImpl extends AsyncSegmentInputStream {
         if (closed.get()) {
             log.info("Closing connection to segment: {}", segmentId);
         } else {            
-            log.info("Closing connection to segment {} with exception: {}", segmentId, exceptionToInflightRequests);
+            log.info("Closing connection to segment {} with exception: {}", segmentId, exceptionToInflightRequests.toString());
         }
         CompletableFuture<ClientConnection> c;
         synchronized (lock) {
