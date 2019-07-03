@@ -30,6 +30,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 /**
  * Unit tests for ZKStoreHelper.
  */
@@ -92,7 +95,7 @@ public class ZKStoreHelperTest {
         cli2.start();
         ZKStoreHelper zkStoreHelper2 = new ZKStoreHelper(cli2, executor);
 
-        Assert.assertTrue(zkStoreHelper2.createEphemeralZNode("/testEphemeral", new byte[0]).join());
+        assertTrue(zkStoreHelper2.createEphemeralZNode("/testEphemeral", new byte[0]).join());
         Assert.assertNotNull(zkStoreHelper2.getData("/testEphemeral", x -> x).join());
         zkStoreHelper2.getClient().getZookeeperClient().close();
         zkStoreHelper2.getClient().close();
@@ -100,5 +103,15 @@ public class ZKStoreHelperTest {
         // now read the data again. Verify that node no longer exists
         AssertExtensions.assertFutureThrows("", Futures.delayedFuture(() -> zkStoreHelper.getData("/testEphemeral", x -> x), 1000, executor),
                 e -> e instanceof StoreException.DataNotFoundException);
+    }
+    
+    @Test
+    public void testSync() {
+        String path = "/path";
+        byte[] entry = new byte[1];
+        zkStoreHelper.createZNode(path, entry).join();
+        zkStoreHelper.sync(path).join();
+        byte[] data = zkStoreHelper.getData(path, x -> x).join().getObject();
+        assertEquals(1, data.length);
     }
 }
