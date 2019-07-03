@@ -96,10 +96,7 @@ public class ContinuationTokenAsyncIterator<Token, T> implements AsyncIterator<T
                                               isOutstanding = false;
                                           }
                                       }
-                                  }).exceptionally(e -> {
-                        log.warn("Async iteration failed: ", e);
-                        throw new CompletionException(e);
-                    });
+                                  });
         }
 
         return outstanding.thenCompose(v -> {
