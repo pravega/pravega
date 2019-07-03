@@ -31,7 +31,6 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
