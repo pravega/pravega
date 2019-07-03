@@ -11,8 +11,10 @@ package io.pravega.segmentstore.server.security;
 
 import java.nio.file.WatchEvent;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import io.netty.handler.ssl.SslContext;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +32,10 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
      */
     private final AtomicInteger numOfConfigChangesSinceStart = new AtomicInteger(0);
 
-    private @NonNull final Channels channels;
+    private @NonNull final AtomicReference<SslContext> sslContext;
+    private @NonNull final String pathToCertificateFile;
+    private @NonNull final String pathToKeyFile;
+
 
     @Override
     public void accept(WatchEvent<?> watchEvent) {
@@ -40,6 +45,6 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
 
     private void handleTlsConfigChange() {
         log.info("Current reload count = {}", numOfConfigChangesSinceStart.incrementAndGet());
-        channels.clear();
+        sslContext.set(TLSHelper.newServerSslContext(pathToCertificateFile, pathToKeyFile));
     }
 }

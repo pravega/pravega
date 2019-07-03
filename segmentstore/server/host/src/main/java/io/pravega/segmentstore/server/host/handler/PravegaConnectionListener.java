@@ -37,7 +37,6 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
-import io.pravega.segmentstore.server.security.Channels;
 import io.pravega.segmentstore.server.security.TLSConfigChangeEventConsumer;
 import io.pravega.segmentstore.server.security.TLSHelper;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -47,6 +46,7 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.FileNotFoundException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
@@ -136,14 +136,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
     //endregion
 
     public void startListening() {
-        final SslContext cachedSslCtx;
-        if (enableTls && !enableTlsReload) {
-            cachedSslCtx = TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
-            log.debug("Created a cached SSL Context based on given config enableTls: [{}] and enableTlsReload: [{}]",
-                    enableTls, enableTlsReload);
-        } else {
-            cachedSslCtx = null;
-        }
+        AtomicReference<SslContext> sslCtx =
+                new AtomicReference<>(TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile));
 
         boolean nio = false;
         try {
@@ -154,8 +148,6 @@ public final class PravegaConnectionListener implements AutoCloseable {
             bossGroup = new NioEventLoopGroup(1);
             workerGroup = new NioEventLoopGroup();
         }
-
-        Channels channels = new Channels();
 
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
@@ -169,20 +161,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
                  // Add SslHandler to the channel's pipeline, if TLS is enabled.
                  if (enableTls) {
-                     final SslContext sslContext;
-
-                     if (enableTlsReload) {
-                         channels.add(ch);
-
-                         // Creating an SSL Context for each init ensures that the latest cert and key files are used for
-                         // any new channels.
-                         sslContext = TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile);
-                         log.debug("Created a new SSL context.");
-                     } else {
-                         sslContext = cachedSslCtx;
-                         log.debug("Reusing the cached SSL context.");
-                     }
-                     SslHandler sslHandler = sslContext.newHandler(ch.alloc());
+                     SslHandler sslHandler = sslCtx.get().newHandler(ch.alloc());
 
                      // We add a name to SSL/TLS handler, unlike the other handlers added later, to make it
                      // easier to find and replace the handler.
@@ -212,7 +191,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
             try {
                 tlsCertFileChangeWatcherTask = new FileModificationWatcher(
                         this.pathToTlsCertFile,
-                        new TLSConfigChangeEventConsumer(channels));
+                        new TLSConfigChangeEventConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile));
                 tlsCertFileChangeWatcherTask.setDaemon(true);
 
                 tlsCertFileChangeWatcherTask.start();
