@@ -70,8 +70,7 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                         if (cause instanceof RetriesExhaustedException) {
                             cause = cause.getCause();
                         }
-                        if (cause instanceof EpochTransitionOperationExceptions.PreConditionFailureException || 
-                                cause instanceof EpochTransitionOperationExceptions.InputInvalidException) {
+                        if (cause instanceof EpochTransitionOperationExceptions.PreConditionFailureException) {
                             log.warn(request.getRequestId(), "processing scale request for {}/{} segments {} failed {}",
                                     request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause.getClass().getName());
                             result.complete(null);
