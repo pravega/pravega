@@ -11,7 +11,6 @@ package io.pravega.controller.metrics;
 
 import io.pravega.shared.metrics.OpStatsLogger;
 import java.time.Duration;
-import java.util.function.Supplier;
 
 import static io.pravega.shared.MetricsNames.CREATE_STREAM;
 import static io.pravega.shared.MetricsNames.CREATE_STREAM_FAILED;
@@ -51,15 +50,16 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      * This method increments the global and Stream-specific counters of Stream creations, initializes other
      * stream-specific metrics and reports the latency of the operation.
      *
-     * @param scope                          Scope.
-     * @param streamName                     Name of the Stream.
-     * @param activeSegmentsValueSupplier    Initial number of segments for the Stream.
-     * @param latency                        Latency of the createStream operation.
+     * @param scope             Scope.
+     * @param streamName        Name of the Stream.
+     * @param minNumSegments    Initial number of segments for the Stream.
+     * @param latency           Latency of the createStream operation.
      */
-    public void createStream(String scope, String streamName, Supplier<Number> activeSegmentsValueSupplier, Duration latency) {
+    public void createStream(String scope, String streamName, int minNumSegments, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(CREATE_STREAM, 1);
         DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, 0, streamTags(scope, streamName));
-        STATS_LOGGER.registerGauge(SEGMENTS_COUNT, activeSegmentsValueSupplier, streamTags(scope, streamName));
+        DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_COUNT, minNumSegments, streamTags(scope, streamName));
+
         createStreamLatency.reportSuccessValue(latency.toMillis());
     }
 
@@ -86,7 +86,6 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
     public void deleteStream(String scope, String streamName, Duration latency) {
         DYNAMIC_LOGGER.incCounterValue(DELETE_STREAM, 1);
         deleteStreamLatency.reportSuccessValue(latency.toMillis());
-        STATS_LOGGER.deleteGauge(SEGMENTS_COUNT, streamTags(scope, streamName));
     }
 
     /**
@@ -99,7 +98,6 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
     public void deleteStreamFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(DELETE_STREAM_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(DELETE_STREAM_FAILED, 1, streamTags(scope, streamName));
-        STATS_LOGGER.deleteGauge(SEGMENTS_COUNT, streamTags(scope, streamName));
     }
 
     /**
@@ -114,7 +112,6 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
         DYNAMIC_LOGGER.incCounterValue(SEAL_STREAM, 1);
         DYNAMIC_LOGGER.reportGaugeValue(OPEN_TRANSACTIONS, 0, streamTags(scope, streamName));
         sealStreamLatency.reportSuccessValue(latency.toMillis());
-        STATS_LOGGER.deleteGauge(SEGMENTS_COUNT, streamTags(scope, streamName));
     }
 
     /**
@@ -127,7 +124,6 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
     public void sealStreamFailed(String scope, String streamName) {
         DYNAMIC_LOGGER.incCounterValue(globalMetricName(SEAL_STREAM_FAILED), 1);
         DYNAMIC_LOGGER.incCounterValue(SEAL_STREAM_FAILED, 1, streamTags(scope, streamName));
-        STATS_LOGGER.deleteGauge(SEGMENTS_COUNT, streamTags(scope, streamName));
     }
 
     /**
@@ -190,6 +186,17 @@ public final class StreamMetrics extends AbstractControllerMetrics implements Au
      */
     public static void reportRetentionEvent(String scope, String streamName) {
         DYNAMIC_LOGGER.recordMeterEvents(RETENTION_FREQUENCY, 1, streamTags(scope, streamName));
+    }
+
+    /**
+     * Reports the number of active segments for a Stream.
+     *
+     * @param scope         Scope.
+     * @param streamName    Name of the Stream.
+     * @param numSegments   Number of active segments in this Stream.
+     */
+    public static void reportActiveSegments(String scope, String streamName, int numSegments) {
+        DYNAMIC_LOGGER.reportGaugeValue(SEGMENTS_COUNT, numSegments, streamTags(scope, streamName));
     }
 
     /**

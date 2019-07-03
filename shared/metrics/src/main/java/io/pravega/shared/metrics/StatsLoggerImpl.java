@@ -65,12 +65,6 @@ public class StatsLoggerImpl implements StatsLogger {
     }
 
     @Override
-    public void deleteGauge(final String name, String... tags) {
-        //no-op
-        log.warn("StatsLoggerImpl deleteGauge() was called unexpectedly for {} ", name, tags);
-    }
-
-    @Override
     public Meter createMeter(String statName, String... tags) {
         try {
             return new MeterImpl(statName, tags);

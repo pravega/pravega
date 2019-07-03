@@ -143,11 +143,6 @@ public class StatsLoggerProxyTest {
         }
 
         @Override
-        public void deleteGauge(String name, String... tags) {
-            // no-op
-        }
-
-        @Override
         public StatsLogger createScopeLogger(String scope) {
             return this;
         }

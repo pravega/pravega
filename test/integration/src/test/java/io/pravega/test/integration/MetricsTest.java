@@ -37,7 +37,6 @@ import io.pravega.segmentstore.server.host.stat.AutoScaleMonitor;
 import io.pravega.segmentstore.server.host.stat.AutoScalerConfig;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
-import io.pravega.shared.MetricsNames;
 import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -61,12 +60,9 @@ import org.junit.Test;
 
 import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsTags.segmentTags;
-import static io.pravega.shared.MetricsTags.streamTags;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertNull;
-
 
 @Slf4j
 public class MetricsTest extends ThreadPooledTestSuite {
@@ -178,8 +174,6 @@ public class MetricsTest extends ThreadPooledTestSuite {
             log.info("Create stream status {}", createStreamStatus);
         }
 
-        assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scope, STREAM_NAME)).value());
-
         try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
@@ -214,8 +208,6 @@ public class MetricsTest extends ThreadPooledTestSuite {
             //Wait for cache eviction to happen
             Thread.sleep(5000);
 
-            assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scope, STREAM_NAME)).value());
-
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
 
@@ -236,19 +228,15 @@ public class MetricsTest extends ThreadPooledTestSuite {
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
             assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count());
 
-            // Scale to 3 segments
-            Map<Double, Double> keyRanges = new HashMap<>();
-            keyRanges.put(0.0, 0.33);
-            keyRanges.put(0.33, 0.66);
-            keyRanges.put(0.66, 1.0);
+            Map<Double, Double> map = new HashMap<>();
+            map.put(0.0, 1.0);
+
+            //Seal segment 0, create segment 1
             CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, STREAM_NAME),
                     Collections.singletonList(0L),
-                    keyRanges,
+                    map,
                     executorService()).getFuture();
             Assert.assertTrue(scaleStatus.get());
-            assertEquals(3, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scope, STREAM_NAME)).value());
-            assertEquals(1, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scope, STREAM_NAME)).value());
-            assertEquals(0, (long) MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scope, STREAM_NAME)).value());
 
             EventStreamWriter<String> writer2 = clientFactory.createEventWriter(STREAM_NAME,
                     new UTF8StringSerializer(),
@@ -267,7 +255,6 @@ public class MetricsTest extends ThreadPooledTestSuite {
             CompletableFuture<Boolean> sealStreamStatus = controller.sealStream(scope, STREAM_NAME);
             log.info("Sealing stream {}", STREAM_NAME);
             assertTrue(sealStreamStatus.get());
-            assertNull(MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, streamTags(scope, STREAM_NAME)));
 
             CompletableFuture<Boolean> deleteStreamStatus = controller.deleteStream(scope, STREAM_NAME);
             log.info("Deleting stream {}", STREAM_NAME);
@@ -276,9 +263,6 @@ public class MetricsTest extends ThreadPooledTestSuite {
             CompletableFuture<Boolean> deleteScopeStatus = controller.deleteScope(scope);
             log.info("Deleting scope {}", scope);
             assertTrue(deleteScopeStatus.get());
-
-            assertNull(MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_SPLITS, streamTags(scope, STREAM_NAME)));
-            assertNull(MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_MERGES, streamTags(scope, STREAM_NAME)));
         }
 
         log.info("Metrics Time based Cache Eviction test succeeds");
