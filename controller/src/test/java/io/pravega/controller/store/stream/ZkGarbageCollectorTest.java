@@ -120,7 +120,7 @@ public class ZkGarbageCollectorTest {
         assertEquals(4, gc2.getVersion());
         
     }
-    
+
     private void awaitStart(ZKGarbageCollector gc) {
         gc.startAsync();
         CompletableFuture<Void> runningLatch = new CompletableFuture<>();

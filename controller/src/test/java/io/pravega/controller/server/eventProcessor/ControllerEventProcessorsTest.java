@@ -196,7 +196,7 @@ public class ControllerEventProcessorsTest {
         LinkedBlockingQueue<CompletableFuture<Void>> createScopeSignals = new LinkedBlockingQueue<>();
         List<CompletableFuture<Boolean>> createScopeResponsesList = new LinkedList<>();
         List<CompletableFuture<Void>> createScopeSignalsList = new LinkedList<>();
-        for (int i = 0; i < 6; i ++) {
+        for (int i = 0; i < 2; i ++) {
             CompletableFuture<Boolean> responseFuture = new CompletableFuture<>();
             CompletableFuture<Void> signalFuture = new CompletableFuture<>();
             createScopeResponsesList.add(responseFuture);
