@@ -242,14 +242,14 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
 
     private CompletableFuture<Void> createScope(final String scopeName) {
         return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating event processor scope {} with exception {}", scopeName, Exceptions.unwrap(e).getClass().getName()))
+                e -> log.warn("Error creating event processor scope {} with exception {}", scopeName, Exceptions.unwrap(e).toString()))
                                    .runAsync(() -> controller.createScope(scopeName)
                         .thenAccept(x -> log.info("Created controller scope {}", scopeName)), executor));
     }
 
     private CompletableFuture<Void> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
         return Futures.toVoid(Retry.indefinitelyWithExpBackoff(DELAY, MULTIPLIER, MAX_DELAY,
-                e -> log.warn("Error creating event processor stream {} with exception {}", streamName, Exceptions.unwrap(e).getClass().getName()))
+                e -> log.warn("Error creating event processor stream {} with exception {}", streamName, Exceptions.unwrap(e).toString()))
                                    .runAsync(() -> controller.createStream(scope, streamName, streamConfig)
                                 .thenAccept(x ->
                                         log.info("Created stream {}/{}", scope, streamName)),

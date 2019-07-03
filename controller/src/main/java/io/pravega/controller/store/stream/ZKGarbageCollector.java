@@ -152,9 +152,9 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                     } else {
                         // if GC failed, it will be tried again in the next cycle. So log and ignore.
                         if (unwrap instanceof StoreException.StoreConnectionException) {
-                            log.error("Store Connection Exception thrown during Garbage Collection iteration for {}.", gcName);
+                            log.info("StoreConnectionException thrown during Garbage Collection iteration for {}.", gcName);
                         } else {
-                            log.error("Exception thrown during Garbage Collection iteration for {}. Log and ignore.", gcName, unwrap);
+                            log.warn("Exception thrown during Garbage Collection iteration for {}. Log and ignore.", gcName, unwrap);
                         }
                     }
                     return null;
