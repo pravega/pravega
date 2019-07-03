@@ -95,7 +95,14 @@ public class ZkGarbageCollectorTest {
         // add some delay
         assertEquals(2, gc1.getLatestBatch());
         assertEquals(2, gc2.getLatestBatch());
+    
+        // fail processing with store connection exception
+        queue.add(Futures.failedFuture(StoreException.create(StoreException.Type.CONNECTION_ERROR, "store connection")));
 
+        // the processing should not fail and gc should happen in the next period. 
+        Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
+        assertEquals(3, gc1.getLatestBatch());
+        assertEquals(3, gc2.getLatestBatch());
         queue.add(CompletableFuture.completedFuture(null));
 
         // now stop GC1 so that gc2 become leader for GC workflow.
@@ -104,16 +111,16 @@ public class ZkGarbageCollectorTest {
 
         Futures.delayedFuture(gcPeriod.plus(delta), executor).join();
         gc2.fetchVersion().join();
-        assertEquals(3, gc2.getLatestBatch());
+        assertEquals(4, gc2.getLatestBatch());
         
         // now deliberately set the gc version for gc2 to an older value and call process. 
         gc2.setVersion(0);
         gc2.process().join();
         
-        assertEquals(3, gc2.getVersion());
+        assertEquals(4, gc2.getVersion());
         
     }
-
+    
     private void awaitStart(ZKGarbageCollector gc) {
         gc.startAsync();
         CompletableFuture<Void> runningLatch = new CompletableFuture<>();
