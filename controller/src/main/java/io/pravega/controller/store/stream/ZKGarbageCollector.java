@@ -146,11 +146,16 @@ class ZKGarbageCollector extends AbstractService implements AutoCloseable {
                 }, gcExecutor)
                 // fetch the version and update it.
                 .exceptionally(e -> {
-                    if (Exceptions.unwrap(e) instanceof StoreException.WriteConflictException) {
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    if (unwrap instanceof StoreException.WriteConflictException) {
                         log.debug("Unable to acquire guard. Will try in next cycle.");
                     } else {
                         // if GC failed, it will be tried again in the next cycle. So log and ignore.
-                        log.error("Exception thrown during Garbage Collection iteration for {}. Log and ignore.", gcName, e);
+                        if (unwrap instanceof StoreException.StoreConnectionException) {
+                            log.error("Store Connection Exception thrown during Garbage Collection iteration for {}.", gcName);
+                        } else {
+                            log.error("Exception thrown during Garbage Collection iteration for {}. Log and ignore.", gcName, unwrap);
+                        }
                     }
                     return null;
                 }).thenCompose(v -> fetchVersion());
