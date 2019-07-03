@@ -66,6 +66,16 @@ public class StatsLoggerProxy implements StatsLogger {
     }
 
     @Override
+    public void deleteGauge(String name, String... tags) {
+        MetricsNames.MetricKey keys = metricKey(name, tags);
+        Metric existingGauge = this.gauges.get(keys.getCacheKey());
+        if (existingGauge != null) {
+            existingGauge.close();
+            this.gauges.remove(metricKey(name, tags).getCacheKey());
+        }
+    }
+
+    @Override
     public StatsLogger createScopeLogger(String scope) {
         StatsLogger logger = this.statsLoggerRef.get().createScopeLogger(scope);
         return new StatsLoggerProxy(logger);

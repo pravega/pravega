@@ -455,8 +455,6 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
         CompletableFuture<Void> future = withCompletion(getStream(scope, name, context).scaleOldSegmentsSealed(sealedSegmentSizes, record), executor);
 
         future.thenCompose(result -> CompletableFuture.allOf(
-                getActiveSegments(scope, name, context, executor).thenAccept(list ->
-                        StreamMetrics.reportActiveSegments(scope, name, list.size())),
                 findNumSplitsMerges(scope, name, context, executor).thenAccept(simpleEntry ->
                         StreamMetrics.reportSegmentSplitsAndMerges(scope, name, simpleEntry.getKey(), simpleEntry.getValue()))
         ));

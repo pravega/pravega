@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.metrics;
 
+import io.pravega.shared.MetricsNames;
 import io.pravega.shared.MetricsTags;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
@@ -86,7 +87,15 @@ public class BasicMetricTest {
         Gauge noopGauge = statsLogger.registerGauge("testGauge", null, "tagKey", "tagValue");
         assertTrue(noopGauge.getId() == null);
         noopGauge.close();
+    }
 
+    @Test
+    public void testDeleteGauge() {
+        String[] tags = {"scope", "delete gauge scope", "stream", "delete gauge stream"};
+        statsLogger.registerGauge(MetricsNames.SEGMENTS_COUNT, () -> 8, tags);
+        assertNotNull(MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, tags));
+        statsLogger.deleteGauge(MetricsNames.SEGMENTS_COUNT, tags);
+        assertNull(MetricRegistryUtils.getGauge(MetricsNames.SEGMENTS_COUNT, tags));
     }
 
     @Test

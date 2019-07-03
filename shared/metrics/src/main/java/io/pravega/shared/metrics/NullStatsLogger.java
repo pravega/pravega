@@ -61,6 +61,11 @@ public class NullStatsLogger implements StatsLogger {
     }
 
     @Override
+    public void deleteGauge(String name, String... tags) {
+        // no-op
+    }
+
+    @Override
     public Meter createMeter(String name, String... tags) {
         return NULLMETER;
     }

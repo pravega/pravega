@@ -52,7 +52,15 @@ public interface StatsLogger {
      * @param valueSupplier the supplier to provide value through get()
      */
     Gauge registerGauge(String name, Supplier<Number> valueSupplier, String... tags);
-    
+
+    /**
+     * Delete the registered gauge associated with the name and tags.
+     *
+     * @param name the name of the gauge
+     * @param tags the tags of the gauge
+     */
+    void deleteGauge(String name, String... tags);
+
     /**
      * Create the stats logger under scope <i>scope</i>.
      *

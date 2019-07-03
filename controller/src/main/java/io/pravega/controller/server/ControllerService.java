@@ -51,6 +51,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -123,8 +124,7 @@ public class ControllerService {
                                                 streamConfig,
                                                 createTimestamp)
                   .thenApplyAsync(status -> {
-                       reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
-                                timer.getElapsed());
+                       reportCreateStreamMetrics(scope, stream, status, timer.getElapsed());
                        return CreateStreamStatus.newBuilder().setStatus(status).build();
                   }, executor);
     }
@@ -468,10 +468,19 @@ public class ControllerService {
 
     // Metrics reporting region
 
-    private void reportCreateStreamMetrics(String scope, String streamName, int initialSegments, CreateStreamStatus.Status status,
+    private void reportCreateStreamMetrics(String scope, String streamName, CreateStreamStatus.Status status,
                                            Duration latency) {
         if (status.equals(CreateStreamStatus.Status.SUCCESS)) {
-            streamMetrics.createStream(scope, streamName, initialSegments, latency);
+            Supplier<Number> activeSegmentsValueSupplier = () -> {
+                try {
+                    List<StreamSegmentRecord> activeSegments = streamStore.getActiveSegments(scope, streamName, null, executor).get();
+                    return activeSegments.size();
+                } catch (Exception e) {
+                    log.warn("The function to retrieve active segments count throws exception for stream {}/{}", scope, streamName, e);
+                    return 0;
+                }
+            };
+            streamMetrics.createStream(scope, streamName, activeSegmentsValueSupplier, latency);
         } else if (status.equals(CreateStreamStatus.Status.FAILURE)) {
             streamMetrics.createStreamFailed(scope, streamName);
         }

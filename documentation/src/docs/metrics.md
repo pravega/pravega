@@ -467,7 +467,7 @@ segmentstore.segment.read_bytes, ["scope", "...", "stream", "...", "segment", ".
 
   ```
 
-- Controller Stream Segment operations ([Counters](https://micrometer.io/docs/concepts#_counters)) and open/timed out Transactions on a Stream ([Gauge](https://micrometer.io/docs/concepts#_gauges)) Metrics  - all with tags {"scope", $scope, "stream", $stream}:
+- Controller Stream Segment operations and open/timed out Transactions on a Stream ([Gauge](https://micrometer.io/docs/concepts#_gauges)) Metrics  - all with tags {"scope", $scope, "stream", $stream}:
   ```
     controller.transactions.opened
     controller.transactions.timedout
