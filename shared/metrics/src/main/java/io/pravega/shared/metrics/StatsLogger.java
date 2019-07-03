@@ -52,7 +52,7 @@ public interface StatsLogger {
      * @param valueSupplier the supplier to provide value through get()
      */
     Gauge registerGauge(String name, Supplier<Number> valueSupplier, String... tags);
-
+    
     /**
      * Create the stats logger under scope <i>scope</i>.
      *
