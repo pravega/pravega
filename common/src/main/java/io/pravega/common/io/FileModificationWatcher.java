@@ -19,6 +19,7 @@ import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -131,7 +132,6 @@ public class FileModificationWatcher extends Thread {
             directoryPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
             log.debug("Done setting up watch for modify entries for file at path: {}", this.pathOfFileToWatch);
 
-            int counter = 0;
             while (true) {
                 watchKey = watchService.take();
                 log.info("Retrieved and removed watch key for watching file at path: {}", this.pathOfFileToWatch);
@@ -142,12 +142,16 @@ public class FileModificationWatcher extends Thread {
                 Thread.sleep(200);
 
                 if (watchKey != null) {
-                    watchKey.pollEvents()
+                    Optional<WatchEvent<?>> modificationDetectionEvent = watchKey.pollEvents()
                             .stream()
                             .filter( // we only care about changes to the specified file.
                                     event -> event.context().toString().contains(fileName))
-                            .forEach( // invoke the specified callback
-                                    filteredEvent -> callback.accept(filteredEvent));
+                            .findAny(); // we only care to know whether the
+
+                    if (modificationDetectionEvent.isPresent()) {
+                        log.debug("Detected that the file [{}] has modified", this.pathOfFileToWatch);
+                        callback.accept(modificationDetectionEvent.get());
+                    }
 
                     boolean isKeyValid = watchKey.reset();
                     log.debug("Done resetting watch key, so that it can receive further event notifications.");
