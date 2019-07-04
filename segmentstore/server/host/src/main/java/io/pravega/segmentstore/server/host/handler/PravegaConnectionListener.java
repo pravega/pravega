@@ -136,8 +136,13 @@ public final class PravegaConnectionListener implements AutoCloseable {
     //endregion
 
     public void startListening() {
-        AtomicReference<SslContext> sslCtx =
-                new AtomicReference<>(TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile));
+
+        AtomicReference<SslContext> sslCtx = null;
+        if (this.enableTls) {
+            // Note that if 'enableTlsReload' is true and the certificate changes, the underlying SslContext object
+            // is recreated (the logic is visible in code below).
+            new AtomicReference<>(TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile));
+        }
 
         boolean nio = false;
         try {
