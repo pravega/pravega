@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.RetriesExhaustedException;
+import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedMetadata;
@@ -68,9 +69,15 @@ public class ScaleOperationTask implements StreamTask<ScaleOpEvent> {
                         if (cause instanceof RetriesExhaustedException) {
                             cause = cause.getCause();
                         }
-                        log.warn(request.getRequestId(), "processing scale request for {}/{} segments {} failed {}",
-                                request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause);
-                        result.completeExceptionally(cause);
+                        if (cause instanceof EpochTransitionOperationExceptions.PreConditionFailureException) {
+                            log.warn(request.getRequestId(), "processing scale request for {}/{} segments {} failed {}",
+                                    request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause.getClass().getName());
+                            result.complete(null);
+                        } else {
+                            log.warn(request.getRequestId(), "processing scale request for {}/{} segments {} failed {}",
+                                    request.getScope(), request.getStream(), request.getSegmentsToSeal(), cause);
+                            result.completeExceptionally(cause);
+                        }
                     } else {
                         log.info(request.getRequestId(), "scale request for {}/{} segments {} to new ranges {} completed successfully.",
                                 request.getScope(), request.getStream(), request.getSegmentsToSeal(), request.getNewRanges());
