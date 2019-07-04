@@ -129,7 +129,8 @@ public class FileModificationWatcher extends Thread {
             log.debug("Directory being watched is {}", directoryPath);
 
             assert directoryPath != null;
-            directoryPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY);
+            directoryPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY,
+                    StandardWatchEventKinds.ENTRY_CREATE);
             log.debug("Done setting up watch for modify entries for file at path: {}", this.pathOfFileToWatch);
 
             while (true) {
