@@ -55,6 +55,9 @@ init_kubernetes() {
                 echo "Trying to obtain LoadBalancer external endpoint..."
                 sleep 10
                 export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
+                if [ -z "${PUBLISHED_ADDRESS}" ]; then
+                    export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].hostname" )
+                fi
                 export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
             done
         elif [ "${service_type}" == "NodePort" ]; then
