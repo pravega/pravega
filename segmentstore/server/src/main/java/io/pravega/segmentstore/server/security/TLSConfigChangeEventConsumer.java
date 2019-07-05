@@ -20,7 +20,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * A {@link Consumer} that acts upon change in Segment Store SSL/TLS configuration change.
+ * A {@link Consumer} that acts upon modification of Segment Store SSL/TLS certificate.
+ *
+ * It creates a new {@link SslContext} and sets it in the constructor injected {@code sslContext}.
  */
 @RequiredArgsConstructor
 @Slf4j
@@ -35,7 +37,6 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
     private @NonNull final AtomicReference<SslContext> sslContext;
     private @NonNull final String pathToCertificateFile;
     private @NonNull final String pathToKeyFile;
-
 
     @Override
     public void accept(WatchEvent<?> watchEvent) {

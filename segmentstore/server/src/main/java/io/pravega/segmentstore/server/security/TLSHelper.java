@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.security;
 
+import com.google.common.base.Preconditions;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.common.Exceptions;
@@ -38,13 +39,51 @@ public class TLSHelper {
     public static SslContext newServerSslContext(String pathToCertificateFile, String pathToServerKeyFile) {
         Exceptions.checkNotNullOrEmpty(pathToCertificateFile, "pathToCertificateFile");
         Exceptions.checkNotNullOrEmpty(pathToServerKeyFile, "pathToServerKeyFile");
-        SslContext result = null;
+        return newServerSslContext(new File(pathToCertificateFile), new File(pathToServerKeyFile));
+    }
+
+    /**
+     * Creates a new instance of {@link SslContext}.
+     *
+     * @param certificateFile the PEM-encoded server certificate file
+     * @param serverKeyFile the PEM-encoded file containing the server's encrypted private key
+     * @return a {@link SslContext} built from the specified {@code pathToCertificateFile} and {@code pathToServerKeyFile}
+     * @throws NullPointerException if either {@code certificateFile} or {@code serverKeyFile} is null
+     * @throws IllegalStateException if either {@code certificateFile} or {@code serverKeyFile} doesn't exist or is unreadable.
+     * @throws RuntimeException if there is a failure in building the {@link SslContext}
+     */
+    public static SslContext newServerSslContext(File certificateFile, File serverKeyFile) {
+        Preconditions.checkNotNull(certificateFile);
+        Preconditions.checkNotNull(serverKeyFile);
+        ensureExistAndAreReadable(certificateFile, serverKeyFile);
+
         try {
-            result = SslContextBuilder.forServer(new File(pathToCertificateFile), new File(pathToServerKeyFile)).build();
+            SslContext result = null;
+            result = SslContextBuilder.forServer(certificateFile, serverKeyFile).build();
             log.debug("Done creating a new SSL Context for the server.");
+            return result;
         } catch (SSLException e) {
             throw new RuntimeException(e);
         }
-        return result;
+    }
+
+    private static void ensureExistAndAreReadable(File certificateFile, File serverKeyFile) {
+        if (!certificateFile.exists()) {
+            throw new IllegalStateException(String.format("Certificate file %s doesn't exist",
+                    certificateFile.getAbsolutePath()));
+        }
+        if (!certificateFile.canRead()) {
+            throw new IllegalStateException(String.format("Certificate file %s can't be read",
+                    certificateFile.getAbsolutePath()));
+        }
+
+        if (!serverKeyFile.exists()) {
+            throw new IllegalStateException(String.format("Key file %s doesn't exist",
+                    serverKeyFile.getAbsolutePath()));
+        }
+        if (!serverKeyFile.canRead()) {
+            throw new IllegalStateException(String.format("Key file %s can't be read",
+                    serverKeyFile.getAbsolutePath()));
+        }
     }
 }

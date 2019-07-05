@@ -45,10 +45,12 @@ public class TLSHelperTests {
     public void testNewServerSslContextFailsWhenInputFilesDontExist() {
         assertThrows("Non-existent pathToCertificateFile wasn't rejected.",
                 () -> TLSHelper.newServerSslContext(PATH_NONEXISTENT, PATH_NONEMPTY),
-                e -> e instanceof RuntimeException);
+                e -> e instanceof IllegalStateException);
 
         assertThrows("Non-existent pathToServerKeyFile argument wasn't rejected.",
                 () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_NONEXISTENT),
-                e -> e instanceof RuntimeException);
+                e -> e instanceof IllegalStateException);
     }
+
+    //public void testNewServerSslContextFailsWhen
 }
