@@ -188,8 +188,8 @@ public final class MetricsNames {
 
     // Stream segment counts
     public static final String SEGMENTS_COUNT = PREFIX + "controller.segments.count";    // Per-stream Gauge
-    public static final String SEGMENTS_SPLITS = PREFIX + "controller.segment.splits";   // Per-stream Counter
-    public static final String SEGMENTS_MERGES = PREFIX + "controller.segment.merges";   // Per-stream Counter
+    public static final String SEGMENTS_SPLITS = PREFIX + "controller.segment.splits";   // Per-stream Gauge
+    public static final String SEGMENTS_MERGES = PREFIX + "controller.segment.merges";   // Per-stream Gauge
 
     // Stream retention operations
     public static final String RETENTION_FREQUENCY = PREFIX + "controller.retention.frequency";   // Per-stream Counter
