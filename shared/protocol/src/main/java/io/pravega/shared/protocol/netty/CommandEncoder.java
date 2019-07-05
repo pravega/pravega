@@ -176,10 +176,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 } else {
                     if (isAppend) {
                         ByteBuf dataInsideBlock = data.readSlice(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE);
-                        breakFromAppend(dataInsideBlock, data, out, true);
+                        breakFromAppend(dataInsideBlock, data,  true, out);
                         flushAll(out);
                     } else {
-                        breakFromAppend(null, data, out, false);
+                        breakFromAppend(null, data, false, out);
                     }
                 }
             } else {
@@ -196,7 +196,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         } else if (msg instanceof BlockTimeout) {
             BlockTimeout timeoutMsg = (BlockTimeout) msg;
             if (tokenCounter.get() == timeoutMsg.token) {
-                breakFromAppend(null, null, out, true);
+                breakCurrentAppend(out);
                 flushAll(out);
             }
         } else if (msg instanceof WireCommand) {
@@ -227,7 +227,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
 
-    private void breakFromAppend(ByteBuf data, ByteBuf pendingData, ByteBuf out, boolean isAppend) {
+    private void breakFromAppend(ByteBuf data, ByteBuf pendingData,  boolean isAppend, ByteBuf out) {
         if (bytesLeftInBlock != 0) {
             if (isAppend) {
                 if (data != null) {
@@ -252,7 +252,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     private void breakCurrentAppend(ByteBuf out) {
-        breakFromAppend(null, null, out, true);
+        breakFromAppend(null, null, true, out);
     }
 
     @SneakyThrows(IOException.class)
