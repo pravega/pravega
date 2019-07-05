@@ -291,7 +291,7 @@ public class AppendEncodeDecodeTest {
         Arrays.fill(content, (byte) 1);
 
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
-        WireCommands.AppendBlock appendBlock = new WireCommands.AppendBlock(Unpooled.wrappedBuffer(content));
+        WireCommands.AppendBlock appendBlock = new WireCommands.AppendBlock(writerId, Unpooled.wrappedBuffer(content));
 
         // Simulate Setup append
         appendDecoder.processCommand(setupAppend);

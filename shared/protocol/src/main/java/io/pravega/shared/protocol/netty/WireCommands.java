@@ -522,25 +522,31 @@ public final class WireCommands {
     @Data
     public static final class AppendBlock implements WireCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK;
+        final UUID writerId;
         final ByteBuf data;
 
-        AppendBlock() {
+        AppendBlock(UUID writerId) {
+            this.writerId = writerId;
             this.data = Unpooled.EMPTY_BUFFER; // Populated on read path
         }
 
-        AppendBlock(ByteBuf data) {
+        AppendBlock(UUID writerId, ByteBuf data) {
+            this.writerId = writerId;
             this.data = data;
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
+            out.writeLong(writerId.getMostSignificantBits());
+            out.writeLong(writerId.getLeastSignificantBits());
             // Data not written, as it should be null.
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            byte[] data = new byte[length];
+            UUID writerId = new UUID(in.readLong(), in.readLong());
+            byte[] data = new byte[length - Long.BYTES * 2];
             in.readFully(data);
-            return new AppendBlock(wrappedBuffer(data));
+            return new AppendBlock(writerId, wrappedBuffer(data));
         }
     }
 

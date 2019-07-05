@@ -108,6 +108,9 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             if (blockEnd.numEvents <= 0) {
                 throw new InvalidMessageException("Invalid number of events in block.");
             }
+            if ((currentBlock != null) && (!currentBlock.getWriterId().equals(writerId))) {
+                   throw new InvalidMessageException("Writer ID mismatch between Append Block and Append block End.");
+            }
             int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
             if ((currentBlock != null) && (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0)) {
                 throw new InvalidMessageException("Invalid SizeOfWholeEvents in block");
