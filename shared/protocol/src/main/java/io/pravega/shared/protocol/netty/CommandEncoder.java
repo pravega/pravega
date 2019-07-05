@@ -103,11 +103,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 }
                 data.writeBytes(buffer);
                 if (totalBytes > MAX_DATA_SIZE) {
-                    breakFromAppend(null, null, out, true);
+                    breakCurrentAppend(out);
                     flushAll(out);
                 } else if ((data.readableBytes() > MAX_BLOCK_SIZE) ||
                         ((data.readableBytes() > 0) && (eventCount > MAX_EVENTS))) {
-                    breakFromAppend(null, null, out, true);
+                    breakCurrentAppend(out);
                     flush(out);
                 }
             }
@@ -187,7 +187,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 session.append(data, out);
             }
         } else if (msg instanceof SetupAppend) {
-            breakFromAppend(null, null, out, true);
+            breakCurrentAppend(out);
             flushAll(out);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
@@ -200,7 +200,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 flushAll(out);
             }
         } else if (msg instanceof WireCommand) {
-            breakFromAppend(null, null, out, true);
+            breakCurrentAppend(out);
             flushAll(out);
             writeMessage((WireCommand) msg, out);
         } else {
@@ -249,6 +249,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
         segmentBeingAppendedTo = null;
         writerIdPerformingAppends = null;
+    }
+
+    private void breakCurrentAppend(ByteBuf out) {
+        breakFromAppend(null, null, out, true);
     }
 
     @SneakyThrows(IOException.class)
