@@ -261,14 +261,14 @@ public class AppendEncodeDecodeTest {
 
         @Override
         public int getBatchTimeout() {
-            return 10;
+            return 100;
         }
         
     }
     
     private static final class FakeLengthDecoder extends LengthFieldBasedFrameDecoder {
         FakeLengthDecoder() {
-            super(1024 * 1024, 4, 4);
+            super(8 * 1024 * 1024, 4, 4);
         }
 
         @Override
@@ -457,6 +457,86 @@ public class AppendEncodeDecodeTest {
         assertEquals(2, received.size());
         Append readAppend = (Append) received.get(1);
         assertEquals(msg.data.readableBytes(), readAppend.data.readableBytes());
+        assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
+    }
+
+    @Test
+    public void testSessionFlush() throws Exception {
+        final UUID writerId2 = new UUID(1, 3);
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        byte[] content = new byte[100];
+        Arrays.fill(content, (byte) 1);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        ArrayList<Object> received = new ArrayList<>();
+        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        setupAppend = new SetupAppend(10, writerId2, "segment2", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        Append msg = new Append("segment", writerId, 1, event, 1);
+        commandEncoder.encode(ctx, msg, fakeNetwork);
+        content = new byte[8192];
+        Arrays.fill(content, (byte) 1);
+        event = new Event(Unpooled.wrappedBuffer(content));
+        for (int i = 1; i < 129; i++) {
+            commandEncoder.encode(ctx, new Append("segment2", writerId2, i, event, 10), fakeNetwork);
+        }
+        read(fakeNetwork, received);
+        assertEquals(4, received.size());
+        Append readAppend = (Append) received.get(3);
+        assertEquals((8192 + TYPE_PLUS_LENGTH_SIZE) * 128, readAppend.data.readableBytes());
+        assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 128, readAppend.data.readableBytes());
+    }
+
+    @Test
+    public void testSessionFlushAll() throws Exception {
+        final UUID writerId2 = new UUID(1, 3);
+        final UUID writerId3 = new UUID(1, 4);
+        final UUID writerId4 = new UUID(1, 5);
+        final UUID writerId5 = new UUID(1, 6);
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        byte[] content = new byte[100];
+        Arrays.fill(content, (byte) 1);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        ArrayList<Object> received = new ArrayList<>();
+        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        setupAppend = new SetupAppend(10, writerId2, "segment2", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        setupAppend = new SetupAppend(11, writerId3, "segment3", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        setupAppend = new SetupAppend(12, writerId4, "segment4", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        setupAppend = new SetupAppend(13, writerId5, "segment5", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        Append msg = new Append("segment", writerId, 1, event, 1);
+        commandEncoder.encode(ctx, msg, fakeNetwork);
+        content = new byte[1024 * 1023];
+        Arrays.fill(content, (byte) 1);
+        event = new Event(Unpooled.wrappedBuffer(content));
+        commandEncoder.encode(ctx, new Append("segment2", writerId2, 1, event, 10), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment3", writerId3, 1, event, 11), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment4", writerId4, 1, event, 12), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment5", writerId5, 1, event, 13), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment2", writerId2, 2, event, 10), fakeNetwork);
+        read(fakeNetwork, received);
+        assertEquals(10, received.size());  // Segment2 gets combined as one block
+        Append readAppend = (Append) received.get(9);
+        assertEquals(1024 * 1023 + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
         assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
     }
 
