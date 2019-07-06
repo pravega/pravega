@@ -489,8 +489,8 @@ public class AppendEncodeDecodeTest {
         read(fakeNetwork, received);
         assertEquals(4, received.size());
         Append readAppend = (Append) received.get(3);
-        assertEquals((8192 + TYPE_PLUS_LENGTH_SIZE) * 128, readAppend.data.readableBytes());
-        assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 128, readAppend.data.readableBytes());
+        assertEquals((8192 + TYPE_PLUS_LENGTH_SIZE) * 128L, readAppend.data.readableBytes());
+        assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 128L, readAppend.data.readableBytes());
     }
 
     @Test
