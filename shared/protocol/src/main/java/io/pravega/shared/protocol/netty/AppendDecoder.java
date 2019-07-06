@@ -142,11 +142,11 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             ByteBuf dataRemainingInBlock = currentBlock.getData().slice(sizeOfWholeEventsInBlock, remaining);
             WireCommand cmd = CommandDecoder.parseCommand(dataRemainingInBlock);
             if (!(cmd.getType() == WireCommandType.PARTIAL_EVENT || cmd.getType() == WireCommandType.PADDING)) {
-                    throw new InvalidMessageException("Found " + cmd.getType()
-                            + " at end of append block but was expecting a partialEvent or padding.");
+                throw new InvalidMessageException("Found " + cmd.getType()
+                        + " at end of append block but was expecting a partialEvent or padding.");
             }
             if (cmd.getType() == WireCommandType.PADDING && blockEnd.getData().readableBytes() != 0) {
-                    throw new InvalidMessageException("Unexpected data in BlockEnd");
+                throw new InvalidMessageException("Unexpected data in BlockEnd");
             }
             if (cmd.getType() == WireCommandType.PARTIAL_EVENT) {
                 // Work around a bug in netty:

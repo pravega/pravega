@@ -209,7 +209,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     private void validateAppend(Append append, Session session) {
-        if (append.eventCount <= 0) {
+        if (append.getEventCount() <= 0) {
             throw new InvalidMessageException("Invalid eventCount in the append.");
         }
         if (session == null || !session.id.equals(append.getWriterId())) {
