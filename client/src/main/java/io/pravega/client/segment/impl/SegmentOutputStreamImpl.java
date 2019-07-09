@@ -545,7 +545,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                      log.info("Fetching endpoint for segment {}, writer {}", segmentName, writerId);
                      return controller.getEndpointForSegment(segmentName).thenComposeAsync((PravegaNodeUri uri) -> {
                          log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
-                         return connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);
+                         return connectionFactory.establishConnection(uri, responseProcessor);
                      }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
                          SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, delegationToken);
