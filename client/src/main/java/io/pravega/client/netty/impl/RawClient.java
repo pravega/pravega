@@ -92,6 +92,7 @@ public class RawClient implements AutoCloseable {
         synchronized (lock) {
             future = requests.remove(reply.getRequestId());
         }
+        log.info("Future {} will be completed for reply {}", future, reply);
         if (future != null) {
             future.complete(reply);
         }
