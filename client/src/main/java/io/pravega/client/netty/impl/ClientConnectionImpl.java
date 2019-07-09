@@ -76,6 +76,7 @@ public class ClientConnectionImpl implements ClientConnection {
             callback.complete(cfe);
         } catch (Throwable e) {
             log.warn("Exception while attempting to write WireCommand {} on netty channel {}", cmd, channel);
+            log.warn("Exception during sending command", e);
             callback.complete(new ConnectionFailedException(e));
         }
     }
