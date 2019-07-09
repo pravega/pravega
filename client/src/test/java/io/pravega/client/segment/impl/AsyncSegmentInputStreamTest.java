@@ -10,7 +10,6 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -126,18 +125,20 @@ public class AsyncSegmentInputStreamTest {
         // simulate a establishConnection failure to segment store.
         Mockito.doReturn(failedConnection)
                .doCallRealMethod()
-               .when(mockedCF).establishConnection(any(Flow.class), eq(endpoint), any(ReplyProcessor.class));
+               .when(mockedCF).establishConnection(eq(endpoint), any(ReplyProcessor.class));
 
         ArgumentCaptor<ClientConnection.CompletedCallback> callBackCaptor =
                 ArgumentCaptor.forClass(ClientConnection.CompletedCallback.class);
         Mockito.doAnswer(new Answer<Void>() {
+            @Override
             public Void answer(InvocationOnMock invocation) {
                 // Simulate a connection failure post establishing connection to SegmentStore.
                 callBackCaptor.getValue().complete(new ConnectionFailedException("SendAsync exception since netty channel is null"));
                 return null;
             }
         }).doAnswer(new Answer<Void>() {
-                   public Void answer(InvocationOnMock invocation) {
+                   @Override
+                public Void answer(InvocationOnMock invocation) {
                        mockedCF.getProcessor(endpoint).segmentRead(segmentRead);
                        return null;
                    }
@@ -150,7 +151,7 @@ public class AsyncSegmentInputStreamTest {
         assertEquals(segmentRead, readFuture.join());
         assertTrue(Futures.isSuccessful(readFuture)); // read completes after 3 retries.
         // Verify that the reader attempts to establish connection 3 times ( 2 failures followed by a successful attempt).
-        verify(mockedCF, times(3)).establishConnection(any(Flow.class), eq(endpoint), any(ReplyProcessor.class));
+        verify(mockedCF, times(3)).establishConnection(eq(endpoint), any(ReplyProcessor.class));
         // The second time sendAsync is invoked but it fail due to the exception.
         inOrder.verify(c).sendAsync(eq(new WireCommands.ReadSegment(segment.getScopedName(), 1234, 5678, "", in.getRequestId())),
                                     Mockito.any(ClientConnection.CompletedCallback.class));
