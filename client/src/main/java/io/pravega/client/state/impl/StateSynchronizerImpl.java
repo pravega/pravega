@@ -73,12 +73,12 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     @Override
     public void fetchUpdates() {
         Revision revision = getRevisionToReadFrom(true);
-        log.trace("Fetching updates after {} ", revision);
+        log.debug("Fetching updates after {} ", revision);
         try {
             val iter = client.readFrom(revision);
             while (iter.hasNext()) {
                 Entry<Revision, UpdateOrInit<StateT>> entry = iter.next();
-                log.trace("Found entry {} ", entry.getValue());
+                log.debug("Found entry {} ", entry.getValue());
                 if (entry.getValue().isInit()) {
                     InitialUpdate<StateT> init = entry.getValue().getInit();
                     if (isNewer(entry.getKey())) {
@@ -97,7 +97,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     private void handleTruncation() {
         log.info(this + " Encountered truncation");
         Revision revision = getRevisionToReadFrom(false);
-        log.trace("Fetching updates after {} ", revision);
+        log.debug("Fetching updates after {} ", revision);
         boolean foundInit = false;
         val iter = client.readFrom(revision);
         while (!foundInit && iter.hasNext()) {
@@ -216,20 +216,22 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
                     throw new IllegalStateException("Write was called before the state was initialized.");
                 }
             }
-            log.trace("Conditionally Writing {} ", state);
+            log.debug("Conditionally Writing {} ", state);
             Revision revision = state.getRevision();
             UpdateOrInit<StateT> toWrite = generator.apply(state);
             if (toWrite == null) {
+                log.debug("toWrite is null, break from loop");
                 break;
             }
             Revision newRevision = client.writeConditionally(revision, toWrite);
-            log.trace("Conditionally write returned {} ", newRevision);
+            log.debug("Conditionally write returned {} ", newRevision);
             if (newRevision == null) {
                 fetchUpdates();
             } else {
                 if (!toWrite.isInit()) {
                     applyUpdates(newRevision, toWrite.getUpdates());
                 }
+                log.debug("Updates applied to revision {}", newRevision);
                 break;
             }
         }
@@ -243,7 +245,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
     @Synchronized
     private void updateCurrentState(StateT newValue) {
         if (newValue != null && isNewer(newValue.getRevision())) {
-            log.trace("Updating new state to {} ", newValue.getRevision());
+            log.debug("Updating new state to {} ", newValue.getRevision());
             currentState = newValue;
         }
     }

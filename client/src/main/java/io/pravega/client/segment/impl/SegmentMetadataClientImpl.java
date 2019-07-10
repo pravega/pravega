@@ -98,6 +98,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     @SneakyThrows(ConnectionFailedException.class)
     private <T extends Reply> T transformReply(Reply reply, Class<T> klass) {
         if (klass.isAssignableFrom(reply.getClass())) {
+            log.debug("Returning reply {}", reply);
             return (T) reply;
         }
         closeConnection(reply);
@@ -130,7 +131,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     private CompletableFuture<SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, long expected,
                                                                                         long value, String delegationToken) {
-        log.trace("Updating segment attribute: {}", attributeId);
+        log.debug("Updating segment attribute: {}", attributeId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
         return connection.sendRequest(requestId,
@@ -198,6 +199,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
                                    .throwingOn(NoSuchSegmentException.class)
                                    .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());
         StreamSegmentInfo info = Futures.getThrowingException(future);
+        log.debug("Received SegmentInfo {}", info);
         return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(),
                                info.getLastModified());
     }
