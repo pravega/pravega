@@ -42,6 +42,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
+import static io.pravega.controller.stream.api.grpc.v1.Controller.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -57,28 +58,29 @@ public class SegmentHelperMock {
         doReturn(NodeUri.newBuilder().setEndpoint("localhost").setPort(SERVICE_PORT).build()).when(helper).getSegmentUri(
                 anyString(), anyString(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).sealSegment(
+        doReturn(CompletableFuture.completedFuture(null)).when(helper).sealSegment(
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).createSegment(
+        doReturn(CompletableFuture.completedFuture(null)).when(helper).createSegment(
                 anyString(), anyString(), anyLong(), any(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).deleteSegment(
+        doReturn(CompletableFuture.completedFuture(null)).when(helper).deleteSegment(
                 anyString(), anyString(), anyLong(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).createTransaction(
+        doReturn(CompletableFuture.completedFuture(null)).when(helper).createTransaction(
                 anyString(), anyString(), anyLong(), any(), any());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).abortTransaction(
+        TxnStatus txnStatus = TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build();
+        doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).abortTransaction(
                 anyString(), anyString(), anyLong(), any(), any());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).commitTransaction(
+        doReturn(CompletableFuture.completedFuture(txnStatus)).when(helper).commitTransaction(
                 anyString(), anyString(), anyLong(), anyLong(), any(), any());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).updatePolicy(
+        doReturn(CompletableFuture.completedFuture(null)).when(helper).updatePolicy(
                 anyString(), anyString(), any(), anyLong(), any(), anyLong());
 
-        doReturn(CompletableFuture.completedFuture(true)).when(helper).truncateSegment(
+        doReturn(CompletableFuture.completedFuture(null)).when(helper).truncateSegment(
                 anyString(), anyString(), anyLong(), anyLong(), any(), anyLong());
 
         doReturn(CompletableFuture.completedFuture(new WireCommands.StreamSegmentInfo(0L, "", true, true, false, 0L, 0L, 0L))).when(helper).getSegmentInfo(
@@ -150,7 +152,7 @@ public class SegmentHelperMock {
                     if (!mustBeEmpty || empty) {
                         mapOfTables.remove(tableName);
                         mapOfTablesPosition.remove(tableName);
-                        return true;
+                        return null;
                     } else {
                         throw new WireCommandFailedException(type,
                                 WireCommandFailedException.Reason.TableSegmentNotEmpty);
