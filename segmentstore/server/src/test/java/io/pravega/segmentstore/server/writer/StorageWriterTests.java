@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.writer;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -489,7 +490,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         final byte[] data = new byte[1];
 
         Function<UpdateableSegmentMetadata, Operation> createAppend = segment -> {
-            StreamSegmentAppendOperation append = new StreamSegmentAppendOperation(segment.getId(), data, null);
+            StreamSegmentAppendOperation append = new StreamSegmentAppendOperation(segment.getId(), new ByteArraySegment(data), null);
             append.setStreamSegmentOffset(segment.getLength());
             context.dataSource.recordAppend(append);
             segment.setLength(segment.getLength() + data.length);
@@ -837,7 +838,7 @@ public class StorageWriterTests extends ThreadPooledTestSuite {
         long offset = segmentMetadata.getLength();
         segmentMetadata.setLength(offset + data.length);
         Collection<AttributeUpdate> attributeUpdates = generateAttributeUpdates(segmentMetadata);
-        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), data, attributeUpdates);
+        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentMetadata.getId(), new ByteArraySegment(data), attributeUpdates);
         op.setStreamSegmentOffset(offset);
         context.dataSource.recordAppend(op);
         context.dataSource.add(new CachedStreamSegmentAppendOperation(op));

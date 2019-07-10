@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -322,7 +323,7 @@ public class OperationMetadataUpdaterTests {
         val attributeUpdates = Arrays.asList(
                 new AttributeUpdate(Attributes.CREATION_TIME, AttributeUpdateType.Replace, NEXT_ATTRIBUTE_VALUE.get()),
                 new AttributeUpdate(Attributes.EVENT_COUNT, AttributeUpdateType.Accumulate, NEXT_ATTRIBUTE_VALUE.get()));
-        val op = new StreamSegmentAppendOperation(segmentId, data, attributeUpdates);
+        val op = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(data), attributeUpdates);
         process(op, updater);
         if (referenceMetadata != null) {
             val rsm = referenceMetadata.getStreamSegmentMetadata(segmentId);

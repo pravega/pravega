@@ -14,6 +14,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -391,7 +392,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                result.add(store -> store.append(segmentName, appendData, createAttributeUpdates(), TIMEOUT));
+                result.add(store -> store.append(segmentName, new ByteArraySegment(appendData), createAttributeUpdates(), TIMEOUT));
             }
 
             // Add the rest of the attribute updates.

@@ -12,7 +12,6 @@ package io.pravega.common.util;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.io.FixedByteArrayOutputStream;
-import io.pravega.common.io.StreamHelpers;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -211,23 +210,9 @@ public class ByteArraySegment implements ArrayView {
      * @param stream The OutputStream to write to.
      * @throws IOException If the OutputStream threw one.
      */
-    public void writeTo(OutputStream stream) throws IOException {
+    @Override
+    public void copyTo(OutputStream stream) throws IOException {
         stream.write(this.array, this.startOffset, this.length);
-    }
-
-    /**
-     * Attempts to read the contents of the InputStream and load it into this ByteArraySegment. Up to getLength() bytes
-     * will be read from the InputStream, but no guarantees are made that the entire ByteArraySegment will be populated.
-     * <p>
-     * Only attempts to read the data, and does not expect any other header/footer information in the InputStream. This
-     * method is the exact reverse of writeTo().
-     *
-     * @param stream The InputStream to read from.
-     * @return The number of bytes read. This will be less than or equal to getLength().
-     * @throws IOException If the InputStream threw one.
-     */
-    public int readFrom(InputStream stream) throws IOException {
-        return StreamHelpers.readAll(stream, this.array, this.startOffset, this.length);
     }
 
     /**

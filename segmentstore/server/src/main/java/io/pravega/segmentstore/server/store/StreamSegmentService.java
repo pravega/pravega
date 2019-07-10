@@ -9,12 +9,14 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+import java.nio.Buffer;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -45,19 +47,19 @@ public class StreamSegmentService extends SegmentContainerCollection implements 
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.append(streamSegmentName, data, attributeUpdates, timeout),
-                "append", streamSegmentName, data.length, attributeUpdates);
+                "append", streamSegmentName, data.getLength(), attributeUpdates);
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return invoke(
                 streamSegmentName,
                 container -> container.append(streamSegmentName, offset, data, attributeUpdates, timeout),
-                "appendWithOffset", streamSegmentName, offset, data.length, attributeUpdates);
+                "appendWithOffset", streamSegmentName, offset, data.getLength(), attributeUpdates);
     }
 
     @Override

@@ -9,7 +9,8 @@
  */
 package io.pravega.common.io.serialization;
 
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -249,13 +250,13 @@ public interface RevisionDataOutput extends DataOutput {
     }
 
     /**
-     * Serializes the given byte array segment. Equivalent to calling {@link #writeArray}(segment, segment.arrayOffset(), segment.getLength()).
+     * Serializes the given {@link ArrayView}. Equivalent to calling {@link #writeArray}(segment, segment.arrayOffset(), segment.getLength()).
      *
      * @param segment The byte array segment to serialize. Can be null (in which case an Empty array will be deserialized
      *                by {@link RevisionDataInput#readArray})).
      * @throws IOException If an IO Exception occurred.
      */
-    default void writeArray(ByteArraySegment segment) throws IOException {
+    default void writeArray(ArrayView segment) throws IOException {
         if (segment == null) {
             writeArray(null, 0, 0);
         } else {
@@ -274,6 +275,21 @@ public interface RevisionDataOutput extends DataOutput {
      * @throws IOException If an IO Exception occurred.
      */
     void writeArray(byte[] array, int offset, int length) throws IOException;
+
+    /**
+     * Serializes the given {@link BufferView}. It first writes a Compact Integer representing {@link BufferView#getLength()},
+     * followed by {@link BufferView#getLength()} bytes representing the data from the {@link BufferView}.
+     *
+     * This can be read back using {@link RevisionDataInput#readArray()} as this method serializes the data in the same
+     * ways as {@link #writeArray}.
+     *
+     * @param array  The {@link BufferView} to serialize. Can be null (in which case an Empty array will be deserialized
+     *               by {@link RevisionDataInput#readArray})).
+     * @param offset The offset within the array to begin serializing at. This is ignored if array == null.
+     * @param length The number of elements to serialize. This is ignored if array == null.
+     * @throws IOException If an IO Exception occurred.
+     */
+    void writeBuffer(BufferView buffer) throws IOException;
 
     /**
      * Calculates the number of bytes required to serialize a Map.

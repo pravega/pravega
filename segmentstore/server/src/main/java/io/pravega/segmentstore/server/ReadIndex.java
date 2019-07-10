@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import java.io.InputStream;
@@ -30,7 +31,7 @@ public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
      * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
      * @throws IllegalArgumentException If the offset + data.length exceeds the metadata Length of the StreamSegment.
      */
-    void append(long streamSegmentId, long offset, byte[] data) throws StreamSegmentNotExistsException;
+    void append(long streamSegmentId, long offset, BufferView data) throws StreamSegmentNotExistsException;
 
     /**
      * Executes Step 1 of the 2-Step Merge Process.

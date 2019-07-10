@@ -12,6 +12,8 @@ package io.pravega.segmentstore.server.logs.operations;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.io.IOException;
@@ -26,7 +28,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
 
     private static final long NO_OFFSET = -1;
     private long streamSegmentOffset;
-    private byte[] data;
+    private BufferView data;
     private Collection<AttributeUpdate> attributeUpdates;
 
     //endregion
@@ -40,7 +42,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
      * @param data             The payload to append.
      * @param attributeUpdates (Optional) The attributeUpdates to update with this append.
      */
-    public StreamSegmentAppendOperation(long streamSegmentId, byte[] data, Collection<AttributeUpdate> attributeUpdates) {
+    public StreamSegmentAppendOperation(long streamSegmentId, BufferView data, Collection<AttributeUpdate> attributeUpdates) {
         this(streamSegmentId, NO_OFFSET, data, attributeUpdates);
     }
 
@@ -52,11 +54,9 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
      * @param data             The payload to append.
      * @param attributeUpdates (Optional) The attributeUpdates to update with this append.
      */
-    public StreamSegmentAppendOperation(long streamSegmentId, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates) {
+    public StreamSegmentAppendOperation(long streamSegmentId, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates) {
         super(streamSegmentId);
-        Preconditions.checkNotNull(data, "data");
-
-        this.data = data;
+        this.data = Preconditions.checkNotNull(data, "data");
         this.streamSegmentOffset = offset;
         this.attributeUpdates = attributeUpdates;
     }
@@ -86,7 +86,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
      *
      * @return The data buffer.
      */
-    public byte[] getData() {
+    public BufferView getData() {
         return this.data;
     }
 
@@ -111,7 +111,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
 
     @Override
     public long getLength() {
-        return this.data.length;
+        return this.data.getLength();
     }
 
     @Override
@@ -120,7 +120,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
                 "%s, Offset = %s, Length = %d, Attributes = %d",
                 super.toString(),
                 toString(this.streamSegmentOffset, -1),
-                this.data.length,
+                this.data.getLength(),
                 this.attributeUpdates == null ? 0 : this.attributeUpdates.size());
     }
 
@@ -153,11 +153,12 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
 
         private void write00(StreamSegmentAppendOperation o, RevisionDataOutput target) throws IOException {
             int attributesLength = o.attributeUpdates == null ? target.getCompactIntLength(0) : target.getCollectionLength(o.attributeUpdates.size(), ATTRIBUTE_UPDATE_LENGTH);
-            target.length(STATIC_LENGTH + target.getCompactIntLength(o.data.length) + o.data.length + attributesLength);
+            int dataLength = o.getData().getLength();
+            target.length(STATIC_LENGTH + target.getCompactIntLength(dataLength) + dataLength + attributesLength);
             target.writeLong(o.getSequenceNumber());
             target.writeLong(o.getStreamSegmentId());
             target.writeLong(o.streamSegmentOffset);
-            target.writeArray(o.data);
+            target.writeBuffer(o.data);
             target.writeCollection(o.attributeUpdates, this::writeAttributeUpdate00);
         }
 
@@ -165,7 +166,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
             b.instance.setSequenceNumber(source.readLong());
             b.instance.setStreamSegmentId(source.readLong());
             b.instance.streamSegmentOffset = source.readLong();
-            b.instance.data = source.readArray();
+            b.instance.data = new ByteArraySegment(source.readArray());
             b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdate00);
         }
 

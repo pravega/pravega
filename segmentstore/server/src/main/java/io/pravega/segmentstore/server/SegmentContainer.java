@@ -49,7 +49,7 @@ public interface SegmentContainer extends StreamSegmentStore, Container {
      * Example
      * <pre>
      * {@code
-     * CompletableFuture<Long> truncateAppendSeal(String segmentName, byte[] data, Duration timeout) {
+     * CompletableFuture<Long> truncateAppendSeal(String segmentName, BufferView data, Duration timeout) {
      *     SegmentContainer container = getSegmentContainer(segmentName);
      *     TimeoutTimer timer = new TimeoutTimer(timeout);
      *     // Get the reference to DirectSegmentAccess here.

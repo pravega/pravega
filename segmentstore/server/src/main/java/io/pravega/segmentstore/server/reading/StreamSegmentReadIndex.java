@@ -15,6 +15,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AvlTreeIndex;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SortedIndex;
 import io.pravega.segmentstore.contracts.ReadResult;
@@ -337,16 +338,17 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      * Appends the given range of bytes at the given offset.
      *
      * @param offset The offset within the StreamSegment to append at.
-     * @param data   The range of bytes to append.
+     * @param data   A {@link BufferView} representing the data to append.
      * @throws NullPointerException     If data is null.
      * @throws IllegalArgumentException If the operation would cause writing beyond the StreamSegment's Length.
      * @throws IllegalArgumentException If the offset is invalid (does not match the previous append offset).
      */
-    void append(long offset, byte[] data) {
+    void append(long offset, BufferView data) {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more ReadIndex entries.");
 
-        if (data.length == 0) {
+        int dataLength = data.getLength();
+        if (dataLength == 0) {
             // Nothing to do. Adding empty read entries will only make our system slower and harder to debug.
             return;
         }
@@ -355,13 +357,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Adding at the end means that we always need to "catch-up" with Length. Check to see if adding
         // this entry will make us catch up to it or not.
         long length = this.metadata.getLength();
-        long endOffset = offset + data.length;
+        long endOffset = offset + dataLength;
         Exceptions.checkArgument(endOffset <= length, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Length (%d).", offset, endOffset, length);
 
         // Then append an entry for it in the ReadIndex. It's ok to insert into the cache outside of the lock here,
         // since there is no chance of competing with another write request for the same offset at the same time.
         this.cache.insert(new CacheKey(this.metadata.getId(), offset), data);
-        appendEntry(new CacheIndexEntry(offset, data.length));
+        appendEntry(new CacheIndexEntry(offset, dataLength));
     }
 
     /**

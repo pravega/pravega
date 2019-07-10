@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.function.Callbacks;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.CacheManager;
@@ -173,7 +174,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         }
 
         @Override
-        public void insert(Key key, ByteArraySegment data) {
+        public void insert(Key key, BufferView data) {
             // Nothing to do.
         }
 

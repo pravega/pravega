@@ -34,6 +34,7 @@ import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -251,13 +252,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         List<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals, append.getEventNumber(), lastEventNumber),
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
-        ByteBuf buf = append.getData().asReadOnly();
-        byte[] bytes = new byte[buf.readableBytes()];
-        buf.readBytes(bytes);
+        ByteBufWrapper buf = new ByteBufWrapper(append.getData());
         if (append.isConditional()) {
-            return store.append(append.getSegment(), append.getExpectedLength(), bytes, attributes, TIMEOUT);
+            return store.append(append.getSegment(), append.getExpectedLength(), buf, attributes, TIMEOUT);
         } else {
-            return store.append(append.getSegment(), bytes, attributes, TIMEOUT);
+            return store.append(append.getSegment(), buf, attributes, TIMEOUT);
         }
     }
 

@@ -10,7 +10,9 @@
 package io.pravega.common.io.serialization;
 
 import io.pravega.common.io.SerializationException;
+import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
+import io.pravega.common.util.BufferView;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -295,6 +297,27 @@ abstract class RevisionDataOutputStream extends DataOutputStream implements Revi
 
         writeCompactInt(length);
         write(array, offset, length);
+    }
+
+    @Override
+    public void writeBuffer(BufferView buf) throws IOException {
+        if (buf instanceof ArrayView) {
+            // Invoke the appropriate method for this type, which is more optimized for arrays.
+            writeArray((ArrayView) buf);
+            return;
+        }
+
+        if (buf == null) {
+            // Null will be deserialized as an empty array, so write 0 as length.
+            writeCompactInt(0);
+            return;
+        }
+
+        // Write Length.
+        writeCompactInt(buf.getLength());
+
+        // Copy the buffer contents to this OutputStream. This will write all its bytes.
+        buf.copyTo(this);
     }
 
     @Override

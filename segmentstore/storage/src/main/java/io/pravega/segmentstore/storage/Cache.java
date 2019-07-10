@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.storage;
 
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.BufferView;
 
 /**
  * Defines a Cache that can be used by the ReadIndex.
@@ -32,9 +32,9 @@ public interface Cache extends AutoCloseable {
      * Inserts a new entry into the cache.
      *
      * @param key  The the key of the entry.
-     * @param data A ByteArraySegment representing the payload associated with the given key.
+     * @param data A {@link BufferView} representing the payload associated with the given key.
      */
-    void insert(Key key, ByteArraySegment data);
+    void insert(Key key, BufferView data);
 
     /**
      * Retrieves a cache entry with given key.

@@ -11,7 +11,6 @@ package io.pravega.common.util;
 
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -110,24 +109,23 @@ public class ByteArraySegmentTests {
     }
 
     /**
-     * Tests the functionality of writeTo and readFrom.
+     * Tests the functionality of copyTo(OutputStream).
      */
     @Test
-    public void testWriteToReadFrom() throws IOException {
+    public void testCopyToStream() throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         int count = 10;
         ArrayList<ByteArraySegment> sourceSegments = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             ByteArraySegment s = new ByteArraySegment(createFormattedBuffer());
             sourceSegments.add(s);
-            s.writeTo(outputStream);
+            s.copyTo(outputStream);
         }
 
-        InputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
         for (int i = 0; i < count; i++) {
             ByteArraySegment s = sourceSegments.get(i);
             ByteArraySegment t = new ByteArraySegment(new byte[s.getLength()]);
-            t.readFrom(inputStream);
+            t.copyFrom(s, 0, t.getLength());
 
             Assert.assertEquals("Source and target lengths differ.", s.getLength(), t.getLength());
             for (int j = 0; j < s.getLength(); j++) {

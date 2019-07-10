@@ -14,7 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.io.FileHelpers;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheException;
 import java.io.File;
@@ -185,7 +185,7 @@ class RocksDBCache implements Cache {
     }
 
     @Override
-    public void insert(Key key, ByteArraySegment data) {
+    public void insert(Key key, BufferView data) {
         insert(key, data.getCopy());
     }
 

@@ -540,7 +540,7 @@ public class BTreeIndexTests extends ThreadPooledTestSuite {
                         Preconditions.checkArgument(expectedOffset == e.getKey(), "Bad Offset. Expected %s, given %s.",
                                 expectedOffset, e.getKey());
                         try {
-                            e.getValue().writeTo(this.data);
+                            e.getValue().copyTo(this.data);
                         } catch (Exception ex) {
                             throw new CompletionException(ex);
                         }

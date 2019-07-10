@@ -202,7 +202,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         s.serializeUpdate(Collections.singleton(toUpdate), toWrite);
         context.index.update(context.segment,
                 toUpdateBatch(toUpdate.getKey()),
-                () -> context.segment.append(toWrite, null, TIMEOUT),
+                () -> context.segment.append(new ByteArraySegment(toWrite), null, TIMEOUT),
                 context.timer).join();
 
         // Key exists, but we conditioned on it not existing.
@@ -241,7 +241,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             s.serializeUpdate(Collections.singleton(toUpdate), toWrite);
             val r = context.index.update(context.segment,
                     toUpdateBatch(hasher, Collections.singletonList(toUpdate.getKey())),
-                    () -> context.segment.append(toWrite, null, TIMEOUT),
+                    () -> context.segment.append(new ByteArraySegment(toWrite), null, TIMEOUT),
                     context.timer).join();
             versions.put(key.getKey(), r.get(0));
         }
@@ -432,7 +432,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         }
         val update1 = new byte[(int) offset.get()];
         s.serializeUpdate(entries1, update1);
-        context.segment.append(update1, null, TIMEOUT).join();
+        context.segment.append(new ByteArraySegment(update1), null, TIMEOUT).join();
 
         // 2. Initiate a recovery and verify pre-caching is triggered and requests are auto-unblocked.
         val get1 = context.index.getBucketOffsets(context.segment, hashes, context.timer);
@@ -452,7 +452,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                                                         })
                                                         .collect(Collectors.toList());
         iw.updateBuckets(context.segment, bucketUpdates, 0L, offset.get(), keysWithOffsets.size(), TIMEOUT).join();
-        context.segment.append(new byte[TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1], null, TIMEOUT).join();
+        context.segment.append(new ByteArraySegment(new byte[TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1]), null, TIMEOUT).join();
 
         // 4. Verify pre-caching is disabled and that the requests are blocked.
         context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), -1); // Force-evict it so we start clean.
@@ -564,7 +564,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Write some garbage data to the segment, but make it longer than the threshold to trigger pre-caching; we don't
         // want to deal with that now since we can't control its runtime.
-        context.segment.append(new byte[TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1], null, TIMEOUT).join();
+        context.segment.append(new ByteArraySegment(new byte[TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1]), null, TIMEOUT).join();
 
         // Update the index, but keep the LastIndexedOffset at 0.
         val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();

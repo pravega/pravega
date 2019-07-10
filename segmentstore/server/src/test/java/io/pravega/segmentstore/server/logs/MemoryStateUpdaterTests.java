@@ -11,6 +11,8 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
@@ -18,11 +20,11 @@ import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
@@ -158,9 +160,9 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
                          StreamSegmentInformation.builder().name("a").length( i * j).build());
                 mapOp.setStreamSegmentId(i);
                 operations.add(mapOp);
-                StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, Integer.toString(i).getBytes(), null);
+                StreamSegmentAppendOperation appendOp = new StreamSegmentAppendOperation(i, new ByteArraySegment(Integer.toString(i).getBytes()), null);
                 appendOp.setStreamSegmentOffset(offset);
-                offset += appendOp.getData().length;
+                offset += appendOp.getData().getLength();
                 operations.add(appendOp);
                 operations.add(new MergeSegmentOperation(i, j));
             }
@@ -193,7 +195,7 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void append(long segmentId, long offset, byte[] data) {
+        public void append(long segmentId, long offset, BufferView data) {
             invoke(new MethodInvocation(APPEND)
                     .withArg("streamSegmentId", segmentId)
                     .withArg("offset", offset)

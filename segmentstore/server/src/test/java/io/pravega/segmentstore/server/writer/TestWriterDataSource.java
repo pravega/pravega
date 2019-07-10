@@ -184,7 +184,7 @@ class TestWriterDataSource implements WriterDataSource, AutoCloseable {
             }
         }
 
-        ad.append(operation.getStreamSegmentOffset(), operation.getData());
+        ad.append(operation.getStreamSegmentOffset(), operation.getData().getCopy());
     }
 
     /**

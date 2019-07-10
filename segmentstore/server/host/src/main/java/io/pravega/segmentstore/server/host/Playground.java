@@ -11,6 +11,8 @@ package io.pravega.segmentstore.server.host;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
+import io.netty.buffer.Unpooled;
+import lombok.val;
 import org.slf4j.LoggerFactory;
 
 /**
@@ -22,5 +24,12 @@ public class Playground {
         LoggerContext context = (LoggerContext) LoggerFactory.getILoggerFactory();
         context.getLoggerList().get(0).setLevel(Level.INFO);
         //context.reset();
+
+        val b1 = Unpooled.wrappedBuffer("0123456789".getBytes());
+        val b2 = b1.asReadOnly();
+        System.out.println(b1.readByte());
+        System.out.println(b2.readByte());
+        System.out.println(b1.readByte());
+        System.out.println(b2.readByte());
     }
 }

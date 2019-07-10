@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs.operations;
 
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
 import lombok.val;
 import org.junit.Test;
@@ -25,7 +26,7 @@ public class CachedStreamSegmentAppendOperationTests {
      */
     @Test
     public void testConstructor() {
-        byte[] data = "foo".getBytes();
+        ByteArraySegment data = new ByteArraySegment("foo".getBytes());
         val attributes = StreamSegmentAppendOperationTests.createAttributes();
         StreamSegmentAppendOperation baseOp = new StreamSegmentAppendOperation(SEGMENT_ID, data, attributes);
         baseOp.setSequenceNumber(1);

@@ -88,7 +88,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
         // Mismatched segment ids.
         AssertExtensions.assertThrows(
                 "add() worked with wrong segment id.",
-                () -> context.processor.add(new StreamSegmentAppendOperation(SEGMENT_ID + 1, new byte[0], null)),
+                () -> context.processor.add(new StreamSegmentAppendOperation(SEGMENT_ID + 1, new ByteArraySegment(new byte[0]), null)),
                 ex -> ex instanceof IllegalArgumentException);
 
         // Pre-last indexed offset.
@@ -434,7 +434,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     private StreamSegmentAppendOperation generateRawAppend(TableEntry entry, long offset, TestContext context) {
         byte[] data = new byte[context.serializer.getUpdateLength(entry)];
         context.serializer.serializeUpdate(Collections.singletonList(entry), data);
-        val append = new StreamSegmentAppendOperation(SEGMENT_ID, data, null);
+        val append = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(data), null);
         append.setSequenceNumber(context.nextSequenceNumber());
         append.setStreamSegmentOffset(offset);
         return append;
@@ -443,14 +443,14 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
     private StreamSegmentAppendOperation generateRawRemove(TableKey key, long offset, TestContext context) {
         byte[] data = new byte[context.serializer.getRemovalLength(key)];
         context.serializer.serializeRemoval(Collections.singletonList(key), data);
-        val append = new StreamSegmentAppendOperation(SEGMENT_ID, data, null);
+        val append = new StreamSegmentAppendOperation(SEGMENT_ID, new ByteArraySegment(data), null);
         append.setSequenceNumber(context.nextSequenceNumber());
         append.setStreamSegmentOffset(offset);
         return append;
     }
 
     private CachedStreamSegmentAppendOperation generateSimulatedAppend(long offset, int length, TestContext context) {
-        val op = new StreamSegmentAppendOperation(context.metadata.getId(), offset, new byte[length], null);
+        val op = new StreamSegmentAppendOperation(context.metadata.getId(), offset, new ByteArraySegment(new byte[length]), null);
         op.setSequenceNumber(context.nextSequenceNumber());
         return new CachedStreamSegmentAppendOperation(op);
     }
@@ -517,7 +517,7 @@ public class WriterTableProcessorTests extends ThreadPooledTestSuite {
                     new AttributeUpdate(TableAttributes.INDEX_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET),
                     new AttributeUpdate(TableAttributes.COMPACTION_OFFSET, AttributeUpdateType.Replace, INITIAL_LAST_INDEXED_OFFSET)),
                     TIMEOUT).join();
-            this.segmentMock.append(new byte[(int) INITIAL_LAST_INDEXED_OFFSET], null, TIMEOUT).join();
+            this.segmentMock.append(new ByteArraySegment(new byte[(int) INITIAL_LAST_INDEXED_OFFSET]), null, TIMEOUT).join();
         }
 
         private class TableWriterConnectorImpl implements TableWriterConnector {

@@ -14,6 +14,7 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -429,7 +430,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public void insert(Key key, ByteArraySegment data) {
+        public void insert(Key key, BufferView data) {
             // This method intentionally left blank.
         }
 

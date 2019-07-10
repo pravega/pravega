@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.containers;
 
 import com.google.common.collect.ImmutableMap;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -118,8 +119,8 @@ public class ReadOnlySegmentContainerTests extends ThreadPooledTestSuite {
         val context = new TestContext();
         context.container.startAsync().awaitRunning();
         assertUnsupported("createStreamSegment", () -> context.container.createStreamSegment(SEGMENT_NAME, null, TIMEOUT));
-        assertUnsupported("append", () -> context.container.append(SEGMENT_NAME, new byte[1], null, TIMEOUT));
-        assertUnsupported("append-offset", () -> context.container.append(SEGMENT_NAME, 0, new byte[1], null, TIMEOUT));
+        assertUnsupported("append", () -> context.container.append(SEGMENT_NAME, new ByteArraySegment(new byte[1]), null, TIMEOUT));
+        assertUnsupported("append-offset", () -> context.container.append(SEGMENT_NAME, 0, new ByteArraySegment(new byte[1]), null, TIMEOUT));
         assertUnsupported("sealStreamSegment", () -> context.container.sealStreamSegment(SEGMENT_NAME, TIMEOUT));
         assertUnsupported("truncateStreamSegment", () -> context.container.truncateStreamSegment(SEGMENT_NAME, 0, TIMEOUT));
         assertUnsupported("deleteStreamSegment", () -> context.container.deleteStreamSegment(SEGMENT_NAME, TIMEOUT));

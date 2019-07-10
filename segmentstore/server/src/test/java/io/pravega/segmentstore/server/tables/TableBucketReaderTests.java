@@ -63,7 +63,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
 
         // Generate our test data and append it to the segment.
         val data = generateData();
-        segment.append(data.serialization, null, TIMEOUT).join();
+        segment.append(new ByteArraySegment(data.serialization), null, TIMEOUT).join();
         val reader = TableBucketReader.key(segment,
                 (s, offset, timeout) -> CompletableFuture.completedFuture(data.getBackpointer(offset)),
                 executorService());
@@ -89,7 +89,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
 
         // Generate our test data and append it to the segment.
         val data = generateData();
-        segment.append(data.serialization, null, TIMEOUT).join();
+        segment.append(new ByteArraySegment(data.serialization), null, TIMEOUT).join();
         val reader = TableBucketReader.entry(segment,
                 (s, offset, timeout) -> CompletableFuture.completedFuture(data.getBackpointer(offset)),
                 executorService());
@@ -122,7 +122,7 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
         val deletedKey = entries.get(0).getKey();
         byte[] data = new byte[es.getRemovalLength(deletedKey)];
         es.serializeRemoval(Collections.singleton(deletedKey), data);
-        segment.append(data, null, TIMEOUT).join();
+        segment.append(new ByteArraySegment(data), null, TIMEOUT).join();
         val reader = TableBucketReader.entry(segment,
                 (s, offset, timeout) -> CompletableFuture.completedFuture(-1L), // No backpointers.
                 executorService());
@@ -158,14 +158,14 @@ public class TableBucketReaderTests extends ThreadPooledTestSuite {
 
         // Generate our test data and append it to the segment.
         val data = generateData();
-        segment.append(data.serialization, null, TIMEOUT).join();
+        segment.append(new ByteArraySegment(data.serialization), null, TIMEOUT).join();
 
         // Generate a deleted key and append it to the segment.
         val deletedKey = data.entries.get(0).getKey();
         val es = new EntrySerializer();
         byte[] deletedData = new byte[es.getRemovalLength(deletedKey)];
         es.serializeRemoval(Collections.singleton(deletedKey), deletedData);
-        long newBucketOffset = segment.append(deletedData, null, TIMEOUT).join();
+        long newBucketOffset = segment.append(new ByteArraySegment(deletedData), null, TIMEOUT).join();
         data.backpointers.put(newBucketOffset, data.getBucketOffset());
 
         // Create a new TableBucketReader and get all the requested items for this bucket. We pass the offset of the

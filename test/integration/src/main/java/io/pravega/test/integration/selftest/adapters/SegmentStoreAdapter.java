@@ -184,8 +184,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureRunning();
         ArrayView s = event.getSerialization();
-        byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
-        return this.streamSegmentStore.append(streamName, payload, null, timeout)
+        return this.streamSegmentStore.append(streamName, s, null, timeout)
                                       .exceptionally(ex -> attemptReconcile(ex, streamName, timeout));
     }
 
