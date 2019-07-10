@@ -98,6 +98,10 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         log.info("Closing Flow {} for endpoint {}", flow, clientConnectionImpl.getConnectionName());
         flowIdReplyProcessorMap.remove(flow);
         flowIDBatchSizeTrackerMap.remove(flow);
+        if (flow == FLOW_DISABLED) {
+            // close the channel immediately since this netty channel will not be reused by other flows.
+            close();
+        }
     }
 
     /**
