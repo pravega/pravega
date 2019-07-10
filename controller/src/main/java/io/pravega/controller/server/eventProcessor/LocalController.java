@@ -115,8 +115,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> checkStreamExists(final String scope, final String streamName) {
-        return controller.checkStreamExists(scope, streamName);
+    public CompletableFuture<Boolean> checkStreamCreated(final String scope, final String streamName) {
+        return controller.checkStreamCreated(scope, streamName);
     }
 
     @Override

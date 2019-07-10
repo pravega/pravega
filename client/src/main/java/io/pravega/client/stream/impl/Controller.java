@@ -77,17 +77,12 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> createStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
-     * API to check if a stream has been created. The future completes with true in the case the stream did not
-     * exist when the controller executed the operation. In the case of a re-attempt to create
-     * the same stream, the future completes with false to indicate that the stream existed when
-     * the controller executed the operation.
-     *
-     * @param scope Scope
-     * @param streamName Stream name
-     * @return A future which will throw if the operation fails, otherwise returning a boolean to
-     *         indicate that the stream was added because it did not already exist.
+     * Api to check if a stream fully created.
+     * @param scopeName scope name
+     * @param streamName stream name
+     * @return true if stream exists, false otherwise
      */
-    CompletableFuture<Boolean> checkStreamExists(final String scopeName, final String streamName);
+    CompletableFuture<Boolean> checkStreamCreated(final String scopeName, final String streamName);
 
     /**
      * API to update the configuration of a stream.

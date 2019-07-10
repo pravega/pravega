@@ -55,6 +55,7 @@ import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -178,13 +179,28 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         Consumer<Segment> segmentSealedCallBack = s -> {
             throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
         };
-        String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                segment.getStreamName()), RuntimeException::new);
+
+        String delegationToken = checkStreamReturnDelegation(streamName, segment);
         SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack,
                 config.getEventWriterConfig(), delegationToken);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationToken);
         return new RevisionedStreamClientImpl<>(segment, in, out, cond, meta, serializer);
+    }
+
+    private String checkStreamReturnDelegation(String streamName, Segment segment) {
+        CompletableFuture<Boolean>  isStreamCreated = controller.checkStreamCreated(scope, streamName);
+        CompletableFuture<String> delegationToken = controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStreamName());
+        return isStreamCreated
+                .thenCombine(delegationToken,
+                        (isStr, delTok) -> {
+                            if (isStr) {
+                                return delTok;
+                            } else {
+                                throw new IllegalStateException("Stream doesn't exist: " + streamName);
+                            }
+                        })
+                .join();
     }
 
     @Override

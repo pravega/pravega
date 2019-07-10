@@ -47,6 +47,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime.Segmen
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCreateStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
@@ -92,6 +93,21 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> "",
                 delegationToken -> controllerService.getControllerServerList()
                                      .thenApply(servers -> ServerResponse.newBuilder().addAllNodeURI(servers).build()),
+                responseObserver);
+    }
+
+    @Override
+    public void checkStreamCreated(StreamInfo request, StreamObserver<StreamCreateStatus> responseObserver) {
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "checkStreamCreated",
+                request.getScope(), request.getStream());
+
+        log.info(requestTag.getRequestId(), "checkStreamCreated called for stream {}/{}.",
+                request.getScope(), request.getStream());
+        authenticateExecuteAndProcessResults(() -> this.authHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
+                AuthHandler.Permissions.READ),
+                delegationToken -> controllerService.checkStreamCreated(request.getScope(), request.getStream())
+                        .thenApply(bRes -> StreamCreateStatus.newBuilder().setResponse(bRes).build()),
                 responseObserver);
     }
 

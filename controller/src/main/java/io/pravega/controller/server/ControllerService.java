@@ -21,6 +21,7 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -129,11 +130,13 @@ public class ControllerService {
                   }, executor);
     }
 
-    public CompletableFuture<Boolean> checkStreamExists(final String scope,
-                                                       final String stream) {
+    public CompletableFuture<Boolean> checkStreamCreated(final String scope,
+                                                         final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return streamStore.checkStreamExists(scope, stream);
+        return streamStore.getState(scope, stream, true, null, executor)
+                .thenApply(state -> !state.equals(State.CREATING)
+                        && !state.equals(State.UNKNOWN));
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {

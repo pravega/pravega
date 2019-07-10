@@ -18,11 +18,11 @@ option optimize_for = SPEED;
 service ControllerService {
     rpc getControllerServerList(ServerRequest) returns (ServerResponse);
     rpc createStream(StreamConfig) returns (CreateStreamStatus);
+    rpc checkStreamCreated(StreamInfo) returns (StreamCreateStatus);
     rpc updateStream(StreamConfig) returns (UpdateStreamStatus);
     rpc truncateStream(StreamCut) returns (UpdateStreamStatus);
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
-    rpc checkStreamExists(StreamInfo) returns (CheckStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
     /* Deprecated RPC: https://github.com/pravega/pravega/issues/3760 */
@@ -83,7 +83,7 @@ message DeleteStreamStatus {
     Status status = 1;
 }
 
-message CheckStreamStatus {
+message StreamCreateStatus {
    bool response = 1;
 }
 
