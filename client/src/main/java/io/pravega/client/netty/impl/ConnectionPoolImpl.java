@@ -281,12 +281,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
     }
 
     private EventLoopGroup getEventLoopGroup() {
-        if (Epoll.isAvailable()) {
-            return new EpollEventLoopGroup();
-        } else {
-            log.warn("Epoll not available. Falling back on NIO.");
-            return new NioEventLoopGroup();
-        }
+        log.warn("Epoll not enabled. Falling back on NIO.");
+        return new NioEventLoopGroup();
     }
 
     @Override
