@@ -12,14 +12,22 @@ package io.pravega.shared.protocol.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.pravega.common.util.BufferView;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import lombok.NonNull;
 
 /**
  * {@link BufferView} wrapper for {@link ByteBuf} instances.
  */
 public class ByteBufWrapper implements BufferView {
+    //region Members
+
     private final ByteBuf buf;
+
+    //endregion
+
+    //region Constructor
 
     /**
      * Creates a new instance of the {@link ByteBufWrapper} wrapping the given {@link ByteBuf}.
@@ -34,6 +42,8 @@ public class ByteBufWrapper implements BufferView {
     public ByteBufWrapper(@NonNull ByteBuf buf) {
         this.buf = buf.asReadOnly();
     }
+
+    //endregion
 
     //region BufferView implementation
 
@@ -53,6 +63,12 @@ public class ByteBufWrapper implements BufferView {
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
         return bytes;
+    }
+
+    @Override
+    public void copyTo(OutputStream target) throws IOException {
+        ByteBuf buf = this.buf.duplicate();
+        buf.readBytes(target, buf.readableBytes());
     }
 
     @Override

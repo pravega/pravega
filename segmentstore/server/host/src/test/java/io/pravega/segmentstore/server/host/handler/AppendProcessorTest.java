@@ -571,8 +571,4 @@ public class AppendProcessorTest {
             this(store, segmentName, null, attributeUpdates);
         }
     }
-
-    private BufferView wrap(byte[] appendData) {
-        return new ByteBufWrapper(Unpooled.wrappedBuffer(appendData));
-    }
 }

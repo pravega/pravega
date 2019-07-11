@@ -79,11 +79,8 @@ public class ByteBufWrapperTests {
         // Copy To.
         @Cleanup
         val outputStream1 = new ByteArrayOutputStream();
-        val outputStream2 = new ByteArrayOutputStream();
         wrap.copyTo(outputStream1);
-        wrap.copyTo(outputStream2, 1);
         Assert.assertArrayEquals("Unexpected result from copyTo.", expectedData, outputStream1.toByteArray());
-        Assert.assertArrayEquals("Unexpected result from copyTo(bufSize=1).", expectedData, outputStream2.toByteArray());
     }
 
     private byte[] newData() {
