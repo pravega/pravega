@@ -12,7 +12,6 @@ package io.pravega.segmentstore.storage.mocks;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.Cache;
 import java.util.Arrays;
 import java.util.Map;

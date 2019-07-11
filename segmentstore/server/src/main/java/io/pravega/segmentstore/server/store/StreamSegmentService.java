@@ -16,7 +16,6 @@ import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
 import io.pravega.shared.segment.SegmentToContainerMapper;
-import java.nio.Buffer;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;

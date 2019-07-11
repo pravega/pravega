@@ -140,6 +140,18 @@ public class ByteArraySegment implements ArrayView {
         System.arraycopy(this.array, this.startOffset, target, targetOffset, length);
     }
 
+    /**
+     * Writes the entire contents of this ByteArraySegment to the given OutputStream. Only copies the contents of the
+     * ByteArraySegment, and writes no other data (such as the length of the Segment or any other info).
+     *
+     * @param stream The OutputStream to write to.
+     * @throws IOException If the OutputStream threw one.
+     */
+    @Override
+    public void copyTo(OutputStream stream) throws IOException {
+        stream.write(this.array, this.startOffset, this.length);
+    }
+
     //endregion
 
     //region Operations
@@ -201,18 +213,6 @@ public class ByteArraySegment implements ArrayView {
         Preconditions.checkElementIndex(length, source.getLength() + 1, "length");
 
         System.arraycopy(source.array, source.startOffset + sourceOffset, this.array, this.startOffset + targetOffset, length);
-    }
-
-    /**
-     * Writes the entire contents of this ByteArraySegment to the given OutputStream. Only copies the contents of the
-     * ByteArraySegment, and writes no other data (such as the length of the Segment or any other info).
-     *
-     * @param stream The OutputStream to write to.
-     * @throws IOException If the OutputStream threw one.
-     */
-    @Override
-    public void copyTo(OutputStream stream) throws IOException {
-        stream.write(this.array, this.startOffset, this.length);
     }
 
     /**

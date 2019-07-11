@@ -12,8 +12,6 @@ package io.pravega.shared.protocol.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
-import io.pravega.common.util.HashedArray;
 import java.io.InputStream;
 import lombok.NonNull;
 
@@ -61,14 +59,6 @@ public class ByteBufWrapper implements BufferView {
     public String toString() {
         return this.buf.toString();
     }
-//
-//    @Override
-//    public boolean equals(Object other){
-//        if(other instanceof ByteBufWrapper){
-//            return HashedArray.arrayEquals(new ByteArraySegment(this.getCopy()), new ByteArraySegment(((ByteBufWrapper)other).getCopy()));
-//        }
-//        return false;
-//    }
 
     //endregion
 }

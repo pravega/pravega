@@ -283,10 +283,8 @@ public interface RevisionDataOutput extends DataOutput {
      * This can be read back using {@link RevisionDataInput#readArray()} as this method serializes the data in the same
      * ways as {@link #writeArray}.
      *
-     * @param array  The {@link BufferView} to serialize. Can be null (in which case an Empty array will be deserialized
+     * @param buffer The {@link BufferView} to serialize. Can be null (in which case an Empty array will be deserialized
      *               by {@link RevisionDataInput#readArray})).
-     * @param offset The offset within the array to begin serializing at. This is ignored if array == null.
-     * @param length The number of elements to serialize. This is ignored if array == null.
      * @throws IOException If an IO Exception occurred.
      */
     void writeBuffer(BufferView buffer) throws IOException;

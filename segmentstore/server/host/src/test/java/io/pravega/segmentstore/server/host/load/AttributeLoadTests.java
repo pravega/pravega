@@ -15,7 +15,6 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.util.BufferView;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;

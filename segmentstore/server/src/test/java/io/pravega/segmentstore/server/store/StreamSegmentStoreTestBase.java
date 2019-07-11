@@ -9,12 +9,12 @@
  */
 package io.pravega.segmentstore.server.store;
 
+import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -35,6 +35,7 @@ import io.pravega.segmentstore.server.logs.DurableLogConfig;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -392,7 +393,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
                 recordAppend(segmentName, appendData, segmentContents);
 
-                result.add(store -> store.append(segmentName, new ByteArraySegment(appendData), createAttributeUpdates(), TIMEOUT));
+                // Use Netty ByteBuf here - this mimics the behavior of AppendProcessor.
+                result.add(store -> store.append(segmentName, new ByteBufWrapper(Unpooled.wrappedBuffer(appendData)), createAttributeUpdates(), TIMEOUT));
             }
 
             // Add the rest of the attribute updates.
