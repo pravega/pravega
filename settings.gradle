@@ -28,4 +28,5 @@ include 'common',
         'test:testcommon',
         'test:integration',
         'test:system',
+        'test:compatibility',
         'bindings'

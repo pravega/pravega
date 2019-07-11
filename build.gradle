@@ -536,6 +536,26 @@ project('test:integration') {
     }
 }
 
+project('test:compatibility') {
+
+    dependencies {
+        compile project(':common')
+        compile project(':client')
+        compile project(':segmentstore:server')
+        compile project(':segmentstore:server:host')
+        compile project(':controller')
+        compile project(':test:testcommon')
+        compile group: 'junit', name:'junit', version: junitVersion
+        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
+        testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
+        testCompile project(path:':common', configuration:'testRuntime')
+        testCompile project(path:':shared:protocol', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:server', configuration:'testRuntime')
+        testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
+        testCompile project(path:':shared:metrics', configuration:'testRuntime')
+   }
+}
 project('shared:controller-api') {
     apply plugin: 'com.google.protobuf'
 
