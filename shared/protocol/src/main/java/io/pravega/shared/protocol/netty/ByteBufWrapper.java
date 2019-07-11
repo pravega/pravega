@@ -11,15 +11,18 @@ package io.pravega.shared.protocol.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferView;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import javax.annotation.concurrent.NotThreadSafe;
 import lombok.NonNull;
 
 /**
  * {@link BufferView} wrapper for {@link ByteBuf} instances.
  */
+@NotThreadSafe
 public class ByteBufWrapper implements BufferView {
     //region Members
 
@@ -37,7 +40,8 @@ public class ByteBufWrapper implements BufferView {
      *
      * @param buf The {@link ByteBuf} to wrap. A read-only duplicate will be made of this buffer; any changes made to the
      *            {@link ByteBuf#readerIndex()} or {@link ByteBuf#writerIndex()} to this object will not be reflected
-     *            in this {@link ByteBufWrapper} instance.
+     *            in this {@link ByteBufWrapper} instance. This {@link ByteBuf} reference count will be incremented by 1
+     *            to reflect the new reference added by this wrapper. Invoke {@link #close()} to release that reference.
      */
     public ByteBufWrapper(@NonNull ByteBuf buf) {
         this.buf = buf.asReadOnly();
@@ -48,17 +52,31 @@ public class ByteBufWrapper implements BufferView {
     //region BufferView implementation
 
     @Override
+    public void retain() {
+        this.buf.retain();
+    }
+
+    @Override
+    public void release() {
+        if (this.buf.refCnt() > 0) {
+            this.buf.release();
+        }
+    }
+
+    @Override
     public int getLength() {
         return this.buf.readableBytes();
     }
 
     @Override
     public InputStream getReader() {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
         return new ByteBufInputStream(this.buf.duplicate(), false);
     }
 
     @Override
     public byte[] getCopy() {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
         ByteBuf buf = this.buf.duplicate();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
@@ -67,6 +85,7 @@ public class ByteBufWrapper implements BufferView {
 
     @Override
     public void copyTo(OutputStream target) throws IOException {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
         ByteBuf buf = this.buf.duplicate();
         buf.readBytes(target, buf.readableBytes());
     }

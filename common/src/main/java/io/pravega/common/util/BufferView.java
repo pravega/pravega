@@ -47,4 +47,20 @@ public interface BufferView {
      * @throws IOException If an exception occurred.
      */
     void copyTo(OutputStream target) throws IOException;
+
+    /**
+     * When implemented in a derived class, notifies any wrapped buffer that this {@link BufferView} has a need for it.
+     * Use {@link #release()} to do the opposite.
+     */
+    default void retain() {
+        // Default implementation intentionally left blank. Any derived class may implement if needed.
+    }
+
+    /**
+     * When implemented in a derived class, notifies any wrapped buffer that this {@link BufferView} no longer has a
+     * need for it.
+     */
+    default void release() {
+        // Default implementation intentionally left blank. Any derived class may implement if needed.
+    }
 }

@@ -15,10 +15,12 @@ import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Random;
 import java.util.UUID;
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for StreamSegmentAppendOperation class.
@@ -57,5 +59,32 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
         }
 
         return result;
+    }
+
+    @Test
+    public void testReferences() {
+        val buf = new RefCountByteArraySegment(new byte[1]);
+        val op = new StreamSegmentAppendOperation(1L, buf, Collections.emptyList());
+        Assert.assertEquals("Expected an invocation to BufferView.retain().", 1, buf.refCount);
+        op.close();
+        Assert.assertEquals("Expected an invocation to BufferView.release().", 0, buf.refCount);
+    }
+
+    private static class RefCountByteArraySegment extends ByteArraySegment {
+        private int refCount = 0;
+
+        RefCountByteArraySegment(byte[] array) {
+            super(array);
+        }
+
+        @Override
+        public void retain() {
+            this.refCount++;
+        }
+
+        @Override
+        public void release() {
+            this.refCount--;
+        }
     }
 }

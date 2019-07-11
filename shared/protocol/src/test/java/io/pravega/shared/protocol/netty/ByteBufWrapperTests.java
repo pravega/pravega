@@ -11,6 +11,8 @@ package io.pravega.shared.protocol.netty;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.pravega.common.ObjectClosedException;
+import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
 import java.util.Random;
 import lombok.Cleanup;
@@ -26,6 +28,39 @@ public class ByteBufWrapperTests {
     private static final int BUFFER_SIZE = 1024;
     private static final int SKIP_COUNT = 10;
     private final Random rnd = new Random(0);
+
+    /**
+     * Tests the {@link ByteBufWrapper#ByteBufWrapper} and  {@link ByteBufWrapper#close} methods' ability to manipulate
+     * the underlying ByteBuf's reference count.
+     */
+    @Test
+    public void testReferences() {
+        val data = newData();
+        val buf = wrap(data);
+        Assert.assertEquals(1, buf.refCnt());
+        val wrap = new ByteBufWrapper(buf);
+        Assert.assertEquals(1, buf.refCnt());
+        wrap.retain();
+        Assert.assertEquals(2, buf.refCnt());
+        buf.release();
+        Assert.assertEquals(1, buf.refCnt());
+        wrap.release();
+        Assert.assertEquals(0, buf.refCnt());
+        wrap.release(); // Check idempotency.
+        Assert.assertEquals(0, buf.refCnt());
+        Assert.assertEquals("Buffer length should be preserved after freeing.", data.length, wrap.getLength());
+
+        // Check the other methods throw.
+        AssertExtensions.assertThrows("getCopy() worked when ByteBufWrapper was closed.",
+                () -> wrap.getCopy(),
+                ex -> ex instanceof ObjectClosedException);
+        AssertExtensions.assertThrows("getReader() worked when ByteBufWrapper was closed.",
+                () -> wrap.getReader(),
+                ex -> ex instanceof ObjectClosedException);
+        AssertExtensions.assertThrows("getReader() worked when ByteBufWrapper was closed.",
+                () -> wrap.copyTo(new ByteArrayOutputStream()),
+                ex -> ex instanceof ObjectClosedException);
+    }
 
     /**
      * Tests the ability of {@link ByteBufWrapper} to separate itself from the state of the underlying byte buffer.

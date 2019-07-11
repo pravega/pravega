@@ -18,10 +18,10 @@ import io.pravega.segmentstore.server.CacheUtilizationProvider;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import java.util.HashSet;
@@ -135,13 +135,28 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
             addToReadIndex((StorageOperation) operation);
             if (operation instanceof StreamSegmentAppendOperation) {
                 // Transform a StreamSegmentAppendOperation into its corresponding Cached version.
+                StreamSegmentAppendOperation appendOp = (StreamSegmentAppendOperation) operation;
                 try {
-                    operation = new CachedStreamSegmentAppendOperation((StreamSegmentAppendOperation) operation);
+                    operation = new CachedStreamSegmentAppendOperation(appendOp);
                 } catch (Throwable ex) {
                     if (Exceptions.mustRethrow(ex)) {
                         throw ex;
                     } else {
                         throw new DataCorruptionException(String.format("Unable to create a CachedStreamSegmentAppendOperation from operation '%s'.", operation), ex);
+                    }
+                }
+
+                // Release the memory occupied by this StreamSegmentAppendOperation's BufferView - it has been processed
+                // and is no longer needed.
+                try {
+                    appendOp.close();
+                } catch (Throwable ex) {
+                    if (Exceptions.mustRethrow(ex)) {
+                        throw ex;
+                    } else {
+                        // We do want to know if for some reason we're unable to release the BufferView's memory, but
+                        // this is no reason to halt the ingestion pipeline and cause a container shutdown.
+                        log.warn("Unable to release memory for operation '{}': ", operation, ex);
                     }
                 }
             }

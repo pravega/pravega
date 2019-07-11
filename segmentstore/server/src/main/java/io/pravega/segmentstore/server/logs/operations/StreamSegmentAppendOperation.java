@@ -23,7 +23,7 @@ import java.util.Collection;
  * Log Operation that represents a StreamSegment Append. This operation, as opposed from CachedStreamSegmentAppendOperation,
  * can be serialized to a DurableDataLog. This operation (although possible), should not be directly added to the In-Memory Transaction Log.
  */
-public class StreamSegmentAppendOperation extends StorageOperation implements AttributeUpdaterOperation {
+public class StreamSegmentAppendOperation extends StorageOperation implements AttributeUpdaterOperation, AutoCloseable {
     //region Members
 
     private static final long NO_OFFSET = -1;
@@ -57,6 +57,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
     public StreamSegmentAppendOperation(long streamSegmentId, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates) {
         super(streamSegmentId);
         this.data = Preconditions.checkNotNull(data, "data");
+        this.data.retain(); // Hold this buffer in memory until we are done with it.
         this.streamSegmentOffset = offset;
         this.attributeUpdates = attributeUpdates;
     }
@@ -65,6 +66,11 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
      * Deserialization constructor.
      */
     private StreamSegmentAppendOperation() {
+    }
+
+    @Override
+    public void close() {
+        this.data.release();
     }
 
     //endregion
@@ -166,7 +172,7 @@ public class StreamSegmentAppendOperation extends StorageOperation implements At
             b.instance.setSequenceNumber(source.readLong());
             b.instance.setStreamSegmentId(source.readLong());
             b.instance.streamSegmentOffset = source.readLong();
-            b.instance.data = new ByteArraySegment(source.readArray());
+            b.instance.data = new ByteArraySegment(source.readArray()); // No need to invoke BufferView.retain() here.
             b.instance.attributeUpdates = source.readCollection(this::readAttributeUpdate00);
         }
 
