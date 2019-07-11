@@ -405,8 +405,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
                 // Use Netty ByteBuf here - this mimics the behavior of AppendProcessor.
                 ByteBuf buf = Unpooled.wrappedBuffer(appendData);
-                result.add(store -> store.append(segmentName, new ByteBufWrapper(buf), createAttributeUpdates(), TIMEOUT)
-                                         .whenComplete((r, ex) -> buf.release()));
+                result.add(store -> store.append(segmentName, new ByteBufWrapper(buf), createAttributeUpdates(), TIMEOUT));
                 if (appendBuffers != null) {
                     appendBuffers.add(buf);
                 }
@@ -836,6 +835,10 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     private void checkAppendLeaks(ArrayList<ByteBuf> buffers) {
+        // Release our reference to these buffers.
+        buffers.forEach(ByteBuf::release);
+
+        // Then verify nobody else still holds such a reference.
         Assert.assertTrue("Memory Leak: At least one append buffer did not have its data released.",
                 buffers.stream().allMatch(r -> r.refCnt() == 0));
     }
