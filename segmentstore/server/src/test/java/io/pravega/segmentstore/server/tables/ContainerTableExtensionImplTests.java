@@ -57,7 +57,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -413,7 +412,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         val data = generateTestData(context);
 
         // Process each such batch in turn.
-        for (val current : data) {
+        for (int i = 0; i < data.size(); i++) {
+            val current = data.get(i);
+
             // First, add the updates from this iteration to the index, but do not flush them. The only long-term effect
             // of this is writing the data to the Segment.
             try (val ext = context.createExtension()) {
@@ -432,24 +433,23 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
                 long segmentLength = context.segment().getInfo().getLength();
                 AssertExtensions.assertGreaterThan("Expected some unindexed data.", lastIndexedOffset, segmentLength);
 
+                boolean useProcessor = i % 2 == 0; // This ensures that last iteration uses the processor.
+
                 // Verify get requests are blocked.
-                val blockedKey = current.expectedEntries.keySet().stream().findFirst().orElse(null);
-                val blockedGet = ext.get(SEGMENT_NAME, Collections.singletonList(blockedKey), TIMEOUT);
-                AssertExtensions.assertThrows(
-                        "get() is not blocked on lack of indexing.",
-                        () -> blockedGet.get(SHORT_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS),
-                        ex -> ex instanceof TimeoutException);
+                val key1 = current.expectedEntries.keySet().stream().findFirst().orElse(null);
+                val get1 = ext.get(SEGMENT_NAME, Collections.singletonList(key1), TIMEOUT);
+                val getResult1 = get1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                Assert.assertEquals("Unexpected completion result for recovered get.",
+                        current.expectedEntries.get(key1), new HashedArray(getResult1.get(0).getValue()));
 
-                // Create, populate, and flush the processor.
-                @Cleanup
-                val processor = (WriterTableProcessor) ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
-                addToProcessor(lastIndexedOffset, (int) (segmentLength - lastIndexedOffset), processor);
-                processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
-
-                val blockedGetResult = blockedGet.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-                Assert.assertEquals("Unexpected completion result for previously blocked get.",
-                        current.expectedEntries.get(blockedKey), new HashedArray(blockedGetResult.get(0).getValue()));
+                if (useProcessor) {
+                    // Create, populate, and flush the processor.
+                    @Cleanup
+                    val processor = (WriterTableProcessor) ext.createWriterSegmentProcessors(context.segment().getMetadata()).stream().findFirst().orElse(null);
+                    addToProcessor(lastIndexedOffset, (int) (segmentLength - lastIndexedOffset), processor);
+                    processor.flush(TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                    Assert.assertFalse("Unexpected result from WriterTableProcessor.mustFlush() after flushing.", processor.mustFlush());
+                }
             }
         }
 

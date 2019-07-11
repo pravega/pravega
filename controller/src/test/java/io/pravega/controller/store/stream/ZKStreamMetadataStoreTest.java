@@ -217,8 +217,6 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         AssertExtensions.assertFutureThrows("Remove txn fails", store.removeTxnFromIndex(host, txn, true), checker);
         AssertExtensions.assertFutureThrows("Remove host fails", store.removeHostFromIndex(host), checker);
         AssertExtensions.assertFutureThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
-        AssertExtensions.assertFutureThrows("Get random txn fails", store.getRandomTxnFromIndex(host), checker);
-        AssertExtensions.assertFutureThrows("List hosts fails", store.listHostsOwningTxn(), checker);
     }
 
     @Test

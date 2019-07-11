@@ -15,6 +15,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
+import io.netty.channel.ChannelPromise;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
@@ -48,10 +49,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -82,6 +80,8 @@ public class FlowHandlerTest {
     private EventLoop loop;
     @Mock
     private ChannelFuture completedFuture;
+    @Mock
+    private ChannelPromise promise;
 
     @BeforeClass
     public static void beforeClass() {
@@ -91,15 +91,15 @@ public class FlowHandlerTest {
     @Before
     public void setUp() throws Exception {
         flow = new Flow(10, 0);
-        when(buffer.readableBytes()).thenReturn(10);
         appendCmd = new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, flow.asLong());
-        doNothing().when(tracker).recordAppend(anyLong(), anyInt());
 
         when(ctx.channel()).thenReturn(ch);
         when(ch.eventLoop()).thenReturn(loop);
         when(ch.writeAndFlush(any(Object.class))).thenReturn(completedFuture);
+        when(ch.write(any(Object.class))).thenReturn(completedFuture);
+        when(ch.newPromise()).thenReturn(promise);
 
-        flowHandler = new FlowHandler("testConnection", tracker);
+        flowHandler = new FlowHandler("testConnection");
     }
 
     @Test
@@ -166,7 +166,7 @@ public class FlowHandlerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void createDuplicateSession() throws Exception {
-        Flow flow = new Flow(11, 0);
+        Flow flow = new Flow(10, 0);
         ClientConnection connection1 = flowHandler.createFlow(flow, processor);
         flowHandler.channelRegistered(ctx);
         connection1.send(appendCmd);
@@ -200,10 +200,11 @@ public class FlowHandlerTest {
 
     @Test
     public void testCreateConnectionWithSessionDisabled() throws Exception {
-        flowHandler = new FlowHandler("testConnection1", tracker);
+        flow = new Flow(0, 10);
+        flowHandler = new FlowHandler("testConnection1");
         flowHandler.channelRegistered(ctx);
         ClientConnection connection = flowHandler.createConnectionWithFlowDisabled(processor);
-        connection.send(appendCmd);
+        connection.send(new Append("segment0", UUID.randomUUID(), 2, 1, buffer, 10L, flow.asLong()));
         assertThrows(IllegalStateException.class, () -> flowHandler.createFlow(flow, processor));
     }
 
@@ -217,6 +218,16 @@ public class FlowHandlerTest {
         flowHandler.channelUnregistered(ctx);
         assertFalse(flowHandler.isConnectionEstablished());
         assertThrows(ConnectionFailedException.class, () -> clientConnection.send(appendCmd));
+        WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
+        clientConnection.sendAsync(cmd, Assert::assertNotNull);
+        clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
+    }
+
+    @Test
+    public void testSendAsync() throws Exception {
+        @Cleanup
+        ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
+        flowHandler.channelRegistered(ctx);
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, Assert::assertNotNull);
         clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
