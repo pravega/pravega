@@ -537,6 +537,7 @@ project('test:integration') {
 }
 
 project('test:compatibility') {
+    apply plugin: 'application'
     dependencies {
         compile project(':common')
         compile project(':client')
