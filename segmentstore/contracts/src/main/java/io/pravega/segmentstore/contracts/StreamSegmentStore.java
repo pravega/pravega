@@ -10,7 +10,6 @@
 package io.pravega.segmentstore.contracts;
 
 import io.pravega.common.util.BufferView;
-import java.nio.Buffer;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
