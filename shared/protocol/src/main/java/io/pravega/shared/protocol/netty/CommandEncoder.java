@@ -9,7 +9,6 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.channel.Channel;
@@ -139,52 +138,34 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
             validateAppend(append, session);
             final ByteBuf data = append.getData().slice();
-            final int msgSize = data.readableBytes();
             final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
                     appendTracker.apply(append.getFlowId());
 
             if (blockSizeSupplier != null) {
-                blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
+                blockSizeSupplier.recordAppend(append.getEventNumber(), data.readableBytes());
             }
-            if ((bytesLeftInBlock == 0) ||
-                    (append.segment.equals(segmentBeingAppendedTo) && append.getWriterId().equals(writerIdPerformingAppends))) {
-                boolean isAppend = false;
-                if (bytesLeftInBlock == 0) {
-                    session.flush(out);
-                    currentBlockSize = msgSize + TYPE_PLUS_LENGTH_SIZE;
-                    if (blockSizeSupplier != null) {
-                        currentBlockSize = Math.max(currentBlockSize, blockSizeSupplier.getAppendBlockSize());
-                    }
-                    bytesLeftInBlock = currentBlockSize;
-                    segmentBeingAppendedTo = append.segment;
-                    writerIdPerformingAppends = append.writerId;
-                    if (ctx != null && currentBlockSize > (msgSize + TYPE_PLUS_LENGTH_SIZE)) {
-                        writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize, out);
-                        isAppend = true;
-                        ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
-                                blockSizeSupplier.getBatchTimeout(),
-                                TimeUnit.MILLISECONDS);
-                    }
-                } else {
-                    isAppend = true;
-                }
+
+            if (isChannelFree()) {
+                session.flush(out);
                 session.recordAppend(append);
-                // Is there enough space for a subsequent message after this one?
-                if (isAppend && ((bytesLeftInBlock - msgSize) > TYPE_PLUS_LENGTH_SIZE)) {
-                    out.writeBytes(data);
-                    bytesLeftInBlock -= msgSize;
-                } else {
-                    if (isAppend) {
-                        ByteBuf dataInsideBlock = data.readSlice(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE);
-                        breakFromAppend(dataInsideBlock, data,  true, out);
-                        flushAll(out);
-                    } else {
-                        breakFromAppend(null, data, false, out);
-                    }
-                }
+                if (startAppend(ctx, blockSizeSupplier, append, out)) {
+                    continueAppend(data, out);
+               } else {
+                    breakFromAppend(null, data, false, out);
+               }
             } else {
                 session.recordAppend(append);
-                session.append(data, out);
+                if (isChannelOwner(append.getWriterId(), append.getSegment())) {
+                    if (bytesLeftInBlock > data.readableBytes()) {
+                        continueAppend(data, out);
+                    } else {
+                        ByteBuf dataInsideBlock = data.readSlice(bytesLeftInBlock);
+                        breakFromAppend(dataInsideBlock, data, true, out);
+                        flushAll(out);
+                    }
+                } else {
+                      session.append(data, out);
+                }
             }
         } else if (msg instanceof SetupAppend) {
             breakCurrentAppend(out);
@@ -222,31 +203,61 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (append.isConditional()) {
             throw new IllegalArgumentException("Conditional appends should be written via a ConditionalAppend object.");
         }
-        Preconditions.checkState(bytesLeftInBlock == 0 || bytesLeftInBlock > TYPE_PLUS_LENGTH_SIZE,
-                "Bug in CommandEncoder.encode, block is too small.");
     }
 
+    private boolean isChannelFree() {
+        return writerIdPerformingAppends == null;
+    }
+
+    private boolean isChannelOwner(UUID writerID, String segment) {
+        return writerID.equals(writerIdPerformingAppends) && segment.equals(segmentBeingAppendedTo);
+    }
+
+    private boolean startAppend(ChannelHandlerContext ctx, AppendBatchSizeTracker blockSizeSupplier, Append append, ByteBuf out) {
+        final int msgSize = append.getData().readableBytes();
+        currentBlockSize = msgSize;
+        if (blockSizeSupplier != null) {
+            currentBlockSize = Math.max(currentBlockSize, blockSizeSupplier.getAppendBlockSize());
+        }
+        bytesLeftInBlock = currentBlockSize;
+        segmentBeingAppendedTo = append.segment;
+        writerIdPerformingAppends = append.writerId;
+        if (ctx != null && currentBlockSize > msgSize) {
+            writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize, out);
+            ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
+                    blockSizeSupplier.getBatchTimeout(),
+                    TimeUnit.MILLISECONDS);
+            return true;
+        }
+        return false;
+    }
+
+    private void continueAppend(ByteBuf data, ByteBuf out) {
+        bytesLeftInBlock -= data.readableBytes();
+        out.writeBytes(data);
+    }
 
     private void breakFromAppend(ByteBuf data, ByteBuf pendingData,  boolean isAppend, ByteBuf out) {
-        if (bytesLeftInBlock != 0) {
-            if (isAppend) {
-                if (data != null) {
-                    writeMessage(new PartialEvent(data), out);
-                } else {
-                    writeMessage(new Padding(bytesLeftInBlock - TYPE_PLUS_LENGTH_SIZE), out);
-                }
+        if (isChannelFree()) {
+            return;
+        }
+        if (isAppend) {
+            if (data != null) {
+                writeMessage(new PartialEvent(data), out);
+            } else {
+                writeMessage(new Padding(bytesLeftInBlock), out);
             }
-            Session session = setupSegments.get(new SimpleImmutableEntry<>(segmentBeingAppendedTo, writerIdPerformingAppends));
-            writeMessage(new AppendBlockEnd(session.id,
-                    currentBlockSize - bytesLeftInBlock,
+         }
+        Session session = setupSegments.get(new SimpleImmutableEntry<>(segmentBeingAppendedTo, writerIdPerformingAppends));
+        writeMessage(new AppendBlockEnd(session.id,
+                currentBlockSize - bytesLeftInBlock,
                     pendingData,
                     session.eventCount,
                     session.lastEventNumber, session.requestId), out);
-            bytesLeftInBlock = 0;
-            currentBlockSize = 0;
-            session.eventCount = 0;
-            tokenCounter.incrementAndGet();
-        }
+        bytesLeftInBlock = 0;
+        currentBlockSize = 0;
+        session.eventCount = 0;
+        tokenCounter.incrementAndGet();
         segmentBeingAppendedTo = null;
         writerIdPerformingAppends = null;
     }
@@ -266,7 +277,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         bout.close();
         int endIdx = out.writerIndex();
         int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
-        out.setInt(startIdx + TYPE_SIZE, fieldsSize + blkSize);
+        out.setInt(startIdx + TYPE_SIZE, fieldsSize + blkSize + TYPE_PLUS_LENGTH_SIZE);
     }
 
     @SneakyThrows(IOException.class)
