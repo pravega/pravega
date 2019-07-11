@@ -537,7 +537,6 @@ project('test:integration') {
 }
 
 project('test:compatibility') {
-
     dependencies {
         compile project(':common')
         compile project(':client')
