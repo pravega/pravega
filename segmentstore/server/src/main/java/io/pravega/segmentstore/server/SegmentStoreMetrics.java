@@ -137,7 +137,7 @@ public final class SegmentStoreMetrics {
         /**
          * Number of ContainerMetadataUpdateTransactions committed at once.
          */
-        private final OpStatsLogger metadataCommitTxnCount;
+        private final OpStatsLogger memoryCommitCount;
 
         /**
          * Amount of time elapsed to commit operations to memory, including commit to Metadata, adding to InMemoryLog
@@ -161,7 +161,7 @@ public final class SegmentStoreMetrics {
             this.operationCommitLatency = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_LATENCY, this.containerTag);
             this.operationLatency = STATS_LOGGER.createStats(MetricsNames.OPERATION_LATENCY, this.containerTag);
             this.memoryCommitLatency = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_MEMORY_LATENCY, this.containerTag);
-            this.metadataCommitTxnCount = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_METADATA_TXN_COUNT, this.containerTag);
+            this.memoryCommitCount = STATS_LOGGER.createStats(MetricsNames.OPERATION_COMMIT_MEMORY_COUNT, this.containerTag);
             this.processOperationsLatency = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_LATENCY, this.containerTag);
             this.processOperationsBatchSize = STATS_LOGGER.createStats(MetricsNames.PROCESS_OPERATIONS_BATCH_SIZE, this.containerTag);
         }
@@ -175,7 +175,7 @@ public final class SegmentStoreMetrics {
             this.operationCommitLatency.close();
             this.operationLatency.close();
             this.memoryCommitLatency.close();
-            this.metadataCommitTxnCount.close();
+            this.memoryCommitCount.close();
             this.processOperationsLatency.close();
             this.processOperationsBatchSize.close();
         }
@@ -193,8 +193,8 @@ public final class SegmentStoreMetrics {
             this.operationQueueWaitTime.reportSuccessValue(queueWaitTimeMillis);
         }
 
-        public void memoryCommit(int metadataUpdateTxnCount, Duration elapsed) {
-            this.metadataCommitTxnCount.reportSuccessValue(metadataUpdateTxnCount);
+        public void memoryCommit(int commitCount, Duration elapsed) {
+            this.memoryCommitCount.reportSuccessValue(commitCount);
             this.memoryCommitLatency.reportSuccessEvent(elapsed);
         }
 
