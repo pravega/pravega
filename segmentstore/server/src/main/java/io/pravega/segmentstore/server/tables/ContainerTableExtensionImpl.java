@@ -51,11 +51,13 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
  * A {@link ContainerTableExtension} that implements Table Segments on top of a {@link SegmentContainer}.
  */
+@Slf4j
 public class ContainerTableExtensionImpl implements ContainerTableExtension {
     //region Members
 
@@ -78,6 +80,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     private final ContainerKeyIndex keyIndex;
     private final EntrySerializer serializer;
     private final AtomicBoolean closed;
+    private final String traceObjectId;
 
     //endregion
 
@@ -111,9 +114,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         this.segmentContainer = segmentContainer;
         this.executor = executor;
         this.hasher = hasher;
-        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, cacheManager, this.executor);
+        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, cacheManager, this.hasher, this.executor);
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
+        this.traceObjectId = String.format("TableExtension[%d]", this.segmentContainer.getId());
     }
 
     //endregion
@@ -124,6 +128,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     public void close() {
         if (!this.closed.getAndSet(true)) {
             this.keyIndex.close();
+            log.info("{}: Closed.", this.traceObjectId);
         }
     }
 
@@ -157,13 +162,14 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         val attributeUpdates = TableAttributes.DEFAULT_VALUES
                 .entrySet().stream()
                 .map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, DEFAULT_ATTRIBUTES.getOrDefault(e.getKey(), e.getValue())))
-                //.map(e -> new AttributeUpdate(e.getKey(), AttributeUpdateType.None, e.getValue()))
                 .collect(Collectors.toList());
+        logRequest("createSegment", segmentName);
         return this.segmentContainer.createStreamSegment(segmentName, attributeUpdates, timeout);
     }
 
     @Override
     public CompletableFuture<Void> deleteSegment(@NonNull String segmentName, boolean mustBeEmpty, Duration timeout) {
+        logRequest("deleteSegment", segmentName, mustBeEmpty);
         if (mustBeEmpty) {
             TimeoutTimer timer = new TimeoutTimer(timeout);
             return this.segmentContainer
@@ -197,6 +203,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         // Generate an Update Batch for all the entries (since we need to know their Key Hashes and relative offsets in
         // the batch itself).
         val updateBatch = batch(entries, TableEntry::getKey, this.serializer::getUpdateLength, TableKeyBatch.update());
+        logRequest("put", segmentName, updateBatch.isConditional(), updateBatch.isRemoval(), entries.size(), updateBatch.getLength());
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, updateBatch,
@@ -212,6 +219,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         // Generate an Update Batch for all the keys (since we need to know their Key Hashes and relative offsets in
         // the batch itself).
         val removeBatch = batch(keys, key -> key, this.serializer::getRemovalLength, TableKeyBatch.removal());
+        logRequest("remove", segmentName, removeBatch.isConditional(), removeBatch.isRemoval(), keys.size(), removeBatch.getLength());
         return this.segmentContainer
                 .forSegment(segmentName, timer.getRemaining())
                 .thenComposeAsync(segment -> this.keyIndex.update(segment, removeBatch,
@@ -223,6 +231,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
     @Override
     public CompletableFuture<List<TableEntry>> get(@NonNull String segmentName, @NonNull List<ArrayView> keys, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        logRequest("get", segmentName, keys.size());
         if (keys.isEmpty()) {
             return CompletableFuture.completedFuture(Collections.emptyList());
         } else {
@@ -277,11 +286,13 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableKey>>> keyIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+        logRequest("keyIterator", segmentName);
         return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::key);
     }
 
     @Override
     public CompletableFuture<AsyncIterator<IteratorItem<TableEntry>>> entryIterator(String segmentName, byte[] serializedState, Duration fetchTimeout) {
+        logRequest("entryIterator", segmentName);
         return newIterator(segmentName, serializedState, fetchTimeout, TableBucketReader::entry);
     }
 
@@ -364,6 +375,10 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
 
     private TableEntry maybeDeleted(TableEntry e) {
         return e == null || e.getValue() == null ? null : e;
+    }
+
+    private void logRequest(String requestName, Object... args) {
+        log.debug("{}: {} {}", this.traceObjectId, requestName, args);
     }
 
     //endregion

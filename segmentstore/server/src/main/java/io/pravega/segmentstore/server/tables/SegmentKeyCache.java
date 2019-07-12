@@ -171,6 +171,24 @@ class SegmentKeyCache {
     }
 
     /**
+     * Updates the tail cache with the given data, which represents a pre-index result of the tail section of the Segment.
+     *
+     * @param keyOffsets A Map of KeyHashes to {@link CacheBucketOffset} instances that represents the latest values (including
+     *                   deletions) for all the pre-indexed keys).
+     * @param generation The current Cache Generation (from the Cache Manager).
+     */
+    synchronized void includeTailCache(Map<UUID, CacheBucketOffset> keyOffsets, int generation) {
+        for (val e : keyOffsets.entrySet()) {
+            CacheBucketOffset offset = e.getValue();
+            CacheBucketOffset existingOffset = get(e.getKey(), generation);
+            if (existingOffset == null || offset.getSegmentOffset() > existingOffset.getSegmentOffset()) {
+                // We have no previous entry, or we do and the current offset is higher, so it prevails.
+                this.tailOffsets.put(e.getKey(), offset);
+            }
+        }
+    }
+
+    /**
      * Updates the contents of a Cache Entry associated with the given Segment Id and KeyHash. This method cannot be
      * used to remove values.
      *
@@ -190,7 +208,7 @@ class SegmentKeyCache {
         synchronized (this) {
             CacheBucketOffset tailOffset = this.tailOffsets.get(keyHash);
             if (tailOffset != null && tailOffset.getSegmentOffset() >= segmentOffset) {
-                // There already exists an higher offset for this Key Hash. No need to do more.
+                // There already exists a higher offset for this Key Hash. No need to do more.
                 return tailOffset.getSegmentOffset();
             }
 

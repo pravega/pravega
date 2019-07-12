@@ -62,6 +62,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceBlockingStub;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
+import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -77,7 +78,9 @@ import java.lang.invoke.MethodHandles;
 import java.net.URI;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -145,7 +148,7 @@ public class ControllerGrpcAuthFocusedTest {
                         .credentials(new DefaultCredentials(DEFAULT_PASSWORD, UserNames.ADMIN))
                         .build());
 
-        AuthHelper authHelper = new AuthHelper(true, "secret");
+        AuthHelper authHelper = new AuthHelper(true, "secret", 300);
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 EXECUTOR, "host", authHelper, requestTracker);
@@ -355,6 +358,82 @@ public class ControllerGrpcAuthFocusedTest {
                 .build());
     }
 
+
+    @Test
+    public void listStreamsReturnsAllWhenUserHasWildCardAccess() {
+        // Arrange
+        String scopeName = "scope1";
+        createScopeAndStreams(scopeName, Arrays.asList("stream1", "stream2"),
+                prepareFromFixedScaleTypePolicy(2));
+
+        Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope(scopeName).build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+
+        // Act
+        Controller.StreamsInScopeResponse response = stub.listStreamsInScope(request);
+
+        // Assert
+        assertEquals(2, response.getStreamsList().size());
+    }
+
+    @Test
+    public void listStreamReturnsEmptyResultWhenUserHasNoAccessToStreams() {
+        // Arrange
+        createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
+                prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE1_READ, DEFAULT_PASSWORD);
+        Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope("scope1").build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act
+        Controller.StreamsInScopeResponse response = stub.listStreamsInScope(request);
+
+        // Assert
+        assertEquals(0, response.getStreamsList().size());
+    }
+
+    @Test
+    public void listStreamFiltersResultWhenUserHasAccessToSubsetOfStreams() {
+        // Arrange
+        createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
+                prepareFromFixedScaleTypePolicy(2));
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE1_STREAM1_LIST_READ, DEFAULT_PASSWORD);
+        Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope("scope1").build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act
+        Controller.StreamsInScopeResponse response = stub.listStreamsInScope(request);
+
+        // Assert
+        assertEquals(1, response.getStreamsList().size());
+    }
+
+    @Test
+    public void listStreamThrowsExceptionWhenUserHasNoAccessToScope() {
+        // Arrange
+        createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
+                prepareFromFixedScaleTypePolicy(2));
+
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE2_READ, DEFAULT_PASSWORD);
+        Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(
+                        Controller.ScopeInfo.newBuilder().setScope("scope1").build())
+                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+
+        // Act and assert
+        AssertExtensions.assertThrows("Expected auth failure.",
+                () -> stub.listStreamsInScope(request),
+                e -> e.getMessage().contains("UNAUTHENTICATED"));
+    }
+
     //region Private methods
 
     private static TxnId decode(UUID txnId) {
@@ -417,29 +496,44 @@ public class ControllerGrpcAuthFocusedTest {
                 .build();
     }
 
-    private void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(scope, "stream");
-        Preconditions.checkNotNull(scalingPolicy, "scalingPolicy");
-
-        StreamConfig streamConfig = StreamConfig.newBuilder()
-                .setStreamInfo(Controller.StreamInfo.newBuilder()
-                        .setScope(scope)
-                        .setStream(stream)
-                        .build())
-                .setScalingPolicy(scalingPolicy)
-                .build();
-        createScopeAndStream(scope, streamConfig);
+    private void createScopeAndStream(String scopeName, String streamName, ScalingPolicy scalingPolicy) {
+        createScopeAndStreams(scopeName, Arrays.asList(streamName), scalingPolicy);
     }
 
-    private void createScopeAndStream(String scope, StreamConfig streamConfig) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Preconditions.checkNotNull(streamConfig, "streamConfig");
+    private void createScopeAndStreams(String scopeName, List<String> streamNames, ScalingPolicy scalingPolicy) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scope");
+        Preconditions.checkNotNull(streamNames, "stream");
+        Preconditions.checkArgument(streamNames.size() > 0);
+        Preconditions.checkNotNull(scalingPolicy, "scalingPolicy");
 
         ControllerServiceBlockingStub stub =
                 prepareCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
-        stub.createScope(Controller.ScopeInfo.newBuilder().setScope(scope).build());
-        stub.createStream(streamConfig);
+        createScope(stub, scopeName);
+
+        streamNames.stream().forEach(n -> createStream(stub, scopeName, n, scalingPolicy));
+    }
+
+    private void createScope(ControllerServiceBlockingStub stub, String scopeName) {
+        CreateScopeStatus status = stub.createScope(Controller.ScopeInfo.newBuilder().setScope(scopeName).build());
+        if (!status.getStatus().equals(CreateScopeStatus.Status.SUCCESS)) {
+            throw new RuntimeException("Failed to create scope");
+        }
+    }
+
+    private void createStream(ControllerServiceBlockingStub stub, String scopeName,
+                              String streamName, ScalingPolicy scalingPolicy) {
+        StreamConfig streamConfig = StreamConfig.newBuilder()
+                .setStreamInfo(Controller.StreamInfo.newBuilder()
+                        .setScope(scopeName)
+                        .setStream(streamName)
+                        .build())
+                .setScalingPolicy(scalingPolicy)
+                .build();
+        Controller.CreateStreamStatus status = stub.createStream(streamConfig);
+
+        if (!status.getStatus().equals(Controller.CreateStreamStatus.Status.SUCCESS)) {
+            throw new RuntimeException("Failed to create stream");
+        }
     }
 
     private static File createAuthFile() {
@@ -451,9 +545,12 @@ public class ControllerGrpcAuthFocusedTest {
                 String defaultPassword = passwordEncryptor.encryptPassword("1111_aaaa");
                 writer.write(credentialsAndAclAsString(UserNames.ADMIN,  defaultPassword, "*,READ_UPDATE;"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE_READER, defaultPassword, "/,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_READ, defaultPassword, "scope1,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE2_READ, defaultPassword, "scope2,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READUPDATE, defaultPassword, "scope1/stream1,READ_UPDATE"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_READ, defaultPassword, "scope1/stream1,READ"));
                 writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM2_READ, defaultPassword, "scope1/stream2,READ"));
+                writer.write(credentialsAndAclAsString(UserNames.SCOPE1_STREAM1_LIST_READ, defaultPassword, "scope1,READ;scope1/stream1,READ"));
             }
             return result;
         } catch (IOException | NoSuchAlgorithmException | InvalidKeySpecException e) {
@@ -469,8 +566,11 @@ public class ControllerGrpcAuthFocusedTest {
     private static class UserNames {
         private final static String ADMIN = "admin";
         private final static String SCOPE_READER = "scopereader";
+        private final static String SCOPE1_READ = "scope1read";
+        private final static String SCOPE2_READ = "scope2read";
         private final static String SCOPE1_STREAM1_READUPDATE = "authSc1Str1";
         private final static String SCOPE1_STREAM1_READ = "authSc1Str1readonly";
         private final static String SCOPE1_STREAM2_READ = "authSc1Str2readonly";
+        private final static String SCOPE1_STREAM1_LIST_READ = "scope1stream1lr";
     }
 }
