@@ -546,7 +546,7 @@ public class AppendEncodeDecodeTest {
     public void testAppendComplete() throws Exception {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
-        byte[] content = new byte[512];
+        byte[] content = new byte[256];
         Arrays.fill(content, (byte) 1);
         Event event = new Event(Unpooled.wrappedBuffer(content));
         idBatchSizeTrackerMap.remove(1L);
@@ -558,11 +558,13 @@ public class AppendEncodeDecodeTest {
         appendDecoder.processCommand(setupAppend);
         commandEncoder.encode(ctx, new Append("segment", writerId, 1, event, 1), fakeNetwork);
         commandEncoder.encode(ctx, new Append("segment", writerId, 2, event, 1), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment", writerId, 3, event, 1), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment", writerId, 4, event, 1), fakeNetwork);
         read(fakeNetwork, received);
         assertEquals(2, received.size());
         Append readAppend = (Append) received.get(1);
-        assertEquals((512  + TYPE_PLUS_LENGTH_SIZE) * 2L, readAppend.data.readableBytes());
-        assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 2L, readAppend.data.readableBytes());
+        assertEquals((256  + TYPE_PLUS_LENGTH_SIZE) * 4L, readAppend.data.readableBytes());
+        assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 4L, readAppend.data.readableBytes());
     }
 
     @Test
