@@ -66,7 +66,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final long SHORT_TIMEOUT_MILLIS = TIMEOUT.toMillis() / 3;
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
-    private static final Duration SHORT_RECOVERY_TIMEOUT = Duration.ofSeconds(1);
+    private static final Duration SHORT_RECOVERY_TIMEOUT = Duration.ofSeconds(2);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -587,7 +587,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // Verify that a new operation will be unblocked if we notify that the recovery completed successfully.
         val get1 = context.index.getBucketOffsets(context.segment, hashes, context.timer);
         context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), context.segment.getInfo().getLength());
-        val result1 = get1.get(SHORT_RECOVERY_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val result1 = get1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val expected1 = new HashMap<UUID, Long>();
         keysWithOffsets.forEach((k, o) -> expected1.put(k, o.offset));
         AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after a retry.", expected1, result1);
