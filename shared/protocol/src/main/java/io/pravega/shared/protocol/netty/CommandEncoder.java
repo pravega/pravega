@@ -223,7 +223,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         segmentBeingAppendedTo = append.segment;
         writerIdPerformingAppends = append.writerId;
         if (ctx != null && currentBlockSize > msgSize) {
-            writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize, out);
+            writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize + TYPE_PLUS_LENGTH_SIZE, out);
             ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
                     blockSizeSupplier.getBatchTimeout(),
                     TimeUnit.MILLISECONDS);
@@ -277,7 +277,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         bout.close();
         int endIdx = out.writerIndex();
         int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
-        out.setInt(startIdx + TYPE_SIZE, fieldsSize + blkSize + TYPE_PLUS_LENGTH_SIZE);
+        out.setInt(startIdx + TYPE_SIZE, fieldsSize + blkSize);
     }
 
     @SneakyThrows(IOException.class)
