@@ -76,6 +76,10 @@ class ProducerOperation<T extends ProducerUpdate> {
      */
     void completed(long elapsedMillis) {
         this.elapsedMillis = elapsedMillis;
+        if (this.update != null) {
+            this.update.release();
+        }
+
         Consumer<ProducerOperation<T>> callback = this.completionCallback;
         if (callback != null) {
             Callbacks.invokeSafely(callback, this, null);
@@ -87,6 +91,10 @@ class ProducerOperation<T extends ProducerUpdate> {
      * with it.
      */
     void failed(Throwable ex) {
+        if (this.update != null) {
+            this.update.release();
+        }
+
         BiConsumer<ProducerOperation<T>, Throwable> callback = this.failureCallback;
         if (callback != null) {
             Callbacks.invokeSafely(callback, this, ex, null);

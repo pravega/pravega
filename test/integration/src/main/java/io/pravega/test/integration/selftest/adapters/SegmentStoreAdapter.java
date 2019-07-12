@@ -37,6 +37,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
@@ -182,8 +183,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureRunning();
-        ArrayView s = event.getSerialization();
-        return this.streamSegmentStore.append(streamName, s, null, timeout)
+        return this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), null, timeout)
                                       .exceptionally(ex -> attemptReconcile(ex, streamName, timeout));
     }
 

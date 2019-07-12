@@ -13,4 +13,5 @@ package io.pravega.test.integration.selftest;
  * Defines a modification that the SelfTester can apply to a Target (Stream/Table).
  */
 interface ProducerUpdate {
+    void release();
 }

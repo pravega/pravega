@@ -74,6 +74,11 @@ class TableUpdate implements ProducerUpdate {
     //region Properties
 
     @Override
+    public void release() {
+        // Nothing to do.
+    }
+
+    @Override
     public String toString() {
         return String.format("%s KeyId:%s, Version:%s",
                 isRemoval() ? "Remove" : "Update", this.keyId, this.version == null ? "(null)" : this.version.toString());
