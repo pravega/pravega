@@ -79,7 +79,7 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         storeClient = StoreClientFactory.createZKStoreClient(zkClient);
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
         segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
-        taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
+        taskMetadataStore = TaskStoreFactoryForTests.createStore(storeClient, executorService);
         streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, AuthHelper.getDisabledAuthHelper(), 
                 zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);

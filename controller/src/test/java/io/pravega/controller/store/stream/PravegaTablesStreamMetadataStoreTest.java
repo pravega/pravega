@@ -64,7 +64,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         int connectionTimeout = 5000;
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
-        SegmentHelper segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
+        segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
         store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(1), AuthHelper.getDisabledAuthHelper());
         ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
                 BucketStore.ServiceType.WatermarkingService, 1);
