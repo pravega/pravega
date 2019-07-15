@@ -251,7 +251,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             return getUnreadBytesIgnoringRange(synchronizer.getState().getPositions(), synchronizer.getState().getEndSegments(), metaFactory);
         }
     }
-    
+
     private long getUnreadBytes(Map<Stream, Map<Segment, Long>> positions, Map<Segment, Long> endSegments, SegmentMetadataClientFactory metaFactory) {
         log.debug("Compute unread bytes from position {}", positions);
         final List<CompletableFuture<Long>> futures = new ArrayList<>(positions.size());
@@ -274,7 +274,7 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         for (Entry<Stream, Map<SegmentWithRange, Long>> streamPosition : positions.entrySet()) {
             StreamCut fromStreamCut = new StreamCutImpl(streamPosition.getKey(), dropRange(streamPosition.getValue()));
             StreamCut toStreamCut = computeEndStreamCut(streamPosition.getKey(), endSegments);
-            totalLength += getRemainingBytes(metaFactory, fromStreamCut, toStreamCut);
+            totalLength += Futures.getAndHandleExceptions(getRemainingBytes(metaFactory, fromStreamCut, toStreamCut), RuntimeException::new).longValue();
         }
         return totalLength;
     }
