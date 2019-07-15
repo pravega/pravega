@@ -40,6 +40,11 @@ public final class SegmentStoreMetrics {
      */
     private static final OpStatsLogger GLOBAL_OPERATION_LATENCY = STATS_LOGGER.createStats(MetricsNames.OPERATION_LATENCY);
 
+    /**
+     * Global metric to publish the time elapsed for the recovery of Segment Store containers.
+     */
+    private static final OpStatsLogger RECOVERY_TIMES = STATS_LOGGER.createStats(MetricsNames.CONTAINER_RECOVERY_TIME);
+
     //region CacheManager
 
     /**
@@ -321,6 +326,17 @@ public final class SegmentStoreMetrics {
             DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_SEAL_COUNT, containerTag);
             DYNAMIC_LOGGER.freezeMeter(MetricsNames.CONTAINER_TRUNCATE_COUNT, containerTag);
         }
+    }
+
+    //endregion
+
+    //region RecoveryProcessor
+
+    /**
+     * RecoveryProcessor metrics.
+     */
+    public static void recoveryCompleted(long duration) {
+        RECOVERY_TIMES.reportSuccessValue(duration);
     }
 
     //endregion

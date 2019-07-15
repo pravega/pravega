@@ -15,6 +15,7 @@ import io.pravega.common.Timer;
 import io.pravega.segmentstore.contracts.ContainerException;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
 import io.pravega.segmentstore.server.DataCorruptionException;
+import io.pravega.segmentstore.server.SegmentStoreMetrics;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -92,8 +93,10 @@ class RecoveryProcessor {
         try {
             recoveredItemCount = recoverAllOperations(metadataUpdater);
             this.metadata.setContainerEpoch(this.durableDataLog.getEpoch());
+            long timeElapsed = timer.getElapsedMillis();
             log.info("{} Recovery completed. Epoch = {}, Items Recovered = {}, Time = {}ms.", this.traceObjectId,
-                    this.metadata.getContainerEpoch(), recoveredItemCount, timer.getElapsedMillis());
+                    this.metadata.getContainerEpoch(), recoveredItemCount, timeElapsed);
+            SegmentStoreMetrics.recoveryCompleted(timeElapsed);
             successfulRecovery = true;
         } finally {
             // We must exit recovery mode when done, regardless of outcome.
