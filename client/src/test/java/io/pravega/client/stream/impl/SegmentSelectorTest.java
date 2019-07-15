@@ -274,14 +274,14 @@ public class SegmentSelectorTest {
         // one pending event is returned by segment0
         assertEquals(singletonList(pendingEvent), pendingEvents);
         // the current number of writers is 3, it includes the writer to segment 0.
-        List<SegmentOutputStream> writers = selector.getWriters();
+        Map<Segment, SegmentOutputStream> writers = selector.getWriters();
         assertEquals(3, writers.size());
-        assertTrue(writers.contains(s0Writer));
-        assertTrue(writers.contains(s1Writer));
-        assertTrue(writers.contains(s2Writer));
+        assertTrue(writers.values().contains(s0Writer));
+        assertTrue(writers.values().contains(s1Writer));
+        assertTrue(writers.values().contains(s2Writer));
         // remove segment 0, this is done post resending the pending events.
         selector.removeSegmentWriter(segment0);
-        assertFalse(selector.getWriters().contains(s0Writer));
+        assertFalse(selector.getWriters().values().contains(s0Writer));
     }
 
 }
