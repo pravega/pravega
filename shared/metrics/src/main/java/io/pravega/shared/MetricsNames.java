@@ -126,6 +126,7 @@ public final class MetricsNames {
     public static final String CONTAINER_MERGE_SEGMENT_COUNT = PREFIX + "segmentstore.container.merge_segment_count";            // Per-container Event Counter
     public static final String CONTAINER_SEAL_COUNT = PREFIX + "segmentstore.container.seal_count";                              // Per-container Event Counter
     public static final String CONTAINER_TRUNCATE_COUNT = PREFIX + "segmentstore.container.truncate_count";                      // Per-container Event Counter
+    public static final String CONTAINER_RECOVERY_TIME = PREFIX + "segmentstore.container.recovery_time";                        // Histogram
 
     // Operation processor metrics
     public static final String PROCESS_OPERATIONS_LATENCY = PREFIX + "segmentstore.container.process_operations.latency_ms";                 // Per-container Histogram
