@@ -267,7 +267,7 @@ public class SegmentSelectorTest {
         //trigger refresh
         selector.refreshSegmentEventWriters(segmentSealedCallback);
         // only segment 0 writer is present.
-        assertEquals(singletonList(s0Writer), selector.getWriters());
+        assertEquals(s0Writer, selector.getWriters().values().stream().findAny().get());
 
         // trigger a referesh of writers due to segment 0 being sealed.
         List<PendingEvent> pendingEvents = selector.refreshSegmentEventWritersUponSealed(segment0, segmentSealedCallback);
