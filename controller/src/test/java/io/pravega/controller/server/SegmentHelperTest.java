@@ -264,7 +264,7 @@ public class SegmentHelperTest {
 
         CompletableFuture<Controller.TxnStatus> result = helper.commitTransaction("", "", 0L, 0L, new UUID(0L, 0L), "");
         requestId = ((MockConnection) (factory.connection)).getRequestId();
-        factory.rp.process(new WireCommands.SegmentsMerged(requestId, getQualifiedStreamSegmentName("", "", 0L), getQualifiedStreamSegmentName("", "", 0L)));
+        factory.rp.process(new WireCommands.SegmentsMerged(requestId, getQualifiedStreamSegmentName("", "", 0L), getQualifiedStreamSegmentName("", "", 0L), 0L));
         result.join();
 
         result = helper.commitTransaction("", "", 0L, 0L, new UUID(0L, 0L), "");

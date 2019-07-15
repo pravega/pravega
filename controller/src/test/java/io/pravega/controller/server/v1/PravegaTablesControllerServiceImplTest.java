@@ -39,6 +39,7 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.store.task.TaskStoreFactoryForTests;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.TestingServerStarter;
@@ -60,17 +61,16 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
     private StoreClient storeClient;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamRequestHandler streamRequestHandler;
+    private TaskMetadataStore taskMetadataStore;
 
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Cluster cluster;
     private StreamMetadataStore streamStore;
+    private SegmentHelper segmentHelper;
 
     @Override
     public void setup() throws Exception {
-        final HostControllerStore hostStore;
-        final TaskMetadataStore taskMetadataStore;
-        final SegmentHelper segmentHelper;
         final RequestTracker requestTracker = new RequestTracker(true);
 
         zkServer = new TestingServerStarter().start();
@@ -83,7 +83,6 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
         segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
         taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
-        hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, AuthHelper.getDisabledAuthHelper(), 
                 zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
@@ -134,5 +133,10 @@ public class PravegaTablesControllerServiceImplTest extends ControllerServiceImp
         storeClient.close();
         zkClient.close();
         zkServer.close();
+    }
+
+    @Override
+    void blockCriticalSection() {
+        ((TaskStoreFactoryForTests.ZKTaskMetadataStoreForTests) taskMetadataStore).blockCriticalSection();
     }
 }

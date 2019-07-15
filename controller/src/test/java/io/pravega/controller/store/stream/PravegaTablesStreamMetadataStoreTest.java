@@ -154,8 +154,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
 
         SimpleEntry<Long, Long> simpleEntrySplitsMerges = findSplitsAndMerges(scope, stream);
 
-        assertEquals("Number of splits ", new Long(0), simpleEntrySplitsMerges.getKey());
-        assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges.getValue());
+        assertEquals("Number of splits ", 0L, simpleEntrySplitsMerges.getKey().longValue());
+        assertEquals("Number of merges", 0L, simpleEntrySplitsMerges.getValue().longValue());
 
         // Case: Only splits, S0 split into S2, S3, S4 and S1 split into S5, S6,
         //  total splits = 2, total merges = 3
@@ -174,8 +174,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertEquals(scaleRecords.get(1).getMerges(), 0L);
         assertEquals(scaleRecords.size(), 2);
         SimpleEntry<Long, Long> simpleEntrySplitsMerges1 = findSplitsAndMerges(scope, stream);
-        assertEquals("Number of splits ", new Long(2), simpleEntrySplitsMerges1.getKey());
-        assertEquals("Number of merges", new Long(0), simpleEntrySplitsMerges1.getValue());
+        assertEquals("Number of splits ", 2L, simpleEntrySplitsMerges1.getKey().longValue());
+        assertEquals("Number of merges", 0L, simpleEntrySplitsMerges1.getValue().longValue());
 
         // Case: Splits and merges both, S2 and S3 merged to S7,  S4 and S5 merged to S8,  S6 split to S9 and S10
         // total splits = 3, total merges = 2
@@ -193,8 +193,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertEquals(scaleRecords.get(2).getMerges(), 2L);
 
         SimpleEntry<Long, Long> simpleEntrySplitsMerges2 = findSplitsAndMerges(scope, stream);
-        assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges2.getKey());
-        assertEquals("Number of merges", new Long(2), simpleEntrySplitsMerges2.getValue());
+        assertEquals("Number of splits ", 3L, simpleEntrySplitsMerges2.getKey().longValue());
+        assertEquals("Number of merges", 2L, simpleEntrySplitsMerges2.getValue().longValue());
 
         // Case: Only merges , S7 and S8 merged to S11,  S9 and S10 merged to S12
         // total splits = 3, total merges = 4
@@ -210,8 +210,8 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         assertEquals(scaleRecords.get(3).getMerges(), 2L);
 
         SimpleEntry<Long, Long> simpleEntrySplitsMerges3 = findSplitsAndMerges(scope, stream);
-        assertEquals("Number of splits ", new Long(3), simpleEntrySplitsMerges3.getKey());
-        assertEquals("Number of merges", new Long(4), simpleEntrySplitsMerges3.getValue());
+        assertEquals("Number of splits ", 3L, simpleEntrySplitsMerges3.getKey().longValue());
+        assertEquals("Number of merges", 4L, simpleEntrySplitsMerges3.getValue().longValue());
     }
     
     @Test
