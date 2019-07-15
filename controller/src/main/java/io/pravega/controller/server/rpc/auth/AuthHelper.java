@@ -17,11 +17,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helper class containing APIs related to delegation token and authorization/authentication.
  */
 @AllArgsConstructor
+@Slf4j
 public class AuthHelper {
 
     private final boolean isAuthEnabled;
@@ -40,6 +42,7 @@ public class AuthHelper {
             AuthHandler.Permissions allowedLevel;
             if (currentInterceptor == null) {
                 //No interceptor, and authorization is enabled. That means no access is granted.
+                log.warn("Auth is enabled but current interceptor is null. Defaulting to no permissions.");
                 allowedLevel = AuthHandler.Permissions.NONE;
             } else {
                 allowedLevel = currentInterceptor.authorize(resource);

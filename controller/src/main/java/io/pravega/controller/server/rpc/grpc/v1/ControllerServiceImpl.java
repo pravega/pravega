@@ -400,23 +400,42 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String scopeName = request.getScope().getScope();
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStream", scopeName);
         log.info(requestTag.getRequestId(), "listStream called for scope {}.", scopeName);
+
         authenticateExecuteAndProcessResults(
-                () -> this.authHelper.checkAuthorization(AuthResourceRepresentation.ofScope(scopeName),
-                        AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.listStreams(
-                        scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                () -> {
+                        String result = this.authHelper.checkAuthorization(AuthResourceRepresentation.ofScope(scopeName),
+                            AuthHandler.Permissions.READ);
+                        log.debug("Result of authorization for [{}] and READ permission is: [{}]",
+                            AuthResourceRepresentation.ofScope(scopeName), result);
+                        return result;
+                },
+                delegationToken -> controllerService.listStreams(scopeName, request.getContinuationToken().getToken(),
+                        listStreamsInScopeLimit)
                         .thenApply(response -> {
+                             log.debug("response: {}", response);
                              List<StreamInfo> streams = response.getKey().stream()
-                                     .filter(streamName -> authHelper.isAuthorized(
-                                             AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
-                                             AuthHandler.Permissions.READ))
+                                     .filter(streamName -> {
+                                         log.debug("Entered for stream [{}]", streamName);
+                                         String streamAuthResource =
+                                                 AuthResourceRepresentation.ofStreamInScope(scopeName, streamName);
+                                         boolean isAuthorized = authHelper.isAuthorized(streamAuthResource,
+                                             AuthHandler.Permissions.READ);
+                                         log.debug("Authorization for [{}] for READ permission was [{}]",
+                                                 streamAuthResource, isAuthorized);
+                                         return isAuthorized;
+                                     })
                                      .map(m -> StreamInfo.newBuilder().setScope(scopeName).setStream(m).build())
                                      .collect(Collectors.toList());
                              return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(streams)
                                      .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(
                                              response.getValue()).build()).build();
+                        })
+                        .exceptionally(e -> {
+                            log.error("Encountered error", e);
+                            return null;
                         }),
-                        responseObserver, requestTag);
+                responseObserver,
+                requestTag);
     }
 
     @Override
