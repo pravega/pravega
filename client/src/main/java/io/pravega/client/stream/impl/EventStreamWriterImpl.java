@@ -83,15 +83,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
     private final ExecutorService retransmitPool;
     private final Pinger pinger;
     
-<<<<<<< HEAD
     EventStreamWriterImpl(Stream stream, String writerId, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool) {
-        this.writerId = writerId;
-=======
-    EventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
                           Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool,
                           ScheduledExecutorService internalExecutor) {
->>>>>>> master
+        this.writerId = writerId;
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
