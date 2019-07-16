@@ -259,6 +259,7 @@ class RocksDBCache implements Cache {
                 .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
                 .setUseDirectReads(true);
+
         InfoLogLevel logLevel = translateRocksDBLogLevel(rocksDBLogLevel);
         Options logOptions = new Options().
                 setInfoLogLevel(logLevel).
@@ -316,22 +317,31 @@ class RocksDBCache implements Cache {
     }
 
     private InfoLogLevel translateRocksDBLogLevel(String logLevel) {
+        InfoLogLevel rocksDBlogLevel;
         switch (logLevel) {
             case "DEBUG":
-                return InfoLogLevel.DEBUG_LEVEL;
+                rocksDBlogLevel = InfoLogLevel.DEBUG_LEVEL;
+                break;
             case "INFO":
-                return InfoLogLevel.INFO_LEVEL;
+                rocksDBlogLevel = InfoLogLevel.INFO_LEVEL;
+                break;
             case "WARN":
-                return InfoLogLevel.WARN_LEVEL;
+                rocksDBlogLevel = InfoLogLevel.WARN_LEVEL;
+                break;
             case "ERROR":
-                return InfoLogLevel.ERROR_LEVEL;
+                rocksDBlogLevel = InfoLogLevel.ERROR_LEVEL;
+                break;
             case "FATAL":
-                return InfoLogLevel.FATAL_LEVEL;
+                rocksDBlogLevel = InfoLogLevel.FATAL_LEVEL;
+                break;
             case "HEADER":
-                return InfoLogLevel.HEADER_LEVEL;
+                rocksDBlogLevel = InfoLogLevel.HEADER_LEVEL;
+                break;
             default:
-                return InfoLogLevel.ERROR_LEVEL;
+                rocksDBlogLevel = InfoLogLevel.ERROR_LEVEL;
+                break;
         }
+        return rocksDBlogLevel;
     }
 
     //endregion
