@@ -71,10 +71,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         }
         if (wasWritten) {
             long newOffset = getNewOffset(offset, size);
-            log.trace("Wrote from {} to {}", offset, newOffset);
+            log.debug("Wrote from {} to {}", offset, newOffset);
             return new RevisionImpl(segment, newOffset, 0);
         } else {
-            log.trace("Write failed at offset {}", offset);
+            log.debug("Write failed at offset {}", offset);
             return null;
         }
     }
@@ -89,7 +89,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         ByteBuffer serialized = serializer.serialize(value);
         try {
             PendingEvent event = PendingEvent.withHeader(null, serialized, ack);
-            log.trace("Unconditionally writing: {}", value);
+            log.debug("Unconditionally writing: {} to segment {}", value, segment);
             synchronized (lock) {
                 out.write(event);
                 out.flush();
@@ -102,6 +102,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public Iterator<Entry<Revision, T>> readFrom(Revision start) {
+        log.debug("Read segment {} from revision {}", segment, start);
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
             SegmentInfo segmentInfo = meta.getSegmentInfo();
@@ -109,7 +110,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException("Data at the supplied revision has been truncated.");
             }
-            log.trace("Creating iterator from {} until {}", startOffset, endOffset);
+            log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
             return new StreamIterator(startOffset, endOffset);
         }
     }
@@ -162,6 +163,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public Revision getMark() {
+        log.debug("Fetching mark for segment {}", segment);
         synchronized (lock) {
             long value = meta.fetchProperty(RevisionStreamClientMark);
             return value == NULL_VALUE ? null : new RevisionImpl(segment, value, 0);

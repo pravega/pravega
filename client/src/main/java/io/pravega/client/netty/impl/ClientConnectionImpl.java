@@ -63,6 +63,7 @@ public class ClientConnectionImpl implements ClientConnection {
             nettyHandler.setRecentMessage();
 
             channel = nettyHandler.getChannel();
+            log.debug("Write and flush message {} on channel {}", cmd, channel);
             channel.writeAndFlush(cmd)
                    .addListener((Future<? super Void> f) -> {
                        if (f.isSuccess()) {
@@ -72,10 +73,10 @@ public class ClientConnectionImpl implements ClientConnection {
                        }
                    });
         } catch (ConnectionFailedException cfe) {
-            log.debug("ConnectionFaileException observed when attempting to write WireCommand {} ", cmd);
+            log.debug("ConnectionFailedException observed when attempting to write WireCommand {} ", cmd);
             callback.complete(cfe);
         } catch (Exception e) {
-            log.warn("Exception while attempting to write WireCommand {} on netty channel {}", cmd, channel);
+            log.warn("Exception while attempting to write WireCommand {} on netty channel {}", cmd, channel, e);
             callback.complete(new ConnectionFailedException(e));
         }
     }
