@@ -25,6 +25,7 @@ public class RocksDBConfig {
     public static final Property<Integer> WRITE_BUFFER_SIZE_MB = Property.named("writeBufferSizeMB", 64);
     public static final Property<Integer> READ_CACHE_SIZE_MB = Property.named("readCacheSizeMB", 8);
     public static final Property<Integer> CACHE_BLOCK_SIZE_KB = Property.named("cacheBlockSizeKB", 32);
+    public static final Property<String> ROCKSDB_LOG_LEVEL = Property.named("rocksDBLogLevel", "ERROR");
     private static final String COMPONENT_CODE = "rocksdb";
 
     //endregion
@@ -60,6 +61,13 @@ public class RocksDBConfig {
     @Getter
     private final int cacheBlockSizeKB;
 
+    /**
+     * Setting rocksDBLogLevel to DEBUG is useful when debugging RocksDB. However, there are certain performance penalties for that,
+     * so it is necessary to explicitly set level when in need, otherwise the default setting is ERROR.
+     */
+    @Getter
+    private final String rocksDBLogLevel;
+
     //endregion
 
     //region Constructor
@@ -74,6 +82,7 @@ public class RocksDBConfig {
         this.writeBufferSizeMB = properties.getInt(WRITE_BUFFER_SIZE_MB);
         this.readCacheSizeMB = properties.getInt(READ_CACHE_SIZE_MB);
         this.cacheBlockSizeKB = properties.getInt(CACHE_BLOCK_SIZE_KB);
+        this.rocksDBLogLevel = properties.get(ROCKSDB_LOG_LEVEL);
     }
 
     /**

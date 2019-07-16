@@ -283,6 +283,8 @@ project('segmentstore:storage:impl') {
         compile group: 'org.rocksdb', name: 'rocksdbjni', version: rocksdbjniVersion
         testCompile project(':test:testcommon')
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
+        testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
+        testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }
     javadoc {
         dependencies {

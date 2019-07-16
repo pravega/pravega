@@ -24,11 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.rocksdb.BlockBasedTableConfig;
-import org.rocksdb.Options;
-import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.WriteOptions;
+import org.rocksdb.*;
 
 /**
  * RocksDB-backed Cache.
@@ -69,6 +65,7 @@ class RocksDBCache implements Cache {
     private final int writeBufferSizeMB;
     private final int readCacheSizeMB;
     private final int cacheBlockSizeKB;
+    private final String rocksDBLogLevel;
 
     //endregion
 
@@ -95,6 +92,7 @@ class RocksDBCache implements Cache {
         this.writeBufferSizeMB = config.getWriteBufferSizeMB() / MAX_WRITE_BUFFER_NUMBER;
         this.readCacheSizeMB = config.getReadCacheSizeMB();
         this.cacheBlockSizeKB = config.getCacheBlockSizeKB();
+        this.rocksDBLogLevel = config.getRocksDBLogLevel();
         try {
             this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
@@ -243,7 +241,7 @@ class RocksDBCache implements Cache {
                 .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
                 .setCacheIndexAndFilterBlocks(true);
 
-        return new Options()
+        Options databaseOptions = new Options()
                 .setCreateIfMissing(true)
                 .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
                 .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
@@ -255,6 +253,35 @@ class RocksDBCache implements Cache {
                 .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
                 .setUseDirectReads(true);
+        InfoLogLevel logLevel = translateRocksDBLogLevel(rocksDBLogLevel);
+        Options logOptions = new Options().
+                setInfoLogLevel(logLevel).
+                setCreateIfMissing(true);
+
+        Logger logger = new Logger(logOptions) {
+            @Override
+            protected void log(InfoLogLevel infoLogLevel, String logMsg) {
+                switch (infoLogLevel) {
+                    case DEBUG_LEVEL:
+                        log.debug(logMsg);
+                        break;
+                    case INFO_LEVEL:
+                        log.info(logMsg);
+                        break;
+                    case WARN_LEVEL:
+                        log.warn(logMsg);
+                        break;
+                    case ERROR_LEVEL:
+                        log.error(logMsg);
+                        break;
+                    default:
+                        log.error(logMsg);
+                        break;
+                }
+            }
+        };
+        databaseOptions.setLogger(logger);
+        return databaseOptions;
     }
 
     private void clear(boolean recreateDirectory) {
@@ -280,6 +307,25 @@ class RocksDBCache implements Cache {
     private void ensureInitializedAndNotClosed() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(this.database.get() != null, "%s has not been initialized.", this.logId);
+    }
+
+    private InfoLogLevel translateRocksDBLogLevel(String logLevel) {
+        switch (logLevel) {
+            case "DEBUG":
+                return InfoLogLevel.DEBUG_LEVEL;
+            case "INFO":
+                return InfoLogLevel.INFO_LEVEL;
+            case "WARN":
+                return InfoLogLevel.WARN_LEVEL;
+            case "ERROR":
+                return InfoLogLevel.ERROR_LEVEL;
+            case "FATAL":
+                return InfoLogLevel.FATAL_LEVEL;
+            case "HEADER":
+                return InfoLogLevel.HEADER_LEVEL;
+            default:
+                return InfoLogLevel.ERROR_LEVEL;
+        }
     }
 
     //endregion
