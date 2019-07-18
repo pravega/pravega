@@ -47,7 +47,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime.Segmen
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCreateStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;

@@ -60,7 +60,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRanges;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCreateStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
@@ -1101,10 +1100,6 @@ public class ControllerImpl implements Controller {
 
         public void deleteScope(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {
             clientStub.deleteScope(scopeInfo, callback);
-        }
-
-        public void checkStreamCreated(StreamInfo streamInfo, RPCAsyncCallback<StreamCreateStatus> callback) {
-            clientStub.checkStreamCreated(streamInfo, callback);
         }
 
         public void getStreamState(StreamInfo streamInfo, RPCAsyncCallback<StreamState> callback) {
