@@ -126,8 +126,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> checkStreamCreated(String scope, String streamName) {
-        return CompletableFuture.completedFuture(true);
+    public CompletableFuture<Stream.State> getStreamState(String scope, String streamName) {
+        return CompletableFuture.completedFuture(Stream.State.ACTIVE);
     }
 
     @Override

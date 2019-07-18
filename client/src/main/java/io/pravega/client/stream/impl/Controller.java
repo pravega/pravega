@@ -85,6 +85,14 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> checkStreamCreated(final String scopeName, final String streamName);
 
     /**
+     * Api to return the state of given stream.
+     * @param scopeName scope name
+     * @param streamName stream name
+     * @return stream state.
+     */
+    CompletableFuture<Stream.State> getStreamState(final String scopeName, final String streamName);
+
+    /**
      * API to update the configuration of a stream.
      * @param scope Scope
      * @param streamName Stream name

@@ -62,6 +62,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCreateStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -295,26 +296,26 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> checkStreamCreated(final String scope, final String streamName) {
+    public CompletableFuture<Stream.State> getStreamState(final String scope, final String streamName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
-
         final long requestId = requestIdGenerator.get();
-        long traceId = LoggerHelpers.traceEnter(log, "checkStreamCreated", scope, streamName, requestId);
+        long traceId = LoggerHelpers.traceEnter(log, "getStreamState", scope, streamName, requestId);
 
-        final CompletableFuture<StreamCreateStatus> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<StreamCreateStatus> callback = new RPCAsyncCallback<>(requestId, "checkStreamCreated");
-            new ControllerClientTagger(client).withTag(requestId, "checkStreamCreated", scope, streamName)
-                    .checkStreamCreated(ModelHelper.createStreamInfo(scope, streamName), callback);
+        final CompletableFuture<StreamState> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<StreamState> callback = new RPCAsyncCallback<>(requestId, "getStreamState");
+            new ControllerClientTagger(client).withTag(requestId, "getStreamState", scope, streamName)
+             .getStreamState(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
         }, this.executor);
-        return result.thenApply(StreamCreateStatus::getResponse)
+        return result.thenApply(state -> ModelHelper.encode(state.getState(), streamName))
                 .whenComplete((x, e) -> {
                     if (e != null) {
-                        log.warn(requestId, "checkStreamCreated failed: ", e);
+                        log.warn("getStreamState failed: ", e);
                     }
-                    LoggerHelpers.traceLeave(log, "checkStreamCreated", traceId, scope, streamName, requestId);
+                    LoggerHelpers.traceLeave(log, "getStreamState", traceId);
+
                 });
     }
 
@@ -1104,6 +1105,10 @@ public class ControllerImpl implements Controller {
 
         public void checkStreamCreated(StreamInfo streamInfo, RPCAsyncCallback<StreamCreateStatus> callback) {
             clientStub.checkStreamCreated(streamInfo, callback);
+        }
+
+        public void getStreamState(StreamInfo streamInfo, RPCAsyncCallback<StreamState> callback) {
+            clientStub.getStreamState(streamInfo, callback);
         }
 
         public void createStream(StreamConfig streamConfig, RPCAsyncCallback<CreateStreamStatus> callback) {

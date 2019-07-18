@@ -181,6 +181,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         };
 
         String delegationToken = checkStreamReturnDelegation(streamName, segment);
+
         SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack,
                 config.getEventWriterConfig(), delegationToken);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
@@ -189,14 +190,15 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
 
     private String checkStreamReturnDelegation(String streamName, Segment segment) {
-        CompletableFuture<Boolean>  isStreamCreated = controller.checkStreamCreated(scope, streamName);
+        CompletableFuture<Stream.State>  streamState = controller.getStreamState(scope, streamName);
         CompletableFuture<String> delegationToken = controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStreamName());
-        return isStreamCreated
+        return streamState
                 .thenCombine(delegationToken,
-                        (isStr, delTok) -> {
-                            if (isStr) {
+                        (state, delTok) -> {
+                            if (state != Stream.State.UNKNOWN && state != Stream.State.SEALED) {
                                 return delTok;
                             } else {
+                                log.warn("Stream does not exist.");
                                 throw new IllegalStateException("Stream doesn't exist: " + streamName);
                             }
                         })

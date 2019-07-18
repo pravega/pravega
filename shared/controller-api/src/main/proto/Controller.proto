@@ -18,7 +18,7 @@ option optimize_for = SPEED;
 service ControllerService {
     rpc getControllerServerList(ServerRequest) returns (ServerResponse);
     rpc createStream(StreamConfig) returns (CreateStreamStatus);
-    rpc checkStreamCreated(StreamInfo) returns (StreamCreateStatus);
+    rpc getStreamState(StreamInfo) returns (StreamState);
     rpc updateStream(StreamConfig) returns (UpdateStreamStatus);
     rpc truncateStream(StreamCut) returns (UpdateStreamStatus);
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
@@ -83,8 +83,15 @@ message DeleteStreamStatus {
     Status status = 1;
 }
 
-message StreamCreateStatus {
-   bool response = 1;
+message StreamState {
+    enum State {
+        UNKNOWN = 0;
+        CREATING = 1;
+        ACTIVE = 2;
+        SEALING = 3;
+        SEALED = 4;
+    }
+    State state = 1;
 }
 
 message CreateScopeStatus {

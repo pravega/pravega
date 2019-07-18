@@ -36,6 +36,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
@@ -128,15 +129,6 @@ public class ControllerService {
                                 timer.getElapsed());
                        return CreateStreamStatus.newBuilder().setStatus(status).build();
                   }, executor);
-    }
-
-    public CompletableFuture<Boolean> checkStreamCreated(final String scope,
-                                                         final String stream) {
-        Exceptions.checkNotNullOrEmpty(scope, "scope");
-        Exceptions.checkNotNullOrEmpty(stream, "stream");
-        return streamStore.getState(scope, stream, true, null, executor)
-                .thenApply(state -> !state.equals(State.CREATING)
-                        && !state.equals(State.UNKNOWN));
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {
@@ -401,6 +393,14 @@ public class ControllerService {
         Preconditions.checkNotNull(txnId, "txnId");
         return streamStore.transactionStatus(scope, stream, ModelHelper.encode(txnId), null, executor)
                 .thenApplyAsync(res -> TxnState.newBuilder().setState(TxnState.State.valueOf(res.name())).build(), executor);
+    }
+
+    public CompletableFuture<StreamState> getStreamState(final String scope,
+                                                         final String stream) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        Exceptions.checkNotNullOrEmpty(stream, "stream");
+        return streamStore.getState(scope, stream, true, null, executor)
+                .thenApplyAsync(res -> StreamState.newBuilder().setState(StreamState.State.valueOf(res.name())).build(), executor);
     }
 
     /**

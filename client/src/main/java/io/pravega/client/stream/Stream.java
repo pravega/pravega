@@ -24,6 +24,14 @@ import io.pravega.shared.NameUtils;
  * Scalable (The rate of events in a stream can greatly exceed the capacity of any single host)
  */
 public interface Stream {
+    enum State {
+        UNKNOWN,
+        CREATING,
+        ACTIVE,
+        SEALING,
+        SEALED
+    }
+
     /**
      * Gets the scope of this stream.
      *

@@ -115,8 +115,9 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> checkStreamCreated(final String scope, final String streamName) {
-        return controller.checkStreamCreated(scope, streamName);
+    public CompletableFuture<Stream.State> getStreamState(final String scope, final String streamName) {
+        return controller.getStreamState(scope, streamName)
+                .thenApply(state -> ModelHelper.encode(state.getState(), streamName));
     }
 
     @Override

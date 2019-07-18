@@ -14,8 +14,10 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.RetentionPolicy;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+
 import io.pravega.common.Exceptions;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
@@ -23,6 +25,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -169,6 +172,42 @@ public final class ModelHelper {
             case UNRECOGNIZED:
             default:
                 throw new IllegalStateException("Unknown status: " + state);
+        }
+        return result;
+    }
+
+    /**
+     * Returns acceptable client side state of given stream.
+     *
+     * @param state     TxnState object instance.
+     * @param logString Description text to be logged when transaction status is invalid.
+     * @return Transaction.Status
+     */
+    public static final Stream.State encode(final StreamState.State state, final String logString) {
+        Preconditions.checkNotNull(state, "state");
+        Exceptions.checkNotNullOrEmpty(logString, "logString");
+
+        Stream.State result;
+        switch (state) {
+            case UNKNOWN:
+                result = Stream.State.UNKNOWN;
+                break;
+            case CREATING:
+                result = Stream.State.CREATING;
+                break;
+            case ACTIVE:
+                result = Stream.State.ACTIVE;
+                break;
+            case SEALING:
+                result = Stream.State.SEALING;
+                break;
+            case SEALED:
+                result = Stream.State.SEALED;
+                break;
+            case UNRECOGNIZED:
+                throw new IllegalStateException("Unknown state: " + state);
+            default:
+                result = Stream.State.ACTIVE;
         }
         return result;
     }
