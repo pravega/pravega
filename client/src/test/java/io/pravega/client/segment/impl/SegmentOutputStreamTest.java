@@ -104,7 +104,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -128,7 +128,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -153,7 +153,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         doThrow(ConnectionFailedException.class).doNothing().when(connection).send(any(SetupAppend.class));
         cf.provideConnection(uri, connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -177,7 +177,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, resendToSuccessorsCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, resendToSuccessorsCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -201,7 +201,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -251,7 +251,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -272,7 +272,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         InOrder inOrder = inOrder(connection);
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
 
         output.reconnect();
@@ -330,7 +330,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
 
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -363,7 +363,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -404,7 +404,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -446,7 +446,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -485,7 +485,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         InOrder inOrder = Mockito.inOrder(connection);
@@ -542,7 +542,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         InOrder inOrder = Mockito.inOrder(connection);
@@ -602,7 +602,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -630,7 +630,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -656,7 +656,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -695,7 +695,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -732,7 +732,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
         @Cleanup
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid,
                 segmentSealedCallback, RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -780,7 +780,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         InOrder inOrder = inOrder(connection);
         cf.provideConnection(uri, connection);
         @SuppressWarnings("resource")
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         
         output.reconnect();
@@ -856,7 +856,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 throw new IllegalStateException();
             }
         };
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, exceptionCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, exceptionCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -895,7 +895,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
 
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
@@ -929,7 +929,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
 
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, TXN_SEGMENT, ""));
@@ -965,7 +965,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         cf.provideConnection(uri, connection);
         InOrder order = Mockito.inOrder(connection);
 
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, TXN_SEGMENT, ""));
@@ -1015,7 +1015,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         InOrder order = Mockito.inOrder(connection);
 
         // Create a Segment writer.
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
 
         // trigger establishment of connection.
@@ -1063,7 +1063,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
     }
 
     @Test(timeout = 10000)
-    public void testConnectAndSendWithConnectionPooling() throws SegmentSealedException, ConnectionFailedException {
+    public void testConnectAndSendWithoutConnectionPooling() throws SegmentSealedException, ConnectionFailedException {
         UUID cid = UUID.randomUUID();
         PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
         MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
@@ -1071,7 +1071,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
         ClientConnection connection = mock(ClientConnection.class);
         cf.provideConnection(uri, connection);
-        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, segmentSealedCallback,
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, false, controller, cf, cid, segmentSealedCallback,
                                                                      RETRY_SCHEDULE, "");
         output.reconnect();
         verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
