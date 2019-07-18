@@ -30,7 +30,7 @@ import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.generated.model.UpdateStreamRequest;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
-import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.store.stream.ScaleMetadata;
 import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
@@ -92,7 +92,7 @@ public class StreamMetaDataTests {
     protected final CreateStreamRequest createStreamRequest = new CreateStreamRequest();
     protected final UpdateStreamRequest updateStreamRequest = new UpdateStreamRequest();
     protected ControllerService mockControllerService;
-    protected PravegaAuthManager authManager = null;
+    protected AuthHandlerManager authManager = null;
     protected Client client;
 
     private RESTServerConfig serverConfig;

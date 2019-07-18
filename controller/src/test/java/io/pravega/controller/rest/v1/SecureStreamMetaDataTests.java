@@ -11,7 +11,7 @@ package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
 import io.pravega.test.common.SecurityConfigDefaults;
-import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
@@ -47,7 +47,7 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
             writer.write("user2:" + passwd + ":/,READ;scope3,READ_UPDATE;\n");
         }
 
-        this.authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
+        this.authManager = new AuthHandlerManager(GRPCServerConfigImpl.builder()
                                                                       .authorizationEnabled(true)
                                                                       .tlsCertFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
                                                                       .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)

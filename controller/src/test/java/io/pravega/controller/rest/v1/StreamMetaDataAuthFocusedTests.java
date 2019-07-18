@@ -28,7 +28,7 @@ import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.controller.server.rest.generated.model.StreamState;
 import io.pravega.controller.server.rest.generated.model.StreamsList;
 import io.pravega.controller.server.rest.impl.RESTServerConfigImpl;
-import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -175,7 +175,7 @@ public class StreamMetaDataAuthFocusedTests {
                     "myscope,READ_UPDATE;myscope/stream1,READ_UPDATE;"));
         }
 
-        PravegaAuthManager authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
+        AuthHandlerManager authManager = new AuthHandlerManager(GRPCServerConfigImpl.builder()
                 .authorizationEnabled(true)
                 .userPasswordFile(passwordHandlerInputFile.getAbsolutePath())
                 .port(1000)

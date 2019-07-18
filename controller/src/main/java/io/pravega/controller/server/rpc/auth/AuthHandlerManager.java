@@ -25,19 +25,19 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Auth manager class for Pravega controller. This manages the handlers for grpc and REST together.
+ * Manages instances of {@link AuthHandler} for the Controller's gRPC and REST interfaces.
+ *
  * In case of grpc, the routing of the authenticate function to specific registered interceptor is taken care by grpc
- * interceptor mechanism.
- * In case of REST calls, this class routes the call to specific AuthHandler.
+ * interceptor mechanism. In case of REST calls, this class routes the call to specific AuthHandler.
  */
 @Slf4j
-public class PravegaAuthManager {
+public class AuthHandlerManager {
     private final GRPCServerConfig serverConfig;
 
     @GuardedBy("this")
     private final Map<String, AuthHandler> handlerMap;
 
-    public PravegaAuthManager(GRPCServerConfig serverConfig) {
+    public AuthHandlerManager(GRPCServerConfig serverConfig) {
         this.serverConfig = serverConfig;
         this.handlerMap = new HashMap<>();
     }
@@ -146,6 +146,7 @@ public class PravegaAuthManager {
     /**
      * Loads the custom implementations of the AuthHandler interface dynamically. Registers the interceptors with grpc.
      * Stores the implementation in a local map for routing the REST auth request.
+     *
      * @param builder The grpc service builder to register the interceptors.
      */
     public void registerInterceptors(ServerBuilder<?> builder) {
@@ -161,7 +162,7 @@ public class PravegaAuthManager {
                                 continue;
                             }
                         }
-                        builder.intercept(new PravegaInterceptor(handler));
+                        builder.intercept(new AuthInterceptor(handler));
                     } catch (Exception e) {
                         log.warn("Exception while initializing auth handler {}", handler, e);
                     }

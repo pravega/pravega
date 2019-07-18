@@ -10,7 +10,7 @@
 package io.pravega.controller.server.bucket;
 
 import io.pravega.controller.mocks.SegmentHelperMock;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -51,7 +51,7 @@ public class PravegaTablesStoreRetentionTest extends BucketServiceTest {
     @Override
     StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
         return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), 
-                AuthHelper.getDisabledAuthHelper(), zkClient, executor);
+                GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
     }
 
     @Override

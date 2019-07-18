@@ -32,7 +32,7 @@ public class RESTAuthHelperTest {
 
     @Before
     public void init() {
-        PravegaAuthManager authManager = new PravegaAuthManager(null);
+        AuthHandlerManager authManager = new AuthHandlerManager(null);
         authManager.registerHandler(new FakeAuthHandler());
         authHelper = new RESTAuthHelper(authManager);
     }
@@ -97,7 +97,7 @@ public class RESTAuthHelperTest {
 
     @Test
     public void testAuthIsEnabledWhenPravegaAuthManagerIsNonNull() {
-        RESTAuthHelper sut = new RESTAuthHelper(new PravegaAuthManager(null));
+        RESTAuthHelper sut = new RESTAuthHelper(new AuthHandlerManager(null));
         assertTrue(sut.isAuthEnabled());
     }
 

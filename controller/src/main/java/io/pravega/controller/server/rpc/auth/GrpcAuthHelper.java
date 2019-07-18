@@ -13,6 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthorizationException;
 import io.pravega.shared.security.token.JsonWebToken;
+
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,32 +22,35 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Helper class containing APIs related to delegation token and authorization/authentication.
+ * Helper class containing APIs related to delegation token and authorization/authentication, for gRPC interface.
  */
 @AllArgsConstructor
 @Slf4j
-public class AuthHelper {
+public class GrpcAuthHelper {
 
     private final boolean isAuthEnabled;
     private final String tokenSigningKey;
     private final Integer accessTokenTTLInSeconds;
 
-    @VisibleForTesting
-    public static AuthHelper getDisabledAuthHelper() {
-        return new AuthHelper(false, "", -1);
+    public AuthHandler.Permissions authorize(AuthHandler handler, String resource, Principal principal) {
+        return handler.authorize(resource, principal);
     }
 
-    public boolean isAuthorized(String resource, AuthHandler.Permissions permission) {
-        if (isAuthEnabled) {
-            PravegaInterceptor currentInterceptor = PravegaInterceptor.INTERCEPTOR_OBJECT.get();
+    @VisibleForTesting
+    public static GrpcAuthHelper getDisabledAuthHelper() {
+        return new GrpcAuthHelper(false, "", -1);
+    }
 
+    public boolean isAuthorized(String resource, AuthHandler.Permissions permission, AuthInterceptor currentInterceptor, Principal principal) {
+        if (isAuthEnabled) {
             AuthHandler.Permissions allowedLevel;
             if (currentInterceptor == null) {
                 //No interceptor, and authorization is enabled. That means no access is granted.
                 log.warn("Auth is enabled but current interceptor is null. Defaulting to no permissions.");
                 allowedLevel = AuthHandler.Permissions.NONE;
             } else {
-                allowedLevel = currentInterceptor.authorize(resource);
+                 AuthHandler handler = currentInterceptor.getHandler();
+                 allowedLevel = handler.authorize(resource, principal);
             }
             return (allowedLevel.ordinal() < permission.ordinal()) ? false : true;
         } else {
@@ -53,12 +58,36 @@ public class AuthHelper {
         }
     }
 
-    public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) {
-        if (isAuthorized(resource, expectedLevel)) {
+    public boolean isAuthorized(String resource, AuthHandler.Permissions permission, AuthInterceptor currentInterceptor) {
+        if (isAuthEnabled) {
+            AuthHandler.Permissions allowedLevel;
+            if (currentInterceptor == null) {
+                //No interceptor, and authorization is enabled. That means no access is granted.
+                log.warn("Auth is enabled but current interceptor is null. Defaulting to no permissions.");
+                allowedLevel = AuthHandler.Permissions.NONE;
+            } else {
+                allowedLevel = currentInterceptor.getHandler().authorize(resource, AuthInterceptor.principal());
+            }
+            return (allowedLevel.ordinal() < permission.ordinal()) ? false : true;
+        } else {
+            return true;
+        }
+    }
+
+    public boolean isAuthorized(String resource, AuthHandler.Permissions permission) {
+        return isAuthorized(resource, permission, AuthInterceptor.INTERCEPTOR_OBJECT.get());
+    }
+
+    public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel, AuthInterceptor interceptor) {
+        if (isAuthorized(resource, expectedLevel, interceptor)) {
             return "";
         } else {
             throw new RuntimeException(new AuthorizationException("Access not allowed"));
         }
+    }
+
+    public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) {
+        return checkAuthorization(resource, expectedLevel, AuthInterceptor.INTERCEPTOR_OBJECT.get());
     }
 
     public String checkAuthorizationAndCreateToken(String resource, AuthHandler.Permissions expectedLevel) {
@@ -83,7 +112,7 @@ public class AuthHelper {
 
     public String retrieveMasterToken() {
         if (isAuthEnabled) {
-            return PravegaInterceptor.retrieveMasterToken(tokenSigningKey);
+            return AuthInterceptor.retrieveMasterToken(tokenSigningKey);
         } else {
             return "";
         }

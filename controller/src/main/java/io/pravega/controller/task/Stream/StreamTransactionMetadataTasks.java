@@ -18,7 +18,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -83,7 +83,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
 
     private final StreamMetadataStore streamMetadataStore;
     private final SegmentHelper segmentHelper;
-    private final AuthHelper authHelper;
+    private final GrpcAuthHelper authHelper;
     @Getter
     @VisibleForTesting
     private final TimeoutService timeoutService;
@@ -100,7 +100,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
                                           final BlockingQueue<Optional<Throwable>> taskCompletionQueue,
-                                          final AuthHelper authHelper) {
+                                          final GrpcAuthHelper authHelper) {
         this.hostId = hostId;
         this.executor = executor;
         this.streamMetadataStore = streamMetadataStore;
@@ -117,7 +117,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final ScheduledExecutorService executor,
                                           final String hostId,
                                           final TimeoutServiceConfig timeoutServiceConfig,
-                                          final AuthHelper authHelper) {
+                                          final GrpcAuthHelper authHelper) {
         this(streamMetadataStore, segmentHelper, executor, hostId, timeoutServiceConfig, null, authHelper);
     }
 
@@ -125,7 +125,7 @@ public class StreamTransactionMetadataTasks implements AutoCloseable {
                                           final SegmentHelper segmentHelper,
                                           final ScheduledExecutorService executor,
                                           final String hostId,
-                                          final AuthHelper authHelper) {
+                                          final GrpcAuthHelper authHelper) {
         this(streamMetadataStore, segmentHelper, executor, hostId, TimeoutServiceConfig.defaultConfig(), authHelper);
     }
 

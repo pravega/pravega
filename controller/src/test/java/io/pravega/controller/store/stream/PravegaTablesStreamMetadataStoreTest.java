@@ -13,7 +13,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -64,7 +64,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
-        store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), AuthHelper.getDisabledAuthHelper());
+        store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), GrpcAuthHelper.getDisabledAuthHelper());
         bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
     }
 
@@ -213,7 +213,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
     @Test
     public void testGarbageCollection() {
         try (PravegaTablesStreamMetadataStore testStore = new PravegaTablesStreamMetadataStore(
-                segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), AuthHelper.getDisabledAuthHelper())) {
+                segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), GrpcAuthHelper.getDisabledAuthHelper())) {
             AtomicInteger currentBatch = new AtomicInteger(0);
             Supplier<Integer> supplier = currentBatch::get;
             ZKGarbageCollector gc = mock(ZKGarbageCollector.class);

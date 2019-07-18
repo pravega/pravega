@@ -11,7 +11,7 @@ package io.pravega.controller.task.Stream;
 
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 
@@ -20,6 +20,6 @@ public class PravegaTablesStreamMetadataTasksTest extends StreamMetadataTasksTes
     
     @Override
     StreamMetadataStore getStore() {
-        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, AuthHelper.getDisabledAuthHelper(), zkClient, executor);
+        return StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
     }
 }

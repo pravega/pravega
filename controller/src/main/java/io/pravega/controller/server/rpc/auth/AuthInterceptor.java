@@ -26,20 +26,23 @@ import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 
 @Slf4j
-public class PravegaInterceptor implements ServerInterceptor {
+public class AuthInterceptor implements ServerInterceptor {
+
     private static final String AUTH_CONTEXT = "PravegaContext";
     private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
     private static final Context.Key<Principal> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
-    public static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
+    public static final Context.Key<AuthInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
 
+    @Getter
     private final AuthHandler handler;
 
-    PravegaInterceptor(AuthHandler handler) {
+    AuthInterceptor(AuthHandler handler) {
         Preconditions.checkNotNull(handler, "handler can not be null");
         this.handler = handler;
     }
@@ -49,7 +52,9 @@ public class PravegaInterceptor implements ServerInterceptor {
 
         Context context = Context.current();
 
+        // The authorization header has the credentials (e.g., username and password for Basic Authentication)
         String credentials = headers.get(Metadata.Key.of(AuthConstants.AUTHORIZATION, Metadata.ASCII_STRING_MARSHALLER));
+
         if (!Strings.isNullOrEmpty(credentials)) {
             String[] parts = credentials.split("\\s+", 2);
             if (parts.length == 2) {
@@ -78,12 +83,22 @@ public class PravegaInterceptor implements ServerInterceptor {
         return Contexts.interceptCall(context, call, headers, next);
     }
 
-    public AuthHandler.Permissions authorize(String resource) {
-        return this.handler.authorize(resource, AUTH_CONTEXT_TOKEN.get());
+    public static Principal principal() {
+        return AUTH_CONTEXT_TOKEN.get();
     }
 
+    /*public AuthHandler.Permissions authorize(String resource) {
+        return this.authorize(resource, principal());
+    }*/
+
+    /*public AuthHandler.Permissions authorize(String resource, Principal principal) {
+        return this.handler.authorize(resource, principal);
+    }*/
+
+
     /**
-     * Retrieves a master token for internal controller to segmentstore communication.
+     * Retrieves a master token for internal controller to segment store communication.
+     *
      * @param tokenSigningKey Signing key for the JWT token.
      * @return A new master token which has highest privileges.
      */
