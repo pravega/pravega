@@ -77,15 +77,7 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> createStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
-     * Api to check if a stream fully created.
-     * @param scopeName scope name
-     * @param streamName stream name
-     * @return true if stream exists, false otherwise
-     */
-    CompletableFuture<Boolean> checkStreamCreated(final String scopeName, final String streamName);
-
-    /**
-     * Api to return the state of given stream.
+     * Api to return the state of the given stream.
      * @param scopeName scope name
      * @param streamName stream name
      * @return stream state.
