@@ -12,16 +12,10 @@ package io.pravega.local;
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
 
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -29,8 +23,6 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.junit.Assert.*;
 
 /**
  * This class contains tests for auth enabled in-process standalone cluster. It inherits the test methods defined
@@ -94,34 +86,7 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
 
     @Test(timeout = 50000)
     public void testListStreamsReturnsAllStreamsForPrivilegedUser() {
-        ClientConfig clientConfig = this.prepareValidClientConfig();
-        String scopeName = "listfiltering";
-
-        StreamManager streamManager = null;
-        try {
-            streamManager = StreamManager.create(clientConfig);
-            assertNotNull(streamManager);
-
-            boolean isScopeCreated = streamManager.createScope(scopeName);
-            assertTrue("Failed to create scope", isScopeCreated);
-
-            boolean isStreamCreated = streamManager.createStream(scopeName, "stream1",
-                    StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
-            assertTrue("Failed to create the 'stream1'", isStreamCreated);
-
-            isStreamCreated = streamManager.createStream(scopeName, "stream2",
-                    StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
-            assertTrue("Failed to create the 'stream2'", isStreamCreated);
-
-            Iterator<Stream> streamsIter = streamManager.listStreams(scopeName);
-            Set<Stream> streams = new HashSet<>();
-            streamsIter.forEachRemaining(s -> streams.add(s));
-            assertSame(2, streams.size());
-        } finally {
-            if (streamManager != null) {
-                streamManager.close();
-            }
-        }
+        this.listStreamsAndFilter();
     }
 
     private boolean hasAuthExceptionAsRootCause(Throwable e) {
