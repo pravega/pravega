@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 import io.pravega.client.tables.impl.IteratorState;
 import io.pravega.client.tables.impl.KeyVersion;
@@ -63,6 +64,7 @@ public class PravegaTablesStoreHelper {
     private final Cache cache;
     private final AtomicReference<String> authToken;
     private final AuthHelper authHelper;
+    private final int numOfRetries;
     
     @lombok.Data
     @EqualsAndHashCode(exclude = {"fromBytesFunc"})
@@ -74,6 +76,11 @@ public class PravegaTablesStoreHelper {
     }
 
     public PravegaTablesStoreHelper(SegmentHelper segmentHelper, AuthHelper authHelper, ScheduledExecutorService executor) {
+        this(segmentHelper, authHelper, executor, NUM_OF_RETRIES);
+    }
+
+    @VisibleForTesting
+    PravegaTablesStoreHelper(SegmentHelper segmentHelper, AuthHelper authHelper, ScheduledExecutorService executor, int numOfRetries) {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
 
@@ -82,10 +89,11 @@ public class PravegaTablesStoreHelper {
 
             // Since there are be multiple tables, we will cache `table+key` in our cache
             return getEntry(entryKey.getTable(), entryKey.getKey(), entryKey.fromBytesFunc)
-                                   .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
+                    .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
         });
         this.authHelper = authHelper;
         this.authToken = new AtomicReference<>(authHelper.retrieveMasterToken());
+        this.numOfRetries = numOfRetries;
     }
 
     /**
@@ -530,7 +538,7 @@ public class PravegaTablesStoreHelper {
                 e -> {
                     Throwable unwrap = Exceptions.unwrap(e);
                     return unwrap instanceof StoreException.StoreConnectionException;
-                }, NUM_OF_RETRIES, executor)
+                }, numOfRetries, executor)
                 .exceptionally(e -> {
                     Throwable t = Exceptions.unwrap(e);
                     if (t instanceof RetriesExhaustedException) {

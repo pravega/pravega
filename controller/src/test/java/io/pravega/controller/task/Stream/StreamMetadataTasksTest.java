@@ -1285,6 +1285,35 @@ public abstract class StreamMetadataTasksTest {
                 e -> Exceptions.unwrap(e) instanceof TaskExceptions.PostEventException);
     }
 
+    @Test(timeout = 10000)
+    public void testAddIndexAndSubmitTask() {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+
+        UpdateStreamEvent updateEvent = new UpdateStreamEvent("scope", "stream", 0L);
+        AssertExtensions.assertFutureThrows("throw Connection error", streamMetadataTasks.addIndexAndSubmitTask(updateEvent,
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.CONNECTION_ERROR, "Connection"))), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+        // verify that the event is posted
+        assertFalse(requestEventWriter.eventQueue.isEmpty());
+        assertEquals(requestEventWriter.eventQueue.poll(), updateEvent);
+
+        TruncateStreamEvent truncateEvent = new TruncateStreamEvent("scope", "stream", 0L);
+
+        AssertExtensions.assertFutureThrows("throw write conflict", streamMetadataTasks.addIndexAndSubmitTask(truncateEvent,
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "write conflict"))),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        // verify that the event is posted
+        assertFalse(requestEventWriter.eventQueue.isEmpty());
+        assertEquals(requestEventWriter.eventQueue.poll(), truncateEvent);
+
+        AssertExtensions.assertFutureThrows("any other exception", streamMetadataTasks.addIndexAndSubmitTask(truncateEvent,
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "write conflict"))),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        // no event should be posted for any other failure
+        assertTrue(requestEventWriter.eventQueue.isEmpty());
+    }
+    
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         return Retry.withExpBackoff(100, 10, 5, 1000)
                 .retryingOn(TaskExceptions.StartException.class)

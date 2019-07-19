@@ -636,14 +636,25 @@ public class StreamMetadataTasks extends TaskBase {
         // In case, while trying to perform a metadata update, if we get connection exception or write conflict exception 
         // (which can also occur if we had retried on a store exception), we will still post the event because we dont know 
         // if our update succeeded or not. Posting the event is harmless. If the update had succeeded, then the event will 
-        // be used for processing. If the update had failed, the event will be discarded. 
+        // be used for processing. If the update had failed, the event will be discarded. We will throw the exception 
+        // that we thrown from running futureSupplier.
+        AtomicReference<Throwable> toThrow = new AtomicReference<>();
         return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event)
                            .thenCompose(v -> Futures.exceptionallyExpecting(futureSupplier.get(), 
-                                   e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException || 
-                                           Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null))
+                                   e -> {
+                                       toThrow.set(e);
+                                       return Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
+                                               Exceptions.unwrap(e) instanceof StoreException.WriteConflictException;
+                                   }, null))
                            .thenCompose(t -> RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event), e -> { }, executor)
                                                         .thenCompose(v -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
-                                                        .thenApply(v -> t));
+                                                        .thenApply(v -> {
+                                                            if (toThrow.get() != null) {
+                                                                throw new CompletionException(toThrow.get());
+                                                            } else {
+                                                                return t;
+                                                            }
+                                                        }));
     }
     
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
