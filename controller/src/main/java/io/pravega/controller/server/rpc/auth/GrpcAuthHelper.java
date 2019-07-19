@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,14 @@ import io.pravega.auth.AuthHandler;
 import io.pravega.auth.AuthorizationException;
 import io.pravega.shared.security.token.JsonWebToken;
 
-import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
 
 /**
  * Helper class containing APIs related to delegation token and authorization/authentication, for gRPC interface.
@@ -28,58 +30,34 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class GrpcAuthHelper {
 
+    @Getter
     private final boolean isAuthEnabled;
     private final String tokenSigningKey;
     private final Integer accessTokenTTLInSeconds;
-
-    public AuthHandler.Permissions authorize(AuthHandler handler, String resource, Principal principal) {
-        return handler.authorize(resource, principal);
-    }
 
     @VisibleForTesting
     public static GrpcAuthHelper getDisabledAuthHelper() {
         return new GrpcAuthHelper(false, "", -1);
     }
 
-    public boolean isAuthorized(String resource, AuthHandler.Permissions permission, AuthInterceptor currentInterceptor, Principal principal) {
+    public boolean isAuthorized(String resource, AuthHandler.Permissions permission, AuthContext authContext) {
         if (isAuthEnabled) {
             AuthHandler.Permissions allowedLevel;
-            if (currentInterceptor == null) {
-                //No interceptor, and authorization is enabled. That means no access is granted.
-                log.warn("Auth is enabled but current interceptor is null. Defaulting to no permissions.");
+            if (authContext == null) {
+                log.warn("Auth is enabled but 'authContext'  is null. Defaulting to no permissions.");
                 allowedLevel = AuthHandler.Permissions.NONE;
             } else {
-                 AuthHandler handler = currentInterceptor.getHandler();
-                 allowedLevel = handler.authorize(resource, principal);
+                allowedLevel = authContext.getAuthHandler().authorize(resource, authContext.getPrincipal());
             }
             return (allowedLevel.ordinal() < permission.ordinal()) ? false : true;
         } else {
+            log.debug("Since auth is disabled, returning [true]");
             return true;
         }
     }
 
-    public boolean isAuthorized(String resource, AuthHandler.Permissions permission, AuthInterceptor currentInterceptor) {
-        if (isAuthEnabled) {
-            AuthHandler.Permissions allowedLevel;
-            if (currentInterceptor == null) {
-                //No interceptor, and authorization is enabled. That means no access is granted.
-                log.warn("Auth is enabled but current interceptor is null. Defaulting to no permissions.");
-                allowedLevel = AuthHandler.Permissions.NONE;
-            } else {
-                allowedLevel = currentInterceptor.getHandler().authorize(resource, AuthInterceptor.principal());
-            }
-            return (allowedLevel.ordinal() < permission.ordinal()) ? false : true;
-        } else {
-            return true;
-        }
-    }
-
-    public boolean isAuthorized(String resource, AuthHandler.Permissions permission) {
-        return isAuthorized(resource, permission, AuthInterceptor.INTERCEPTOR_OBJECT.get());
-    }
-
-    public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel, AuthInterceptor interceptor) {
-        if (isAuthorized(resource, expectedLevel, interceptor)) {
+    public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel, AuthContext ctx) {
+        if (isAuthorized(resource, expectedLevel, ctx)) {
             return "";
         } else {
             throw new RuntimeException(new AuthorizationException("Access not allowed"));
@@ -87,7 +65,7 @@ public class GrpcAuthHelper {
     }
 
     public String checkAuthorization(String resource, AuthHandler.Permissions expectedLevel) {
-        return checkAuthorization(resource, expectedLevel, AuthInterceptor.INTERCEPTOR_OBJECT.get());
+        return checkAuthorization(resource, expectedLevel, AuthContext.current());
     }
 
     public String checkAuthorizationAndCreateToken(String resource, AuthHandler.Permissions expectedLevel) {
@@ -112,9 +90,23 @@ public class GrpcAuthHelper {
 
     public String retrieveMasterToken() {
         if (isAuthEnabled) {
-            return AuthInterceptor.retrieveMasterToken(tokenSigningKey);
+            return GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
         } else {
             return "";
         }
+    }
+
+    /**
+     * Retrieves a master token for internal controller to segment store communication.
+     *
+     * @param tokenSigningKey Signing key for the JWT token.
+     * @return A new master token which has highest privileges.
+     */
+    public static String retrieveMasterToken(String tokenSigningKey) {
+        Map<String, Object> customClaims = new HashMap<>();
+        customClaims.put("*", String.valueOf(READ_UPDATE));
+
+        return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
+                null, customClaims).toCompactString();
     }
 }

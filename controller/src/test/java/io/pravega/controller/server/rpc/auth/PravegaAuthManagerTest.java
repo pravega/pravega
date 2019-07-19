@@ -82,7 +82,7 @@ public class PravegaAuthManagerTest {
                                                       .port(1000)
                                                       .build();
 
-        PravegaAuthManager manager = new PravegaAuthManager(config);
+        AuthHandlerManager manager = new AuthHandlerManager(config);
         int port = TestUtils.getAvailableListenPort();
         ServerBuilder<?> server = ServerBuilder.forPort(port).useTransportSecurity(
                 new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),

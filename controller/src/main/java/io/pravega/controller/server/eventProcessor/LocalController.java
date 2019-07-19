@@ -30,7 +30,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.auth.AuthInterceptor;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -403,7 +403,7 @@ public class LocalController implements Controller {
 
     public String retrieveDelegationToken() {
         if (authorizationEnabled) {
-            return AuthInterceptor.retrieveMasterToken(tokenSigningKey);
+            return GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
         } else {
             return StringUtils.EMPTY;
         }
@@ -413,7 +413,7 @@ public class LocalController implements Controller {
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         String retVal = "";
         if (authorizationEnabled) {
-            retVal = AuthInterceptor.retrieveMasterToken(tokenSigningKey);
+            retVal = GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
         }
         return CompletableFuture.completedFuture(retVal);
     }

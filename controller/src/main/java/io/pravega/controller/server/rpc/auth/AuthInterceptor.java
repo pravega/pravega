@@ -21,23 +21,21 @@ import io.grpc.Status;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
-import io.pravega.shared.security.token.JsonWebToken;
 import java.security.Principal;
-import java.util.HashMap;
-import java.util.Map;
 
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
-
+/**
+ * Intercepts gRPC requests and sets up Auth context.
+ */
 @Slf4j
 public class AuthInterceptor implements ServerInterceptor {
 
     private static final String AUTH_CONTEXT = "PravegaContext";
     private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
-    private static final Context.Key<Principal> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
-    public static final Context.Key<AuthInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
+    static final Context.Key<Principal> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
+    static final Context.Key<AuthInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
 
     @Getter
     private final AuthHandler handler;
@@ -72,8 +70,7 @@ public class AuthInterceptor implements ServerInterceptor {
                             call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
                             return null;
                         }
-                        context = context.withValue(AUTH_CONTEXT_TOKEN, principal);
-                        context = context.withValue(INTERCEPTOR_OBJECT, this);
+                        context = context.withValues(AUTH_CONTEXT_TOKEN, principal, INTERCEPTOR_OBJECT, this);
                     }
                 }
             }
@@ -81,32 +78,5 @@ public class AuthInterceptor implements ServerInterceptor {
 
         // reaching this point means that the handler wasn't applicable to this request.
         return Contexts.interceptCall(context, call, headers, next);
-    }
-
-    public static Principal principal() {
-        return AUTH_CONTEXT_TOKEN.get();
-    }
-
-    /*public AuthHandler.Permissions authorize(String resource) {
-        return this.authorize(resource, principal());
-    }*/
-
-    /*public AuthHandler.Permissions authorize(String resource, Principal principal) {
-        return this.handler.authorize(resource, principal);
-    }*/
-
-
-    /**
-     * Retrieves a master token for internal controller to segment store communication.
-     *
-     * @param tokenSigningKey Signing key for the JWT token.
-     * @return A new master token which has highest privileges.
-     */
-    public static String retrieveMasterToken(String tokenSigningKey) {
-        Map<String, Object> customClaims = new HashMap<>();
-        customClaims.put("*", String.valueOf(READ_UPDATE));
-
-        return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
-                null, customClaims).toCompactString();
     }
 }

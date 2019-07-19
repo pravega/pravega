@@ -21,8 +21,8 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
+import io.pravega.controller.server.rpc.auth.AuthContext;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
-import io.pravega.controller.server.rpc.auth.AuthInterceptor;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -56,7 +56,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 
-import java.security.Principal;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
@@ -77,11 +76,16 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     // The underlying Controller Service implementation to delegate all API calls to.
     private final ControllerService controllerService;
+
     private final GrpcAuthHelper grpcAuthHelper;
+
     private final RequestTracker requestTracker;
+
     // Send to the client server traces on error message replies.
     private final boolean replyWithStackTraceOnError;
+
     private final Supplier<Long> requestIdGenerator = RandomFactory.create()::nextLong;
+
     private final int listStreamsInScopeLimit;
 
     public ControllerServiceImpl(ControllerService controllerService, GrpcAuthHelper authHelper, RequestTracker requestTracker, boolean replyWithStackTraceOnError) {
@@ -400,26 +404,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     @Override
     public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
         String scopeName = request.getScope().getScope();
-        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "listStream", scopeName);
+        RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(),
+                "listStream", scopeName);
         log.info(requestTag.getRequestId(), "listStream called for scope {}.", scopeName);
 
-        //Context grpcCtx = Context.current();
-        //Contexts.interceptCall()
-
-
-        final AuthInterceptor currentInterceptor = AuthInterceptor.INTERCEPTOR_OBJECT.get();
-        final Principal principal;
-        if (currentInterceptor != null) {
-            principal = currentInterceptor.principal();
+        final AuthContext ctx;
+        if (this.grpcAuthHelper.isAuthEnabled()) {
+            ctx = AuthContext.current();
         } else {
-            principal = null;
+            ctx = null;
         }
 
         authenticateExecuteAndProcessResults(
                 () -> {
-                        String result = this.grpcAuthHelper.checkAuthorization(AuthResourceRepresentation.ofScope(scopeName),
-                                AuthHandler.Permissions.READ, currentInterceptor);
-                            //AuthHandler.Permissions.READ); //, currentInterceptor);
+                        String result = this.grpcAuthHelper.checkAuthorization(
+                                AuthResourceRepresentation.ofScope(scopeName),
+                                AuthHandler.Permissions.READ,
+                                ctx);
                         log.debug("Result of authorization for [{}] and READ permission is: [{}]",
                             AuthResourceRepresentation.ofScope(scopeName), result);
                         return result;
@@ -430,14 +431,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                              log.debug("response: {}", response);
                              List<StreamInfo> streams = response.getKey().stream()
                                      .filter(streamName -> {
-                                         log.debug("Entered for stream [{}]", streamName);
                                          String streamAuthResource =
                                                  AuthResourceRepresentation.ofStreamInScope(scopeName, streamName);
 
                                          boolean isAuthorized = grpcAuthHelper.isAuthorized(streamAuthResource,
-                                             // AuthHandler.Permissions.READ);//, currentInterceptor, principal);
-                                                 AuthHandler.Permissions.READ, currentInterceptor, principal);
-
+                                                 AuthHandler.Permissions.READ, ctx);
                                          log.debug("Authorization for [{}] for READ permission was [{}]",
                                                  streamAuthResource, isAuthorized);
                                          return isAuthorized;
