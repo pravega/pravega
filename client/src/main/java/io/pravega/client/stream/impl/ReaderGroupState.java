@@ -342,7 +342,7 @@ public class ReaderGroupState implements Revisioned {
             }
 
             private void write00(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
-                revisionDataOutput.writeArray(new ByteArraySegment(state.config.toBytes()));
+                revisionDataOutput.writeBuffer(new ByteArraySegment(state.config.toBytes()));
                 ElementSerializer<Segment> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
                 revisionDataOutput.writeMap(state.segments, keySerializer, RevisionDataOutput::writeLong);
                 revisionDataOutput.writeMap(state.endSegments, keySerializer, RevisionDataOutput::writeLong);
@@ -428,8 +428,8 @@ public class ReaderGroupState implements Revisioned {
                 ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
                 ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
                 ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
-                revisionDataOutput.writeArray(new ByteArraySegment(object.config.toBytes()));
-                revisionDataOutput.writeArray(new ByteArraySegment(object.checkpointState.toBytes()));
+                revisionDataOutput.writeBuffer(new ByteArraySegment(object.config.toBytes()));
+                revisionDataOutput.writeBuffer(new ByteArraySegment(object.checkpointState.toBytes()));
                 revisionDataOutput.writeMap(object.distanceToTail, stringSerializer, longSerializer);
                 revisionDataOutput.writeMap(object.futureSegments, segmentSerializer,
                                             (out, obj) -> out.writeCollection(obj, RevisionDataOutput::writeLong));

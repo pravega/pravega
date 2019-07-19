@@ -9,7 +9,6 @@
  */
 package io.pravega.common.io.serialization;
 
-import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BufferView;
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -249,21 +248,6 @@ public interface RevisionDataOutput extends DataOutput {
         writeArray(array, 0, array == null ? 0 : array.length);
     }
 
-    /**
-     * Serializes the given {@link ArrayView}. Equivalent to calling {@link #writeArray}(segment, segment.arrayOffset(), segment.getLength()).
-     *
-     * @param segment The byte array segment to serialize. Can be null (in which case an Empty array will be deserialized
-     *                by {@link RevisionDataInput#readArray})).
-     * @throws IOException If an IO Exception occurred.
-     */
-    default void writeArray(ArrayView segment) throws IOException {
-        if (segment == null) {
-            writeArray(null, 0, 0);
-        } else {
-            writeArray(segment.array(), segment.arrayOffset(), segment.getLength());
-        }
-    }
-    
     /**
      * Serializes the given byte array. It first writes a Compact Integer representing the length to serialize, followed
      * by the actual array elements being written.

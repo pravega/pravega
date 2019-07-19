@@ -280,7 +280,7 @@ public class ReaderGroupConfig implements Serializable {
             revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
             revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
             ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
-            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeArray(new ByteArraySegment(cut.toBytes()));
+            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
             revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
         }
@@ -299,7 +299,7 @@ public class ReaderGroupConfig implements Serializable {
             revisionDataOutput.writeLong(object.getAutomaticCheckpointIntervalMillis());
             revisionDataOutput.writeLong(object.getGroupRefreshTimeMillis());
             ElementSerializer<Stream> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
-            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeArray(new ByteArraySegment(cut.toBytes()));
+            ElementSerializer<StreamCut> valueSerializer = (out, cut) -> out.writeBuffer(new ByteArraySegment(cut.toBytes()));
             revisionDataOutput.writeMap(object.startingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeMap(object.endingStreamCuts, keySerializer, valueSerializer);
             revisionDataOutput.writeInt(object.getMaxOutstandingCheckpointRequest());

@@ -276,14 +276,6 @@ public class RevisionDataStreamCommonTests {
                     value,
                     (s, t) -> Arrays.equals(s == null ? new byte[0] : s, t));
 
-            // Array Views.
-            testEncodeDecode(
-                    (RevisionDataOutputStream s, byte[] t) -> s.writeArray(t == null ? null : new ByteArraySegment(t)),
-                    RevisionDataInput::readArray,
-                    (s, v) -> s.getCollectionLength(v == null ? 0 : v.length, 1),
-                    value,
-                    (s, t) -> Arrays.equals(s == null ? new byte[0] : s, t));
-
             // Buffer Views.
             testEncodeDecode(
                     (RevisionDataOutputStream s, byte[] t) -> s.writeBuffer(t == null ? null : new TestBufferView(t)),
