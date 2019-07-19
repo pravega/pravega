@@ -44,7 +44,7 @@ public class K8SequentialExecutor implements TestExecutor {
 
     private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
     private static final String SERVICE_ACCOUNT = "test-framework"; //Service Account used by the test pod.
-    private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
+    private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine");
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
