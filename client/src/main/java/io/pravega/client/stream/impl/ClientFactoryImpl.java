@@ -189,17 +189,23 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         return new RevisionedStreamClientImpl<>(segment, in, out, cond, meta, serializer);
     }
 
+    /**
+     * Check the stream state and get the delegation string; if state of stream is not UNKNOWN or SEALED, continue
+     * to retrieve delegation for given stream, otherwise throw an exception.
+     * @param streamName Stream name
+     * @param segment    Segment
+     * @return A delegation string used for RevisionedStreamClientImpl creation or throw exception if the Stream is not ready.
+     */
     private String checkStreamReturnDelegation(String streamName, Segment segment) {
-        CompletableFuture<Stream.State>  streamState = controller.getStreamState(scope, streamName);
+        CompletableFuture<StreamState>  streamState = controller.getStreamState(scope, streamName);
         CompletableFuture<String> delegationToken = controller.getOrRefreshDelegationTokenFor(segment.getScope(), segment.getStreamName());
         return streamState
                 .thenCombine(delegationToken,
                         (state, delTok) -> {
-                            if (state != Stream.State.UNKNOWN && state != Stream.State.SEALED) {
+                            if (state != StreamState.UNKNOWN && state != StreamState.SEALED) {
                                 return delTok;
                             } else {
-                                log.warn("Stream does not exist.");
-                                throw new IllegalStateException("Stream doesn't exist: " + streamName);
+                                throw new IllegalStateException("Stream is not ready: " + streamName);
                             }
                         })
                 .join();

@@ -48,7 +48,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamState;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -97,7 +97,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     }
 
     @Override
-    public void getStreamState(StreamInfo request, StreamObserver<StreamState> responseObserver) {
+    public void getStreamState(StreamInfo request, StreamObserver<StreamStatus> responseObserver) {
         RequestTag requestTag = requestTracker.initializeAndTrackRequestTag(requestIdGenerator.get(), "getStreamState",
                 request.getScope(), request.getStream());
 

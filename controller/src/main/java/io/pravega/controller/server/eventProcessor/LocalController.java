@@ -25,6 +25,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.StreamState;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
@@ -115,7 +116,7 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Stream.State> getStreamState(final String scope, final String streamName) {
+    public CompletableFuture<StreamState> getStreamState(final String scope, final String streamName) {
         return controller.getStreamState(scope, streamName)
                 .thenApply(state -> ModelHelper.encode(state.getState(), streamName));
     }

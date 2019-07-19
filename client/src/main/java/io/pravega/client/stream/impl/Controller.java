@@ -82,7 +82,7 @@ public interface Controller extends AutoCloseable {
      * @param streamName stream name
      * @return stream state.
      */
-    CompletableFuture<Stream.State> getStreamState(final String scopeName, final String streamName);
+    CompletableFuture<StreamState> getStreamState(final String scopeName, final String streamName);
 
     /**
      * API to update the configuration of a stream.

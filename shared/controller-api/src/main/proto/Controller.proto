@@ -18,7 +18,7 @@ option optimize_for = SPEED;
 service ControllerService {
     rpc getControllerServerList(ServerRequest) returns (ServerResponse);
     rpc createStream(StreamConfig) returns (CreateStreamStatus);
-    rpc getStreamState(StreamInfo) returns (StreamState);
+    rpc getStreamState(StreamInfo) returns (StreamStatus);
     rpc updateStream(StreamConfig) returns (UpdateStreamStatus);
     rpc truncateStream(StreamCut) returns (UpdateStreamStatus);
     rpc sealStream(StreamInfo) returns (UpdateStreamStatus);
@@ -83,7 +83,7 @@ message DeleteStreamStatus {
     Status status = 1;
 }
 
-message StreamState {
+message StreamStatus {
     enum State {
         UNKNOWN = 0;
         CREATING = 1;

@@ -30,6 +30,7 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
+import io.pravega.client.stream.impl.StreamState;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
@@ -126,8 +127,8 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Stream.State> getStreamState(String scope, String streamName) {
-        return CompletableFuture.completedFuture(Stream.State.ACTIVE);
+    public CompletableFuture<StreamState> getStreamState(String scope, String streamName) {
+        return CompletableFuture.completedFuture(StreamState.ACTIVE);
     }
 
     @Override

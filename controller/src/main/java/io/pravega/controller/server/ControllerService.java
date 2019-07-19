@@ -35,7 +35,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamState;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
@@ -394,12 +394,12 @@ public class ControllerService {
                 .thenApplyAsync(res -> TxnState.newBuilder().setState(TxnState.State.valueOf(res.name())).build(), executor);
     }
 
-    public CompletableFuture<StreamState> getStreamState(final String scope,
+    public CompletableFuture<StreamStatus> getStreamState(final String scope,
                                                          final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         return streamStore.getState(scope, stream, true, null, executor)
-                .thenApplyAsync(res -> StreamState.newBuilder().setState(StreamState.State.valueOf(res.name())).build(), executor);
+                .thenApplyAsync(res -> StreamStatus.newBuilder().setState(StreamStatus.State.valueOf(res.name())).build(), executor);
     }
 
     /**

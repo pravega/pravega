@@ -25,7 +25,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamState;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -183,31 +183,31 @@ public final class ModelHelper {
      * @param logString Description text to be logged when transaction status is invalid.
      * @return Transaction.Status
      */
-    public static final Stream.State encode(final StreamState.State state, final String logString) {
+    public static final StreamState encode(final StreamStatus.State state, final String logString) {
         Preconditions.checkNotNull(state, "state");
         Exceptions.checkNotNullOrEmpty(logString, "logString");
 
-        Stream.State result;
+        StreamState result;
         switch (state) {
             case UNKNOWN:
-                result = Stream.State.UNKNOWN;
+                result = StreamState.UNKNOWN;
                 break;
             case CREATING:
-                result = Stream.State.CREATING;
+                result = StreamState.CREATING;
                 break;
             case ACTIVE:
-                result = Stream.State.ACTIVE;
+                result = StreamState.ACTIVE;
                 break;
             case SEALING:
-                result = Stream.State.SEALING;
+                result = StreamState.SEALING;
                 break;
             case SEALED:
-                result = Stream.State.SEALED;
+                result = StreamState.SEALED;
                 break;
             case UNRECOGNIZED:
                 throw new IllegalStateException("Unknown state: " + state);
             default:
-                result = Stream.State.ACTIVE;
+                result = StreamState.ACTIVE;
         }
         return result;
     }

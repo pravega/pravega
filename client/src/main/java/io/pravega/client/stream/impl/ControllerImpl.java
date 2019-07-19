@@ -61,7 +61,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentValidityRespon
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
-import io.pravega.controller.stream.api.grpc.v1.Controller.StreamState;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
@@ -295,15 +295,15 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Stream.State> getStreamState(final String scope, final String streamName) {
+    public CompletableFuture<StreamState> getStreamState(final String scope, final String streamName) {
         Exceptions.checkNotClosed(closed.get(), this);
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
         final long requestId = requestIdGenerator.get();
         long traceId = LoggerHelpers.traceEnter(log, "getStreamState", scope, streamName, requestId);
 
-        final CompletableFuture<StreamState> result = this.retryConfig.runAsync(() -> {
-            RPCAsyncCallback<StreamState> callback = new RPCAsyncCallback<>(requestId, "getStreamState");
+        final CompletableFuture<StreamStatus> result = this.retryConfig.runAsync(() -> {
+            RPCAsyncCallback<StreamStatus> callback = new RPCAsyncCallback<>(requestId, "getStreamState");
             new ControllerClientTagger(client).withTag(requestId, "getStreamState", scope, streamName)
              .getStreamState(ModelHelper.createStreamInfo(scope, streamName), callback);
             return callback.getFuture();
@@ -1102,7 +1102,7 @@ public class ControllerImpl implements Controller {
             clientStub.deleteScope(scopeInfo, callback);
         }
 
-        public void getStreamState(StreamInfo streamInfo, RPCAsyncCallback<StreamState> callback) {
+        public void getStreamState(StreamInfo streamInfo, RPCAsyncCallback<StreamStatus> callback) {
             clientStub.getStreamState(streamInfo, callback);
         }
 
