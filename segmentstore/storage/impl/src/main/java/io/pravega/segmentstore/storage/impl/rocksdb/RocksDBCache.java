@@ -69,6 +69,7 @@ class RocksDBCache implements Cache {
     private final int writeBufferSizeMB;
     private final int readCacheSizeMB;
     private final int cacheBlockSizeKB;
+    private final boolean directReads;
 
     //endregion
 
@@ -95,6 +96,7 @@ class RocksDBCache implements Cache {
         this.writeBufferSizeMB = config.getWriteBufferSizeMB() / MAX_WRITE_BUFFER_NUMBER;
         this.readCacheSizeMB = config.getReadCacheSizeMB();
         this.cacheBlockSizeKB = config.getCacheBlockSizeKB();
+        this.directReads = config.isDirectReads();
         try {
             this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
@@ -254,7 +256,7 @@ class RocksDBCache implements Cache {
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
-                .setUseDirectReads(true);
+                .setUseDirectReads(this.directReads);
     }
 
     private void clear(boolean recreateDirectory) {

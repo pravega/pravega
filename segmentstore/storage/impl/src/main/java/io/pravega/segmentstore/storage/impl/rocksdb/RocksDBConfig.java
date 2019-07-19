@@ -25,6 +25,7 @@ public class RocksDBConfig {
     public static final Property<Integer> WRITE_BUFFER_SIZE_MB = Property.named("writeBufferSizeMB", 64);
     public static final Property<Integer> READ_CACHE_SIZE_MB = Property.named("readCacheSizeMB", 8);
     public static final Property<Integer> CACHE_BLOCK_SIZE_KB = Property.named("cacheBlockSizeKB", 32);
+    public static final Property<Boolean> DIRECT_READS = Property.named("directReads", true);
     private static final String COMPONENT_CODE = "rocksdb";
 
     //endregion
@@ -60,6 +61,14 @@ public class RocksDBConfig {
     @Getter
     private final int cacheBlockSizeKB;
 
+    /**
+     * Enabling direct reads may be beneficial for performance due to: i) it avoids extra copies of data on OS page
+     * cache, ii) it exploits better knowledge of the behavior of data to apply policies (e.g., replacement). However,
+     * as not all OS/environments support direct IO, so we allow to disable it.
+     */
+    @Getter
+    private final boolean directReads;
+
     //endregion
 
     //region Constructor
@@ -74,6 +83,7 @@ public class RocksDBConfig {
         this.writeBufferSizeMB = properties.getInt(WRITE_BUFFER_SIZE_MB);
         this.readCacheSizeMB = properties.getInt(READ_CACHE_SIZE_MB);
         this.cacheBlockSizeKB = properties.getInt(CACHE_BLOCK_SIZE_KB);
+        this.directReads = properties.getBoolean(DIRECT_READS);
     }
 
     /**
