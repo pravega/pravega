@@ -27,9 +27,6 @@ import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import java.net.URI;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
@@ -187,31 +184,6 @@ public class InProcPravegaClusterTest {
         assertEquals(message, readMessage);
     }
 
-    protected void listStreamsAndFilter() {
-        ClientConfig clientConfig = this.prepareValidClientConfig();
-        String scopeName = "listfiltering";
-
-        @Cleanup
-        StreamManager streamManager = null;
-        streamManager = StreamManager.create(clientConfig);
-        assertNotNull(streamManager);
-
-        boolean isScopeCreated = streamManager.createScope(scopeName);
-        assertTrue("Failed to create scope", isScopeCreated);
-
-        boolean isStreamCreated = streamManager.createStream(scopeName, "stream1",
-             StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
-        assertTrue("Failed to create the 'stream1'", isStreamCreated);
-
-        isStreamCreated = streamManager.createStream(scopeName, "stream2",
-            StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
-        assertTrue("Failed to create the 'stream2'", isStreamCreated);
-
-        Iterator<Stream> streamsIter = streamManager.listStreams(scopeName);
-        Set<Stream> streams = new HashSet<>();
-        streamsIter.forEachRemaining(s -> streams.add(s));
-        assertEquals(2, streams.size());
-    }
 
     @After
     public void tearDown() throws Exception {

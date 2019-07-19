@@ -16,7 +16,6 @@ import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
-
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -82,11 +81,6 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
         AssertExtensions.assertThrows("Auth exception did not occur.",
                 () -> streamManager.createScope(scopeName()),
                 e -> hasAuthExceptionAsRootCause(e));
-    }
-
-    @Test(timeout = 50000)
-    public void testListStreamsReturnsAllStreamsForPrivilegedUser() {
-        this.listStreamsAndFilter();
     }
 
     private boolean hasAuthExceptionAsRootCause(Throwable e) {

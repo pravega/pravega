@@ -82,11 +82,6 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
                 e -> hasTlsException(e));
     }
 
-    @Test(timeout = 50000)
-    public final void testListStreamsReturnsAllStreamsWhenAuthIsDisabled() {
-        listStreamsAndFilter();
-    }
-
     private boolean hasTlsException(Throwable e) {
         return ExceptionUtils.indexOfThrowable(e, SSLHandshakeException.class) != -1;
     }
