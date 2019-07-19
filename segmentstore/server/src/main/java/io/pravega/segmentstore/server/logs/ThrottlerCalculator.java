@@ -295,7 +295,7 @@ class ThrottlerCalculator {
 
         @Override
         public String toString() {
-            return String.format("{}ms (Max={}, Reason={})", this.durationMillis, this.maximum, this.reason);
+            return String.format("%dms (Max=%s, Reason=%s)", this.durationMillis, this.maximum, this.reason);
         }
     }
 
