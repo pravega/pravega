@@ -10,34 +10,56 @@
 package io.pravega.segmentstore.server.reading;
 
 import com.google.common.base.Preconditions;
+import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 
 /**
  * Represents a ReadIndexEntry that points to an entry in the Cache.
  */
 public class CacheIndexEntry extends ReadIndexEntry {
-    private final int length;
+    @Getter
+    private final int dataAddress;
+    @GuardedBy("this")
+    private int length;
 
     /**
      * Creates a new instance of the ReadIndexEntry class.
      *
      * @param streamSegmentOffset The StreamSegment offset for this entry.
      * @param length              The Length of this entry.
+     * @param dataAddress         The address of this Index Entry in the Data Store.
      * @throws IllegalArgumentException if the offset is a negative number.
      * @throws IllegalArgumentException if the length is a negative number.
      */
-    CacheIndexEntry(long streamSegmentOffset, int length) {
+    CacheIndexEntry(long streamSegmentOffset, int length, int dataAddress) {
         super(streamSegmentOffset);
         Preconditions.checkArgument(length >= 0, "length", "length must be a non-negative number.");
         this.length = length;
+        this.dataAddress = dataAddress;
     }
 
     @Override
-    long getLength() {
+    synchronized long getLength() {
         return this.length;
+    }
+
+    /**
+     * Increases the length by the given amount.
+     *
+     * @param delta The amount to increase by.
+     */
+    synchronized void increaseLength(int delta) {
+        Preconditions.checkArgument(delta >= 0, "delta must be a non-negative number.");
+        this.length += delta;
     }
 
     @Override
     boolean isDataEntry() {
         return true;
+    }
+
+    @Override
+    public synchronized String toString() {
+        return String.format("%s, Address = %d", super.toString(), this.dataAddress);
     }
 }

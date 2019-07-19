@@ -24,7 +24,8 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -50,6 +51,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -497,8 +499,8 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         val cacheStatus = idx.getCacheStatus();
         Assert.assertEquals("Not expecting different generations yet.", cacheStatus.getOldestGeneration(), cacheStatus.getNewestGeneration());
         val newGen = cacheStatus.getNewestGeneration() + 1;
-        val removedSize = idx.updateGenerations(newGen, newGen);
-        AssertExtensions.assertGreaterThan("Expecting something to be evicted.", 0, removedSize);
+        boolean anythingRemoved = idx.updateGenerations(newGen, newGen);
+        Assert.assertTrue("Expecting something to be evicted.", anythingRemoved);
 
         // Re-check the index and verify at least one Storage Read happened.
         AtomicBoolean intercepted = new AtomicBoolean(false);
@@ -681,7 +683,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         final TestContext.TestStorage storage;
         final UpdateableContainerMetadata containerMetadata;
         final ContainerAttributeIndexImpl index;
-        final InMemoryCacheFactory cacheFactory;
+        final CacheStorage cacheStorage;
         final TestCacheManager cacheManager;
 
         TestContext(AttributeIndexConfig config) {
@@ -693,19 +695,22 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             this.memoryStorage.initialize(1);
             this.storage = new TestContext.TestStorage(new RollingStorage(this.memoryStorage, config.getAttributeSegmentRollingPolicy()), executorService());
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.cacheFactory = new InMemoryCacheFactory();
-            this.cacheManager = new TestCacheManager(cachePolicy, executorService());
-            val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheFactory, this.cacheManager, executorService());
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new TestCacheManager(cachePolicy, this.cacheStorage, executorService());
+            val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheManager, executorService());
             this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage);
         }
 
         @Override
+        @SneakyThrows
         public void close() {
             this.index.close();
-            this.cacheManager.close();
-            this.cacheFactory.close();
             this.storage.close();
             this.memoryStorage.close();
+            AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Attribute Index did not delete all CacheStorage entries after closing.",
+                    0L, () -> this.cacheStorage.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
+            this.cacheManager.close();
+            this.cacheStorage.close();
         }
 
         private class TestStorage extends AsyncStorageWrapper {

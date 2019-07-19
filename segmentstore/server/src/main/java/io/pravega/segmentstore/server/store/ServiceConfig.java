@@ -48,7 +48,7 @@ public class ServiceConfig {
     public static final Property<Boolean> ENABLE_TLS = Property.named("enableTls", false);
     public static final Property<String> CERT_FILE = Property.named("certFile", "");
     public static final Property<String> KEY_FILE = Property.named("keyFile", "");
-    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
+    public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 4L * 1024 * 1024 * 1024);
     public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cacheTargetUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
     public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cacheMaxUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION));
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);

@@ -127,6 +127,11 @@ public class ByteArraySegment implements ArrayView {
     }
 
     @Override
+    public ByteArraySegment slice(int offset, int length) {
+        return subSegment(offset, length);
+    }
+
+    @Override
     public byte[] getCopy() {
         byte[] buffer = new byte[this.length];
         System.arraycopy(this.array, this.startOffset, buffer, 0, this.length);
@@ -139,6 +144,18 @@ public class ByteArraySegment implements ArrayView {
         Exceptions.checkArrayRange(targetOffset, length, target.length, "index", "values.length");
 
         System.arraycopy(this.array, this.startOffset, target, targetOffset, length);
+    }
+
+    /**
+     * Writes the entire contents of this ByteArraySegment to the given OutputStream. Only copies the contents of the
+     * ByteArraySegment, and writes no other data (such as the length of the Segment or any other info).
+     *
+     * @param stream The OutputStream to write to.
+     * @throws IOException If the OutputStream threw one.
+     */
+    @Override
+    public void copyTo(OutputStream stream) throws IOException {
+        stream.write(this.array, this.startOffset, this.length);
     }
 
     //endregion
@@ -252,6 +269,7 @@ public class ByteArraySegment implements ArrayView {
      * @throws ArrayIndexOutOfBoundsException If offset or length are invalid.
      */
     public ByteArraySegment subSegment(int offset, int length) {
+        // TODO: drop this in favor of slice(). Also rename the one with `readOnly`
         return subSegment(offset, length, this.readOnly);
     }
 

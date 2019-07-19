@@ -14,7 +14,6 @@ import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.FileHelpers;
 import io.pravega.common.io.serialization.RevisionDataOutput;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentTruncatedException;
@@ -26,9 +25,9 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
-import io.pravega.segmentstore.storage.Cache;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
@@ -344,10 +343,10 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
     //region TestContext
 
     private class TestContext implements AutoCloseable {
+        final CacheStorage cacheStorage;
         final Storage storage;
         final UpdateableContainerMetadata containerMetadata;
         final ContainerAttributeIndex index;
-        final CacheFactory cacheFactory;
         final CacheManager cacheManager; // Not used, but required by the constructor.
         final long segmentId;
         final String attributeSegmentName;
@@ -359,10 +358,9 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
             val storageFactory = new FileSystemStorageFactory(storageConfig, executorService());
             this.storage = storageFactory.createStorageAdapter();
             this.containerMetadata = new MetadataBuilder(0).build();
-            this.cacheFactory = new NoOpCacheFactory();
-            //this.cacheFactory = new InMemoryCacheFactory();
+            this.cacheStorage = new NoOpCache();
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
-            val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheFactory, this.cacheManager, executorService());
+            val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheManager, executorService());
             this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage);
 
             // Setup the segment in the metadata.
@@ -390,62 +388,12 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
         @Override
         public void close() {
             this.index.close();
-            this.cacheFactory.close();
             this.cacheManager.close();
 
             // We generate a lot of data, we should cleanup before exiting.
             cleanup();
             this.storage.close();
-        }
-    }
-
-    //endregion
-
-    //region NoOpCache
-
-    private static class NoOpCacheFactory implements CacheFactory {
-
-        @Override
-        public Cache getCache(String id) {
-            return new NoOpCache();
-        }
-
-        @Override
-        public void close() {
-            // This method intentionally left blank.
-        }
-    }
-
-    private static class NoOpCache implements Cache {
-
-        @Override
-        public String getId() {
-            return "NoOp";
-        }
-
-        @Override
-        public void insert(Key key, byte[] data) {
-            // This method intentionally left blank.
-        }
-
-        @Override
-        public void insert(Key key, ByteArraySegment data) {
-            // This method intentionally left blank.
-        }
-
-        @Override
-        public byte[] get(Key key) {
-            return null;
-        }
-
-        @Override
-        public void remove(Key key) {
-            // This method intentionally left blank.
-        }
-
-        @Override
-        public void close() {
-            // This method intentionally left blank.
+            this.cacheStorage.close();
         }
     }
 

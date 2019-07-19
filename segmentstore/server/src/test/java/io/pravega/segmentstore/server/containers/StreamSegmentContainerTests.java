@@ -74,7 +74,6 @@ import io.pravega.segmentstore.server.tables.ContainerTableExtensionImpl;
 import io.pravega.segmentstore.server.writer.StorageWriterFactory;
 import io.pravega.segmentstore.server.writer.WriterConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogFactory;
@@ -82,7 +81,8 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
@@ -2068,15 +2068,15 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         String segmentName = "test" + System.nanoTime();
         container.createStreamSegment(segmentName, null, timer.getRemaining())
-                .thenCompose(v -> container.append(segmentName, new byte[1], null, timer.getRemaining()))
-                .thenCompose(v -> container.read(segmentName, 0, 1, timer.getRemaining()))
-                .thenCompose(rr -> {
+                 .thenCompose(v -> container.append(segmentName, new byte[1], null, timer.getRemaining()))
+                 .thenCompose(v -> container.read(segmentName, 0, 1, timer.getRemaining()))
+                 .thenCompose(rr -> {
                     ReadResultEntry rre = rr.next();
                     rre.requestContent(TIMEOUT);
                     return rre.getContent().thenRun(rr::close);
                 })
-                .thenCompose(v -> container.deleteStreamSegment(segmentName, timer.getRemaining()))
-                .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+                 .thenCompose(v -> container.deleteStreamSegment(segmentName, timer.getRemaining()))
+                 .get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
     }
 
@@ -2104,7 +2104,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final ReadIndexFactory readIndexFactory;
         private final AttributeIndexFactory attributeIndexFactory;
         private final WriterFactory writerFactory;
-        private final CacheFactory cacheFactory;
+        private final CacheStorage cacheStorage;
         private final CacheManager cacheManager;
         private final Storage storage;
 
@@ -2112,10 +2112,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.storageFactory = new WatchableInMemoryStorageFactory(executorService());
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
-            this.cacheFactory = new InMemoryCacheFactory();
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
-            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheFactory, this.cacheManager, executorService());
-            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheFactory, this.cacheManager, executorService());
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
+            this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, executorService());
+            this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
             this.containerFactory = new StreamSegmentContainerFactory(config, this.operationLogFactory,
                     this.readIndexFactory, this.attributeIndexFactory, this.writerFactory, this.storageFactory,
@@ -2129,7 +2129,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         }
 
         private ContainerTableExtension createTableExtension(SegmentContainer c, ScheduledExecutorService e) {
-            return new ContainerTableExtensionImpl(c, this.cacheFactory, this.cacheManager, e);
+            return new ContainerTableExtensionImpl(c, this.cacheManager, e);
         }
 
         private SegmentContainerFactory.CreateExtensions createExtensions(SegmentContainerFactory.CreateExtensions additional) {
@@ -2151,6 +2151,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.storage.close();
             this.storageFactory.close();
             this.cacheManager.close();
+            this.cacheStorage.close();
         }
     }
 

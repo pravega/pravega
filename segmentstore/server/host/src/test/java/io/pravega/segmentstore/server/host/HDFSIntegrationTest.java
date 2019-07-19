@@ -13,8 +13,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.storage.hdfs.HDFSClusterHelpers;
 import io.pravega.storage.hdfs.HDFSStorageConfig;
 import io.pravega.storage.hdfs.HDFSStorageFactory;
@@ -72,7 +70,6 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> new HDFSStorageFactory(setup.getConfig(HDFSStorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder), getBookkeeper().getZkClient(), setup.getCoreExecutor()));
     }

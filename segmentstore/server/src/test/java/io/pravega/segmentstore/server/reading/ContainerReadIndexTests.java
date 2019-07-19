@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.reading;
 
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
@@ -26,10 +27,9 @@ import io.pravega.segmentstore.server.TestCacheManager;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
-import io.pravega.segmentstore.storage.Cache;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.mocks.InMemoryCache;
+import io.pravega.segmentstore.storage.cache.CacheSnapshot;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
@@ -61,6 +61,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
@@ -71,9 +73,9 @@ import org.junit.rules.Timeout;
  * Unit tests for ContainerReadIndex class.
  */
 public class ContainerReadIndexTests extends ThreadPooledTestSuite {
-    private static final int SEGMENT_COUNT = 100;
+    private static final int SEGMENT_COUNT = 10;
     private static final int TRANSACTIONS_PER_SEGMENT = 5;
-    private static final int APPENDS_PER_SEGMENT = 100;
+    private static final int APPENDS_PER_SEGMENT = 1000;
     private static final int CONTAINER_ID = 123;
 
     private static final ReadIndexConfig DEFAULT_CONFIG = ReadIndexConfig
@@ -326,10 +328,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             sm.setStorageLength(sm.getLength()); // We need to set this in order to verify cache evictions.
         }
 
-        HashSet<CacheKey> removedKeys = new HashSet<>();
-        context.cacheFactory.cache.removeCallback = removedKeys::add;
+        HashSet<Integer> deletedEntries = new HashSet<>();
+        context.cacheStorage.deleteCallback = deletedEntries::add;
         context.cacheManager.applyCachePolicy();
-        AssertExtensions.assertGreaterThan("Expected at least one cache entry to be removed.", 0, removedKeys.size());
+        AssertExtensions.assertGreaterThan("Expected at least one cache entry to be removed.", 0, deletedEntries.size());
     }
 
     /**
@@ -816,10 +818,14 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // To properly test this, we want predictable storage reads.
         ReadIndexConfig config = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, appendSize).build();
 
-        ArrayList<CacheKey> removedKeys = new ArrayList<>();
+        ArrayList<Integer> removedEntries = new ArrayList<>();
         @Cleanup
         TestContext context = new TestContext(config, cachePolicy);
-        context.cacheFactory.cache.removeCallback = removedKeys::add; // Record every cache removal.
+        // To ease our testing, we disable appends and instruct the TestCache to report the same value for UsedBytes as it
+        // has for StoredBytes. This shields us from having to know internal details about the layout of the cache.
+        context.cacheStorage.usedBytesSameAsStoredBytes = true;
+        context.cacheStorage.disableAppends = true;
+        context.cacheStorage.deleteCallback = removedEntries::add; // Record every cache removal.
 
         // Create the segments (metadata + storage).
         ArrayList<Long> segmentIds = createSegments(context);
@@ -835,6 +841,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             sm.setLength(preStorageData.length);
         }
 
+        val cacheMappings = new HashMap<Integer, SegmentOffset>();
+
         // Callback that appends one entry at the end of the given segment id.
         Consumer<Long> appendOneEntry = segmentId -> {
             UpdateableSegmentMetadata sm = context.metadata.getStreamSegmentMetadata(segmentId);
@@ -842,6 +850,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             long offset = sm.getLength();
             sm.setLength(offset + data.length);
             try {
+                context.cacheStorage.insertCallback = address -> cacheMappings.put(address, new SegmentOffset(segmentId, offset));
                 context.readIndex.append(segmentId, offset, data);
             } catch (StreamSegmentNotExistsException ex) {
                 throw new CompletionException(ex);
@@ -865,7 +874,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 ReadResultEntry resultEntry = result.next();
                 Assert.assertEquals("Unexpected type of ReadResultEntry when trying to load up data into the ReadIndex Cache.", ReadResultEntryType.Storage, resultEntry.getType());
                 CompletableFuture<Void> insertedInCache = new CompletableFuture<>();
-                context.cacheFactory.cache.insertCallback = ignored -> insertedInCache.complete(null);
+                context.cacheStorage.insertCallback = address -> {
+                    cacheMappings.put(address, new SegmentOffset(segmentId, offset));
+                    insertedInCache.complete(null);
+                };
                 resultEntry.requestContent(TIMEOUT);
                 ReadResultEntryContents contents = resultEntry.getContent().get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
                 Assert.assertFalse("Not expecting more data to be available for reading.", result.hasNext());
@@ -878,7 +890,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             context.cacheManager.applyCachePolicy();
         }
 
-        Assert.assertEquals("Not expecting any removed Cache entries at this point (cache is not full).", 0, removedKeys.size());
+        Assert.assertEquals("Not expecting any removed Cache entries at this point (cache is not full).", 0, removedEntries.size());
 
         // Append more data (equivalent to all post-storage entries), and verify that NO entries are being evicted (we cannot evict post-storage entries).
         for (int i = 0; i < postStorageEntryCount; i++) {
@@ -886,7 +898,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             context.cacheManager.applyCachePolicy();
         }
 
-        Assert.assertEquals("Not expecting any removed Cache entries at this point (only eligible entries were post-storage).", 0, removedKeys.size());
+        Assert.assertEquals("Not expecting any removed Cache entries at this point (only eligible entries were post-storage).", 0, removedEntries.size());
 
         // 'Touch' the first few entries read from storage. This should move them to the back of the queue (they won't be the first ones to be evicted).
         int touchCount = preStorageEntryCount / 3;
@@ -906,14 +918,14 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             context.cacheManager.applyCachePolicy();
         }
 
-        Assert.assertEquals("Not expecting any removed Cache entries at this point (we touched old entries and they now have the newest generation).", 0, removedKeys.size());
+        Assert.assertEquals("Not expecting any removed Cache entries at this point (we touched old entries and they now have the newest generation).", 0, removedEntries.size());
 
         // Increment the generations so that we are caught up to just before the generation where the "touched" items now live.
         context.cacheManager.applyCachePolicy();
 
         // We expect all but the 'touchCount' pre-Storage entries to be removed.
         int expectedRemovalCount = (preStorageEntryCount - touchCount) * SEGMENT_COUNT;
-        Assert.assertEquals("Unexpected number of removed entries after having forced out all pre-storage entries.", expectedRemovalCount, removedKeys.size());
+        Assert.assertEquals("Unexpected number of removed entries after having forced out all pre-storage entries.", expectedRemovalCount, removedEntries.size());
 
         // Now update the metadata and indicate that all the post-storage data has been moved to storage.
         segmentIds.forEach(segmentId -> {
@@ -936,11 +948,14 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
         int expectedRemovalCountPerSegment = entriesPerSegment + touchCount + postStorageEntryCount;
         int expectedTotalRemovalCount = SEGMENT_COUNT * expectedRemovalCountPerSegment;
-        Assert.assertEquals("Unexpected number of removed entries after having forced out all the entries.", expectedTotalRemovalCount, removedKeys.size());
+        Assert.assertEquals("Unexpected number of removed entries after having forced out all the entries.", expectedTotalRemovalCount, removedEntries.size());
 
         // Finally, verify that the evicted items are in the correct order (for each segment). See this test's description for details.
         for (long segmentId : segmentIds) {
-            List<CacheKey> segmentRemovedKeys = removedKeys.stream().filter(key -> key.getStreamSegmentId() == segmentId).collect(Collectors.toList());
+            List<SegmentOffset> segmentRemovedKeys = removedEntries.stream()
+                    .map(cacheMappings::get)
+                    .filter(e -> e.segmentId == segmentId)
+                    .collect(Collectors.toList());
             Assert.assertEquals("Unexpected number of removed entries for segment " + segmentId, expectedRemovalCountPerSegment, segmentRemovedKeys.size());
 
             // The correct order of eviction (N=entriesPerSegment) is: 0.25N-0.75N, 0.75N..N, N..1.25N, 0..0.25N, 1.25N..1.5N.
@@ -1208,15 +1223,15 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
 
     //region Helpers
 
-    private void checkOffsets(List<CacheKey> removedKeys, long segmentId, int startIndex, int count, int startOffset, int stepIncrease) {
+    private void checkOffsets(List<SegmentOffset> removedKeys, long segmentId, int startIndex, int count, int startOffset, int stepIncrease) {
         int expectedStartOffset = startOffset;
         for (int i = 0; i < count; i++) {
             int listIndex = startIndex + i;
-            CacheKey currentKey = removedKeys.get(startIndex + i);
+            SegmentOffset currentEntry = removedKeys.get(startIndex + i);
             Assert.assertEquals(
                     String.format("Unexpected CacheKey.SegmentOffset at index %d for SegmentId %d.", listIndex, segmentId),
                     expectedStartOffset,
-                    currentKey.getOffset());
+                    currentEntry.offset);
             expectedStartOffset += stepIncrease;
         }
     }
@@ -1489,7 +1504,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final UpdateableContainerMetadata metadata;
         final ContainerReadIndex readIndex;
         final TestCacheManager cacheManager;
-        final TestCacheFactory cacheFactory;
+        final TestCacheStorage cacheStorage;
         final Storage storage;
 
         TestContext() {
@@ -1497,67 +1512,95 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
-            this.cacheFactory = new TestCacheFactory();
+            this.cacheStorage = new TestCacheStorage(Integer.MAX_VALUE);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.storage = InMemoryStorageFactory.newStorage(executorService());
             this.storage.initialize(1);
-            this.cacheManager = new TestCacheManager(cachePolicy, executorService());
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
+            this.cacheManager = new TestCacheManager(cachePolicy, this.cacheStorage, executorService());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.storage, this.cacheManager, executorService());
         }
 
         @Override
+        @SneakyThrows
         public void close() {
             this.readIndex.close();
-            this.cacheFactory.close();
+            AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Read Index did not delete all CacheStorage entries after closing.",
+                    0L, () -> this.cacheStorage.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
             this.storage.close();
             this.cacheManager.close();
+            this.cacheStorage.close();
         }
     }
 
     //endregion
 
-    //region TestCache
+    //region TestCacheStorage
 
-    private static class TestCache extends InMemoryCache {
-        Consumer<CacheKey> insertCallback;
-        Consumer<CacheKey> removeCallback;
+    private static class TestCacheStorage extends DirectMemoryCache {
+        Consumer<Integer> insertCallback;
+        Consumer<Integer> deleteCallback;
+        boolean disableAppends;
+        boolean usedBytesSameAsStoredBytes;
 
-        TestCache(String id) {
-            super(id);
+        TestCacheStorage(long maxSizeBytes) {
+            super(maxSizeBytes);
         }
 
         @Override
-        public void insert(Cache.Key key, byte[] payload) {
-            super.insert(key, payload);
-            Consumer<CacheKey> callback = this.insertCallback;
+        public int getAppendableLength(int currentLength) {
+            return this.disableAppends ? 0 : super.getAppendableLength(currentLength);
+        }
+
+        @Override
+        public int insert(BufferView data) {
+            int r = super.insert(data);
+            Consumer<Integer> callback = this.insertCallback;
             if (callback != null) {
-                callback.accept((CacheKey) key);
+                callback.accept(r);
+            }
+
+            return r;
+        }
+
+        @Override
+        public int append(int address, int expectedLength, BufferView data) {
+            if (this.disableAppends) {
+                return 0;
+            }
+
+            return super.append(address, expectedLength, data);
+        }
+
+        @Override
+        public void delete(int address) {
+            super.delete(address);
+            Consumer<Integer> callback = this.deleteCallback;
+            if (callback != null) {
+                callback.accept(address);
             }
         }
 
         @Override
-        public void remove(Cache.Key key) {
-            super.remove(key);
-            Consumer<CacheKey> callback = this.removeCallback;
-            if (callback != null) {
-                callback.accept((CacheKey) key);
+        public CacheSnapshot getSnapshot() {
+            val s = super.getSnapshot();
+            if (this.usedBytesSameAsStoredBytes) {
+                return new CacheSnapshot(s.getStoredBytes(), s.getStoredBytes(), s.getReservedBytes(), s.getAllocatedBytes(), s.getMaxBytes());
+            } else {
+                return s;
             }
-        }
-    }
-
-    private static class TestCacheFactory implements CacheFactory {
-        final TestCache cache = new TestCache("Test");
-
-        @Override
-        public Cache getCache(String id) {
-            return this.cache;
-        }
-
-        @Override
-        public void close() {
-            this.cache.close();
         }
     }
 
     //endregion
+
+    //region SegmentOffset
+
+    @RequiredArgsConstructor
+    private static class SegmentOffset {
+        final long segmentId;
+        final long offset;
+    }
+
+    //endregion
+
 }

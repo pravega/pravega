@@ -244,7 +244,7 @@ Following are some common combinations of component and sub-components (or abstr
 - `segmentstore.bookkeeper`: Metrics related to Bookkeeper (Tier 1)
 - `segmentstore.container`: Metrics for Segment Containers
 - `segmentstore.thread_pool`: Metrics for Segment Store thread pool
-- `segmentstore.cache`: Cache-related metrics (RocksDB)
+- `segmentstore.cache`: Cache-related metrics
 - `controller.stream`: Metrics for operations on Streams (e.g., number of streams created)
 - `controller.segments`: Metrics about Segments, per Stream (e.g., count, splits, merges)
 - `controller.transactions`: Metrics related to Transactions (e.g., created, committed, aborted)

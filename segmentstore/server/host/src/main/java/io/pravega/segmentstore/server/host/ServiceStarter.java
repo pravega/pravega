@@ -24,8 +24,6 @@ import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
@@ -70,7 +68,6 @@ public final class ServiceStarter {
     private ServiceBuilder createServiceBuilder() {
         ServiceBuilder builder = ServiceBuilder.newInMemoryBuilder(this.builderConfig);
         attachDataLogFactory(builder);
-        attachRocksDB(builder);
         attachStorage(builder);
         attachZKSegmentManager(builder);
         return builder;
@@ -166,10 +163,6 @@ public final class ServiceStarter {
                     throw new IllegalStateException("Unsupported storage implementation: " + this.serviceConfig.getDataLogTypeImplementation());
             }
         });
-    }
-
-    private void attachRocksDB(ServiceBuilder builder) {
-        builder.withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)));
     }
 
     private void attachStorage(ServiceBuilder builder) {

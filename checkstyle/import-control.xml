@@ -23,7 +23,6 @@
     <allow pkg="ch.qos.logback"/>
     <allow pkg="io.netty"/>
     <allow pkg="org.apache"/>
-    <allow pkg="org.rocksdb"/>
     <allow pkg="io.micrometer"/>
     <allow pkg="com.emc.object"/>
     <allow pkg="com.sun.security"/>

@@ -30,14 +30,13 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.storage.filesystem.FileSystemStorageConfig;
+import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
@@ -99,7 +98,6 @@ class SegmentStoreAdapter extends StoreAdapter {
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.serviceBuilder = attachDataLogFactory(ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
                     SingletonStorageFactory factory = new SingletonStorageFactory(setup.getStorageExecutor());
@@ -368,7 +366,8 @@ class SegmentStoreAdapter extends StoreAdapter {
         private final Storage storage;
 
         SingletonStorageFactory(ScheduledExecutorService executor) {
-            this.storage = new InMemoryStorageFactory(executor).createStorageAdapter();
+            this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, "/tmp/pravega/storage").build(),
+                    executor).createStorageAdapter();
             this.storage.initialize(1);
             this.closed = new AtomicBoolean();
         }

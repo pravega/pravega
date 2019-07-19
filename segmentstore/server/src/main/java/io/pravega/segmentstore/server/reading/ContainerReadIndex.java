@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.CacheManager;
@@ -20,8 +21,6 @@ import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.storage.Cache;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
 import java.io.InputStream;
 import java.time.Duration;
@@ -57,7 +56,6 @@ public class ContainerReadIndex implements ReadIndex {
     @GuardedBy("lock")
     private final HashMap<Long, StreamSegmentReadIndex> readIndices;
     private final Object lock = new Object();
-    private final Cache cache;
     private final ReadOnlyStorage storage;
     private final ScheduledExecutorService executor;
     private final ReadIndexConfig config;
@@ -77,15 +75,13 @@ public class ContainerReadIndex implements ReadIndex {
      *
      * @param config       Configuration for the ReadIndex.
      * @param metadata     The ContainerMetadata to attach to.
-     * @param cacheFactory A CacheFactory that can be used to create Caches for storing data into.
      * @param storage      Storage to read data not in the ReadIndex from.
      * @param cacheManager The CacheManager to use for cache lifecycle management.
      * @param executor     An Executor to run async callbacks on.
      */
-    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, CacheFactory cacheFactory, ReadOnlyStorage storage, CacheManager cacheManager, ScheduledExecutorService executor) {
+    public ContainerReadIndex(ReadIndexConfig config, ContainerMetadata metadata, ReadOnlyStorage storage, CacheManager cacheManager, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(cacheFactory, "cacheFactory");
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(cacheManager, "cacheManager");
         Preconditions.checkNotNull(executor, "executor");
@@ -94,7 +90,6 @@ public class ContainerReadIndex implements ReadIndex {
         this.traceObjectId = String.format("ReadIndex[%s]", metadata.getContainerId());
         this.readIndices = new HashMap<>();
         this.config = config;
-        this.cache = cacheFactory.getCache(String.format("Container_%d", metadata.getContainerId()));
         this.metadata = metadata;
         this.storage = storage;
         this.cacheManager = cacheManager;
@@ -110,8 +105,7 @@ public class ContainerReadIndex implements ReadIndex {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            closeAllIndices(false); // Do not individually clear the cache; we are wiping it anyway when closing it.
-            this.cache.close();
+            closeAllIndices();
             log.info("{}: Closed.", this.traceObjectId);
         }
     }
@@ -128,7 +122,7 @@ public class ContainerReadIndex implements ReadIndex {
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
         StreamSegmentReadIndex index = getOrCreateIndex(streamSegmentId);
         Exceptions.checkArgument(!index.isMerged(), "streamSegmentId", "StreamSegment is merged. Cannot append to it anymore.");
-        index.append(offset, data);
+        index.append(offset, new ByteArraySegment(data));
     }
 
     @Override
@@ -230,7 +224,7 @@ public class ContainerReadIndex implements ReadIndex {
     public void clear() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkState(isRecoveryMode(), "Read Index is not in recovery mode. Cannot clear ReadIndex.");
-        closeAllIndices(true);
+        closeAllIndices();
         log.info("{}: Cleared.", this.traceObjectId);
     }
 
@@ -389,7 +383,7 @@ public class ContainerReadIndex implements ReadIndex {
                     throw new StreamSegmentNotExistsException(segmentMetadata.getName());
                 }
 
-                index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cache, this.storage, this.executor, isRecoveryMode());
+                index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cacheManager.getCacheStorage(), this.storage, this.executor, isRecoveryMode());
                 this.cacheManager.register(index);
                 this.readIndices.put(streamSegmentId, index);
             }
@@ -409,10 +403,10 @@ public class ContainerReadIndex implements ReadIndex {
         return index != null;
     }
 
-    private void closeAllIndices(boolean cleanCache) {
+    private void closeAllIndices() {
         synchronized (this.lock) {
             val segmentIds = new ArrayList<Long>(this.readIndices.keySet());
-            segmentIds.forEach(segmentId -> closeIndex(segmentId, cleanCache));
+            segmentIds.forEach(segmentId -> closeIndex(segmentId, true));
             this.readIndices.clear();
         }
     }

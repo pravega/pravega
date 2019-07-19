@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.function.Callbacks;
-import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -23,10 +22,9 @@ import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.storage.Cache;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.time.Duration;
 import java.util.List;
@@ -88,9 +86,10 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
         Preconditions.checkNotNull(callbacks, callbacks);
 
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(containerId, config.getMaxActiveSegmentCount());
-        CacheManager cacheManager = new CacheManager(new CachePolicy(Long.MAX_VALUE, Duration.ofHours(10), Duration.ofHours(1)), executor);
+        CacheManager cacheManager = new CacheManager(new CachePolicy(Long.MAX_VALUE, Duration.ofHours(10), Duration.ofHours(1)),
+                new NoOpCache(), executor);
         cacheManager.startAsync().awaitRunning();
-        ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, new NoOpCacheFactory(), cacheManager, executor);
+        ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, cacheManager, executor);
         Storage s = new InMemoryStorageFactory(executor).createStorageAdapter();
         return new DebugRecoveryProcessor(metadata, durableDataLog, rf, s, cacheManager, callbacks);
     }
@@ -143,55 +142,6 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
          * Invoked when an operation failed to recover.
          */
         private final BiConsumer<Operation, Throwable> operationFailed;
-    }
-
-    //endregion
-
-    //region NoOpCache
-
-    private static class NoOpCacheFactory implements CacheFactory {
-        @Override
-        public Cache getCache(String id) {
-            return new NoOpCache();
-        }
-
-        @Override
-        public void close() {
-            // Nothing to do.
-        }
-    }
-
-    private static class NoOpCache implements Cache {
-        @Override
-        public String getId() {
-            return null;
-        }
-
-        @Override
-        public void insert(Key key, byte[] data) {
-            // Nothing to do.
-        }
-
-        @Override
-        public void insert(Key key, ByteArraySegment data) {
-            // Nothing to do.
-        }
-
-        @Override
-        public byte[] get(Key key) {
-            // This should not be invoked from within a DebugRecoveryProcessor.
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void remove(Key key) {
-            // Nothing to do.
-        }
-
-        @Override
-        public void close() {
-            // Nothing to do.
-        }
     }
 
     //endregion
