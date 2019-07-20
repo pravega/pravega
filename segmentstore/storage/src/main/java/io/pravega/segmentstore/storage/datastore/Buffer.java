@@ -119,9 +119,9 @@ class Buffer implements AutoCloseable {
         for (int i = 0; i < result.size(); i++) {
             blockId = result.get(i);
             boolean firstBlock = first && i == 0;
-            boolean last = i < result.size() - 1;
-            int successorAddress = last ? this.layout.calculateAddress(this.id, result.get(i + 1)) : StoreLayout.NO_ADDRESS;
-            int blockLength = last ? this.layout.blockSize() : lastBlockLength;
+            boolean last = i == result.size() - 1;
+            int successorAddress = last ? StoreLayout.NO_ADDRESS : this.layout.calculateAddress(this.id, result.get(i + 1));
+            int blockLength = last && length == 0 ? lastBlockLength : this.layout.blockSize();
             long metadata = this.layout.newBlockMetadata(firstBlock, StoreLayout.NO_BLOCK_ID, blockLength, successorAddress);
             metadataBuf.setLong(blockId * this.layout.blockMetadataLength(), metadata);
         }
@@ -147,7 +147,7 @@ class Buffer implements AutoCloseable {
                 int blockLength = this.layout.getLength(blockMetadata);
                 int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
                 if (successorAddress != StoreLayout.NO_ADDRESS && blockLength < this.layout.blockSize()) {
-                    throw new RuntimeException(new Exception("corruption"));
+                    throw new RuntimeException(new Exception("corruption: non-full, non-terminal block."));
                 }
 
                 readBuffers.add(getBlockBuffer(blockId).slice(0, Math.min(blockLength, this.layout.blockSize())).asReadOnly());
