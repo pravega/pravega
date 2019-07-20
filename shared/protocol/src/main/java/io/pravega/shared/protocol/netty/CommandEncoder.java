@@ -79,7 +79,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private long totalBytes = 0;
 
     @RequiredArgsConstructor
-
     private final class Session {
         private static final int MAX_BLOCK_SIZE = 1024 * 1024;  // 1MB
         private static final int MAX_EVENTS = 500;
@@ -150,9 +149,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 session.recordAppend(append);
                 if (startAppend(ctx, blockSizeSupplier, append, out)) {
                     continueAppend(data, out);
-               } else {
+                } else {
                     breakFromAppend(null, data, false, out);
-               }
+                }
             } else {
                 session.recordAppend(append);
                 if (isChannelOwner(append.getWriterId(), append.getSegment())) {
@@ -191,10 +190,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     private void validateAppend(Append append, Session session) {
         if (append.getEventCount() <= 0) {
-            throw new InvalidMessageException("Invalid eventCount in the append.");
+            throw new InvalidMessageException("Invalid eventCount : " + append.getEventCount() + " in the append");
         }
         if (session == null || !session.id.equals(append.getWriterId())) {
-            throw new InvalidMessageException("Sending appends without setting up the append.");
+            throw new InvalidMessageException("Sending appends without setting up the append. Append Writer id: " + append.getWriterId());
         }
         if (append.getEventNumber() <= session.lastEventNumber) {
             throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()

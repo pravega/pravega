@@ -105,17 +105,22 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
             ByteBuf appendDataBuf;
             if (blockEnd.numEvents <= 0) {
-                throw new InvalidMessageException("Invalid number of events in block.");
+                throw new InvalidMessageException("Invalid number of events in block. numEvents : " + blockEnd.numEvents);
             }
             if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
-                throw new InvalidMessageException("Last event number went backwards.");
+                throw new InvalidMessageException("Last event number went backwards." +
+                        " Segment last Event number : " + segment.lastEventNumber +
+                        " Append block End Event number : " + blockEnd.getLastEventNumber());
             }
             if (currentBlock != null) {
                if (!currentBlock.getWriterId().equals(writerId)) {
-                   throw new InvalidMessageException("Writer ID mismatch between Append Block and Append block End.");
+                   throw new InvalidMessageException("Writer ID mismatch between Append Block and Append block End." +
+                           " Append block Writer Id : " + currentBlock.getWriterId() +
+                           " Append block End Writer Id: " + writerId);
                }
                if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
-                    throw new InvalidMessageException("Invalid SizeOfWholeEvents in block");
+                    throw new InvalidMessageException("Invalid SizeOfWholeEvents in block : " + sizeOfWholeEventsInBlock +
+                            "Append block data bytes : " + currentBlock.getData().readableBytes());
                }
                appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
             } else {
