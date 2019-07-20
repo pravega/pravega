@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBuf;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
@@ -32,6 +33,17 @@ class Buffer implements AutoCloseable {
         this.layout = layout;
         this.id = bufferId;
         this.usedBlockCount = 1;
+        formatMetadata();
+    }
+
+    private void formatMetadata() {
+        ByteBuf metadataBuf = getBlockBuffer(0);
+        metadataBuf.writerIndex(0);
+        for (int blockId = 0; blockId < this.layout.blocksPerBuffer(); blockId++) {
+            long m = this.layout.emptyBlockMetadata();
+            m = this.layout.setNextFreeBlockId(m, blockId == this.layout.blocksPerBuffer() - 1 ? StoreLayout.NO_BLOCK_ID : blockId + 1);
+            metadataBuf.writeLong(m);
+        }
     }
 
     @Override
@@ -70,43 +82,47 @@ class Buffer implements AutoCloseable {
         }
 
         ArrayList<Integer> result = new ArrayList<>();
-        ArrayList<Integer> lengths = new ArrayList<>();
+        int lastBlockLength = length % this.layout.blockSize();
+
         ByteBuf metadataBuf = getBlockBuffer(0);
-        metadataBuf.skipBytes(this.layout.blockMetadataLength());
-
-        int blockIndex = 1;
-        while (blockIndex < this.layout.blocksPerBuffer()) {
-            long blockMetadata = metadataBuf.readLong();
-            if (!this.layout.isUsedBlock(blockMetadata)) {
-                // Found an unallocated block. Use it.
-                result.add(blockIndex);
-                lengths.add(length); // Remaining length, this block included.
-
-                if (length > 0) {
-                    int blockBytes = Math.min(length, this.layout.blockSize());
-                    ByteBuf blockBuffer = getBlockBuffer(blockIndex);
-                    blockBuffer.writerIndex(0);
-                    while (blockBytes > 0) {
-                        int n = blockBuffer.writeBytes(data, blockBytes);
+        long blockMetadata = metadataBuf.getLong(0);
+        int blockId = this.layout.getNextFreeBlockId(blockMetadata);
+        assert blockId != StoreLayout.NO_BLOCK_ID;
+        while (blockId != StoreLayout.NO_BLOCK_ID) {
+            blockMetadata = metadataBuf.getLong(blockId * this.layout.blockMetadataLength());
+            assert !this.layout.isUsedBlock(blockMetadata);
+            result.add(blockId);
+            int blockBytes = Math.min(length, this.layout.blockSize());
+            if (length > 0) {
+                ByteBuf blockBuffer = getBlockBuffer(blockId);
+                blockBuffer.writerIndex(0);
+                while (blockBytes > 0) {
+                    int n = blockBuffer.writeBytes(data, blockBytes);
                         blockBytes -= n;
-                        length -= n;
-                    }
-                }
-
-                if (length <= 0) {
-                    break;
+                    length -= n;
                 }
             }
 
-            blockIndex++;
+            blockId = this.layout.getNextFreeBlockId(blockMetadata);
+            if (length <= 0) {
+                // We are done.
+                break;
+            }
         }
 
         // Update the metadata into the buffer, now that we know the successors as well.
+        blockMetadata = metadataBuf.getLong(0);
+        blockMetadata = this.layout.setNextFreeBlockId(blockMetadata, blockId);
+        metadataBuf.setLong(0, blockMetadata);
+
+        // Each modified metadata.
         for (int i = 0; i < result.size(); i++) {
-            int blockId = result.get(i);
+            blockId = result.get(i);
             boolean firstBlock = first && i == 0;
-            int successorAddress = i < result.size() - 1 ? this.layout.calculateAddress(this.id, result.get(i + 1)) : StoreLayout.NO_ADDRESS;
-            long metadata = this.layout.newBlockMetadata(firstBlock, lengths.get(i), successorAddress);
+            boolean last = i < result.size() - 1;
+            int successorAddress = last ? this.layout.calculateAddress(this.id, result.get(i + 1)) : StoreLayout.NO_ADDRESS;
+            int blockLength = last ? this.layout.blockSize() : lastBlockLength;
+            long metadata = this.layout.newBlockMetadata(firstBlock, StoreLayout.NO_BLOCK_ID, blockLength, successorAddress);
             metadataBuf.setLong(blockId * this.layout.blockMetadataLength(), metadata);
         }
 
@@ -128,15 +144,13 @@ class Buffer implements AutoCloseable {
             int bufIndex = blockId * this.layout.blockMetadataLength();
             long blockMetadata = metadataBuf.getLong(bufIndex);
             if (this.layout.isUsedBlock(blockMetadata)) {
-                int remainingLength = this.layout.getRemainingLength(blockMetadata);
+                int blockLength = this.layout.getLength(blockMetadata);
                 int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
-                if (successorAddress == StoreLayout.NO_ADDRESS && remainingLength > this.layout.blockSize()) {
-                    throw new RuntimeException(new Exception("corruption"));
-                } else if (successorAddress != StoreLayout.NO_ADDRESS && remainingLength <= this.layout.blockSize()) {
+                if (successorAddress != StoreLayout.NO_ADDRESS && blockLength < this.layout.blockSize()) {
                     throw new RuntimeException(new Exception("corruption"));
                 }
 
-                readBuffers.add(getBlockBuffer(blockId).slice(0, Math.min(remainingLength, this.layout.blockSize())).asReadOnly());
+                readBuffers.add(getBlockBuffer(blockId).slice(0, Math.min(blockLength, this.layout.blockSize())).asReadOnly());
                 if (successorAddress == StoreLayout.NO_ADDRESS || this.layout.getBufferId(successorAddress) != this.id) {
                     // We are done.
                     return successorAddress;
@@ -144,13 +158,11 @@ class Buffer implements AutoCloseable {
                     blockId = this.layout.getBlockId(successorAddress);
                     assert blockId >= 1 && blockId < this.layout.blocksPerBuffer();
                 }
+            } else if (count == 0) {
+                return StoreLayout.NO_ADDRESS;
             } else {
-                if (count == 0) {
-                    return StoreLayout.NO_ADDRESS;
-                } else {
-                    // Found a bad pointer.
-                    throw new RuntimeException(new Exception("corruption"));
-                }
+                // Found a bad pointer.
+                throw new RuntimeException(new Exception("corruption"));
             }
 
             count++;
@@ -165,20 +177,19 @@ class Buffer implements AutoCloseable {
 
         ByteBuf metadataBuf = getBlockBuffer(0);
         int deletedLength = 0;
+        int successorAddress = StoreLayout.NO_ADDRESS;
+        ArrayList<Integer> freedBlocks = new ArrayList<>();
         while (blockId != StoreLayout.NO_BLOCK_ID) {
-            int bufIndex = blockId * this.layout.blockMetadataLength();
-            long blockMetadata = metadataBuf.getLong(bufIndex);
+            long blockMetadata = metadataBuf.getLong(blockId * this.layout.blockMetadataLength());
             if (this.layout.isUsedBlock(blockMetadata)) {
                 // Clear metadata.
-                metadataBuf.setLong(bufIndex, this.layout.emptyBlockMetadata());
-                this.usedBlockCount--;
-                assert this.usedBlockCount >= 1;
+                freedBlocks.add(blockId);
 
                 // Find successor, if any.
-                int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
-                deletedLength += (successorAddress == StoreLayout.NO_ADDRESS) ? this.layout.getRemainingLength(blockMetadata) : this.layout.blockSize();
+                successorAddress = this.layout.getSuccessorAddress(blockMetadata);
+                deletedLength += this.layout.getLength(blockMetadata);
                 if (successorAddress == StoreLayout.NO_ADDRESS || this.layout.getBufferId(successorAddress) != this.id) {
-                    return new DeleteResult(deletedLength, successorAddress);
+                    break;
                 } else {
                     blockId = this.layout.getBlockId(successorAddress);
                     assert blockId >= 1 && blockId < this.layout.blocksPerBuffer();
@@ -188,8 +199,50 @@ class Buffer implements AutoCloseable {
             }
         }
 
-        // Nothing to deallocate. Normally we shouldn't get here anyway.
-        return new DeleteResult(deletedLength, StoreLayout.NO_ADDRESS);
+        deallocateBlocks(freedBlocks, metadataBuf);
+        return new DeleteResult(deletedLength, successorAddress);
+    }
+
+    @GuardedBy("this")
+    private void deallocateBlocks(List<Integer> blocks, ByteBuf metadataBuf) {
+        Iterator<Integer> iterator = blocks.iterator();
+        if (!iterator.hasNext()) {
+            return;
+        }
+
+        // Find the highest empty block that is before the first block (P).
+        int freedBlockId = iterator.next();
+        int prevBlockId = freedBlockId;
+        long prevMetadata;
+        do {
+            prevBlockId--;
+            prevMetadata = metadataBuf.getLong(prevBlockId * this.layout.blockMetadataLength());
+        } while (prevBlockId > 0 && this.layout.isUsedBlock(prevMetadata));
+
+        // Loop as long as there are no more freed blocks (F). At each iteration:
+        // If P.Next < F, update F.next=P.next, P.next=F
+        while (freedBlockId != StoreLayout.NO_BLOCK_ID) {
+            // If the current free block (prevBlockId) has a free successor that is smaller than freedBlockId, then
+            // follow the free block list until we find a successor that is after freedBlockId or reach the end.
+            int prevNextFreeBlockId = this.layout.getNextFreeBlockId(prevMetadata);
+            while (prevNextFreeBlockId != this.layout.NO_BLOCK_ID && prevNextFreeBlockId < freedBlockId) {
+                prevBlockId = prevNextFreeBlockId;
+                prevMetadata = metadataBuf.getLong(prevBlockId * this.layout.blockMetadataLength());
+                prevNextFreeBlockId = this.layout.getNextFreeBlockId(prevMetadata);
+            }
+
+            // Point our newly freed block to this previous block's next free block id.
+            long blockMetadata = this.layout.setNextFreeBlockId(this.layout.emptyBlockMetadata(), prevNextFreeBlockId);
+
+            // Point this previous block to our newly freed block as the next free block in the chain.
+            prevMetadata = this.layout.setNextFreeBlockId(prevMetadata, freedBlockId);
+            metadataBuf.setLong(prevBlockId * this.layout.blockMetadataLength(), prevMetadata);
+            metadataBuf.setLong(freedBlockId * this.layout.blockMetadataLength(), blockMetadata);
+
+            freedBlockId = iterator.hasNext() ? iterator.next() : StoreLayout.NO_BLOCK_ID;
+        }
+
+        this.usedBlockCount -= blocks.size();
     }
 
     synchronized void setSuccessor(int blockAddress, int successorBlockAddress) {

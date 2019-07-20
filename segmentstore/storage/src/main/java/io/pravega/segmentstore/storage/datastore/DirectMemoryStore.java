@@ -37,7 +37,6 @@ public class DirectMemoryStore implements AutoCloseable {
 
     public DirectMemoryStore(long maxSizeBytes) {
         this(new StoreLayout.DefaultLayout(), maxSizeBytes);
-        //this(new StoreLayout.NoRemainingLengthLayout(), maxSizeBytes);
     }
 
     public DirectMemoryStore(@NonNull StoreLayout layout, long maxSizeBytes) {

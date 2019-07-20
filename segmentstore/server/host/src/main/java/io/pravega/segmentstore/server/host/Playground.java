@@ -38,7 +38,7 @@ public class Playground {
         //context.reset();
 
         final int entrySize = 10 * 1024;
-        final int keyCount = 1_000_000;
+        final int keyCount = 1000000;
         final int iterationCount = 5;
         final int randomCount = 1_000_000;
         @Cleanup
@@ -46,13 +46,13 @@ public class Playground {
         for (int i = 0; i < iterationCount; i++) {
             //val r = testInMemoryCache(entrySize, keyCount);
             //val r = testRocksDbCache(entrySize, keyCount);
-            val r = testDirectStore(s, entrySize, keyCount);
-            System.out.println(String.format("Insert: %d, Get: %d, Remove: %d", r.insertMillis, r.getMillis, r.removeMillis));
+            //val r = testDirectStore(s, entrySize, keyCount);
+            //System.out.println(String.format("Insert: %d, Get: %d, Remove: %d", r.insertMillis, r.getMillis, r.removeMillis));
 
             //val r2 = testInMemoryCacheRandom(entrySize, randomCount);
             //val r2 = testRocksDbCacheRandom(entrySize, randomCount);
-            //val r2 = testDirectStoreRandom(s, entrySize, randomCount);
-            //System.out.println(String.format("Random operations %d", r2));
+            val r2 = testDirectStoreRandom(s, entrySize, randomCount);
+            System.out.println(String.format("Random operations %d", r2));
         }
     }
 

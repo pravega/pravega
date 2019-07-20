@@ -3,9 +3,9 @@ package io.pravega.segmentstore.storage.datastore;
 import com.google.common.base.Preconditions;
 
 abstract class StoreLayout {
-    static final long MAX_TOTAL_SIZE = 64L * 1024 * 1024 * 1024;
+    static final long MAX_TOTAL_SIZE = 64 * 1024 * 1024 * 1024L;
     static final int MAX_ENTRY_LENGTH = 0x03FF_FFFF; // 28 bits = 256MB
-    static final int NO_ADDRESS = 0x8000_0000; // Valid addresses have leading zeroes.
+    static final int NO_ADDRESS = 0; // Valid addresses have cannot be 0 since Block 0 is reserved.
     static final int NO_BLOCK_ID = 0; // 0 is the same as Metadata Block Id, so it's OK to use it.
     private final int maxBufferCount;
     private final int blocksPerBuffer;
@@ -47,11 +47,15 @@ abstract class StoreLayout {
 
     abstract int getSuccessorAddress(long blockMetadata);
 
-    abstract int getRemainingLength(long blockMetadata);
+    abstract int getLength(long blockMetadata);
+
+    abstract long setNextFreeBlockId(long blockMetadata, int nextFreeBlockId);
+
+    abstract int getNextFreeBlockId(long blockMetadata);
 
     abstract boolean isUsedBlock(long blockMetadata);
 
-    abstract long newBlockMetadata(boolean first, int remainingLength, int successorAddress);
+    abstract long newBlockMetadata(boolean first, int nextFreeBlockId, int length, int successorAddress);
 
     abstract long emptyBlockMetadata();
 
@@ -61,25 +65,32 @@ abstract class StoreLayout {
 
     /**
      * Metadata Layout (8 Bytes)
-     * - Bit 0: Used Flag
-     * - Bit 1: First Block of Object,
-     * - Bits 2,3: Reserved (not used)
-     * - Bits 4-31: Remaining Length (including this block; 28 bits)
+     * - Bit 0: Used Flag.
+     * - Bit 1: First Block of Object.
+     * - Bits 2-7: Not used.
+     * - Bits 8-17: Next Free Block Id (10 bits. NO_BLOCK_ID if Used=1)
+     * - Bits 18-31: Block Length (up to 16383, 14 bits)
      * - Bits 32-63: Successor Address.
      *
-     * Address layout (24 bits)
-     * - Bits 0-6: 0
-     * - Bits 7-22: Buffer Id (Max 65536 Buffers, 16 bits)
-     * - Bits 23-31: Block Id (512 blocks, 9 bits)
+     * Address layout (24 bits used out of 32)
+     * - Bits 0-7: 0
+     * - Bits 8-23: Buffer Id (Max 65536 Buffers, 16 bits)
+     * - Bits 24-31: Block Id (256 blocks, 8 bits)
      */
     static class DefaultLayout extends StoreLayout {
-        private static final int BUFFER_SIZE = 1 * 1024 * 1024; // This should 2 ....
+        private static final int BUFFER_SIZE = 1 * 1024 * 1024; // This should be 2 ....
         private static final int BLOCK_SIZE = 4 * 1024;
         private static final long USED_FLAG = 0x8000_0000_0000_0000L;
         private static final long FIRST_BLOCK_FLAG = 0x4000_0000_0000_0000L;
         private static final long EMPTY_BLOCK_METADATA = 0L; // Not used, not first, no length and no successor.
-        private static final int BLOCK_ID_BITS = 9;
-        private static final int BLOCK_ID_MASK = 0x1FF;
+
+        private static final int BLOCK_LENGTH_BIT_COUNT = 14;
+        private static final int ADDRESS_BIT_COUNT = Integer.SIZE;
+        private static final int NEXT_FREE_BLOCK_ID_SHIFT_BITS = BLOCK_LENGTH_BIT_COUNT + ADDRESS_BIT_COUNT;
+        private static final int NEXT_FREE_BLOCK_ID_MASK = 0x3FF; // 10 bits.
+        private static final long NEXT_FREE_BLOCK_ID_CLEAR_MASK = 0xFF00_3FFF_FFFF_FFFFL; // Clear 10 bits in middle
+        private static final int BLOCK_ID_BIT_COUNT = 8;
+        private static final int BLOCK_ID_MASK = 0xFF;
 
         @Override
         int bufferSize() {
@@ -98,7 +109,7 @@ abstract class StoreLayout {
 
         @Override
         int getBufferId(int address) {
-            return address >> BLOCK_ID_BITS;
+            return address >> BLOCK_ID_BIT_COUNT;
         }
 
         @Override
@@ -110,7 +121,7 @@ abstract class StoreLayout {
         int calculateAddress(int bufferId, int blockId) {
             assert bufferId >= 0 && bufferId < maxBufferCount();
             assert blockId >= 0 && blockId < blocksPerBuffer();
-            return (bufferId << BLOCK_ID_BITS) + blockId;
+            return (bufferId << BLOCK_ID_BIT_COUNT) + blockId;
         }
 
         @Override
@@ -124,8 +135,18 @@ abstract class StoreLayout {
         }
 
         @Override
-        int getRemainingLength(long blockMetadata) {
-            return (int) ((blockMetadata >> 32) & 0x0FFF_FFFF);
+        int getLength(long blockMetadata) {
+            return (int) ((blockMetadata >> ADDRESS_BIT_COUNT) & 0x0FFF_FFFF);
+        }
+
+        @Override
+        long setNextFreeBlockId(long blockMetadata, int nextFreeBlockId) {
+            return (blockMetadata & NEXT_FREE_BLOCK_ID_CLEAR_MASK) | ((long) nextFreeBlockId << NEXT_FREE_BLOCK_ID_SHIFT_BITS);
+        }
+
+        @Override
+        int getNextFreeBlockId(long blockMetadata) {
+            return (int) ((blockMetadata >> NEXT_FREE_BLOCK_ID_SHIFT_BITS) & NEXT_FREE_BLOCK_ID_MASK);
         }
 
         @Override
@@ -134,7 +155,7 @@ abstract class StoreLayout {
         }
 
         @Override
-        long newBlockMetadata(boolean first, int remainingLength, int successorAddress) {
+        long newBlockMetadata(boolean first, int nextFreeBlockId, int length, int successorAddress) {
             // If we write something to it, it's used.
             long result = USED_FLAG;
 
@@ -143,107 +164,11 @@ abstract class StoreLayout {
                 result |= FIRST_BLOCK_FLAG;
             }
 
-            // Write length.
-            result |= ((long) remainingLength & MAX_ENTRY_LENGTH) << 32;
-
-            // Write successor address.
-            result |= 0xFFFF_FFFFL & successorAddress;
-            return result;
-        }
-
-        @Override
-        long emptyBlockMetadata() {
-            return EMPTY_BLOCK_METADATA;
-        }
-    }
-
-    /**
-     * Metadata Layout (4 Bytes)
-     * - Bit 0: Used Flag
-     * - Bit 1: First Block
-     * - Bit 2: Last Block
-     * - If Bit 2 is 0: Bits 7-32: Successor Address
-     * - If Bit 2 is 1: Bits 21-32: Length Used
-     *
-     * Address layout (25 bits)
-     * - Bits 0-6: 0
-     * - Bits 7-22: Buffer Id (Max 65536 Buffers, 16 bits)
-     * - Bits 23-31: Block Id (512 blocks, 9 bits)
-     */
-    static class NoRemainingLengthLayout extends StoreLayout {
-        private static final int BUFFER_SIZE = 1 * 1024 * 1024;
-        private static final int BLOCK_SIZE = 2 * 1024;
-        private static final int USED_FLAG = 0x8000_0000;
-        private static final int FIRST_BLOCK_FLAG = 0x4000_0000;
-        private static final int LAST_BLOCK_FLAG = 0x2000_0000;
-        private static final int EMPTY_BLOCK_METADATA = 0; // Not used, not first, no length and no successor.
-        private static final int BLOCK_ID_BITS = 9;
-        private static final int BLOCK_ID_MASK = 0x1FF;
-
-        @Override
-        int bufferSize() {
-            return BUFFER_SIZE;
-        }
-
-        @Override
-        int blockSize() {
-            return BLOCK_SIZE;
-        }
-
-        @Override
-        int blockMetadataLength() {
-            return Integer.BYTES;
-        }
-
-        @Override
-        int getBufferId(int address) {
-            return address >> BLOCK_ID_BITS;
-        }
-
-        @Override
-        int getBlockId(int address) {
-            return address & BLOCK_ID_MASK;
-        }
-
-        @Override
-        int calculateAddress(int bufferId, int blockId) {
-            assert bufferId >= 0 && bufferId < maxBufferCount();
-            assert blockId >= 0 && blockId < blocksPerBuffer();
-            return (bufferId << BLOCK_ID_BITS) + blockId;
-        }
-
-        @Override
-        long setSuccessorAddress(long blockMetadata, int successorBlockAddress) {
-            return (blockMetadata & 0xFFFF_FFFF_0000_0000L) | successorBlockAddress;
-        }
-
-        @Override
-        int getSuccessorAddress(long blockMetadata) {
-            return (int) (blockMetadata & 0XFFFF_FFFF);
-        }
-
-        @Override
-        int getRemainingLength(long blockMetadata) {
-            return (int) ((blockMetadata >> 32) & 0x0FFF_FFFF);
-        }
-
-        @Override
-        boolean isUsedBlock(long blockMetadata) {
-            return (blockMetadata & USED_FLAG) == USED_FLAG;
-        }
-
-        @Override
-        long newBlockMetadata(boolean first, int remainingLength, int successorAddress) {
-            // If we write something to it, it's used.
-            long result = USED_FLAG;
-
-            // Set First Block flag.
-            if (first) {
-                result |= FIRST_BLOCK_FLAG;
-            }
+            // Write next Free Block Id.
+            result |= ((long) nextFreeBlockId & BLOCK_ID_MASK) << NEXT_FREE_BLOCK_ID_SHIFT_BITS;
 
             // Write length.
-            result |= ((long) remainingLength & MAX_ENTRY_LENGTH) << 32;
+            result |= ((long) length & MAX_ENTRY_LENGTH) << ADDRESS_BIT_COUNT;
 
             // Write successor address.
             result |= 0xFFFF_FFFFL & successorAddress;
