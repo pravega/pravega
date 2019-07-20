@@ -29,7 +29,7 @@ class Buffer implements AutoCloseable {
         Preconditions.checkArgument(bufferId >= 0 && bufferId < layout.maxBufferCount());
 
         this.buf = bufferCreator.apply(layout.bufferSize());
-        this.buf.setZero(0, buf.capacity()); // Clear out the buffer as Netty does not do it for us.
+        this.buf.setZero(0, this.buf.capacity()); // Clear out the buffer as Netty does not do it for us.
         this.layout = layout;
         this.id = bufferId;
         this.usedBlockCount = 1;
@@ -54,20 +54,12 @@ class Buffer implements AutoCloseable {
         this.usedBlockCount = -1;
     }
 
-    synchronized boolean isClosed() {
-        return this.usedBlockCount == -1;
-    }
-
     synchronized int getUsedBlockCount() {
         return this.usedBlockCount;
     }
 
     synchronized boolean hasCapacity() {
         return this.usedBlockCount > 0 && this.usedBlockCount < this.layout.blocksPerBuffer();
-    }
-
-    synchronized boolean isEmpty() {
-        return this.usedBlockCount <= 1;
     }
 
     @Override
@@ -225,7 +217,7 @@ class Buffer implements AutoCloseable {
             // If the current free block (prevBlockId) has a free successor that is smaller than freedBlockId, then
             // follow the free block list until we find a successor that is after freedBlockId or reach the end.
             int prevNextFreeBlockId = this.layout.getNextFreeBlockId(prevMetadata);
-            while (prevNextFreeBlockId != this.layout.NO_BLOCK_ID && prevNextFreeBlockId < freedBlockId) {
+            while (prevNextFreeBlockId != StoreLayout.NO_BLOCK_ID && prevNextFreeBlockId < freedBlockId) {
                 prevBlockId = prevNextFreeBlockId;
                 prevMetadata = metadataBuf.getLong(prevBlockId * this.layout.blockMetadataLength());
                 prevNextFreeBlockId = this.layout.getNextFreeBlockId(prevMetadata);

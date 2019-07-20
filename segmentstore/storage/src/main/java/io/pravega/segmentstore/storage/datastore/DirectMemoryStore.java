@@ -178,7 +178,7 @@ public class DirectMemoryStore implements AutoCloseable {
             firstBlockAddress = b.read(blockId, readBuffers);
         }
 
-        ByteBuf[] result = readBuffers.stream().filter(ByteBuf::isReadable).toArray(i -> new ByteBuf[i]);
+        ByteBuf[] result = readBuffers.stream().filter(ByteBuf::isReadable).toArray(ByteBuf[]::new);
         return new ByteBufWrapper(Unpooled.wrappedBuffer(result));
     }
 
@@ -214,7 +214,7 @@ public class DirectMemoryStore implements AutoCloseable {
         }
     }
 
-    public boolean update(int id, BufferView data) {
+    public boolean replace(int id, BufferView data) {
         return false; // TODO: later
     }
 
