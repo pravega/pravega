@@ -123,11 +123,34 @@ public class DirectMemoryStore implements AutoCloseable {
         return firstBlockAddress;
     }
 
-    public boolean delete(int firstBlockAddress) {
+
+    public boolean replace(int address, BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        while (firstBlockAddress != StoreLayout.NO_ADDRESS) {
-            int bufferId = this.layout.getBufferId(firstBlockAddress);
-            int blockId = this.layout.getBlockId(firstBlockAddress);
+        Preconditions.checkArgument(data.getLength() < StoreLayout.MAX_ENTRY_LENGTH);
+
+        // We need a way to ensure that a replace (with a longer buffer) will not corrupt the data if it fails due to
+        // store being full. If this will affect performance we need to document this and have the store provisioned
+        // with a higher capacity than the cache.
+        // A compromise could be: try to write, but if running out of memory, delete the whole thing.
+        return false; // TODO: later
+    }
+
+    public boolean append(int address, int expectedLength, BufferView data) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        Preconditions.checkArgument(data.getLength() < StoreLayout.MAX_ENTRY_LENGTH);
+        Preconditions.checkArgument(expectedLength % this.layout.blockSize() + data.getLength() == this.layout.blockSize());
+
+        // We can only append to fill the last block. For anything else a new write will be needed.
+        // TBD: we may have this method return an int which contains the number of bytes appended instead of throwing.
+        return false; // TODO: later
+    }
+
+
+    public boolean delete(int address) {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        while (address != StoreLayout.NO_ADDRESS) {
+            int bufferId = this.layout.getBufferId(address);
+            int blockId = this.layout.getBlockId(address);
             Buffer b;
             boolean wasFull;
             synchronized (this.buffers) {
@@ -141,7 +164,7 @@ public class DirectMemoryStore implements AutoCloseable {
             }
 
             Buffer.DeleteResult result = b.delete(blockId);
-            firstBlockAddress = result.getSuccessorAddress();
+            address = result.getSuccessorAddress();
             this.storedBytes.addAndGet(-result.getDeletedLength());
             if (wasFull) {
                 synchronized (this.buffers) {
@@ -155,12 +178,12 @@ public class DirectMemoryStore implements AutoCloseable {
         return true;
     }
 
-    public BufferView get(int firstBlockAddress) {
+    public BufferView get(int address) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ArrayList<ByteBuf> readBuffers = new ArrayList<>();
-        while (firstBlockAddress != StoreLayout.NO_ADDRESS) {
-            int bufferId = this.layout.getBufferId(firstBlockAddress);
-            int blockId = this.layout.getBlockId(firstBlockAddress);
+        while (address != StoreLayout.NO_ADDRESS) {
+            int bufferId = this.layout.getBufferId(address);
+            int blockId = this.layout.getBlockId(address);
             Buffer b;
             synchronized (this.buffers) {
                 b = this.buffers[bufferId];
@@ -175,7 +198,7 @@ public class DirectMemoryStore implements AutoCloseable {
                 }
             }
 
-            firstBlockAddress = b.read(blockId, readBuffers);
+            address = b.read(blockId, readBuffers);
         }
 
         ByteBuf[] result = readBuffers.stream().filter(ByteBuf::isReadable).toArray(ByteBuf[]::new);
@@ -212,14 +235,6 @@ public class DirectMemoryStore implements AutoCloseable {
             this.availableBufferIds.add(bufferId);
             return b;
         }
-    }
-
-    public boolean replace(int id, BufferView data) {
-        return false; // TODO: later
-    }
-
-    public boolean append(int id, int expectedLength, BufferView data) {
-        return false; // TODO: later
     }
 
     public Snapshot getSnapshot() {
