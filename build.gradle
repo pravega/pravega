@@ -1095,7 +1095,7 @@ class DockerBuildTaskBK extends Exec {
     String baseTag
     String dockerDir
 
-    DockerBuildTask() {
+    DockerBuildTaskBK() {
         executable project.dockerExecutable
         args "build"
         args "--pull"
