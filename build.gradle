@@ -815,6 +815,9 @@ project('test:system') {
         // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
 
+        //testPodImage , default is openjdk:8u181-jre-alpine
+        systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
+
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
