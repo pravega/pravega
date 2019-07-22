@@ -47,6 +47,8 @@ abstract class StoreLayout {
 
     abstract int getSuccessorAddress(long blockMetadata);
 
+    abstract long setLength(long blockMetadata, int length);
+
     abstract int getLength(long blockMetadata);
 
     abstract long setNextFreeBlockId(long blockMetadata, int nextFreeBlockId);
@@ -94,6 +96,7 @@ abstract class StoreLayout {
         private static final long EMPTY_BLOCK_METADATA = 0L; // Not used, not first, no length and no successor.
 
         private static final int BLOCK_LENGTH_BIT_COUNT = 14;
+        private static final int BLOCK_LENGTH_MASK = 0x3FFF; // 14 Bits.
         private static final int ADDRESS_BIT_COUNT = Integer.SIZE;
         private static final int NEXT_FREE_BLOCK_ID_SHIFT_BITS = BLOCK_LENGTH_BIT_COUNT + ADDRESS_BIT_COUNT;
         private static final long NEXT_FREE_BLOCK_ID_CLEAR_MASK = 0xFF00_3FFF_FFFF_FFFFL; // Clear 10 bits in middle
@@ -143,8 +146,18 @@ abstract class StoreLayout {
         }
 
         @Override
+        long setLength(long blockMetadata, int length) {
+            // Clear current length.
+            blockMetadata &= ~(long) BLOCK_LENGTH_MASK << ADDRESS_BIT_COUNT;
+
+            // Set new length.
+            blockMetadata |= (long) (length & BLOCK_LENGTH_MASK) << ADDRESS_BIT_COUNT;
+            return blockMetadata;
+        }
+
+        @Override
         int getLength(long blockMetadata) {
-            return (int) ((blockMetadata >> ADDRESS_BIT_COUNT) & 0x0FFF_FFFF);
+            return (int) ((blockMetadata >> ADDRESS_BIT_COUNT) & BLOCK_LENGTH_MASK);
         }
 
         @Override
@@ -176,7 +189,7 @@ abstract class StoreLayout {
             result |= ((long) nextFreeBlockId & BLOCK_ID_MASK) << NEXT_FREE_BLOCK_ID_SHIFT_BITS;
 
             // Write length.
-            result |= ((long) length & MAX_ENTRY_LENGTH) << ADDRESS_BIT_COUNT;
+            result |= ((long) length & BLOCK_LENGTH_MASK) << ADDRESS_BIT_COUNT;
 
             // Write successor address.
             result |= 0xFFFF_FFFFL & successorAddress;

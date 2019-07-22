@@ -135,14 +135,49 @@ public class DirectMemoryStore implements AutoCloseable {
         return false; // TODO: later
     }
 
-    public boolean append(int address, int expectedLength, BufferView data) {
+    /**
+     * Gets the number of bytes that can be appended to an entry of the given length.
+     *
+     * @param currentLength
+     * @return
+     */
+    public int getAppendLength(int currentLength) {
+        // Length == 0 - > BlockSIze;
+        // Else if Length at Block Boundary -> 0
+        // else Block Lenth - Excess.
+        return currentLength == 0
+                ? this.layout.blockSize()
+                : (currentLength % this.layout.blockSize() == 0 ? 0 : this.layout.blockSize() - currentLength % this.layout.blockSize());
+    }
+
+    public int append(int address, int expectedLength, BufferView data) throws IOException {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkArgument(data.getLength() < StoreLayout.MAX_ENTRY_LENGTH);
-        Preconditions.checkArgument(expectedLength % this.layout.blockSize() + data.getLength() == this.layout.blockSize());
+        int expectedLastBlockLength = expectedLength % this.layout.blockSize();
+        Preconditions.checkArgument(expectedLastBlockLength + data.getLength() == this.layout.blockSize(),
+                "");
 
         // We can only append to fill the last block. For anything else a new write will be needed.
-        // TBD: we may have this method return an int which contains the number of bytes appended instead of throwing.
-        return false; // TODO: later
+
+        boolean mustExist = false;
+        int appended = 0;
+        try (InputStream s = data.getReader()) {
+            while (address != StoreLayout.NO_ADDRESS) {
+                int bufferId = this.layout.getBufferId(address);
+                int blockId = this.layout.getBlockId(address);
+                Buffer b = getBuffer(bufferId, mustExist);
+                if (b == null) {
+                    return 0;
+                }
+
+                Buffer.AppendResult appendResult = b.append(blockId, expectedLastBlockLength, s, data.getLength());
+                address = appendResult.getNextBlockAddress();
+                appended += appendResult.getAppendedlength();
+                mustExist = true;
+            }
+        }
+
+        this.storedBytes.addAndGet(appended);
+        return appended; // TODO: later
     }
 
 
@@ -184,18 +219,9 @@ public class DirectMemoryStore implements AutoCloseable {
         while (address != StoreLayout.NO_ADDRESS) {
             int bufferId = this.layout.getBufferId(address);
             int blockId = this.layout.getBlockId(address);
-            Buffer b;
-            synchronized (this.buffers) {
-                b = this.buffers[bufferId];
-                if (b == null) {
-                    if (readBuffers.isEmpty()) {
-                        // Bad address.
-                        return null;
-                    } else {
-                        // Corrupted state
-                        throw new RuntimeException(new Exception("corruption"));
-                    }
-                }
+            Buffer b = getBuffer(bufferId, !readBuffers.isEmpty());
+            if (b == null) {
+                return null;
             }
 
             address = b.read(blockId, readBuffers);
@@ -203,6 +229,17 @@ public class DirectMemoryStore implements AutoCloseable {
 
         ByteBuf[] result = readBuffers.stream().filter(ByteBuf::isReadable).toArray(ByteBuf[]::new);
         return new ByteBufWrapper(Unpooled.wrappedBuffer(result));
+    }
+
+    private Buffer getBuffer(int bufferId, boolean mustExist) {
+        synchronized (this.buffers) {
+            Buffer b = this.buffers[bufferId];
+            if (b == null && mustExist) {
+                // Corrupted state
+                throw new RuntimeException(new Exception("corruption"));
+            }
+            return b;
+        }
     }
 
     private Buffer getNextAvailableBuffer() {

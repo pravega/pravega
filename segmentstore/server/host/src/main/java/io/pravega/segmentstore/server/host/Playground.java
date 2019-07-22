@@ -46,7 +46,7 @@ public class Playground {
         for (int i = 0; i < iterationCount; i++) {
             //val r = testInMemoryCache(entrySize, keyCount);
             //val r = testRocksDbCache(entrySize, keyCount);
-            val r = testDirectStore(s, entrySize, keyCount);
+            val r = testDirectStore(s, entrySize, keyCount, false);
             System.out.println(String.format("Insert: %d, Get: %d, Remove: %d", r.insertMillis, r.getMillis, r.removeMillis));
 
             //val r2 = testInMemoryCacheRandom(entrySize, randomCount);
@@ -100,8 +100,9 @@ public class Playground {
         return new Result(insertMillis, getMillis, removeMillis);
     }
 
-    private static Result testDirectStore(DirectMemoryStore s, int bufSize, int count) throws Exception {
+    private static Result testDirectStore(DirectMemoryStore s, int bufSize, int count, boolean useAppends) throws Exception {
         val buffer = new ByteArraySegment(new byte[bufSize]);
+        val appendBuffer = new ByteArraySegment(buffer.array(), 0, s.getAppendLength(bufSize));
         new Random(0).nextBytes(buffer.array());
         int[] ids = new int[count];
 
@@ -109,6 +110,10 @@ public class Playground {
         val insertTimer = new Timer();
         for (int i = 0; i < count; i++) {
             ids[i] = s.insert(buffer);
+            if (useAppends) {
+                int appended = s.append(ids[i], buffer.getLength(), appendBuffer);
+                //System.out.println(appended);
+            }
         }
         long insertMillis = insertTimer.getElapsedMillis();
 

@@ -122,8 +122,65 @@ class Buffer implements AutoCloseable {
         return new WriteResult(length, this.layout.calculateAddress(this.id, result.get(0)), this.layout.calculateAddress(this.id, result.get(result.size() - 1)));
     }
 
-    synchronized void write(int id, InputStream data, int length) {
-        // Re-write.
+    synchronized ReWriteResult write(int blockId, InputStream data, int length) {
+        // Re-write beginning at the given block id, with the given length.
+        // Overwrite all entries.
+        // If remaining length ==0 and did not reach the last block, delete remaining blocks and return
+        // If remaining length > 0 and reached the last block, perform normal write...
+        return null;
+    }
+
+    synchronized AppendResult append(int blockId, int expectedLastBlockLength, InputStream data, int maxLength) throws IOException {
+        // Follow the block Id chain and find the last block.
+        // If not found, return 0 bytes appended and the address of the last block.
+        // Otherwise fill up last block and return number of bytes appended and the address.
+
+        Preconditions.checkState(this.usedBlockCount > 1, "empty");
+        Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer());
+
+        ByteBuf metadataBuf = getBlockBuffer(0);
+        while (blockId != StoreLayout.NO_BLOCK_ID) {
+            int bufIndex = blockId * this.layout.blockMetadataLength();
+            long blockMetadata = metadataBuf.getLong(bufIndex);
+            if (this.layout.isUsedBlock(blockMetadata)) {
+                int blockLength = this.layout.getLength(blockMetadata);
+                int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
+                if (successorAddress == StoreLayout.NO_ADDRESS) {
+                    // Found the last block. Append to it.
+                    Preconditions.checkArgument(blockLength == expectedLastBlockLength,
+                            "Incorrect last block length. Expected %s, given %s.", blockLength, expectedLastBlockLength);
+
+                    ByteBuf blockBuffer = getBlockBuffer(blockId);
+                    blockBuffer.writerIndex(blockLength);
+                    maxLength = Math.min(maxLength, this.layout.blockSize() - blockLength);
+                    while (maxLength > 0) {
+                        int n = blockBuffer.writeBytes(data, maxLength);
+                        maxLength -= n;
+                        blockLength += n;
+                    }
+
+                    // Update metadata.
+                    blockMetadata = this.layout.setLength(blockMetadata, blockLength);
+                    metadataBuf.setLong(bufIndex, blockMetadata);
+                    return new AppendResult(blockLength - expectedLastBlockLength, StoreLayout.NO_ADDRESS);
+                } else if (blockLength < this.layout.blockSize()) {
+                    throw new RuntimeException(new Exception("corruption: non-full, non-terminal block."));
+                } else if (this.layout.getBufferId(successorAddress) != this.id) {
+                    // The next block is in a different buffer. Return a pointer to it.
+                    return new AppendResult(0, successorAddress);
+                } else {
+                    // The next block is in this buffer.
+                    blockId = this.layout.getBlockId(successorAddress);
+                    assert blockId >= 1 && blockId < this.layout.blocksPerBuffer();
+                }
+            } else {
+                // Found a bad pointer. TODO: appropriate exception (NotExists?) or just return nothing?
+                throw new RuntimeException(new Exception("corruption: block id not used"));
+            }
+        }
+
+        // Couldn't append anything.
+        return new AppendResult(0, StoreLayout.NO_ADDRESS);
     }
 
     synchronized int read(int blockId, List<ByteBuf> readBuffers) {
@@ -131,7 +188,6 @@ class Buffer implements AutoCloseable {
         Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer());
 
         ByteBuf metadataBuf = getBlockBuffer(0);
-        int count = 0;
         while (blockId != StoreLayout.NO_BLOCK_ID) {
             int bufIndex = blockId * this.layout.blockMetadataLength();
             long blockMetadata = metadataBuf.getLong(bufIndex);
@@ -150,14 +206,12 @@ class Buffer implements AutoCloseable {
                     blockId = this.layout.getBlockId(successorAddress);
                     assert blockId >= 1 && blockId < this.layout.blocksPerBuffer();
                 }
-            } else if (count == 0) {
+            } else if (readBuffers.isEmpty()) {
                 return StoreLayout.NO_ADDRESS;
             } else {
                 // Found a bad pointer.
                 throw new RuntimeException(new Exception("corruption"));
             }
-
-            count++;
         }
 
         return StoreLayout.NO_ADDRESS;
@@ -279,6 +333,30 @@ class Buffer implements AutoCloseable {
         public String toString() {
             return String.format("FirstBlockId=%d, LastBlockId=%d, RemainingLength=%d",
                     layout.getBlockId(this.firstBlockAddress), layout.getBlockId(this.lastBlockAddress), this.remainingLength);
+        }
+    }
+
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    @Getter
+    class ReWriteResult {
+        private final int remainingLength;
+        private final int lastBlockAddress;
+
+        @Override
+        public String toString() {
+            return String.format("LastBlockId=%d, RemainingLength=%d", layout.getBlockId(this.lastBlockAddress), this.remainingLength);
+        }
+    }
+
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    @Getter
+    class AppendResult {
+        private final int appendedlength;
+        private final int nextBlockAddress;
+
+        @Override
+        public String toString() {
+            return String.format("NextBlock={%s}, AppendedLength=%d", layout.getAddressString(this.nextBlockAddress), this.appendedlength);
         }
     }
 }
