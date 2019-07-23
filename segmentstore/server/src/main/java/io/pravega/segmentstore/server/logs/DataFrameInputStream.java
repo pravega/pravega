@@ -122,6 +122,19 @@ public class DataFrameInputStream extends InputStream {
         return count;
     }
 
+    @Override
+    public long skip(long count) throws IOException {
+        // In case of partially serialized operations, the VersionedSerializer (that is used to serialize all Segment Operations)
+        // will invoke skip() on the underlying InputStream so that it positions it at the end of the data it was trying
+        // to deserialize (which has its reasons; check the VersionedSerializer doc). That skip() trickles down to this
+        // DataFrameInputStream which would cause it to erroneously skip over unread data. DataFrameInputStream is not
+        // designed to allow skipping as it provides access to DataFrame Records which have some structure. In case of
+        // a partially written Operation, we would have already read the about-to-be-discarded portion of the InputStream,
+        // and we are positioned at the beginning of the next record. Invoking skip() now would cause us to skip over
+        // subsequent records, thus corrupting the data upon reading.
+        return 0;
+    }
+
     //endregion
 
     //region Frame Processing
@@ -170,6 +183,12 @@ public class DataFrameInputStream extends InputStream {
             }
         }
         return r;
+    }
+
+    void resetCurrentEntry() throws IOException {
+        if (this.currentEntry != null) {
+            this.currentEntry.getData().reset();
+        }
     }
 
     private void checkEndOfRecord() throws IOException {
