@@ -93,8 +93,7 @@ public class DataFrameInputStream extends InputStream {
     @Override
     @SneakyThrows(DurableDataLogException.class)
     public int read() throws IOException {
-        Preconditions.checkState(!this.prefetchedEntry,
-                "Cannot read or skip from a prefetched entry without prior calling beginRecord().");
+        Preconditions.checkState(!this.prefetchedEntry, "Must call beginRecord() before reading or skipping from a prefetched entry.");
         while (!this.closed) {
             int r = this.currentEntry.getData().read();
             if (r >= 0) {
@@ -114,8 +113,7 @@ public class DataFrameInputStream extends InputStream {
     @Override
     @SneakyThrows(DurableDataLogException.class)
     public int read(byte[] buffer, int index, int length) throws IOException {
-        Preconditions.checkState(!this.prefetchedEntry,
-                "Cannot read or skip from a prefetched entry without prior calling beginRecord().");
+        Preconditions.checkState(!this.prefetchedEntry, "Must call beginRecord() before reading or skipping from a prefetched entry.");
         Preconditions.checkNotNull(buffer, "buffer");
         if (index < 0 || length < 0 | index + length > buffer.length) {
             throw new IndexOutOfBoundsException();

@@ -1040,7 +1040,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * and were never acknowledged to the upstream callers.
      */
     @Test
-    public void testRecoveryPartialOperations() throws Exception {
+    public void testRecoveryPartialOperations() {
         // Setup the first Durable Log and create the segment.
         @Cleanup
         ContainerSetup setup = new ContainerSetup(executorService());
@@ -1051,10 +1051,10 @@ public class DurableLogTests extends OperationLogTestBase {
         val segmentId = createStreamSegmentsWithOperations(1, dl1).stream().findFirst().orElse(-1L);
 
         // Part of this operation should fail.
-        ErrorInjector<Exception> aSyncErrorInjector = new ErrorInjector<>(
+        ErrorInjector<Exception> asyncErrorInjector = new ErrorInjector<>(
                 count -> count == 1,
                 () -> new DurableDataLogException("intentional"));
-        setup.dataLog.get().setAppendErrorInjectors(null, aSyncErrorInjector);
+        setup.dataLog.get().setAppendErrorInjectors(null, asyncErrorInjector);
         val append1 = new StreamSegmentAppendOperation(segmentId, new byte[MAX_DATA_LOG_APPEND_SIZE], null);
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected the operation to have failed.",
