@@ -49,7 +49,7 @@ public class DataFrameInputStream extends InputStream {
      *
      * However, in certain exceptional cases (such as when an Operation has been split but only one part was successfully
      * written to the {@link DurableDataLog}), we may have had to request more {@link DataFrame.DataFrameEntry} instances
-     * in order to figure our the situation (which means we may have also read part of the next (valid) operation). When
+     * in order to figure out the situation (which means we may have also read part of the next (valid) operation). When
      * this happens, we need to notify the upstream code (via a {@link RecordResetException}) and set ourselves in a state
      * where we can only proceed once that upstream code has recovered from this situation and is ready to begin reading
      * the next item ({@link #beginRecord}.
