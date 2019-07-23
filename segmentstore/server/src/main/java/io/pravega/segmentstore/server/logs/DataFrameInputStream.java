@@ -42,6 +42,22 @@ public class DataFrameInputStream extends InputStream {
     @Getter
     private boolean closed;
     private boolean hasReadAnyData;
+    /**
+     * The {@link DataFrameInputStream} provides an {@link InputStream}-like interface on top of
+     * {@link DataFrame.DataFrameEntry} instances that make up the {@link DurableDataLog}. Every call to {@link #read} may
+     * either read from the currently loaded {@link DataFrame.DataFrameEntry} or fetch another one ({@link #fetchNextEntry()}.
+     *
+     * However, in certain exceptional cases (such as when an Operation has been split but only one part was successfully
+     * written to the {@link DurableDataLog}), we may have had to request more {@link DataFrame.DataFrameEntry} instances
+     * in order to figure our the situation (which means we may have also read part of the next (valid) operation). When
+     * this happens, we need to notify the upstream code (via a {@link RecordResetException}) and set ourselves in a state
+     * where we can only proceed once that upstream code has recovered from this situation and is ready to begin reading
+     * the next item ({@link #beginRecord}.
+     *
+     * Upstream code may wrap this instance in other types of {@link InputStream}s which may invoke {@link #skip} when
+     * closed (for exceptional cases). We need to make sure we don't skip over bytes that may actually be needed, while
+     * at the same time do support {@link #skip} for other, valid cases.
+     */
     private boolean prefetchedEntry;
 
     //endregion
@@ -77,6 +93,8 @@ public class DataFrameInputStream extends InputStream {
     @Override
     @SneakyThrows(DurableDataLogException.class)
     public int read() throws IOException {
+        Preconditions.checkState(!this.prefetchedEntry,
+                "Cannot read or skip from a prefetched entry without prior calling beginRecord().");
         while (!this.closed) {
             int r = this.currentEntry.getData().read();
             if (r >= 0) {
@@ -96,6 +114,8 @@ public class DataFrameInputStream extends InputStream {
     @Override
     @SneakyThrows(DurableDataLogException.class)
     public int read(byte[] buffer, int index, int length) throws IOException {
+        Preconditions.checkState(!this.prefetchedEntry,
+                "Cannot read or skip from a prefetched entry without prior calling beginRecord().");
         Preconditions.checkNotNull(buffer, "buffer");
         if (index < 0 || length < 0 | index + length > buffer.length) {
             throw new IndexOutOfBoundsException();
@@ -120,19 +140,6 @@ public class DataFrameInputStream extends InputStream {
         }
 
         return count;
-    }
-
-    @Override
-    public long skip(long count) throws IOException {
-        // In case of partially serialized operations, the VersionedSerializer (that is used to serialize all Segment Operations)
-        // will invoke skip() on the underlying InputStream so that it positions it at the end of the data it was trying
-        // to deserialize (which has its reasons; check the VersionedSerializer doc). That skip() trickles down to this
-        // DataFrameInputStream which would cause it to erroneously skip over unread data. DataFrameInputStream is not
-        // designed to allow skipping as it provides access to DataFrame Records which have some structure. In case of
-        // a partially written Operation, we would have already read the about-to-be-discarded portion of the InputStream,
-        // and we are positioned at the beginning of the next record. Invoking skip() now would cause us to skip over
-        // subsequent records, thus corrupting the data upon reading.
-        return 0;
     }
 
     //endregion
@@ -183,12 +190,6 @@ public class DataFrameInputStream extends InputStream {
             }
         }
         return r;
-    }
-
-    void resetCurrentEntry() throws IOException {
-        if (this.currentEntry != null) {
-            this.currentEntry.getData().reset();
-        }
     }
 
     private void checkEndOfRecord() throws IOException {

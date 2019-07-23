@@ -160,6 +160,20 @@ public class DataFrameInputStreamTests {
                         ex -> ex instanceof DataFrameInputStream.RecordResetException);
                 missingLastItem = false;
                 multiSpan = false;
+
+                // Verify that we cannot read or skip anymore (until we call beginRecord() again).
+                AssertExtensions.assertThrows(
+                        "Able to read(byte) after processing partial record.",
+                        inputStream::read,
+                        ex -> ex instanceof IllegalStateException);
+                AssertExtensions.assertThrows(
+                        "Able to read(byte[]) after processing partial record.",
+                        () -> inputStream.read(new byte[1], 0, 1),
+                        ex -> ex instanceof IllegalStateException);
+                AssertExtensions.assertThrows(
+                        "Able to skip after processing partial record.",
+                        () -> inputStream.skip(1),
+                        ex -> ex instanceof IllegalStateException);
             }
 
             val br = inputStream.beginRecord();
