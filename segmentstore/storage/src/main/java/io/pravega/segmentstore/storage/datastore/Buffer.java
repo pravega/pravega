@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.segmentstore.storage.datastore;
 
 import com.google.common.base.Preconditions;
@@ -73,7 +82,7 @@ class Buffer implements AutoCloseable {
             return null;
         }
 
-        ArrayList<Integer> result = new ArrayList<>();
+        ArrayList<Integer> writtenBlocks = new ArrayList<>();
         int lastBlockLength = length % this.layout.blockSize();
 
         ByteBuf metadataBuf = getBlockBuffer(0);
@@ -83,16 +92,9 @@ class Buffer implements AutoCloseable {
         while (blockId != StoreLayout.NO_BLOCK_ID) {
             blockMetadata = metadataBuf.getLong(blockId * this.layout.blockMetadataLength());
             assert !this.layout.isUsedBlock(blockMetadata);
-            result.add(blockId);
-            int blockBytes = Math.min(length, this.layout.blockSize());
+            writtenBlocks.add(blockId);
             if (length > 0) {
-                ByteBuf blockBuffer = getBlockBuffer(blockId);
-                blockBuffer.writerIndex(0);
-                while (blockBytes > 0) {
-                    int n = blockBuffer.writeBytes(data, blockBytes);
-                        blockBytes -= n;
-                    length -= n;
-                }
+                length -= writeBlock(getBlockBuffer(blockId), 0, data, Math.min(length, this.layout.blockSize()));
             }
 
             blockId = this.layout.getNextFreeBlockId(blockMetadata);
@@ -108,29 +110,23 @@ class Buffer implements AutoCloseable {
         metadataBuf.setLong(0, blockMetadata);
 
         // Each modified metadata.
-        for (int i = 0; i < result.size(); i++) {
-            blockId = result.get(i);
+        for (int i = 0; i < writtenBlocks.size(); i++) {
+            blockId = writtenBlocks.get(i);
             boolean firstBlock = first && i == 0;
-            boolean last = i == result.size() - 1;
-            int successorAddress = last ? StoreLayout.NO_ADDRESS : this.layout.calculateAddress(this.id, result.get(i + 1));
+            boolean last = i == writtenBlocks.size() - 1;
+            int successorAddress = last ? StoreLayout.NO_ADDRESS : this.layout.calculateAddress(this.id, writtenBlocks.get(i + 1));
             int blockLength = last && length == 0 ? lastBlockLength : this.layout.blockSize();
             long metadata = this.layout.newBlockMetadata(firstBlock, StoreLayout.NO_BLOCK_ID, blockLength, successorAddress);
             metadataBuf.setLong(blockId * this.layout.blockMetadataLength(), metadata);
         }
 
-        this.usedBlockCount += result.size();
-        return new WriteResult(length, this.layout.calculateAddress(this.id, result.get(0)), this.layout.calculateAddress(this.id, result.get(result.size() - 1)));
+        this.usedBlockCount += writtenBlocks.size();
+        return new WriteResult(length,
+                this.layout.calculateAddress(this.id, writtenBlocks.get(0)),
+                this.layout.calculateAddress(this.id, writtenBlocks.get(writtenBlocks.size() - 1)));
     }
 
-    synchronized ReWriteResult write(int blockId, InputStream data, int length) {
-        // Re-write beginning at the given block id, with the given length.
-        // Overwrite all entries.
-        // If remaining length ==0 and did not reach the last block, delete remaining blocks and return
-        // If remaining length > 0 and reached the last block, perform normal write...
-        return null;
-    }
-
-    synchronized AppendResult append(int blockId, int expectedLastBlockLength, InputStream data, int maxLength) throws IOException {
+    synchronized AppendResult tryAppend(int blockId, int expectedLastBlockLength, InputStream data, int maxLength) throws IOException {
         // Follow the block Id chain and find the last block.
         // If not found, return 0 bytes appended and the address of the last block.
         // Otherwise fill up last block and return number of bytes appended and the address.
@@ -142,40 +138,30 @@ class Buffer implements AutoCloseable {
         while (blockId != StoreLayout.NO_BLOCK_ID) {
             int bufIndex = blockId * this.layout.blockMetadataLength();
             long blockMetadata = metadataBuf.getLong(bufIndex);
-            if (this.layout.isUsedBlock(blockMetadata)) {
-                int blockLength = this.layout.getLength(blockMetadata);
-                int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
-                if (successorAddress == StoreLayout.NO_ADDRESS) {
+            assert this.layout.isUsedBlock(blockMetadata);
+            int blockLength = this.layout.getLength(blockMetadata);
+            int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
+            if (successorAddress == StoreLayout.NO_ADDRESS) {
                     // Found the last block. Append to it.
-                    Preconditions.checkArgument(blockLength == expectedLastBlockLength,
-                            "Incorrect last block length. Expected %s, given %s.", blockLength, expectedLastBlockLength);
+                Preconditions.checkArgument(blockLength == expectedLastBlockLength,
+                        "Incorrect last block length. Expected %s, given %s.", blockLength, expectedLastBlockLength);
 
-                    ByteBuf blockBuffer = getBlockBuffer(blockId);
-                    blockBuffer.writerIndex(blockLength);
-                    maxLength = Math.min(maxLength, this.layout.blockSize() - blockLength);
-                    while (maxLength > 0) {
-                        int n = blockBuffer.writeBytes(data, maxLength);
-                        maxLength -= n;
-                        blockLength += n;
-                    }
+                maxLength = Math.min(maxLength, this.layout.blockSize() - blockLength);
+                blockLength += writeBlock(getBlockBuffer(blockId), blockLength, data, maxLength);
 
-                    // Update metadata.
+                // Update metadata.
                     blockMetadata = this.layout.setLength(blockMetadata, blockLength);
-                    metadataBuf.setLong(bufIndex, blockMetadata);
-                    return new AppendResult(blockLength - expectedLastBlockLength, StoreLayout.NO_ADDRESS);
-                } else if (blockLength < this.layout.blockSize()) {
-                    throw new RuntimeException(new Exception("corruption: non-full, non-terminal block."));
-                } else if (this.layout.getBufferId(successorAddress) != this.id) {
-                    // The next block is in a different buffer. Return a pointer to it.
-                    return new AppendResult(0, successorAddress);
-                } else {
-                    // The next block is in this buffer.
-                    blockId = this.layout.getBlockId(successorAddress);
-                    assert blockId >= 1 && blockId < this.layout.blocksPerBuffer();
-                }
+                metadataBuf.setLong(bufIndex, blockMetadata);
+                return new AppendResult(blockLength - expectedLastBlockLength, StoreLayout.NO_ADDRESS);
+            } else if (blockLength < this.layout.blockSize()) {
+                throw new RuntimeException(new Exception("corruption: non-full, non-terminal block."));
+            } else if (this.layout.getBufferId(successorAddress) != this.id) {
+                // The next block is in a different buffer. Return a pointer to it.
+                return new AppendResult(0, successorAddress);
             } else {
-                // Found a bad pointer. TODO: appropriate exception (NotExists?) or just return nothing?
-                throw new RuntimeException(new Exception("corruption: block id not used"));
+                // The next block is in this buffer.
+                blockId = this.layout.getBlockId(successorAddress);
+                assert blockId >= 1 && blockId < this.layout.blocksPerBuffer();
             }
         }
 
@@ -249,6 +235,20 @@ class Buffer implements AutoCloseable {
         return new DeleteResult(deletedLength, successorAddress);
     }
 
+    synchronized void setSuccessor(int blockAddress, int successorBlockAddress) {
+        Preconditions.checkState(this.usedBlockCount > 1, "empty");
+        int bufId = this.layout.getBufferId(blockAddress);
+        int blockId = this.layout.getBlockId(blockAddress);
+        Preconditions.checkArgument(this.id == bufId);
+        Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer());
+        ByteBuf metadataBuf = getBlockBuffer(0);
+        int bufIndex = blockId * this.layout.blockMetadataLength();
+        long blockMetadata = metadataBuf.getLong(bufIndex);
+        Preconditions.checkArgument(this.layout.isUsedBlock(blockMetadata));
+        blockMetadata = this.layout.setSuccessorAddress(blockMetadata, successorBlockAddress);
+        metadataBuf.setLong(bufIndex, blockMetadata);
+    }
+
     @GuardedBy("this")
     private void deallocateBlocks(List<Integer> blocks, ByteBuf metadataBuf) {
         Iterator<Integer> iterator = blocks.iterator();
@@ -291,18 +291,14 @@ class Buffer implements AutoCloseable {
         this.usedBlockCount -= blocks.size();
     }
 
-    synchronized void setSuccessor(int blockAddress, int successorBlockAddress) {
-        Preconditions.checkState(this.usedBlockCount > 1, "empty");
-        int bufId = this.layout.getBufferId(blockAddress);
-        int blockId = this.layout.getBlockId(blockAddress);
-        Preconditions.checkArgument(this.id == bufId);
-        Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer());
-        ByteBuf metadataBuf = getBlockBuffer(0);
-        int bufIndex = blockId * this.layout.blockMetadataLength();
-        long blockMetadata = metadataBuf.getLong(bufIndex);
-        Preconditions.checkArgument(this.layout.isUsedBlock(blockMetadata));
-        blockMetadata = this.layout.setSuccessorAddress(blockMetadata, successorBlockAddress);
-        metadataBuf.setLong(bufIndex, blockMetadata);
+    private int writeBlock(ByteBuf blockBuffer, int bufferIndex, InputStream data, int blockLength) throws IOException {
+        blockBuffer.writerIndex(bufferIndex);
+        int count = 0;
+        while (count < blockLength) {
+            int n = blockBuffer.writeBytes(data, blockLength);
+            count += n;
+        }
+        return count;
     }
 
     @GuardedBy("this")

@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.segmentstore.storage.datastore;
 
 import com.google.common.base.Preconditions;
@@ -18,9 +27,9 @@ abstract class StoreLayout {
         Preconditions.checkState(bufferSize() % blockSize() == 0,
                 "bufferSize() (%s) must be a multiple of blockSize()(%s).", bufferSize(), blockSize());
         this.blocksPerBuffer = bufferSize() / blockSize();
-//
-//        Preconditions.checkState(this.blocksPerBuffer * blockMetadataLength() == blockSize(),
-//                "All block metadata must fit exactly into a single block.");
+
+        Preconditions.checkState(this.blocksPerBuffer * blockMetadataLength() == blockSize(),
+                "All block metadata must fit exactly into a single block.");
     }
 
     int maxBufferCount() {

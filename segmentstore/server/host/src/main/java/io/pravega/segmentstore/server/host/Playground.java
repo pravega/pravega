@@ -44,10 +44,11 @@ public class Playground {
         @Cleanup
         val s = new DirectMemoryStore(16 * 1024 * 1024 * 1024L);
         for (int i = 0; i < iterationCount; i++) {
-            //val r = testInMemoryCache(entrySize, keyCount);
+            val r = testInMemoryCache(entrySize, keyCount);
             //val r = testRocksDbCache(entrySize, keyCount);
-            val r = testDirectStore(s, entrySize, keyCount, false);
-            System.out.println(String.format("Insert: %d, Get: %d, Remove: %d", r.insertMillis, r.getMillis, r.removeMillis));
+            //val r = testDirectStore(s, entrySize, keyCount);
+            System.out.println(String.format("Insert: %d, Replace: %d, Append: %d, Get: %d, Remove: %d",
+                    r.insertMillis, r.replaceMillis, r.appendMillis, r.getMillis, r.removeMillis));
 
             //val r2 = testInMemoryCacheRandom(entrySize, randomCount);
             //val r2 = testRocksDbCacheRandom(entrySize, randomCount);
@@ -84,6 +85,13 @@ public class Playground {
         long insertMillis = insertTimer.getElapsedMillis();
 
         System.gc();
+        val replaceTimer = new Timer();
+        for (int i = 0; i < count; i++) {
+            c.insert(new CacheKey(i), buffer);
+        }
+        long replaceMillis = replaceTimer.getElapsedMillis();
+
+        System.gc();
         val getTimer = new Timer();
         for (int i = 0; i < count; i++) {
             c.get(new CacheKey(i));
@@ -97,12 +105,12 @@ public class Playground {
         }
         long removeMillis = removeTimer.getElapsedMillis();
 
-        return new Result(insertMillis, getMillis, removeMillis);
+        return new Result(insertMillis, replaceMillis, -1, getMillis, removeMillis);
     }
 
-    private static Result testDirectStore(DirectMemoryStore s, int bufSize, int count, boolean useAppends) throws Exception {
+    private static Result testDirectStore(DirectMemoryStore s, int bufSize, int count) throws Exception {
         val buffer = new ByteArraySegment(new byte[bufSize]);
-        val appendBuffer = new ByteArraySegment(buffer.array(), 0, s.getAppendLength(bufSize));
+        val appendBuffer = new ByteArraySegment(buffer.array(), 0, s.getAppendableLength(bufSize));
         new Random(0).nextBytes(buffer.array());
         int[] ids = new int[count];
 
@@ -110,12 +118,22 @@ public class Playground {
         val insertTimer = new Timer();
         for (int i = 0; i < count; i++) {
             ids[i] = s.insert(buffer);
-            if (useAppends) {
-                int appended = s.append(ids[i], buffer.getLength(), appendBuffer);
-                //System.out.println(appended);
-            }
         }
         long insertMillis = insertTimer.getElapsedMillis();
+
+        System.gc();
+        val appendTimer = new Timer();
+        for (int i = 0; i < count; i++) {
+            s.append(ids[i], buffer.getLength(), appendBuffer);
+        }
+        long appendMillis = appendTimer.getElapsedMillis();
+
+        System.gc();
+        val replaceTimer = new Timer();
+        for (int i = 0; i < count; i++) {
+            ids[i] = s.replace(ids[i], buffer);
+        }
+        long replaceMillis = replaceTimer.getElapsedMillis();
 
         System.gc();
         val getTimer = new Timer();
@@ -132,7 +150,7 @@ public class Playground {
         }
         long removeMillis = removeTimer.getElapsedMillis();
 
-        return new Result(insertMillis, getMillis, removeMillis);
+        return new Result(insertMillis, replaceMillis, appendMillis, getMillis, removeMillis);
     }
 
     private static long testInMemoryCacheRandom(int bufSize, int count) {
@@ -244,6 +262,8 @@ public class Playground {
     @Data
     private static class Result {
         final long insertMillis;
+        final long replaceMillis;
+        final long appendMillis;
         final long getMillis;
         final long removeMillis;
     }

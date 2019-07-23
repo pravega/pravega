@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.segmentstore.storage.datastore;
 
 import com.google.common.base.Preconditions;
@@ -17,13 +26,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.NonNull;
-import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 
 @ThreadSafe
-public class DirectMemoryStore implements AutoCloseable {
+public class DirectMemoryStore implements DataStore {
     private final StoreLayout layout;
     private final UnpooledByteBufAllocator allocator;
     @GuardedBy("buffers")
@@ -71,7 +78,21 @@ public class DirectMemoryStore implements AutoCloseable {
         }
     }
 
-    public int insert(BufferView data) throws IOException {
+    //region DataStore Implementation
+
+    @Override
+    public int getBlockAlignment() {
+        return this.layout.blockSize();
+    }
+
+    @Override
+    public int getMaxEntryLength() {
+        return StoreLayout.MAX_ENTRY_LENGTH;
+    }
+
+    @Override
+    @SneakyThrows(IOException.class)
+    public int insert(BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkArgument(data.getLength() < StoreLayout.MAX_ENTRY_LENGTH);
 
@@ -123,16 +144,15 @@ public class DirectMemoryStore implements AutoCloseable {
         return firstBlockAddress;
     }
 
-
-    public boolean replace(int address, BufferView data) {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkArgument(data.getLength() < StoreLayout.MAX_ENTRY_LENGTH);
-
+    @Override
+    public int replace(int address, BufferView data) {
         // We need a way to ensure that a replace (with a longer buffer) will not corrupt the data if it fails due to
-        // store being full. If this will affect performance we need to document this and have the store provisioned
-        // with a higher capacity than the cache.
-        // A compromise could be: try to write, but if running out of memory, delete the whole thing.
-        return false; // TODO: later
+        // store being full. Doing this correctly is complex and may have a performance penalty. For now, a compromise
+        // solution involves: write a new entry, then (if successful) delete the old one. This approach also handles
+        // read consistency: we don't need to worry about a caller reading the data while we are updating it.
+        int newAddress = insert(data);
+        delete(address);
+        return newAddress;
     }
 
     /**
@@ -141,16 +161,19 @@ public class DirectMemoryStore implements AutoCloseable {
      * @param currentLength
      * @return
      */
-    public int getAppendLength(int currentLength) {
+    @Override
+    public int getAppendableLength(int currentLength) {
         // Length == 0 - > BlockSIze;
         // Else if Length at Block Boundary -> 0
-        // else Block Lenth - Excess.
+        // else Block Length - Excess.
         return currentLength == 0
                 ? this.layout.blockSize()
                 : (currentLength % this.layout.blockSize() == 0 ? 0 : this.layout.blockSize() - currentLength % this.layout.blockSize());
     }
 
-    public int append(int address, int expectedLength, BufferView data) throws IOException {
+    @Override
+    @SneakyThrows(IOException.class)
+    public int append(int address, int expectedLength, BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         int expectedLastBlockLength = expectedLength % this.layout.blockSize();
         Preconditions.checkArgument(expectedLastBlockLength + data.getLength() == this.layout.blockSize(),
@@ -169,7 +192,7 @@ public class DirectMemoryStore implements AutoCloseable {
                     return 0;
                 }
 
-                Buffer.AppendResult appendResult = b.append(blockId, expectedLastBlockLength, s, data.getLength());
+                Buffer.AppendResult appendResult = b.tryAppend(blockId, expectedLastBlockLength, s, data.getLength());
                 address = appendResult.getNextBlockAddress();
                 appended += appendResult.getAppendedlength();
                 mustExist = true;
@@ -180,7 +203,7 @@ public class DirectMemoryStore implements AutoCloseable {
         return appended; // TODO: later
     }
 
-
+    @Override
     public boolean delete(int address) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         while (address != StoreLayout.NO_ADDRESS) {
@@ -213,6 +236,7 @@ public class DirectMemoryStore implements AutoCloseable {
         return true;
     }
 
+    @Override
     public BufferView get(int address) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ArrayList<ByteBuf> readBuffers = new ArrayList<>();
@@ -230,6 +254,36 @@ public class DirectMemoryStore implements AutoCloseable {
         ByteBuf[] result = readBuffers.stream().filter(ByteBuf::isReadable).toArray(ByteBuf[]::new);
         return new ByteBufWrapper(Unpooled.wrappedBuffer(result));
     }
+
+
+    @Override
+    public StoreSnapshot getSnapshot() {
+        Exceptions.checkNotClosed(this.closed.get(), this);
+        int allocatedBufferCount = 0;
+        int blockCount = 0;
+        int totalBufferCount;
+        synchronized (this.buffers) {
+            for (Buffer b : this.buffers) {
+                if (b != null) {
+                    allocatedBufferCount++;
+                    blockCount += b.getUsedBlockCount();
+                }
+            }
+
+            totalBufferCount = this.buffers.length;
+        }
+
+        return new StoreSnapshot(
+                this.storedBytes.get(),
+                (long) (blockCount - allocatedBufferCount) * this.layout.blockSize(),
+                (long) allocatedBufferCount * this.layout.blockSize(),
+                (long) allocatedBufferCount * this.layout.bufferSize(),
+                (long) totalBufferCount * this.layout.bufferSize());
+    }
+
+    //endregion
+
+    //region Helpers
 
     private Buffer getBuffer(int bufferId, boolean mustExist) {
         synchronized (this.buffers) {
@@ -274,43 +328,5 @@ public class DirectMemoryStore implements AutoCloseable {
         }
     }
 
-    public Snapshot getSnapshot() {
-        Exceptions.checkNotClosed(this.closed.get(), this);
-        int allocatedBufferCount = 0;
-        int blockCount = 0;
-        int totalBufferCount;
-        synchronized (this.buffers) {
-            for (Buffer b : this.buffers) {
-                if (b != null) {
-                    allocatedBufferCount++;
-                    blockCount += b.getUsedBlockCount();
-                }
-            }
-
-            totalBufferCount = this.buffers.length;
-        }
-
-        return new Snapshot(
-                this.storedBytes.get(),
-                (long) (blockCount - allocatedBufferCount) * this.layout.blockSize(),
-                (long) allocatedBufferCount * this.layout.blockSize(),
-                (long) allocatedBufferCount * this.layout.bufferSize(),
-                (long) totalBufferCount * this.layout.bufferSize());
-    }
-
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    @Getter
-    public static class Snapshot {
-        private final long storedBytes;
-        private final long usedBytes;
-        private final long reservedBytes;
-        private final long allocatedBytes;
-        private final long maxBytes;
-
-        @Override
-        public String toString() {
-            return String.format("Stored = %d, Used = %d, Reserved = %d, Allocated = %d, Max = %d",
-                    this.storedBytes, this.usedBytes, this.reservedBytes, this.allocatedBytes, this.maxBytes);
-        }
-    }
+    //endregion
 }
