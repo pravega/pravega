@@ -168,11 +168,15 @@ public class DataFrameInputStreamTests {
                         ex -> ex instanceof IllegalStateException);
                 AssertExtensions.assertThrows(
                         "Able to read(byte[]) after processing partial record.",
-                        () -> inputStream.read(new byte[1], 0, 1),
+                        () -> {
+                            int ignored = inputStream.read(new byte[1], 0, 1);
+                        },
                         ex -> ex instanceof IllegalStateException);
                 AssertExtensions.assertThrows(
                         "Able to skip after processing partial record.",
-                        () -> inputStream.skip(1),
+                        () -> {
+                            long ignored = inputStream.skip(1);
+                        },
                         ex -> ex instanceof IllegalStateException);
             }
 
