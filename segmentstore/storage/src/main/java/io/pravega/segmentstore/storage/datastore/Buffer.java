@@ -84,6 +84,9 @@ class Buffer implements AutoCloseable {
 
         ArrayList<Integer> writtenBlocks = new ArrayList<>();
         int lastBlockLength = length % this.layout.blockSize();
+        if (lastBlockLength == 0 && length > 0) {
+            lastBlockLength = this.layout.blockSize();
+        }
 
         ByteBuf metadataBuf = getBlockBuffer(0);
         long blockMetadata = metadataBuf.getLong(0);

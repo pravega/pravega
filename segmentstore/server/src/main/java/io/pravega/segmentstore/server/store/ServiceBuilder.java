@@ -84,7 +84,6 @@ public class ServiceBuilder implements AutoCloseable {
     private final AtomicReference<SegmentContainerFactory> containerFactory;
     private final AtomicReference<SegmentContainerRegistry> containerRegistry;
     private final AtomicReference<SegmentContainerManager> containerManager;
-    private final AtomicReference<CacheFactory> cacheFactory;
     private final AtomicReference<WriterFactory> writerFactory;
     private final AtomicReference<StreamSegmentStore> streamSegmentService;
     private final AtomicReference<TableStore> tableStoreService;
@@ -114,7 +113,6 @@ public class ServiceBuilder implements AutoCloseable {
         this.containerFactory = new AtomicReference<>();
         this.containerRegistry = new AtomicReference<>();
         this.containerManager = new AtomicReference<>();
-        this.cacheFactory = new AtomicReference<>();
         this.writerFactory = new AtomicReference<>();
         this.streamSegmentService = new AtomicReference<>();
         this.tableStoreService = new AtomicReference<>();
@@ -150,7 +148,6 @@ public class ServiceBuilder implements AutoCloseable {
         closeComponent(this.containerRegistry);
         closeComponent(this.dataLogFactory);
         closeComponent(this.readIndexFactory);
-        closeComponent(this.cacheFactory);
         this.cacheManager.close();
         this.threadPoolMetrics.close();
         ExecutorServiceHelpers.shutdown(SHUTDOWN_TIMEOUT, this.storageExecutor, this.coreExecutor);
@@ -349,7 +346,7 @@ public class ServiceBuilder implements AutoCloseable {
             try {
                 t.close();
             } catch (Exception ex) {
-                log.error("Error while closing ServiceBuilder: {}.", ex);
+                log.error("Error while closing ServiceBuilder: ", ex);
             }
 
             target.set(null);
