@@ -69,6 +69,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
     @Getter
     private final String segmentName;
+    @VisibleForTesting
+    @Getter
+    private final boolean useConnectionPooling;
     private final Controller controller;
     private final ConnectionFactory connectionFactory;
     private final UUID writerId;
@@ -546,7 +549,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                      log.info("Fetching endpoint for segment {}, writer {}", segmentName, writerId);
                      return controller.getEndpointForSegment(segmentName).thenComposeAsync((PravegaNodeUri uri) -> {
                          log.info("Establishing connection to {} for {}, writerID: {}", uri, segmentName, writerId);
-                         return connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);
+                         return establishConnection(uri);
                      }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
                          SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, delegationToken);
@@ -579,7 +582,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }, new CompletableFuture<ClientConnection>());
     }
 
-
+    private CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri uri) {
+        if (useConnectionPooling) {
+            return connectionFactory.establishConnection(Flow.from(requestId), uri, responseProcessor);
+        } else {
+            return connectionFactory.establishConnection(uri, responseProcessor);
+        }
+    }
 
     /**
      * This function is invoked by SegmentSealedCallback, i.e., when SegmentSealedCallback or getUnackedEventsOnSeal()
