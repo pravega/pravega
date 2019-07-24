@@ -26,5 +26,6 @@ WORKDIR /opt/pravega
 COPY pravega/ /opt/pravega/
 COPY scripts/ /opt/pravega/scripts/
 RUN chmod +x -R /opt/pravega/scripts/ && chsh -s /bin/bash
+SHELL ["/bin/bash", "-c"]
 
 ENTRYPOINT [ "/opt/pravega/scripts/entrypoint.sh" ]
