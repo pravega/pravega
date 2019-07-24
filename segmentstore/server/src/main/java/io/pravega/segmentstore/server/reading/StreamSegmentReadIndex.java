@@ -25,9 +25,8 @@ import io.pravega.segmentstore.contracts.ReadResultEntryType;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.SegmentMetadata;
-import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
-import java.io.ByteArrayInputStream;
+import io.pravega.segmentstore.storage.datastore.DataStore;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
@@ -66,7 +65,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private final SortedIndex<ReadIndexEntry> indexEntries;
     private final ReadIndexConfig config;
     @GuardedBy("lock")
-    private final Cache cache;
+    private final DataStore dataStore;
     private final FutureReadResultEntryCollection futureReads;
     @GuardedBy("lock")
     private final HashMap<Long, PendingMerge> pendingMergers; //Key = Source Segment Id, Value = Pending Merge Info.
@@ -90,23 +89,24 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @param config       Read Index Configuration.
      * @param metadata     The StreamSegmentMetadata to use.
-     * @param cache        The Cache to use to store, read and manage data entries.
+     * @param dataStore    The DataStore to use to store, read and manage data entries.
      * @param storage      A ReadOnlyStorage to fetch data if not in Cache.
      * @param executor     An executor to run async operations.
      * @param recoveryMode Whether we are in recovery mode at the time of creation (this can change later on).
      * @throws NullPointerException If any of the arguments are null.
      */
-    StreamSegmentReadIndex(ReadIndexConfig config, SegmentMetadata metadata, Cache cache, ReadOnlyStorage storage, ScheduledExecutorService executor, boolean recoveryMode) {
+    StreamSegmentReadIndex(ReadIndexConfig config, SegmentMetadata metadata, DataStore dataStore, ReadOnlyStorage storage,
+                           ScheduledExecutorService executor, boolean recoveryMode) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(cache, "cache");
+        Preconditions.checkNotNull(dataStore, "dataStore");
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("ReadIndex[%d-%d]", metadata.getContainerId(), metadata.getId());
         this.config = config;
         this.metadata = metadata;
-        this.cache = cache;
+        this.dataStore =dataStore;
         this.recoveryMode = recoveryMode;
         this.indexEntries = new AvlTreeIndex<>();
         this.futureReads = new FutureReadResultEntryCollection();
@@ -125,7 +125,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     public void close() {
         // Quick close (no cache cleanup) this should be used only in case of container shutdown, when the cache will
         // be erased anyway.
-        close(false);
+        close(true);
     }
 
     /**
@@ -180,13 +180,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Preconditions.checkState(this.closed, "Cannot call removeAllEntries unless the ReadIndex is closed.");
         int count;
         synchronized (this.lock) {
-            this.indexEntries.forEach(entry -> {
-                if (entry.isDataEntry()) {
-                    CacheKey key = getCacheKey(entry);
-                    this.cache.remove(key);
-                }
-            });
-
+            this.indexEntries.forEach(this::deleteData);
             count = this.indexEntries.size();
             this.indexEntries.clear();
         }
@@ -234,8 +228,8 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             // Remove from the index and from the cache.
             toRemove.forEach(e -> {
+                deleteData(e);
                 this.indexEntries.remove(e.key());
-                this.cache.remove(getCacheKey(e));
             });
         }
 
@@ -347,8 +341,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkNotClosed(this.closed, this);
         Preconditions.checkState(!isMerged(), "StreamSegment has been merged into a different one. Cannot append more ReadIndex entries.");
 
-        int dataLength = data.getLength();
-        if (dataLength == 0) {
+        if (data.getLength() == 0) {
             // Nothing to do. Adding empty read entries will only make our system slower and harder to debug.
             return;
         }
@@ -357,13 +350,51 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Adding at the end means that we always need to "catch-up" with Length. Check to see if adding
         // this entry will make us catch up to it or not.
         long length = this.metadata.getLength();
-        long endOffset = offset + dataLength;
+        long endOffset = offset + data.getLength();
         Exceptions.checkArgument(endOffset <= length, "offset", "The given range of bytes (%d-%d) is beyond the StreamSegment Length (%d).", offset, endOffset, length);
 
         // Then append an entry for it in the ReadIndex. It's ok to insert into the cache outside of the lock here,
         // since there is no chance of competing with another write request for the same offset at the same time.
-        this.cache.insert(new CacheKey(this.metadata.getId(), offset), data);
-        appendEntry(new CacheIndexEntry(offset, dataLength));
+        log.debug("{}: Append (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
+        synchronized (this.lock) {
+            Preconditions.checkArgument(this.lastAppendedOffset < 0 || offset == this.lastAppendedOffset + 1,
+                    "The given range of bytes (Offset=%d) does not start right after the last appended offset (%d).", offset, this.lastAppendedOffset);
+
+            ReadIndexEntry lastEntry = this.indexEntries.getLast();
+            int appendLength = 0;
+            if (lastEntry != null
+                    && lastEntry.isDataEntry()
+                    && lastEntry.getLastStreamSegmentOffset() == this.lastAppendedOffset) {
+                int appendableLength = this.dataStore.getAppendableLength((int) lastEntry.getLength());
+                if (appendableLength > 0) {
+                    // We can append to the last entry.
+                    BufferView toAppend;
+                    if (data.getLength() <= appendableLength) {
+                        // The whole buffer can fit as an append.
+                        toAppend = data;
+                        data = null;
+                    } else {
+                        // Only part of the buffer can fit as an append.
+                        toAppend = data.slice(0, appendableLength);
+                        data = data.slice(appendableLength, data.getLength() - appendableLength);
+                    }
+
+                    appendLength = this.dataStore.append(lastEntry.getDataAddress(), (int) lastEntry.getLength(), toAppend);
+                    assert appendLength <= appendableLength;
+                    ((CacheIndexEntry) lastEntry).increaseLength(appendLength);
+                    this.lastAppendedOffset += appendLength;
+                }
+            }
+
+            if (data != null) {
+                // Add the remainder of the buffer as a new entry.
+                int dataAddress = this.dataStore.insert(data);
+                CacheIndexEntry newEntry = new CacheIndexEntry(offset + appendLength, data.getLength(), dataAddress);
+                ReadIndexEntry oldEntry = addToIndex(newEntry);
+                assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", newEntry, oldEntry);
+                this.lastAppendedOffset = newEntry.getLastStreamSegmentOffset();
+            }
+        }
     }
 
     /**
@@ -405,20 +436,20 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(endOffset <= ourLength, "offset", "The given range of bytes(%d-%d) is beyond the StreamSegment Length (%d).", offset, endOffset, ourLength);
 
         // Check and record the merger (optimistically).
+        log.debug("{}: BeginMerge (Offset = {}, Length = {}).", this.traceObjectId, offset, newEntry.getLength());
         synchronized (this.lock) {
             Exceptions.checkArgument(!this.pendingMergers.containsKey(sourceMetadata.getId()), "sourceStreamSegmentIndex", "Given StreamSegmentReadIndex is already merged or in the process of being merged into this one.");
             this.pendingMergers.put(sourceMetadata.getId(), new PendingMerge(newEntry.key()));
-        }
-
-        try {
-            appendEntry(newEntry);
-        } catch (Exception ex) {
-            // If the merger failed, roll back the markers.
-            synchronized (this.lock) {
+            try {
+                ReadIndexEntry oldEntry = addToIndex(newEntry);
+                assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", newEntry, oldEntry);
+                this.lastAppendedOffset = newEntry.getLastStreamSegmentOffset();
+            } catch (Exception ex) {
+                // If the merger failed, roll back the markers.
                 this.pendingMergers.remove(sourceMetadata.getId());
-            }
 
-            throw ex;
+                throw ex;
+            }
         }
 
         LoggerHelpers.traceLeave(log, this.traceObjectId, "beginMerge", traceId);
@@ -481,19 +512,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         LoggerHelpers.traceLeave(log, this.traceObjectId, "completeMerge", traceId);
     }
 
+    @GuardedBy("lock")
     private void appendEntry(ReadIndexEntry entry) {
         log.debug("{}: Append (Offset = {}, Length = {}).", this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength());
 
-        long lastOffset = entry.getLastStreamSegmentOffset();
-        synchronized (this.lock) {
-            Exceptions.checkArgument(this.lastAppendedOffset < 0 || entry.getStreamSegmentOffset() == this.lastAppendedOffset + 1, "entry", "The given range of bytes (%d-%d) does not start right after the last appended range (%d).", entry.getStreamSegmentOffset(), lastOffset, this.lastAppendedOffset);
-
-            // Finally, append the entry.
-            // Key is Offset + Length -1 = Last Offset Of Entry. Value is entry itself. This makes searching easier.
-            ReadIndexEntry oldEntry = addToIndex(entry);
-            assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", entry, oldEntry);
-            this.lastAppendedOffset = lastOffset;
-        }
+        ReadIndexEntry oldEntry = addToIndex(entry);
+        assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", entry, oldEntry);
+        this.lastAppendedOffset = entry.getLastStreamSegmentOffset();
     }
 
     private void insert(long offset, ByteArraySegment data) {
@@ -501,20 +526,21 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         // There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past
         // the StorageReadManager. Fixing it would be complicated, so let's see if it poses any problems.
-        CacheIndexEntry entry = new CacheIndexEntry(offset, data.getLength());
-        long lastOffset = entry.getLastStreamSegmentOffset();
-        Exceptions.checkArgument(lastOffset < this.metadata.getStorageLength(), "entry",
-                "The given range of bytes (%d-%d) does not correspond to the StreamSegment range that is in Storage (%d).",
-                entry.getStreamSegmentOffset(), lastOffset, this.metadata.getStorageLength());
+        Exceptions.checkArgument(offset + data.getLength() <= this.metadata.getStorageLength(), "entry",
+                "The given range of bytes (Offset=%d, Length=%d) does not correspond to the StreamSegment range that is in Storage (%d).",
+                offset, data.getLength(), this.metadata.getStorageLength());
         ReadIndexEntry oldEntry;
+        CacheIndexEntry newEntry;
         synchronized (this.lock) {
-            this.cache.insert(getCacheKey(entry), data);
-            oldEntry = addToIndex(entry);
+            int dataAddress = this.dataStore.insert(data);
+            newEntry = new CacheIndexEntry(offset, data.getLength(), dataAddress);
+            oldEntry = addToIndex(newEntry);
         }
 
         if (oldEntry != null) {
             log.warn("{}: Insert overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).",
-                    this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength(), oldEntry.getLength());
+                    this.traceObjectId, newEntry.getStreamSegmentOffset(), newEntry.getLength(), oldEntry.getLength());
+            deleteData(oldEntry);
         }
     }
 
@@ -661,18 +687,25 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         contents.add(entryContents.getData());
         int readLength = entryContents.getLength();
         while (readLength < length) {
-            // No need to search the index; from now on, we know each offset we are looking for is at the beginning of a cache entry.
-            // Also, no need to acquire the lock there. The cache itself is thread safe, and if the entry we are about to fetch
-            // has just been evicted, we'll just get null back and stop reading (which is acceptable).
-            byte[] entryData = this.cache.get(new CacheKey(this.metadata.getId(), startOffset + readLength));
+            BufferView entryData;
+            synchronized (this.lock) {
+                ReadIndexEntry indexEntry = this.indexEntries.get(startOffset + readLength);
+                if (!indexEntry.isDataEntry()) {
+                    // This cache entry refers to a merged segment (into this one). As per the contract, we shouldn't return it.
+                    return null;
+                }
+
+                entryData = this.dataStore.get(indexEntry.getDataAddress());
+            }
+
             if (entryData == null) {
                 // Could not find the 'next' cache entry: this means the requested range is not fully cached.
                 return null;
             }
 
-            int entryReadLength = Math.min(entryData.length, length - readLength);
+            int entryReadLength = Math.min(entryData.getLength(), length - readLength);
             assert entryReadLength > 0 : "about to have fetched zero bytes from a cache entry";
-            contents.add(new ByteArrayInputStream(entryData, 0, entryReadLength));
+            contents.add(entryData.getReader(0, entryReadLength));
             readLength += entryReadLength;
         }
 
@@ -968,7 +1001,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         int length = (int) Math.min(maxLength, entry.getLength() - entryOffset);
         assert length > 0 : String.format("length{%d} <= 0. streamSegmentOffset = %d, maxLength = %d, entry.offset = %d, entry.length = %d", length, streamSegmentOffset, maxLength, entry.getStreamSegmentOffset(), entry.getLength());
-        byte[] data = this.cache.get(getCacheKey(entry));
+        BufferView data = this.dataStore.get(entry.getDataAddress());
         assert data != null : String.format("No Cache Entry could be retrieved for entry %s", entry);
 
         if (updateStats) {
@@ -977,7 +1010,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             entry.setGeneration(generation);
         }
 
-        return new CacheReadResultEntry(entry.getStreamSegmentOffset(), data, entryOffset, length);
+        return new CacheReadResultEntry(entry.getStreamSegmentOffset(), data.getReader(entryOffset, length), length);
     }
 
     /**
@@ -1075,6 +1108,12 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             });
 
             return result;
+        }
+    }
+
+    private void deleteData(ReadIndexEntry entry) {
+        if (entry.isDataEntry()) {
+            this.dataStore.delete(entry.getDataAddress());
         }
     }
 

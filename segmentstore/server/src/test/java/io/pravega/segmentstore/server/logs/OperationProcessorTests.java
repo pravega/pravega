@@ -35,14 +35,14 @@ import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
@@ -588,19 +588,19 @@ public class OperationProcessorTests extends OperationLogTestBase {
         final CacheManager cacheManager;
         final Storage storage;
         final SequencedItemList<Operation> memoryLog;
-        final CacheFactory cacheFactory;
+        final DataStore dataStore;
         final UpdateableContainerMetadata metadata;
         final ReadIndex readIndex;
         final MemoryStateUpdater stateUpdater;
 
         TestContext() {
-            this.cacheFactory = new InMemoryCacheFactory();
             this.storage = InMemoryStorageFactory.newStorage(executorService());
             this.storage.initialize(1);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             ReadIndexConfig readIndexConfig = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
-            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.cacheFactory, this.storage, this.cacheManager, executorService());
+            this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.dataStore, executorService());
+            this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.storage, this.cacheManager, executorService());
             this.memoryLog = new SequencedItemList<>();
             this.stateUpdater = new MemoryStateUpdater(this.memoryLog, this.readIndex, Runnables.doNothing());
         }
@@ -609,8 +609,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
         public void close() {
             this.readIndex.close();
             this.storage.close();
-            this.cacheFactory.close();
             this.cacheManager.close();
+            this.dataStore.close();
         }
     }
 

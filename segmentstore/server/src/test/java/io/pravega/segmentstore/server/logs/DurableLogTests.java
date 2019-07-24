@@ -44,14 +44,14 @@ import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentSealOperation;
 import io.pravega.segmentstore.server.reading.ContainerReadIndex;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DataLogWriterNotPrimaryException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
@@ -670,11 +670,9 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
@@ -698,7 +696,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Second DurableLog. We use this for recovery.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         try (
-                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+                ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
@@ -736,10 +734,8 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
@@ -759,7 +755,7 @@ public class DurableLogTests extends OperationLogTestBase {
         //Recovery failure due to DataLog Failures.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // Inject some artificial error into the DataLogRead after a few reads.
@@ -794,7 +790,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Recovery failure due to DataCorruptionException.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // Reset error injectors to nothing.
@@ -854,8 +850,6 @@ public class DurableLogTests extends OperationLogTestBase {
         storage.initialize(1);
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
 
         // Write some data to the log. We'll read it later.
@@ -864,7 +858,7 @@ public class DurableLogTests extends OperationLogTestBase {
         List<OperationWithCompletion> completionFutures;
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // DurableLog should start properly.
@@ -879,7 +873,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Disable the DurableDataLog. This requires us to initialize the log, then disable it.
         metadata = new MetadataBuilder(CONTAINER_ID).build();
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // DurableLog should start properly.
@@ -893,7 +887,7 @@ public class DurableLogTests extends OperationLogTestBase {
         }
 
         // Verify that the DurableLog starts properly and that all operations throw appropriate exceptions.
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // DurableLog should start properly.
@@ -925,7 +919,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Verify that, when the DurableDataLog becomes enabled, the DurableLog can pick up the change and resume normal operations.
         // Verify that the DurableLog starts properly and that all operations throw appropriate exceptions.
         dataLog.set(null);
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
 
             // DurableLog should start properly.
@@ -970,11 +964,9 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         val metadata1 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         SegmentProperties originalSegmentInfo;
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata1, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
@@ -1000,7 +992,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Recovery #1. This should work well.
         val metadata2 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata2, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
 
@@ -1023,7 +1015,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
         // Recovery #2. This should fail due to the same segment mapped multiple times with different ids.
         val metadata3 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
-        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata3, cacheFactory, storage, cacheManager, executorService());
+        try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata3, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata3, dataLogFactory, readIndex, executorService())) {
             AssertExtensions.assertThrows(
                     "Recovery did not fail with the expected exception in case of multi-mapping",
@@ -1057,11 +1049,9 @@ public class DurableLogTests extends OperationLogTestBase {
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
 
         // First DurableLog. We use this for generating data.
         try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
@@ -1178,11 +1168,9 @@ public class DurableLogTests extends OperationLogTestBase {
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         @Cleanup
-        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, cacheFactory, storage, cacheManager, executorService());
+        ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
         Set<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
         List<Operation> originalOperations;
@@ -1264,11 +1252,9 @@ public class DurableLogTests extends OperationLogTestBase {
         val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        InMemoryCacheFactory cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
         CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
         @Cleanup
-        val readIndex1 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, cacheFactory, storage, cacheManager, executorService());
+        val readIndex1 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, storage, cacheManager, executorService());
         Set<Long> streamSegmentIds;
         List<OperationWithCompletion> completionFutures;
 
@@ -1313,7 +1299,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Start a second DurableLog and then verify the metadata.
         val metadata2 = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        val readIndex2 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, cacheFactory, storage, cacheManager, executorService());
+        val readIndex2 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata2, storage, cacheManager, executorService());
         try (DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata2, dataLogFactory, readIndex2, executorService())) {
             durableLog.startAsync().awaitRunning();
 
@@ -1456,7 +1442,8 @@ public class DurableLogTests extends OperationLogTestBase {
                 }, 10, TIMEOUT.toMillis());
     }
 
-    //endregion
+    //endregion            this.cacheFactory.close();
+
 
     //region InjectedReadItem
 
@@ -1479,19 +1466,19 @@ public class DurableLogTests extends OperationLogTestBase {
         final ReadIndex readIndex;
         final CacheManager cacheManager;
         final Storage storage;
+        final DataStore dataStore;
         DurableLogConfig durableLogConfig;
-        final CacheFactory cacheFactory;
 
         ContainerSetup(ScheduledExecutorService executorService) {
             this.dataLog = new AtomicReference<>();
             this.executorService = executorService;
             this.dataLogFactory = new TestDurableDataLogFactory(new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, this.executorService), this.dataLog::set);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.cacheFactory = new InMemoryCacheFactory();
             this.storage = InMemoryStorageFactory.newStorage(executorService);
             this.storage.initialize(1);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.executorService);
-            this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.cacheFactory, this.storage, this.cacheManager, this.executorService);
+            this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.dataStore, this.executorService);
+            this.readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, this.storage, this.cacheManager, this.executorService);
         }
 
         @Override
@@ -1499,8 +1486,8 @@ public class DurableLogTests extends OperationLogTestBase {
             this.readIndex.close();
             this.dataLogFactory.close();
             this.storage.close();
-            this.cacheFactory.close();
             this.cacheManager.close();
+            this.dataStore.close();
         }
 
         DurableLog createDurableLog() {

@@ -126,6 +126,11 @@ public class ByteArraySegment implements ArrayView {
     }
 
     @Override
+    public BufferView slice(int offset, int length) {
+        return subSegment(offset, length);
+    }
+
+    @Override
     public byte[] getCopy() {
         byte[] buffer = new byte[this.length];
         System.arraycopy(this.array, this.startOffset, buffer, 0, this.length);

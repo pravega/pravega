@@ -24,7 +24,8 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -681,7 +682,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         final TestContext.TestStorage storage;
         final UpdateableContainerMetadata containerMetadata;
         final ContainerAttributeIndexImpl index;
-        final InMemoryCacheFactory cacheFactory;
+        final DataStore dataStore;
         final TestCacheManager cacheManager;
 
         TestContext(AttributeIndexConfig config) {
@@ -693,9 +694,9 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             this.memoryStorage.initialize(1);
             this.storage = new TestContext.TestStorage(new RollingStorage(this.memoryStorage, config.getAttributeSegmentRollingPolicy()), executorService());
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.cacheFactory = new InMemoryCacheFactory();
-            this.cacheManager = new TestCacheManager(cachePolicy, executorService());
-            val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheFactory, this.cacheManager, executorService());
+            this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+            this.cacheManager = new TestCacheManager(cachePolicy, this.dataStore, executorService());
+            val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheManager, executorService());
             this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage);
         }
 
@@ -703,9 +704,9 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         public void close() {
             this.index.close();
             this.cacheManager.close();
-            this.cacheFactory.close();
             this.storage.close();
             this.memoryStorage.close();
+            this.dataStore.close();
         }
 
         private class TestStorage extends AsyncStorageWrapper {

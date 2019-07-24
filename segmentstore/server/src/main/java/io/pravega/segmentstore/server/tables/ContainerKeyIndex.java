@@ -97,14 +97,13 @@ class ContainerKeyIndex implements AutoCloseable {
      * Creates a new instance of the ContainerKeyIndex class.
      *
      * @param containerId  Id of the SegmentContainer this instance is associated with.
-     * @param cacheFactory A {@link CacheFactory} that can be used to create Cache instances.
      * @param cacheManager A {@link CacheManager} that can be used to manage Cache instances.
      * @param keyHasher    A {@link KeyHasher} that can be used to hash keys.
      * @param executor     Executor for async operations.
      */
-    ContainerKeyIndex(int containerId, @NonNull CacheFactory cacheFactory, @NonNull CacheManager cacheManager,
-                      @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
-        this.cache = new ContainerKeyCache(containerId, cacheFactory);
+    ContainerKeyIndex(int containerId, @NonNull CacheManager cacheManager, @NonNull KeyHasher keyHasher,
+                      @NonNull ScheduledExecutorService executor) {
+        this.cache = new ContainerKeyCache(containerId, null); // TODO fix
         this.cacheManager = cacheManager;
         this.cacheManager.register(this.cache);
         this.executor = executor;

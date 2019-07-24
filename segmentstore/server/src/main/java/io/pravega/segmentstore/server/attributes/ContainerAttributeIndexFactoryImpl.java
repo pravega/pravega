@@ -21,7 +21,6 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class ContainerAttributeIndexFactoryImpl implements AttributeIndexFactory {
     private final AttributeIndexConfig config;
-    private final CacheFactory cacheFactory;
     private final CacheManager cacheManager;
     private final ScheduledExecutorService executor;
 
@@ -29,20 +28,18 @@ public class ContainerAttributeIndexFactoryImpl implements AttributeIndexFactory
      * Creates a new instance of the ContainerAttributeIndexFactoryImpl class.
      *
      * @param config       The AttributeIndexConfig to use for all Indices.
-     * @param cacheFactory A CacheFactory that can be used to create Caches for storing data into.
      * @param cacheManager The CacheManager to use for cache lifecycle management.
      * @param executor     Executor for async operations.
      */
-    public ContainerAttributeIndexFactoryImpl(AttributeIndexConfig config, CacheFactory cacheFactory, CacheManager cacheManager,
+    public ContainerAttributeIndexFactoryImpl(AttributeIndexConfig config, CacheManager cacheManager,
                                               ScheduledExecutorService executor) {
         this.config = Preconditions.checkNotNull(config, "config");
-        this.cacheFactory = Preconditions.checkNotNull(cacheFactory, "cacheFactory");
         this.cacheManager = Preconditions.checkNotNull(cacheManager, "cacheManager");
         this.executor = Preconditions.checkNotNull(executor, "executor");
     }
 
     @Override
     public ContainerAttributeIndexImpl createContainerAttributeIndex(ContainerMetadata containerMetadata, Storage storage) {
-        return new ContainerAttributeIndexImpl(containerMetadata, storage, this.cacheFactory, this.cacheManager, this.config, this.executor);
+        return new ContainerAttributeIndexImpl(containerMetadata, storage, this.cacheManager, this.config, this.executor);
     }
 }

@@ -254,7 +254,7 @@ public class RevisionDataStreamCommonTests {
     }
 
     /**
-     * Tests the ability to encode and decode a byte array (raw, as {@link ArrayView} or as {@link BufferView}).
+     * Tests the ability to encode and decode a byte array (raw, as {@link BufferView}).
      */
     @Test
     public void testByteArrays() throws Exception {
@@ -468,6 +468,16 @@ public class RevisionDataStreamCommonTests {
         @Override
         public InputStream getReader() {
             return this.buf.getReader();
+        }
+
+        @Override
+        public InputStream getReader(int offset, int length) {
+            return this.buf.getReader(offset, length);
+        }
+
+        @Override
+        public BufferView slice(int offset, int length) {
+            return this.buf.slice(offset, length);
         }
 
         @Override

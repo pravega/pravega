@@ -40,8 +40,7 @@ public class ByteBufWrapper implements BufferView {
      *
      * @param buf The {@link ByteBuf} to wrap. A read-only duplicate will be made of this buffer; any changes made to the
      *            {@link ByteBuf#readerIndex()} or {@link ByteBuf#writerIndex()} to this object will not be reflected
-     *            in this {@link ByteBufWrapper} instance. This {@link ByteBuf} reference count will be incremented by 1
-     *            to reflect the new reference added by this wrapper. Invoke {@link #close()} to release that reference.
+     *            in this {@link ByteBufWrapper} instance.
      */
     public ByteBufWrapper(@NonNull ByteBuf buf) {
         this.buf = buf.asReadOnly();
@@ -72,6 +71,18 @@ public class ByteBufWrapper implements BufferView {
     public InputStream getReader() {
         Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
         return new ByteBufInputStream(this.buf.duplicate(), false);
+    }
+
+    @Override
+    public InputStream getReader(int offset, int length) {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
+        return new ByteBufInputStream(this.buf.slice(offset, length), false);
+    }
+
+    @Override
+    public BufferView slice(int offset, int length) {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
+        return new ByteBufWrapper(this.buf.slice(offset, length));
     }
 
     @Override

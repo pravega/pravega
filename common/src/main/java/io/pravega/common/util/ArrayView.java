@@ -9,8 +9,6 @@
  */
 package io.pravega.common.util;
 
-import java.io.InputStream;
-
 /**
  * Defines a generic read-only view of an index-based, array-like structure.
  */
@@ -40,16 +38,6 @@ public interface ArrayView extends BufferView {
      * @return The offset in the backing array.
      */
     int arrayOffset();
-
-    /**
-     * Creates an InputStream that can be used to read the contents of this ArrayView. The InputStream returned
-     * spans the given section of the ArrayView.
-     *
-     * @param offset The starting offset of the section to read.
-     * @param length The length of the section to read.
-     * @return The InputStream.
-     */
-    InputStream getReader(int offset, int length);
 
     /**
      * Copies a specified number of bytes from this ArrayView into the given target array.

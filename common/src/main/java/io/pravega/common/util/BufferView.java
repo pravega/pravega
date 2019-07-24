@@ -34,6 +34,25 @@ public interface BufferView {
     InputStream getReader();
 
     /**
+     * Creates an InputStream that can be used to read the contents of this {@link BufferView}.
+     *
+     * @param offset The starting offset of the section to read.
+     * @param length The length of the section to read.
+     * @return The InputStream.
+     */
+    InputStream getReader(int offset, int length);
+
+    /**
+     * Creates a new {@link BufferView} that represents a sub-range of this {@link BufferView} instance. The new instance
+     * will share the same backing buffer as this one, so a change to one will be reflected in the other.
+     *
+     * @param offset The starting offset to begin the slice at.
+     * @param length The sliced length.
+     * @return A new {@link BufferView}.
+     */
+    BufferView slice(int offset, int length);
+
+    /**
      * Returns a copy of the contents of this {@link BufferView}.
      *
      * @return A byte array with the same length as this ArrayView, containing a copy of the data within it.

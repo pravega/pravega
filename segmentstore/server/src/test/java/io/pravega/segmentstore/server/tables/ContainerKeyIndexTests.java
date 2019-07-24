@@ -23,8 +23,8 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.storage.CacheFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -801,7 +801,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     }
 
     private class TestContext implements AutoCloseable {
-        final InMemoryCacheFactory cacheFactory;
+        final DataStore dataStore;
         final CacheManager cacheManager;
         final SegmentMock segment;
         final ContainerKeyIndex index;
@@ -815,10 +815,10 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         }
 
         TestContext(Duration recoveryTimeout) {
-            this.cacheFactory = new InMemoryCacheFactory();
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+            this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.dataStore, executorService());
             this.segment = new SegmentMock(executorService());
-            this.index = new TestContainerKeyIndex(CONTAINER_ID, this.cacheFactory, this.cacheManager, KeyHashers.DEFAULT_HASHER, executorService());
+            this.index = new TestContainerKeyIndex(CONTAINER_ID, this.cacheManager, KeyHashers.DEFAULT_HASHER, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
             this.random = new Random(0);
         }
@@ -827,12 +827,12 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         public void close() {
             this.index.close();
             this.cacheManager.close();
-            this.cacheFactory.close();
+            this.dataStore.close();
         }
 
         private class TestContainerKeyIndex extends ContainerKeyIndex {
-            TestContainerKeyIndex(int containerId, @NonNull CacheFactory cacheFactory, @NonNull CacheManager cacheManager, @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
-                super(containerId, cacheFactory, cacheManager, keyHasher, executor);
+            TestContainerKeyIndex(int containerId, @NonNull CacheManager cacheManager, @NonNull KeyHasher keyHasher, @NonNull ScheduledExecutorService executor) {
+                super(containerId, cacheManager, keyHasher, executor);
             }
 
             @Override

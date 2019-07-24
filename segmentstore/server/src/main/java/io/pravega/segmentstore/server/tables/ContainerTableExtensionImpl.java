@@ -83,31 +83,28 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
      * Creates a new instance of the ContainerTableExtensionImpl class.
      *
      * @param segmentContainer The {@link SegmentContainer} to associate with.
-     * @param cacheFactory     The {@link CacheFactory} to use in order to create Key Index Caches.
      * @param cacheManager     The {@link CacheManager} to use to manage the cache.
      * @param executor         An Executor to use for async tasks.
      */
-    public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheFactory cacheFactory,
-                                       CacheManager cacheManager, ScheduledExecutorService executor) {
-        this(segmentContainer, cacheFactory, cacheManager, KeyHasher.sha256(), executor);
+    public ContainerTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager, ScheduledExecutorService executor) {
+        this(segmentContainer, cacheManager, KeyHasher.sha256(), executor);
     }
 
     /**
      * Creates a new instance of the ContainerTableExtensionImpl class with custom {@link KeyHasher}.
      *
      * @param segmentContainer The {@link SegmentContainer} to associate with.
-     * @param cacheFactory     The {@link CacheFactory} to use in order to create Key Index Caches.
      * @param cacheManager     The {@link CacheManager} to use to manage the cache.
      * @param hasher           The {@link KeyHasher} to use.
      * @param executor         An Executor to use for async tasks.
      */
     @VisibleForTesting
-    ContainerTableExtensionImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheFactory cacheFactory,
-                                @NonNull CacheManager cacheManager, @NonNull KeyHasher hasher, @NonNull ScheduledExecutorService executor) {
+    ContainerTableExtensionImpl(@NonNull SegmentContainer segmentContainer, @NonNull CacheManager cacheManager,
+                                @NonNull KeyHasher hasher, @NonNull ScheduledExecutorService executor) {
         this.segmentContainer = segmentContainer;
         this.executor = executor;
         this.hasher = hasher;
-        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheFactory, cacheManager, this.hasher, this.executor);
+        this.keyIndex = new ContainerKeyIndex(segmentContainer.getId(), cacheManager, this.hasher, this.executor);
         this.serializer = new EntrySerializer();
         this.closed = new AtomicBoolean();
         this.traceObjectId = String.format("TableExtension[%d]", this.segmentContainer.getId());

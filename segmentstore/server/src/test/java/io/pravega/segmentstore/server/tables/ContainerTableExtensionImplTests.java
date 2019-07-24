@@ -37,7 +37,6 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -794,7 +793,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         }
 
         ContainerTableExtensionImpl createExtension(int maxCompactionSize) {
-            return new TestTableExtensionImpl(this.container, this.cacheFactory, this.cacheManager, this.hasher, executorService(), maxCompactionSize);
+            return new TestTableExtensionImpl(this.container, this.cacheManager, this.hasher, executorService(), maxCompactionSize);
         }
 
         UpdateableSegmentMetadata createSegmentMetadata() {
@@ -812,9 +811,9 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private static class TestTableExtensionImpl extends ContainerTableExtensionImpl {
         private final int maxCompactionSize;
 
-        TestTableExtensionImpl(SegmentContainer segmentContainer, CacheFactory cacheFactory, CacheManager cacheManager,
+        TestTableExtensionImpl(SegmentContainer segmentContainer, CacheManager cacheManager,
                                KeyHasher hasher, ScheduledExecutorService executor, int maxCompactionSize) {
-            super(segmentContainer, cacheFactory, cacheManager, hasher, executor);
+            super(segmentContainer, cacheManager, hasher, executor);
             this.maxCompactionSize = maxCompactionSize;
         }
 

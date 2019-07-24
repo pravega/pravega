@@ -13,6 +13,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -130,7 +131,12 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
-    public void copyTo(OutputStream target) throws IOException {
+    public BufferView slice(int offset, int length) {
+        throw new UnsupportedOperationException("slice() not supported.");
+    }
+
+    @Override
+    public void copyTo(OutputStream target) {
         throw new UnsupportedOperationException("copyTo() not supported.");
     }
 

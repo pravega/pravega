@@ -277,15 +277,13 @@ public class ServiceBuilder implements AutoCloseable {
     }
 
     protected ReadIndexFactory createReadIndexFactory() {
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         ReadIndexConfig readIndexConfig = this.serviceBuilderConfig.getConfig(ReadIndexConfig::builder);
-        return new ContainerReadIndexFactory(readIndexConfig, cacheFactory, this.cacheManager, this.coreExecutor);
+        return new ContainerReadIndexFactory(readIndexConfig, this.cacheManager, this.coreExecutor);
     }
 
     protected AttributeIndexFactory createAttributeIndexFactory() {
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
         AttributeIndexConfig config = this.serviceBuilderConfig.getConfig(AttributeIndexConfig::builder);
-        return new ContainerAttributeIndexFactoryImpl(config, cacheFactory, this.cacheManager, this.coreExecutor);
+        return new ContainerAttributeIndexFactoryImpl(config, this.cacheManager, this.coreExecutor);
     }
 
     protected StorageFactory createStorageFactory() {
@@ -305,8 +303,7 @@ public class ServiceBuilder implements AutoCloseable {
 
     private Map<Class<? extends SegmentContainerExtension>, SegmentContainerExtension> createContainerExtensions(
             SegmentContainer container, ScheduledExecutorService executor) {
-        CacheFactory cacheFactory = getSingleton(this.cacheFactory, this.cacheFactoryCreator);
-        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(container, cacheFactory, this.cacheManager, executor));
+        return Collections.singletonMap(ContainerTableExtension.class, new ContainerTableExtensionImpl(container, this.cacheManager, executor));
     }
 
     private SegmentContainerRegistry createSegmentContainerRegistry() {

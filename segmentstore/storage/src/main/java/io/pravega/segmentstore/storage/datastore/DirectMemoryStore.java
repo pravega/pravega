@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ public class DirectMemoryStore implements DataStore {
     public DirectMemoryStore(@NonNull StoreLayout layout, long maxSizeBytes) {
         Preconditions.checkArgument(maxSizeBytes > 0 && maxSizeBytes < StoreLayout.MAX_TOTAL_SIZE,
                 "maxSizeBytes must be a positive number less than %s.", StoreLayout.MAX_TOTAL_SIZE);
-        Preconditions.checkArgument(maxSizeBytes % layout.bufferSize() == 0, "maxSizeBytes must be a multiple of %s.", layout.bufferSize());
+        maxSizeBytes = adjustMaxSizeIfNeeded(maxSizeBytes, layout);
 
         this.layout = layout;
         this.allocator = new UnpooledByteBufAllocator(true, true);
@@ -58,6 +58,14 @@ public class DirectMemoryStore implements DataStore {
         this.unallocatedBufferIds = IntStream.range(0, this.buffers.length - 1).boxed().collect(Collectors.toCollection(ArrayDeque::new));
         this.storedBytes = new AtomicLong(0);
         this.closed = new AtomicBoolean(false);
+    }
+
+    private long adjustMaxSizeIfNeeded(long maxSize, StoreLayout layout) {
+        long r = maxSize % layout.bufferSize();
+        if (r != 0) {
+            maxSize = maxSize - r + layout.bufferSize();
+        }
+        return maxSize;
     }
 
     @Override
@@ -176,7 +184,7 @@ public class DirectMemoryStore implements DataStore {
     public int append(int address, int expectedLength, BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         int expectedLastBlockLength = expectedLength % this.layout.blockSize();
-        Preconditions.checkArgument(expectedLastBlockLength + data.getLength() == this.layout.blockSize(),
+        Preconditions.checkArgument(expectedLastBlockLength + data.getLength() <= this.layout.blockSize(),
                 "");
 
         // We can only append to fill the last block. For anything else a new write will be needed.
@@ -200,7 +208,7 @@ public class DirectMemoryStore implements DataStore {
         }
 
         this.storedBytes.addAndGet(appended);
-        return appended; // TODO: later
+        return appended;
     }
 
     @Override

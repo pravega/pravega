@@ -48,4 +48,9 @@ class RedirectIndexEntry extends ReadIndexEntry {
     boolean isDataEntry() {
         return false;
     }
+
+    @Override
+    int getDataAddress() {
+        throw new UnsupportedOperationException();
+    }
 }

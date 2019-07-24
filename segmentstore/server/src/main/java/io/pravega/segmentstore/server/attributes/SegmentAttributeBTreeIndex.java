@@ -38,6 +38,7 @@ import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.mocks.InMemoryCache;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -118,15 +119,14 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      *
      * @param segmentMetadata The SegmentMetadata of the Segment whose attributes we want to manage.
      * @param storage         A Storage adapter which can be used to access the Attribute Segment.
-     * @param cache           The Cache to use.
      * @param config          Attribute Index Configuration.
      * @param executor        An Executor to run async tasks.
      */
-    SegmentAttributeBTreeIndex(@NonNull SegmentMetadata segmentMetadata, @NonNull Storage storage, @NonNull Cache cache,
+    SegmentAttributeBTreeIndex(@NonNull SegmentMetadata segmentMetadata, @NonNull Storage storage,
                                @NonNull AttributeIndexConfig config, @NonNull ScheduledExecutorService executor) {
         this.segmentMetadata = segmentMetadata;
         this.storage = storage;
-        this.cache = cache;
+        this.cache = new InMemoryCache(""); // TODO fix this
         this.config = config;
         this.executor = executor;
         this.handle = new AtomicReference<>();
@@ -193,28 +193,12 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
     @Override
     public void close() {
-        // Quick close (no cache cleanup) this should be used only in case of container shutdown, when the cache will
-        // be erased anyway.
-        close(false);
-    }
-
-    /**
-     * Closes the SegmentAttributeIndex and optionally cleans the cache.
-     *
-     * @param cleanCache If true, the Cache will be cleaned up of all entries pertaining to this Index. If false, the
-     *                   Cache will not be touched.
-     */
-    void close(boolean cleanCache) {
         if (!this.closed.getAndSet(true)) {
             // Close storage reader (and thus cancel those reads).
-            if (cleanCache) {
-                this.executor.execute(() -> {
-                    removeAllCacheEntries();
-                    log.info("{}: Closed.", this.traceObjectId);
-                });
-            } else {
-                log.info("{}: Closed (no cache cleanup).", this.traceObjectId);
-            }
+            this.executor.execute(() -> {
+                removeAllCacheEntries();
+                log.info("{}: Closed.", this.traceObjectId);
+            });
         }
     }
 
