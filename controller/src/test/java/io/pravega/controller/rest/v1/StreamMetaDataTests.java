@@ -775,7 +775,11 @@ public class StreamMetaDataTests {
         assertEquals("Get Scaling Events response code", 404, response.getStatus());
 
         // Test for getScalingEvents for bad request.
-        // from > to is tested here
+        // 1. Missing query parameters are validated here.
+        response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("Get Scaling Events response code", 400, response.getStatus());
+
+        // 2. from > to is tested here.
         doAnswer(x -> CompletableFuture.completedFuture(scaleMetadataList))
                 .when(mockControllerService).getScaleRecords(anyString(), anyString(), anyLong(), anyLong());
 
@@ -789,7 +793,9 @@ public class StreamMetaDataTests {
         doAnswer(x -> completableFuture)
                 .when(mockControllerService).getScaleRecords(anyString(), anyString(), anyLong(), anyLong());
 
-        response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        response = addAuthHeaders(client.target(resourceURI)
+                                        .queryParam("from", fromDateTime)
+                                        .queryParam("to", toDateTime).request()).buildGet().invoke();
         assertEquals("Get Scaling Events response code", 500, response.getStatus());
     }
 
