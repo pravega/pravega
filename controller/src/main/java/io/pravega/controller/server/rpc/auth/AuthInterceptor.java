@@ -50,7 +50,8 @@ public class AuthInterceptor implements ServerInterceptor {
 
         Context context = Context.current();
 
-        // The authorization header has the credentials (e.g., username and password for Basic Authentication)
+        // The authorization header has the credentials (e.g., username and password for Basic Authentication).
+        // The form of the header is: <Method> <Token> (CustomMethod static-token, or Basic XYZ...., for example)
         String credentials = headers.get(Metadata.Key.of(AuthConstants.AUTHORIZATION, Metadata.ASCII_STRING_MARSHALLER));
 
         if (!Strings.isNullOrEmpty(credentials)) {

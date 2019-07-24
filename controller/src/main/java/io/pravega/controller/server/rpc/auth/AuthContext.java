@@ -33,8 +33,8 @@ public class AuthContext {
 
     /**
      * Initiates a new instance using the current {@link io.grpc.Context}.
-     *
-     * @return an instance containing {@ink Principal} and {@link AuthHandler} from the current {@link io.grpc.Context}
+     *u
+     * @return an instance containing {@link Principal} and {@link AuthHandler} from the current {@link io.grpc.Context}
      */
     public static AuthContext current() {
         Principal principal = AuthInterceptor.AUTH_CONTEXT_TOKEN.get();

@@ -136,7 +136,7 @@ public class AuthHandlerManager {
      * to inject and register custom auth handlers. Also, this method is idempotent.
      *
      * @param authHandler the {@code AuthHandler} implementation to register
-     * @Throws NullPointerException {@code authHandler} is null
+     * @throws NullPointerException {@code authHandler} is null
      */
     @VisibleForTesting
     public synchronized void registerHandler(AuthHandler authHandler) {

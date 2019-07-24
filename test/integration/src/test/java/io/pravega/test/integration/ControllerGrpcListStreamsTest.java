@@ -16,6 +16,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
+import io.pravega.test.integration.auth.customplugin.CustomAuthHandler;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
 import lombok.Cleanup;
@@ -43,7 +44,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * Tests list streams operation of the Controller's gRPC interface.
  */
-public class GrpcListStreamsTest {
+public class ControllerGrpcListStreamsTest {
 
     /**
      * This rule makes sure that the tests in this class run in 50 seconds or less.
@@ -120,6 +121,42 @@ public class GrpcListStreamsTest {
 
         // Assert
         assertEquals(1, streams.size());
+    }
+
+    @Test
+    public void testListStreamsReturnsAuthorizedStreamsForCustomPlugin() {
+        ClusterWrapper cluster = null;
+        try {
+            // Arrange
+            cluster = new ClusterWrapper(true, 600);
+            cluster.initialize();
+            String scopeName = "test-scope";
+            this.createStreams(ClientConfig.builder()
+                                .controllerURI(URI.create(cluster.controllerUri()))
+                                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                                .build(),
+                               scopeName, Arrays.asList("stream1", "stream2"));
+
+            // Act
+            System.setProperty("pravega.client.auth.loadDynamic", "true");
+            System.setProperty("pravega.client.auth.method",  CustomAuthHandler.METHOD);
+            System.setProperty("pravega.client.auth.token", CustomAuthHandler.TOKEN);
+
+            Set<Stream> streams = listStreams(ClientConfig.builder()
+                    .controllerURI(URI.create(cluster.controllerUri()))
+                    .build(), scopeName);
+
+            // Assert
+            assertEquals(2, streams.size());
+        } finally {
+            System.clearProperty("pravega.client.auth.loadDynamic");
+            System.clearProperty("pravega.client.auth.method");
+            System.clearProperty("pravega.client.auth.token");
+
+            if (cluster != null) {
+                cluster.close();
+            }
+        }
     }
 
     //region Private methods
