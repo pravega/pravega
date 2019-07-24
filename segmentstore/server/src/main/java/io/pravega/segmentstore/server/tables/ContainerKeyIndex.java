@@ -27,7 +27,6 @@ import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.reading.AsyncReadResultProcessor;
-import io.pravega.segmentstore.storage.CacheFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -103,7 +102,7 @@ class ContainerKeyIndex implements AutoCloseable {
      */
     ContainerKeyIndex(int containerId, @NonNull CacheManager cacheManager, @NonNull KeyHasher keyHasher,
                       @NonNull ScheduledExecutorService executor) {
-        this.cache = new ContainerKeyCache(containerId, null); // TODO fix
+        this.cache = new ContainerKeyCache(containerId, cacheManager.getDataStore());
         this.cacheManager = cacheManager;
         this.cacheManager.register(this.cache);
         this.executor = executor;

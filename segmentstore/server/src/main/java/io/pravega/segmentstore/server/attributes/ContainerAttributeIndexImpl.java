@@ -102,7 +102,7 @@ class ContainerAttributeIndexImpl implements ContainerAttributeIndex {
         AtomicReference<SegmentAttributeBTreeIndex> toInitialize = new AtomicReference<>();
         synchronized (this.attributeIndices) {
             result = this.attributeIndices.computeIfAbsent(streamSegmentId, id -> {
-                toInitialize.set(new SegmentAttributeBTreeIndex(sm, this.storage, this.config, this.executor));
+                toInitialize.set(new SegmentAttributeBTreeIndex(sm, this.storage, this.cacheManager.getDataStore(), this.config, this.executor));
                 return new CompletableFuture<>();
             });
         }

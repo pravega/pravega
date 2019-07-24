@@ -379,10 +379,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                         data = data.slice(appendableLength, data.getLength() - appendableLength);
                     }
 
+                    // Add append data to the Data Store.
                     appendLength = this.dataStore.append(lastEntry.getDataAddress(), (int) lastEntry.getLength(), toAppend);
                     assert appendLength <= appendableLength;
                     ((CacheIndexEntry) lastEntry).increaseLength(appendLength);
                     this.lastAppendedOffset += appendLength;
+
+                    // Update the generation for this entry and record its size change.
+                    int generation = this.summary.touchOne(lastEntry.getGeneration(), appendLength);
+                    lastEntry.setGeneration(generation);
                 }
             }
 
@@ -1006,7 +1011,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         if (updateStats) {
             // Update its generation before returning it.
-            int generation = this.summary.touchOne(entry.getGeneration());
+            int generation = this.summary.touchOne(entry.getGeneration(), 0);
             entry.setGeneration(generation);
         }
 
@@ -1111,6 +1116,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         }
     }
 
+    @GuardedBy("lock")
     private void deleteData(ReadIndexEntry entry) {
         if (entry.isDataEntry()) {
             this.dataStore.delete(entry.getDataAddress());

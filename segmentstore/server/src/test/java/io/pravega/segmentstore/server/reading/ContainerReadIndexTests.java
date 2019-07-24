@@ -1522,7 +1522,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         @SneakyThrows
         public void close() {
             this.readIndex.close();
-            AssertExtensions.assertEventuallyEquals("Read Index did not delete all DataStore entries after closing.",
+            AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Read Index did not delete all DataStore entries after closing.",
                     0L, () -> this.dataStore.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
             this.storage.close();
             this.cacheManager.close();

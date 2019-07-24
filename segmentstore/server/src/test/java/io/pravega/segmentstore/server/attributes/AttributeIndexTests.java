@@ -51,6 +51,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
+import lombok.SneakyThrows;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -701,11 +702,14 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        @SneakyThrows
         public void close() {
             this.index.close();
-            this.cacheManager.close();
             this.storage.close();
             this.memoryStorage.close();
+            AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Attribute Index did not delete all DataStore entries after closing.",
+                    0L, () -> this.dataStore.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
+            this.cacheManager.close();
             this.dataStore.close();
         }
 

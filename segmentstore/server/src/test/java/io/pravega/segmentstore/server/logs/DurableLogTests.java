@@ -670,7 +670,9 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        DataStore dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, dataStore, executorService());
         try (
                 ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
                 DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
@@ -734,7 +736,9 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        DataStore dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, dataStore, executorService());
         try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata, dataLogFactory, readIndex, executorService())) {
             durableLog.startAsync().awaitRunning();
@@ -850,7 +854,9 @@ public class DurableLogTests extends OperationLogTestBase {
         storage.initialize(1);
 
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        DataStore dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, dataStore, executorService());
 
         // Write some data to the log. We'll read it later.
         Set<Long> streamSegmentIds;
@@ -964,7 +970,9 @@ public class DurableLogTests extends OperationLogTestBase {
         // First DurableLog. We use this for generating data.
         val metadata1 = (StreamSegmentContainerMetadata) new MetadataBuilder(CONTAINER_ID).build();
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        DataStore dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, dataStore, executorService());
         SegmentProperties originalSegmentInfo;
         try (ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, storage, cacheManager, executorService());
              DurableLog durableLog = new DurableLog(ContainerSetup.defaultDurableLogConfig(), metadata1, dataLogFactory, readIndex, executorService())) {
@@ -1049,7 +1057,9 @@ public class DurableLogTests extends OperationLogTestBase {
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        DataStore dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, dataStore, executorService());
         @Cleanup
         ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
 
@@ -1168,7 +1178,9 @@ public class DurableLogTests extends OperationLogTestBase {
         UpdateableContainerMetadata metadata = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        DataStore dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, dataStore, executorService());
         @Cleanup
         ReadIndex readIndex = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata, storage, cacheManager, executorService());
         Set<Long> streamSegmentIds;
@@ -1252,7 +1264,9 @@ public class DurableLogTests extends OperationLogTestBase {
         val metadata1 = new MetadataBuilder(CONTAINER_ID).build();
 
         @Cleanup
-        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
+        DataStore dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+        @Cleanup
+        CacheManager cacheManager = new CacheManager(CachePolicy.INFINITE, dataStore, executorService());
         @Cleanup
         val readIndex1 = new ContainerReadIndex(DEFAULT_READ_INDEX_CONFIG, metadata1, storage, cacheManager, executorService());
         Set<Long> streamSegmentIds;

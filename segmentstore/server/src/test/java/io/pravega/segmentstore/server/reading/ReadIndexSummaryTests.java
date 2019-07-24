@@ -144,7 +144,7 @@ public class ReadIndexSummaryTests {
         // Touch each item, one by one, in each generation.
         for (int generation = 0; generation < GENERATION_COUNT; generation++) {
             for (int i = 0; i < ITEMS_PER_GENERATION; i++) {
-                int returnedGeneration = s.touchOne(generation);
+                int returnedGeneration = s.touchOne(generation, 0);
                 Assert.assertEquals("Unexpected return value from touchOne().", maxGeneration, returnedGeneration);
 
                 CacheManager.CacheStatus currentStatus = s.toCacheStatus();

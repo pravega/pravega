@@ -12,7 +12,8 @@ package io.pravega.segmentstore.server.tables;
 import com.google.common.collect.Maps;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableKey;
-import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
+import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
 import io.pravega.test.common.AssertExtensions;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,7 +26,9 @@ import java.util.stream.Collectors;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -40,6 +43,19 @@ public class ContainerKeyCacheTests {
     private static final KeyHasher KEY_HASHER = KeyHashers.DEFAULT_HASHER;
     @Rule
     public Timeout globalTimeout = new Timeout(30, TimeUnit.SECONDS);
+    private DataStore dataStore;
+
+    @Before
+    public void setup() {
+        this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
+    }
+
+    @After
+    public void tearDown() {
+        val s = this.dataStore.getSnapshot();
+        Assert.assertEquals("MEMORY LEAK: Expected DataStore to be empty upon closing: " + s, 0, s.getStoredBytes());
+        this.dataStore.close();
+    }
 
     /**
      * Tests the {@link ContainerKeyCache#includeExistingKey} method.
@@ -47,9 +63,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testIncludeExistingKey() {
         @Cleanup
-        val cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.dataStore);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
         // Insert.
@@ -113,9 +127,7 @@ public class ContainerKeyCacheTests {
         final long segmentId = 0L;
         final long baseOffset = 1000;
         @Cleanup
-        val cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.dataStore);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
         // Insert some pre-existing values.
@@ -162,9 +174,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testBatchInsert() {
         @Cleanup
-        val cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.dataStore);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
@@ -184,9 +194,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testBatchUpdate() {
         @Cleanup
-        val cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.dataStore);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
@@ -225,9 +233,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testBatchRemove() {
         @Cleanup
-        val cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.dataStore);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
@@ -295,14 +301,12 @@ public class ContainerKeyCacheTests {
         val keyHash = newSimpleHash();
 
         @Cleanup
-        val cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
-        val cache1 = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+        val cache1 = new ContainerKeyCache(CONTAINER_ID, this.dataStore);
         cache1.includeExistingKey(segmentId, keyHash, 0L);
         cache1.close();
 
         @Cleanup
-        val cache2 = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+        val cache2 = new ContainerKeyCache(CONTAINER_ID, this.dataStore);
         val result2 = cache2.get(segmentId, keyHash);
         Assert.assertNull("Not expecting the cache to have contents after close & reinitialize.", result2);
     }
@@ -329,9 +333,7 @@ public class ContainerKeyCacheTests {
         // 2. With SegmentIndexOffset set to MAX - driven by generations.
         // 3. With SegmentIndexOffset controlled - driven by itself.
         @Cleanup
-        val cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.dataStore);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
@@ -391,9 +393,7 @@ public class ContainerKeyCacheTests {
     public void testTailCacheMigration() {
         final long segmentId = 1L;
         @Cleanup
-        val cacheFactory = new InMemoryCacheFactory();
-        @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, cacheFactory);
+        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.dataStore);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 

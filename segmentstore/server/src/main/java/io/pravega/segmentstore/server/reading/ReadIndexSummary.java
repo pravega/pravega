@@ -101,11 +101,13 @@ class ReadIndexSummary {
      * its current generation and recorded in the current generation.
      *
      * @param generation The original generation of the element to touch.
+     * @param addedSize  The number of bytes that this element has increased (or decreased).
      * @return The value of the current generation.
      */
-    synchronized int touchOne(int generation) {
+    synchronized int touchOne(int generation, int addedSize) {
         removeFromGeneration(generation);
         addToCurrentGeneration();
+        this.totalSize += addedSize;
         return this.currentGeneration;
     }
 
