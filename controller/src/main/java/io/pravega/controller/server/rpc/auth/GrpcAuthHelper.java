@@ -43,7 +43,7 @@ public class GrpcAuthHelper {
     public boolean isAuthorized(String resource, AuthHandler.Permissions permission, AuthContext authContext) {
         if (isAuthEnabled) {
             AuthHandler.Permissions allowedLevel;
-            if (authContext == null) {
+            if (authContext == null || authContext.getAuthHandler() == null) {
                 log.warn("Auth is enabled but 'authContext'  is null. Defaulting to no permissions.");
                 allowedLevel = AuthHandler.Permissions.NONE;
             } else {
