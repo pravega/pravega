@@ -19,18 +19,13 @@ import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheException;
 import java.io.File;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
-import org.rocksdb.BlockBasedTableConfig;
-import org.rocksdb.InfoLogLevel;
-import org.rocksdb.Logger;
-import org.rocksdb.Options;
-import org.rocksdb.RocksDB;
-import org.rocksdb.RocksDBException;
-import org.rocksdb.WriteOptions;
+import org.rocksdb.*;
 
 /**
  * RocksDB-backed Cache.
@@ -72,6 +67,7 @@ class RocksDBCache implements Cache {
     private final int readCacheSizeMB;
     private final int cacheBlockSizeKB;
     private final String rocksDBLogLevel;
+    private final boolean directReads;
 
     //endregion
 
@@ -99,6 +95,7 @@ class RocksDBCache implements Cache {
         this.readCacheSizeMB = config.getReadCacheSizeMB();
         this.cacheBlockSizeKB = config.getCacheBlockSizeKB();
         this.rocksDBLogLevel = config.getRocksDBLogLevel();
+        this.directReads = config.isDirectReads();
         try {
             this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
@@ -258,36 +255,53 @@ class RocksDBCache implements Cache {
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
-                .setUseDirectReads(true);
+                .setUseDirectReads(false);
 
         InfoLogLevel logLevel = translateRocksDBLogLevel(rocksDBLogLevel);
-        Options logOptions = new Options().
+        try(final Options logOptions = new Options().
                 setInfoLogLevel(logLevel).
                 setCreateIfMissing(true);
 
-        Logger logger = new Logger(logOptions) {
-            @Override
-            protected void log(InfoLogLevel infoLogLevel, String logMsg) {
-                switch (infoLogLevel) {
-                    case DEBUG_LEVEL:
-                        log.debug(logMsg);
-                        break;
-                    case INFO_LEVEL:
-                        log.info(logMsg);
-                        break;
-                    case WARN_LEVEL:
-                        log.warn(logMsg);
-                        break;
-                    case ERROR_LEVEL:
-                        log.error(logMsg);
-                        break;
-                    default:
-                        log.error(logMsg);
-                        break;
+            final Logger logger = new Logger(logOptions) {
+                @Override
+                protected void log(InfoLogLevel infoLogLevel, String logMsg) {
+                    switch (infoLogLevel) {
+                        case DEBUG_LEVEL:
+                            log.debug(logMsg);
+                            break;
+                        case INFO_LEVEL:
+                            log.info(logMsg);
+                            break;
+                        case WARN_LEVEL:
+                            log.warn(logMsg);
+                            break;
+                        case ERROR_LEVEL:
+                            log.error(logMsg);
+                            break;
+                        default:
+                            log.error(logMsg);
+                            break;
+                    }
                 }
-            }
-        };
-        databaseOptions.setLogger(logger);
+            }) {
+            databaseOptions.setLogger(logger);
+        }
+
+        try (final Statistics statistics = new Statistics()) {
+            databaseOptions.setStatistics(statistics).setCreateIfMissing(true);
+        }
+
+        try(final Statistics stats = databaseOptions.statistics()) {
+
+            final StatsCallback callback = new StatsCallback();
+            final StatsCollectorInput statsInput =
+                    new StatsCollectorInput(stats, callback);
+
+            final StatisticsCollector statsCollector = new StatisticsCollector(
+                    Collections.singletonList(statsInput), 100);
+            statsCollector.start();
+
+        }
         return databaseOptions;
     }
 
