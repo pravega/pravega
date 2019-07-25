@@ -537,7 +537,7 @@ project('test:integration') {
 }
 
 project('test:compatibility') {
-    apply plugin: 'application'
+    apply plugin: 'maven'
     dependencies {
         compile project(':common')
         compile project(':client')
@@ -555,6 +555,19 @@ project('test:compatibility') {
         testCompile project(path:':segmentstore:server:host', configuration:'testRuntime')
         testCompile project(path:':shared:metrics', configuration:'testRuntime')
    }
+    //disable the default test task.
+    test {
+        exclude 'io/pravega/**'
+    }
+      //This is  used to invoke systemTests
+    task startCompatibilityTests(type: Test) {
+
+
+        description 'Used to invoke compatibility tests, example usage: gradlew startCompatibilityTests'
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+     }
+
 }
 project('shared:controller-api') {
     apply plugin: 'com.google.protobuf'
