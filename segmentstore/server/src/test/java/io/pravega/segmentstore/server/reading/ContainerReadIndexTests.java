@@ -29,6 +29,7 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.storage.Storage;
+import io.pravega.segmentstore.storage.cache.CacheSnapshot;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -821,6 +822,9 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         ArrayList<Integer> removedEntries = new ArrayList<>();
         @Cleanup
         TestContext context = new TestContext(config, cachePolicy);
+        // To ease our testing, we disable appends and instruct the TestCache to report the same value for UsedBytes as it
+        // has for StoredBytes. This shields us from having to know internal details about the layout of the cache.
+        context.cacheStorage.usedBytesSameAsStoredBytes = true;
         context.cacheStorage.disableAppends = true;
         context.cacheStorage.deleteCallback = removedEntries::add; // Record every cache removal.
 
@@ -1538,6 +1542,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         Consumer<Integer> insertCallback;
         Consumer<Integer> deleteCallback;
         boolean disableAppends;
+        boolean usedBytesSameAsStoredBytes;
 
         TestCacheStorage(long maxSizeBytes) {
             super(maxSizeBytes);
@@ -1577,6 +1582,16 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             }
 
             return r;
+        }
+
+        @Override
+        public CacheSnapshot getSnapshot() {
+            val s = super.getSnapshot();
+            if (this.usedBytesSameAsStoredBytes) {
+                return new CacheSnapshot(s.getStoredBytes(), s.getStoredBytes(), s.getReservedBytes(), s.getAllocatedBytes(), s.getMaxBytes());
+            } else {
+                return s;
+            }
         }
     }
 

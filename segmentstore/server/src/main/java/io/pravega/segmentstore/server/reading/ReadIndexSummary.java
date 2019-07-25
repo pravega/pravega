@@ -26,8 +26,6 @@ class ReadIndexSummary {
     @GuardedBy("this")
     private int currentGeneration;
     @GuardedBy("this")
-    private long totalSize;
-    @GuardedBy("this")
     private final HashMap<Integer, Integer> generations;
 
     //endregion
@@ -37,7 +35,6 @@ class ReadIndexSummary {
      */
     ReadIndexSummary() {
         this.currentGeneration = 0;
-        this.totalSize = 0;
         this.generations = new HashMap<>();
     }
 
@@ -54,46 +51,39 @@ class ReadIndexSummary {
     }
 
     /**
-     * Records the addition of an element of the given size to the current generation.
+     * Records the addition of an element to the current generation.
      *
-     * @param size The size of the element to add.
      * @return The value of the current generation.
      */
-    synchronized int add(long size) {
-        Preconditions.checkArgument(size >= 0, "size must be a non-negative number");
-        this.totalSize += size;
-        addToCurrentGeneration();
+    synchronized int addOne() {
+        int newCount = this.generations.getOrDefault(this.currentGeneration, 0) + 1;
+        this.generations.put(this.currentGeneration, newCount);
         return this.currentGeneration;
     }
 
     /**
-     * Records the addition of an element of the given size to the given generation.
+     * Records the addition of an element to the given generation.
      *
-     * @param size       The size of the element to add.
      * @param generation The generation of the element to add.
      */
-    synchronized void add(long size, int generation) {
-        Preconditions.checkArgument(size >= 0, "size must be a non-negative number");
+    synchronized void addOne(int generation) {
         Preconditions.checkArgument(generation >= 0, "generation must be a non-negative number");
-        this.totalSize += size;
         int newCount = this.generations.getOrDefault(generation, 0) + 1;
         this.generations.put(generation, newCount);
     }
 
     /**
-     * Records the removal of an element of the given size from the given generation.
+     * Records the removal of an element from the given generation.
      *
-     * @param size       The size of the element to remove.
      * @param generation The generation of the element to remove.
      */
-    synchronized void remove(long size, int generation) {
-        Preconditions.checkArgument(size >= 0, "size must be a non-negative number");
-        this.totalSize -= size;
-        if (this.totalSize < 0) {
-            this.totalSize = 0;
+    synchronized void removeOne(int generation) {
+        int newCount = this.generations.getOrDefault(generation, 0) - 1;
+        if (newCount > 0) {
+            this.generations.put(generation, newCount);
+        } else {
+            this.generations.remove(generation);
         }
-
-        removeFromGeneration(generation);
     }
 
     /**
@@ -101,13 +91,11 @@ class ReadIndexSummary {
      * its current generation and recorded in the current generation.
      *
      * @param generation The original generation of the element to touch.
-     * @param addedSize  The number of bytes that this element has increased (or decreased).
      * @return The value of the current generation.
      */
-    synchronized int touchOne(int generation, int addedSize) {
-        removeFromGeneration(generation);
-        addToCurrentGeneration();
-        this.totalSize += addedSize;
+    synchronized int touchOne(int generation) {
+        removeOne(generation);
+        addOne();
         return this.currentGeneration;
     }
 
@@ -127,22 +115,6 @@ class ReadIndexSummary {
             }
         });
 
-        return new CacheManager.CacheStatus(this.totalSize, Math.min(newestGeneration.get(), oldestGeneration.get()), newestGeneration.get());
-    }
-
-    @GuardedBy("this")
-    private void addToCurrentGeneration() {
-        int newCount = this.generations.getOrDefault(this.currentGeneration, 0) + 1;
-        this.generations.put(this.currentGeneration, newCount);
-    }
-
-    @GuardedBy("this")
-    private void removeFromGeneration(int generation) {
-        int newCount = this.generations.getOrDefault(generation, 0) - 1;
-        if (newCount > 0) {
-            this.generations.put(generation, newCount);
-        } else {
-            this.generations.remove(generation);
-        }
+        return new CacheManager.CacheStatus(Math.min(newestGeneration.get(), oldestGeneration.get()), newestGeneration.get());
     }
 }

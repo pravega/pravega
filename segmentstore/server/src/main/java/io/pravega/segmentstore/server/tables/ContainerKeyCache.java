@@ -79,23 +79,21 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     public CacheManager.CacheStatus getCacheStatus() {
         int minGen = 0;
         int maxGen = 0;
-        long size = 0;
         synchronized (this.segmentCaches) {
             for (SegmentKeyCache e : this.segmentCaches.values()) {
                 if (e != null) {
                     val cs = e.getCacheStatus();
                     minGen = Math.min(minGen, cs.getOldestGeneration());
                     maxGen = Math.max(maxGen, cs.getNewestGeneration());
-                    size += cs.getSize();
                 }
             }
         }
 
-        return new CacheManager.CacheStatus(size, minGen, maxGen);
+        return new CacheManager.CacheStatus(minGen, maxGen);
     }
 
     @Override
-    public long updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Instruct each Segment Cache to perform its own cache management, collect eviction candidates, and remove them
@@ -108,7 +106,12 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             }
         }
 
-        return evictions.stream().mapToLong(this::evict).sum();
+        boolean anyEvicted = false;
+        for (val e : evictions) {
+            anyEvicted = evict(e) | anyEvicted;
+        }
+
+        return anyEvicted;
     }
 
     //endregion
@@ -295,9 +298,13 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         return cache == null ? ifNotExists : ifExists.apply(cache);
     }
 
-    private long evict(SegmentKeyCache.EvictionResult eviction) {
-        eviction.getDataAddresses().forEach(this.cacheStorage::delete);
-        return eviction.getSize();
+    private boolean evict(SegmentKeyCache.EvictionResult eviction) {
+        boolean anyDeleted = false;
+        for (val address : eviction.getDataAddresses()) {
+            anyDeleted = this.cacheStorage.delete(address) | anyDeleted;
+        }
+
+        return anyDeleted;
     }
 
     //endregion

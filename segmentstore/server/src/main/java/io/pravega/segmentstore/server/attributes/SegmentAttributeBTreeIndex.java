@@ -228,41 +228,39 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     public CacheManager.CacheStatus getCacheStatus() {
         int minGen = 0;
         int maxGen = 0;
-        long size = 0;
         synchronized (this.cacheEntries) {
             for (CacheEntry e : this.cacheEntries.values()) {
                 if (e != null) {
                     int g = e.getGeneration();
                     minGen = Math.min(minGen, g);
                     maxGen = Math.max(maxGen, g);
-                    size += e.getSize();
                 }
             }
         }
 
-        return new CacheManager.CacheStatus(size, minGen, maxGen);
+        return new CacheManager.CacheStatus(minGen, maxGen);
     }
 
     @Override
-    public long updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
         // Remove those entries that have a generation below the oldest permissible one.
-        long sizeRemoved = 0;
+        boolean anyRemoved = false;
         synchronized (this.cacheEntries) {
             this.currentCacheGeneration = currentGeneration;
             ArrayList<CacheEntry> toRemove = new ArrayList<>();
             for (val entry : this.cacheEntries.values()) {
                 if (entry.getGeneration() < oldestGeneration) {
-                    sizeRemoved += entry.getSize();
                     toRemove.add(entry);
                 }
             }
 
             removeFromCache(toRemove);
+            anyRemoved = !toRemove.isEmpty();
         }
 
-        return sizeRemoved;
+        return anyRemoved;
     }
 
     //endregion

@@ -199,14 +199,13 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     }
 
     @Override
-    public long updateGenerations(int currentGeneration, int oldestGeneration) {
+    public boolean updateGenerations(int currentGeneration, int oldestGeneration) {
         Exceptions.checkNotClosed(this.closed, this);
 
         // Update the current generation with the provided info.
         this.summary.setCurrentGeneration(currentGeneration);
 
         // Identify & collect those entries that can be removed, then remove them from the index.
-        AtomicLong sizeRemoved = new AtomicLong();
         ArrayList<ReadIndexEntry> toRemove = new ArrayList<>();
         synchronized (this.lock) {
             this.indexEntries.forEach(entry -> {
@@ -231,12 +230,10 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // Update the summary (no need for holding the lock here; we are not modifying the index).
         toRemove.forEach(e -> {
             deleteData(e);
-            long entryLength = e.getLength();
-            this.summary.remove(entryLength, e.getGeneration());
-            sizeRemoved.addAndGet(entryLength);
+            this.summary.removeOne(e.getGeneration());
         });
 
-        return sizeRemoved.get();
+        return !toRemove.isEmpty();
     }
 
     //endregion
@@ -374,7 +371,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 this.lastAppendedOffset.addAndGet(appendLength);
 
                 // Update the generation for this entry and record its size change.
-                int generation = this.summary.touchOne(lastEntry.getGeneration(), appendLength);
+                int generation = this.summary.touchOne(lastEntry.getGeneration());
                 lastEntry.setGeneration(generation);
             }
         }
@@ -536,17 +533,17 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         if (entry.isDataEntry()) {
             if (entry instanceof MergedIndexEntry) {
                 // This entry has already existed in the cache for a while; do not change its generation.
-                this.summary.add(entry.getLength(), entry.getGeneration());
+                this.summary.addOne(entry.getGeneration());
             } else {
                 // Update the Stats with the entry's length, and set the entry's generation as well.
-                int generation = this.summary.add(entry.getLength());
+                int generation = this.summary.addOne();
                 entry.setGeneration(generation);
             }
         }
 
         if (oldEntry != null && oldEntry.isDataEntry()) {
             // Need to eject the old entry's data from the Cache Stats.
-            this.summary.remove(oldEntry.getLength(), oldEntry.getGeneration());
+            this.summary.removeOne(oldEntry.getGeneration());
         }
 
         return oldEntry;
@@ -991,7 +988,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         if (updateStats) {
             // Update its generation before returning it.
-            int generation = this.summary.touchOne(entry.getGeneration(), 0);
+            int generation = this.summary.touchOne(entry.getGeneration());
             entry.setGeneration(generation);
         }
 

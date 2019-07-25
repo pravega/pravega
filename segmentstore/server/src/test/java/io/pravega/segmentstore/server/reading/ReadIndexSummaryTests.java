@@ -9,11 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.server.CacheManager;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.Random;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -35,29 +31,24 @@ public class ReadIndexSummaryTests {
     @Test
     public void testAddRemove() {
         ReadIndexSummary s = new ReadIndexSummary();
-        long totalSize = 0;
-        Random random = RandomFactory.create();
-        Queue<Integer> addedSizes = new LinkedList<>();
 
         // Add a few.
+        int count = 0;
         for (int generation = 0; generation < GENERATION_COUNT; generation++) {
             s.setCurrentGeneration(generation);
             for (int i = 0; i < ITEMS_PER_GENERATION; i++) {
-                int size = random.nextInt(MAX_ITEM_SIZE);
-                addedSizes.add(size);
-                totalSize += size;
-                int returnedGeneration = s.add(size);
-                Assert.assertEquals("Unexpected return value from add().", generation, returnedGeneration);
+                int returnedGeneration = s.addOne();
+                count++;
+                Assert.assertEquals("Unexpected return value from addOne().", generation, returnedGeneration);
 
                 CacheManager.CacheStatus currentStatus = s.toCacheStatus();
-                Assert.assertEquals("Unexpected total size.", totalSize, currentStatus.getSize());
                 Assert.assertEquals("Not expecting a change in oldest generation after just adding.", 0, currentStatus.getOldestGeneration());
                 Assert.assertEquals("Unexpected newest generation.", generation, currentStatus.getNewestGeneration());
             }
         }
 
         // Remove them all.
-        testRemove(addedSizes, totalSize, ITEMS_PER_GENERATION - 1, s);
+        testRemove(count, ITEMS_PER_GENERATION - 1, s);
     }
 
     /**
@@ -66,50 +57,39 @@ public class ReadIndexSummaryTests {
     @Test
     public void testAddExplicitGeneration() {
         ReadIndexSummary s = new ReadIndexSummary();
-        long totalSize = 0;
-        Random random = new Random(0);
-        Queue<Integer> addedSizes = new LinkedList<>();
         s.setCurrentGeneration(GENERATION_COUNT + 1);
 
         // Add a few.
+        int count = 0;
         for (int generation = 0; generation < GENERATION_COUNT; generation++) {
             for (int i = 0; i < ITEMS_PER_GENERATION; i++) {
                 // All sizes are chosen at random, except for the last one. We want to make sure this works with a zero value for size.
-                int size = 0;
-                if (i < ITEMS_PER_GENERATION - 1) {
-                    size = random.nextInt(MAX_ITEM_SIZE);
-                }
-
-                addedSizes.add(size);
-                totalSize += size;
-                s.add(size, generation);
+                s.addOne(generation);
+                count++;
 
                 CacheManager.CacheStatus currentStatus = s.toCacheStatus();
-                Assert.assertEquals("Unexpected total size.", totalSize, currentStatus.getSize());
                 Assert.assertEquals("Not expecting a change in oldest generation after just adding.", 0, currentStatus.getOldestGeneration());
                 Assert.assertEquals("Unexpected newest generation.", generation, currentStatus.getNewestGeneration());
             }
         }
 
-        testRemove(addedSizes, totalSize, GENERATION_COUNT - 1, s);
+        testRemove(count, GENERATION_COUNT - 1, s);
     }
 
-    private void testRemove(Queue<Integer> addedSizes, long totalSize, int maxGeneration, ReadIndexSummary s) {
+    private void testRemove(int count, int maxGeneration, ReadIndexSummary s) {
         for (int generation = 0; generation < GENERATION_COUNT; generation++) {
             for (int i = 0; i < ITEMS_PER_GENERATION; i++) {
-                int size = addedSizes.poll();
-                totalSize -= size;
-                s.remove(size, generation);
+                s.removeOne(generation);
+                count--;
 
                 CacheManager.CacheStatus currentStatus = s.toCacheStatus();
-                Assert.assertEquals("Unexpected total size.", totalSize, currentStatus.getSize());
                 if (i < ITEMS_PER_GENERATION - 1) {
                     Assert.assertEquals("Not expecting a change in oldest generation when there are elements still in that generation.", generation, currentStatus.getOldestGeneration());
                 } else {
                     Assert.assertNotEquals("Expected a change in oldest generation when all elements in that generation were removed.", generation, currentStatus.getOldestGeneration());
                 }
 
-                if (addedSizes.size() > 0) {
+                if (count > 0) {
                     Assert.assertEquals("Unexpected newest generation.", maxGeneration, currentStatus.getNewestGeneration());
                 } else {
                     // We are done; newest generation doesn't make any sense, so expect 0.
@@ -125,31 +105,25 @@ public class ReadIndexSummaryTests {
     @Test
     public void testTouchOne() {
         ReadIndexSummary s = new ReadIndexSummary();
-        long totalSize = 0;
-        Random random = RandomFactory.create();
-        Queue<Integer> addedSizes = new LinkedList<>();
         int maxGeneration = ITEMS_PER_GENERATION - 1;
 
         // Add a few.
+        int count = 0;
         for (int generation = 0; generation < GENERATION_COUNT; generation++) {
             s.setCurrentGeneration(generation);
             for (int i = 0; i < ITEMS_PER_GENERATION; i++) {
-                int size = random.nextInt(MAX_ITEM_SIZE);
-                addedSizes.add(size);
-                totalSize += size;
-                s.add(size);
+                s.addOne();
+                count++;
             }
         }
 
         // Touch each item, one by one, in each generation.
         for (int generation = 0; generation < GENERATION_COUNT; generation++) {
             for (int i = 0; i < ITEMS_PER_GENERATION; i++) {
-                int returnedGeneration = s.touchOne(generation, 0);
+                int returnedGeneration = s.touchOne(generation);
                 Assert.assertEquals("Unexpected return value from touchOne().", maxGeneration, returnedGeneration);
 
                 CacheManager.CacheStatus currentStatus = s.toCacheStatus();
-                Assert.assertEquals("Not expecting a change in total size.", totalSize, currentStatus.getSize());
-
                 if (i < ITEMS_PER_GENERATION - 1) {
                     Assert.assertEquals(
                             "Not expecting a change in oldest generation when there are elements still in that generation.",
@@ -167,17 +141,15 @@ public class ReadIndexSummaryTests {
         }
 
         CacheManager.CacheStatus currentStatus = s.toCacheStatus();
-        Assert.assertEquals("Unexpected total size after touching all items.", totalSize, currentStatus.getSize());
         Assert.assertEquals("Unexpected newest generation after touching all items.", maxGeneration, currentStatus.getNewestGeneration());
         Assert.assertEquals("Unexpected oldest generation after touching all items.", maxGeneration, currentStatus.getOldestGeneration());
 
         // Now remove all items
-        for (int size : addedSizes) {
-            s.remove(size, maxGeneration);
+        for (int i = 0; i < count; i++) {
+            s.removeOne(maxGeneration);
         }
 
         currentStatus = s.toCacheStatus();
-        Assert.assertEquals("Unexpected total size after removing all items.", 0, currentStatus.getSize());
         Assert.assertEquals("Unexpected newest generation after removing all items.", 0, currentStatus.getNewestGeneration());
         Assert.assertEquals("Unexpected oldest generation after removing all items.", 0, currentStatus.getOldestGeneration());
     }

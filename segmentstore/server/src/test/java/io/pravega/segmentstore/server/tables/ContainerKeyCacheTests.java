@@ -357,13 +357,12 @@ public class ContainerKeyCacheTests {
         val initialStatus = keyCache.getCacheStatus();
         Assert.assertEquals("Unexpected initial oldest generation.", 0, initialStatus.getOldestGeneration());
         Assert.assertEquals("Unexpected initial newest generation.", keyCount - 1, initialStatus.getNewestGeneration());
-        AssertExtensions.assertGreaterThan("Expecting a non-zero cache size.", 0, initialStatus.getSize());
 
         // Increase the generations to the newest one, while verifying that at each step we get some removal.
         int ng = initialStatus.getNewestGeneration() + 1;
         for (int og = 1; og <= ng; og++) {
-            long sizeRemoved = keyCache.updateGenerations(ng, og);
-            AssertExtensions.assertGreaterThan("Expecting something to have been removed (gen).", 0, sizeRemoved);
+            boolean anythingRemoved = keyCache.updateGenerations(ng, og);
+            Assert.assertTrue("Expecting something to have been removed (gen).", anythingRemoved);
         }
 
         // We expect all of these entries to be removed.
@@ -374,8 +373,8 @@ public class ContainerKeyCacheTests {
         // Now update the Last Indexed Offset for a segment and verify that its entries are removed.
         for (long offset = 1; offset <= keyCount; offset++) {
             keyCache.updateSegmentIndexOffset(segmentIdByOffset, offset);
-            long sizeRemoved = keyCache.updateGenerations(ng, ng);
-            AssertExtensions.assertGreaterThan("Expecting something to have been removed (offset).", 0, sizeRemoved);
+            boolean anythingRemoved = keyCache.updateGenerations(ng, ng);
+            Assert.assertTrue("Expecting something to have been removed (offset).", anythingRemoved);
         }
 
         toRemove = expectedResult.keySet().stream().filter(k -> k.segmentId == segmentIdByOffset).collect(Collectors.toList());

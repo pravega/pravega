@@ -79,17 +79,15 @@ class SegmentKeyCache {
     synchronized CacheManager.CacheStatus getCacheStatus() {
         int minGen = 0;
         int maxGen = 0;
-        long size = 0;
         for (CacheEntry e : this.cacheEntries.values()) {
             if (e != null) {
                 int g = e.getGeneration();
                 minGen = Math.min(minGen, g);
                 maxGen = Math.max(maxGen, g);
-                size += e.getSize();
             }
         }
 
-        return new CacheManager.CacheStatus(size, minGen, maxGen);
+        return new CacheManager.CacheStatus(minGen, maxGen);
     }
 
     /**
@@ -103,20 +101,18 @@ class SegmentKeyCache {
      */
     synchronized EvictionResult evictBefore(int oldestGeneration) {
         // Remove those entries that have a generation below the oldest permissible one.
-        long sizeRemoved = 0;
         ArrayList<CacheEntry> removedEntries = new ArrayList<>();
         for (val e : this.cacheEntries.entrySet()) {
             CacheEntry entry = e.getValue();
             if (entry.getGeneration() < oldestGeneration
                     && entry.getHighestOffset() < this.lastIndexedOffset) {
                 removedEntries.add(entry);
-                sizeRemoved += entry.getSize();
             }
         }
 
         // Clear the expired cache entries.
         removedEntries.forEach(e -> this.cacheEntries.remove(e.hashGroup));
-        return new EvictionResult(sizeRemoved, removedEntries.stream().map(CacheEntry::getDataAddress).collect(Collectors.toList()));
+        return new EvictionResult(removedEntries.stream().map(CacheEntry::getDataAddress).collect(Collectors.toList()));
     }
 
     /**
@@ -126,16 +122,9 @@ class SegmentKeyCache {
      */
     synchronized EvictionResult evictAll() {
         // Remove those entries that have a generation below the oldest permissible one.
-        ArrayList<CacheEntry> removedEntries = new ArrayList<>(this.cacheEntries.size());
-        int sizeRemoved = 0;
-        for (val e : this.cacheEntries.entrySet()) {
-            CacheEntry entry = e.getValue();
-            removedEntries.add(entry);
-            sizeRemoved += entry.getSize();
-        }
-
+        val addresses = this.cacheEntries.values().stream().map(CacheEntry::getDataAddress).collect(Collectors.toList());
         this.cacheEntries.clear();
-        return new EvictionResult(sizeRemoved, removedEntries.stream().map(CacheEntry::getDataAddress).collect(Collectors.toList()));
+        return new EvictionResult(addresses);
     }
 
     //endregion
@@ -335,10 +324,6 @@ class SegmentKeyCache {
     @Getter
     static class EvictionResult {
         /**
-         * The number of bytes evicted.
-         */
-        private final long size;
-        /**
          * A list of {@link CacheStorage} addresses denoting Cache Entries have been unregistered and need to be evicted.
          */
         private final List<Integer> dataAddresses;
@@ -381,8 +366,6 @@ class SegmentKeyCache {
         @GuardedBy("this")
         private int generation;
         @GuardedBy("this")
-        private int size;
-        @GuardedBy("this")
         private long highestOffset;
         @GuardedBy("this")
         private int dataAddress;
@@ -390,7 +373,6 @@ class SegmentKeyCache {
         CacheEntry(short hashGroup, int currentGeneration) {
             this.hashGroup = hashGroup;
             this.generation = currentGeneration;
-            this.size = 0;
             this.highestOffset = 0;
             this.dataAddress = -1;
         }
@@ -401,13 +383,6 @@ class SegmentKeyCache {
          */
         synchronized int getGeneration() {
             return this.generation;
-        }
-
-        /**
-         * Gets a value representing the size, in bytes, of the data behind this Cache Entry.
-         */
-        synchronized int getSize() {
-            return this.size;
         }
 
         /**
@@ -486,7 +461,6 @@ class SegmentKeyCache {
 
             // Update the cache and stats.
             storeInCache(new ByteArraySegment(entryData));
-            this.size = entryData.length;
             this.generation = currentGeneration;
             this.highestOffset = Math.max(this.highestOffset, segmentOffset);
         }

@@ -16,6 +16,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.segmentstore.storage.cache.CacheSnapshot;
 import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import java.util.ArrayList;
@@ -25,7 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -54,7 +55,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private final ScheduledExecutorService executorService;
     private final AtomicInteger currentGeneration;
     private final AtomicInteger oldestGeneration;
-    private final AtomicLong cacheSize;
+    private final AtomicReference<CacheSnapshot> lastSnapshot;
     private final CachePolicy policy;
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.CacheManager metrics;
@@ -92,10 +93,10 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         this.clients = new HashSet<>();
         this.oldestGeneration = new AtomicInteger();
         this.currentGeneration = new AtomicInteger();
-        this.cacheSize = new AtomicLong();
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
         this.cacheStorage = cacheStorage;
+        this.lastSnapshot = new AtomicReference<>(this.cacheStorage.getSnapshot());
         this.metrics = new SegmentStoreMetrics.CacheManager();
     }
 
@@ -161,7 +162,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @Override
     public double getCacheUtilization() {
-        return (double) this.cacheSize.get() / this.policy.getMaxSize();
+        // We use the total number of used bytes, which includes any overhead. This will provide a more accurate
+        // representation of the utilization than just the Stored Bytes.
+        return (double) getCacheUsedBytes() / this.policy.getMaxSize();
     }
 
     //endregion
@@ -212,9 +215,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     protected void applyCachePolicy() {
         // Run through all the active clients and gather status.
         CacheStatus currentStatus = collectStatus();
-        if (currentStatus == null || currentStatus.getSize() == 0) {
-            // This indicates we have no clients or those clients have no data.
-            this.cacheSize.set(0);
+        fetchSnapshot();
+        if (currentStatus == null || this.lastSnapshot.get().getStoredBytes() == 0) {
+            // We either have no clients or we have clients and they do not have any data stored.
             return;
         }
 
@@ -231,24 +234,22 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         // Notify clients that something changed (if any of the above got changed). Run in a loop, until either we can't
         // adjust the oldest anymore or we are unable to trigger any changes to the clients.
-        long sizeReduction;
+        boolean reduced;
         do {
-            sizeReduction = updateClients();
-            if (sizeReduction > 0) {
-                currentStatus = currentStatus.withUpdatedSize(-sizeReduction);
+            reduced = updateClients();
+            if (reduced) {
+                fetchSnapshot();
                 logCurrentStatus(currentStatus);
                 oldestChanged = adjustOldestGeneration(currentStatus);
             }
-        } while (sizeReduction > 0 && oldestChanged);
-        this.cacheSize.set(currentStatus.getSize());
-        this.metrics.report(currentStatus.getSize(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
+        } while (reduced && oldestChanged);
+        this.metrics.report(this.lastSnapshot.get().getAllocatedBytes(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
     }
 
     private CacheStatus collectStatus() {
         int cg = this.currentGeneration.get();
         int minGeneration = cg;
         int maxGeneration = 0;
-        long totalSize = 0;
         Collection<Client> clients = getCurrentClients();
         for (Client c : clients) {
             CacheStatus clientStatus;
@@ -261,12 +262,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 continue;
             }
 
-            if (clientStatus.getSize() == 0) {
-                // Nothing interesting in this client.
-                continue;
-            }
-
-            totalSize += clientStatus.getSize();
             if (clientStatus.oldestGeneration > cg || clientStatus.newestGeneration > cg) {
                 log.warn("{} Client {} returned status that is out of bounds {}. CurrentGeneration = {}, OldestGeneration = {}.",
                         TRACE_OBJECT_ID, c, clientStatus, this.currentGeneration, this.oldestGeneration);
@@ -281,16 +276,20 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             return null;
         }
 
-        return new CacheStatus(totalSize, minGeneration, maxGeneration);
+        return new CacheStatus(minGeneration, maxGeneration);
     }
 
-    private long updateClients() {
-        long sizeReduction = 0;
+    private void fetchSnapshot() {
+        this.lastSnapshot.set(this.cacheStorage.getSnapshot());
+    }
+
+    private boolean updateClients() {
+        boolean reduced = false;
         int cg = this.currentGeneration.get();
         int og = this.oldestGeneration.get();
         for (Client c : getCurrentClients()) {
             try {
-                sizeReduction += Math.max(0, c.updateGenerations(cg, og));
+                reduced = c.updateGenerations(cg, og) | reduced;
             } catch (ObjectClosedException ex) {
                 // This object was closed but it was not unregistered. Do it now.
                 log.warn("{} Detected closed client {}.", TRACE_OBJECT_ID, c);
@@ -300,11 +299,11 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                     throw ex;
                 }
 
-                log.warn("{} Unable to update client {}. {}", TRACE_OBJECT_ID, c, ex);
+                log.warn("{} Unable to update client {}.", TRACE_OBJECT_ID, c, ex);
             }
         }
 
-        return sizeReduction;
+        return reduced;
     }
 
     private boolean adjustCurrentGeneration(CacheStatus currentStatus) {
@@ -344,8 +343,12 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // We need to increment the OldestGeneration only if any of the following conditions occurred:
         // 1. We currently exceed the maximum size as defined by the cache policy.
         // 2. The oldest generation reported by the clients is older than the oldest permissible generation.
-        return currentStatus.getSize() > this.policy.getMaxSize()
+        return getCacheUsedBytes() > this.policy.getMaxSize()
                 || currentStatus.getOldestGeneration() < getOldestPermissibleGeneration();
+    }
+
+    private long getCacheUsedBytes() {
+        return this.lastSnapshot.get().getUsedBytes();
     }
 
     private int getOldestPermissibleGeneration() {
@@ -364,12 +367,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             size = this.clients.size();
         }
 
-        log.info("{} Current Generation = {}, Oldest Generation = {}, Clients = {},  CacheSize = {} MB",
-                TRACE_OBJECT_ID,
-                this.currentGeneration,
-                this.oldestGeneration,
-                size,
-                status.getSize() / 1048576);
+        log.info("{} Gen: {}-{}, Clients: {}, Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, size, this.lastSnapshot);
     }
 
     //endregion
@@ -392,9 +390,9 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
          * @param currentGeneration The value of the current generation.
          * @param oldestGeneration  The value of the oldest generation. This is the cutoff for which entries can still
          *                          exist in the cache.
-         * @return The total size of the cache data that was trimmed by this update.
+         * @return If any cache data was trimmed with this update.
          */
-        long updateGenerations(int currentGeneration, int oldestGeneration);
+        boolean updateGenerations(int currentGeneration, int oldestGeneration);
     }
 
     //endregion
@@ -415,36 +413,23 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
          */
         @Getter
         private final int newestGeneration;
-        /**
-         * The total size of the cache items in this particular client.
-         */
-        @Getter
-        private final long size;
 
         /**
          * Creates a new instance of the CacheStatus class.
          *
-         * @param size             The total size of the cache items in this particular client.
          * @param oldestGeneration The oldest generation found in any cache entry.
          * @param newestGeneration The newest generation found in any cache entry.
          */
-        public CacheStatus(long size, int oldestGeneration, int newestGeneration) {
-            Preconditions.checkArgument(size >= 0, "size must be a non-negative number");
+        public CacheStatus(int oldestGeneration, int newestGeneration) {
             Preconditions.checkArgument(oldestGeneration >= 0, "oldestGeneration must be a non-negative number");
             Preconditions.checkArgument(newestGeneration >= oldestGeneration, "newestGeneration must be larger than or equal to oldestGeneration");
-            this.size = size;
             this.oldestGeneration = oldestGeneration;
             this.newestGeneration = newestGeneration;
         }
 
-        private CacheStatus withUpdatedSize(long sizeDelta) {
-            long newSize = Math.max(0, this.size + sizeDelta);
-            return new CacheStatus(newSize, this.oldestGeneration, this.newestGeneration);
-        }
-
         @Override
         public String toString() {
-            return String.format("Size = %d, OG-NG = %d-%d", this.size, this.oldestGeneration, this.newestGeneration);
+            return String.format("OG-NG = %d-%d", this.oldestGeneration, this.newestGeneration);
         }
     }
 

@@ -40,11 +40,18 @@ class ThrottlerCalculator {
      */
     @VisibleForTesting
     static final int MAX_DELAY_MILLIS = 25000;
+
+    /**
+     * Cache utilization (on a scale of 0 to 1), above which throttling will apply.
+     */
+    @VisibleForTesting
+    static final double CACHE_UTILIZATION_THRESHOLD = 0.8;
+
     /**
      * Amount of time (millis) to increase throttling by for each percentage point increase in the cache utilization (above 100%).
      */
     @VisibleForTesting
-    static final int THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT = 100;
+    static final int THROTTLING_MILLIS_PER_CACHE_PERCENT_OVER_LIMIT = 100;
 
     /**
      * Number of items in the Commit Backlog above which throttling will apply.
@@ -149,14 +156,14 @@ class ThrottlerCalculator {
 
         @Override
         boolean isThrottlingRequired() {
-            return this.getCacheUtilization.get() > 1;
+            return this.getCacheUtilization.get() > CACHE_UTILIZATION_THRESHOLD;
         }
 
         @Override
         int getDelayMillis() {
             // We only throttle if we exceed the cache capacity. We increase the throttling amount in a linear fashion.
             double cacheUtilization = this.getCacheUtilization.get();
-            return (int) Math.max((cacheUtilization - 1.0) * 100 * THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT, 0);
+            return (int) Math.max((cacheUtilization - CACHE_UTILIZATION_THRESHOLD) * 100 * THROTTLING_MILLIS_PER_CACHE_PERCENT_OVER_LIMIT, 0);
         }
 
         @Override

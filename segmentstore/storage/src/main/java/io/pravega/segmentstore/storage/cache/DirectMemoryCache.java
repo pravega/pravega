@@ -241,7 +241,6 @@ public class DirectMemoryCache implements CacheStorage {
         return new ByteBufWrapper(Unpooled.wrappedBuffer(result));
     }
 
-
     @Override
     public CacheSnapshot getSnapshot() {
         Exceptions.checkNotClosed(this.closed.get(), this);
@@ -256,7 +255,7 @@ public class DirectMemoryCache implements CacheStorage {
 
         return new CacheSnapshot(
                 this.storedBytes.get(),
-                (long) (blockCount - allocatedBufferCount) * this.layout.blockSize(),
+                (long) blockCount * this.layout.blockSize(),
                 (long) allocatedBufferCount * this.layout.blockSize(),
                 (long) allocatedBufferCount * this.layout.bufferSize(),
                 (long) this.buffers.length * this.layout.bufferSize());

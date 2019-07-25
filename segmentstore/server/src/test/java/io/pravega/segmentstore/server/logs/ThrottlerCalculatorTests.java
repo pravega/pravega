@@ -29,12 +29,13 @@ public class ThrottlerCalculatorTests {
      */
     @Test
     public void testCacheThrottling() {
-        val maxU = 1.0 + ThrottlerCalculator.MAX_DELAY_MILLIS / ThrottlerCalculator.THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT / 100.0;
+        val t = ThrottlerCalculator.CACHE_UTILIZATION_THRESHOLD;
+        val maxU = t + ThrottlerCalculator.MAX_DELAY_MILLIS / ThrottlerCalculator.THROTTLING_MILLIS_PER_CACHE_PERCENT_OVER_LIMIT / 100.0;
         val cacheUtilization = new AtomicReference<Double>(0.0);
         val tc = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get).build();
         testThrottling(tc, cacheUtilization,
-                new Double[]{-1.0, 0.0, 0.5, 1.0},
-                new Double[]{1.01, 1.05, 1.1, maxU},
+                new Double[]{-1.0, 0.0, 0.5, t},
+                new Double[]{t + 0.01, t + 0.05, t + 0.1, maxU},
                 new Double[]{maxU, maxU + 0.01, maxU * 2, Double.MAX_VALUE});
     }
 

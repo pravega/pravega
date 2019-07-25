@@ -499,8 +499,8 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         val cacheStatus = idx.getCacheStatus();
         Assert.assertEquals("Not expecting different generations yet.", cacheStatus.getOldestGeneration(), cacheStatus.getNewestGeneration());
         val newGen = cacheStatus.getNewestGeneration() + 1;
-        val removedSize = idx.updateGenerations(newGen, newGen);
-        AssertExtensions.assertGreaterThan("Expecting something to be evicted.", 0, removedSize);
+        boolean anythingRemoved = idx.updateGenerations(newGen, newGen);
+        Assert.assertTrue("Expecting something to be evicted.", anythingRemoved);
 
         // Re-check the index and verify at least one Storage Read happened.
         AtomicBoolean intercepted = new AtomicBoolean(false);
