@@ -1063,10 +1063,10 @@ task preparePravegaImage(type: Copy) {
 task buildPravegaImage(type: DockerBuildTask, dependsOn: preparePravegaImage) {
     baseTag = pravegaBaseTag
     dockerDir = preparePravegaImage.destinationDir.absolutePath
-    if (JavaVersion.current() == JavaVersion.VERSION_1_8) {
-        dockerFile = "${dockerDir}/Dockerfile"
-    } else {
+    if (JavaVersion.current().isJava11Compatible()) {
         dockerFile = "${dockerDir}/Dockerfile-java-11"
+    } else {
+        dockerFile = "${dockerDir}/Dockerfile"
     }
 }
 
