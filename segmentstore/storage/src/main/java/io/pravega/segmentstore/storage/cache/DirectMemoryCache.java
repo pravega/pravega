@@ -268,24 +268,27 @@ public class DirectMemoryCache implements CacheStorage {
 
     private Buffer getNextAvailableBuffer() {
         synchronized (this.availableBufferIds) {
-            do {
+            while (!this.availableBufferIds.isEmpty() || !this.unallocatedBufferIds.isEmpty()) {
                 while (!this.availableBufferIds.isEmpty()) {
                     Buffer b = this.buffers[this.availableBufferIds.peekFirst()];
                     if (b.hasCapacity()) {
-                        // Found a buffer.
+                        // Reusing a buffer.
                         return b;
                     } else {
                         // Buffer full. Clean up.
                         this.availableBufferIds.removeFirst();
                     }
                 }
+
+                // If we get here, we can't reuse any existing buffers. Try to allocate a new one, if any are available.
                 if (!this.unallocatedBufferIds.isEmpty()) {
                     this.availableBufferIds.addLast(this.unallocatedBufferIds.removeFirst());
                 }
-            } while (!this.unallocatedBufferIds.isEmpty());
+            }
         }
 
-        throw new RuntimeException(new Exception("full")); // todo proper exception
+        // Unable to reuse any existing buffer or find a new one to allocate.
+        throw new CacheFullException(String.format("%s full: %s.", DirectMemoryCache.class.getSimpleName(), getSnapshot()));
     }
 
     //endregion

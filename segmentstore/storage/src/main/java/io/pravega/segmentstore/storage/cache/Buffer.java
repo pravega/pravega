@@ -153,7 +153,8 @@ class Buffer implements AutoCloseable {
                 metadataBuf.setLong(bufIndex, blockMetadata);
                 return new AppendResult(blockLength - expectedLastBlockLength, CacheLayout.NO_ADDRESS);
             } else if (blockLength < this.layout.blockSize()) {
-                throw new RuntimeException(new Exception("corruption: non-full, non-terminal block."));
+                throw new CacheCorruptedException(String.format("Buffer %s, Block %s: Non-full, non-terminal block. Length=%s, Successor={%s}.",
+                        this.id, blockId, blockLength, this.layout.getAddressString(successorAddress)));
             } else if (this.layout.getBufferId(successorAddress) != this.id) {
                 // The next block is in a different buffer. Return a pointer to it.
                 return new AppendResult(0, successorAddress);
@@ -180,7 +181,8 @@ class Buffer implements AutoCloseable {
                 int blockLength = this.layout.getLength(blockMetadata);
                 int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
                 if (successorAddress != CacheLayout.NO_ADDRESS && blockLength < this.layout.blockSize()) {
-                    throw new RuntimeException(new Exception("corruption: non-full, non-terminal block."));
+                    throw new CacheCorruptedException(String.format("Buffer %s, Block %s: Non-full, non-terminal block. Length=%s, Successor={%s}.",
+                            this.id, blockId, blockLength, this.layout.getAddressString(successorAddress)));
                 }
 
                 readBuffers.add(getBlockBuffer(blockId).slice(0, Math.min(blockLength, this.layout.blockSize())).asReadOnly());
@@ -195,7 +197,7 @@ class Buffer implements AutoCloseable {
                 return CacheLayout.NO_ADDRESS;
             } else {
                 // Found a bad pointer.
-                throw new RuntimeException(new Exception("corruption"));
+                throw new CacheCorruptedException(String.format("Buffer %s, Block %s: Unallocated.", this.id, blockId));
             }
         }
 
@@ -325,7 +327,6 @@ class Buffer implements AutoCloseable {
 
         return this.buf;
     }
-
 
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
