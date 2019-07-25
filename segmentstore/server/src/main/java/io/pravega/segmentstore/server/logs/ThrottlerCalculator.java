@@ -39,7 +39,7 @@ class ThrottlerCalculator {
      * Maximum delay (millis) we are willing to introduce in order to throttle the incoming operations.
      */
     @VisibleForTesting
-    static final int MAX_DELAY_MILLIS = 10000;
+    static final int MAX_DELAY_MILLIS = 25000;
     /**
      * Amount of time (millis) to increase throttling by for each percentage point increase in the cache utilization (above 100%).
      */
@@ -50,13 +50,13 @@ class ThrottlerCalculator {
      * Number of items in the Commit Backlog above which throttling will apply.
      */
     @VisibleForTesting
-    static final int COMMIT_BACKLOG_COUNT_THRESHOLD = 300;
+    static final int COMMIT_BACKLOG_COUNT_THRESHOLD = 100;
 
     /**
      * Amount of time (millis) to increase throttling by for each incremental increase of the Commit Queue, over the threshold.
      */
     @VisibleForTesting
-    static final int THROTTLING_MILLIS_PER_COMMIT_OVER_LIMIT = 4;
+    static final int THROTTLING_MILLIS_PER_COMMIT_OVER_LIMIT = 50;
 
     @Singular
     private final List<Throttler> throttlers;
@@ -93,19 +93,24 @@ class ThrottlerCalculator {
         // a throttling delay will have increased batching as a side effect.
         int maxDelay = 0;
         boolean maximum = false;
+        String throttlerName = null;
         for (Throttler t : this.throttlers) {
             int delay = t.getDelayMillis();
             if (delay >= MAX_DELAY_MILLIS) {
                 // This throttler introduced the maximum delay. No need to search more.
                 maxDelay = MAX_DELAY_MILLIS;
                 maximum = true;
+                throttlerName = t.getName();
                 break;
             }
 
-            maxDelay = Math.max(maxDelay, delay);
+            if (delay > maxDelay) {
+                maxDelay = delay;
+                throttlerName = t.getName();
+            }
         }
 
-        return new DelayResult(maxDelay, maximum);
+        return new DelayResult(throttlerName, maxDelay, maximum);
     }
 
     //endregion
@@ -125,6 +130,13 @@ class ThrottlerCalculator {
          * Calculates a throttling delay based on information available at the moment.
          */
         abstract int getDelayMillis();
+
+        /**
+         * Gets a log-friendly name for this Throttle instance.
+         *
+         * @return
+         */
+        abstract String getName();
     }
 
     /**
@@ -145,6 +157,11 @@ class ThrottlerCalculator {
             // We only throttle if we exceed the cache capacity. We increase the throttling amount in a linear fashion.
             double cacheUtilization = this.getCacheUtilization.get();
             return (int) Math.max((cacheUtilization - 1.0) * 100 * THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT, 0);
+        }
+
+        @Override
+        String getName() {
+            return "Cache";
         }
     }
 
@@ -167,6 +184,11 @@ class ThrottlerCalculator {
             // We only throttle if we exceed the threshold. We increase the throttling amount in a linear fashion.
             long count = this.getCommitBacklogCount.get();
             return (int) MathHelpers.minMax((count - COMMIT_BACKLOG_COUNT_THRESHOLD) * THROTTLING_MILLIS_PER_COMMIT_OVER_LIMIT, 0, Integer.MAX_VALUE);
+        }
+
+        @Override
+        String getName() {
+            return "Commit Backlog";
         }
     }
 
@@ -195,6 +217,11 @@ class ThrottlerCalculator {
             // Finally, we use the the ExpectedProcessingTime to give us a baseline as to how long items usually take to process.
             int delayMillis = (int) Math.round(stats.getExpectedProcessingTimeMillis() * fillRatioAdj);
             return Math.min(delayMillis, MAX_BATCHING_DELAY_MILLIS);
+        }
+
+        @Override
+        String getName() {
+            return "Batching";
         }
     }
 
@@ -251,6 +278,10 @@ class ThrottlerCalculator {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     static class DelayResult {
         /**
+         * The name of the throttler inducing this delay.
+         */
+        private final String reason;
+        /**
          * The suggested delay, in millis.
          */
         @Getter
@@ -261,6 +292,11 @@ class ThrottlerCalculator {
          */
         @Getter
         private final boolean maximum;
+
+        @Override
+        public String toString() {
+            return String.format("%dms (Max=%s, Reason=%s)", this.durationMillis, this.maximum, this.reason);
+        }
     }
 
     //endregion
