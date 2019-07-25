@@ -779,6 +779,9 @@ public class StreamMetaDataTests {
         response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("Get Scaling Events response code", 400, response.getStatus());
 
+        response = addAuthHeaders(client.target(resourceURI).queryParam("from", fromDateTime).request()).buildGet().invoke();
+        assertEquals("Get Scaling Events response code", 400, response.getStatus());
+
         // 2. from > to is tested here.
         doAnswer(x -> CompletableFuture.completedFuture(scaleMetadataList))
                 .when(mockControllerService).getScaleRecords(anyString(), anyString(), anyLong(), anyLong());
