@@ -416,6 +416,7 @@ class SegmentKeyCache {
         synchronized long getHighestOffset() {
             return this.highestOffset;
         }
+
         /**
          * Gets a value representing the {@link CacheStorage} address for this Cache Entry's data.
          */

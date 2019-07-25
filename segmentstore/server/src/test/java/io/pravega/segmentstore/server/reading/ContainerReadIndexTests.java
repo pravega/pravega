@@ -822,7 +822,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         @Cleanup
         TestContext context = new TestContext(config, cachePolicy);
         context.cacheStorage.disableAppends = true;
-        context.cacheStorage.deleteCallback = removedEntries::add;// Record every cache removal.
+        context.cacheStorage.deleteCallback = removedEntries::add; // Record every cache removal.
 
         // Create the segments (metadata + storage).
         ArrayList<Long> segmentIds = createSegments(context);
