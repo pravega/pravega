@@ -11,12 +11,13 @@ package io.pravega.segmentstore.storage.cache;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.pravega.common.Exceptions;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.function.Function;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.AccessLevel;
@@ -29,42 +30,37 @@ class Buffer implements AutoCloseable {
     @Getter
     private final int id;
     private final CacheLayout layout;
+    private final ByteBufAllocator allocator;
     @GuardedBy("this")
-    private final ByteBuf buf;
+    private ByteBuf buf;
     @GuardedBy("this")
     private int usedBlockCount;
 
-    Buffer(int bufferId, Function<Integer, ByteBuf> bufferCreator, @NonNull CacheLayout layout) {
+    Buffer(int bufferId, @NonNull ByteBufAllocator allocator, @NonNull CacheLayout layout) {
         Preconditions.checkArgument(bufferId >= 0 && bufferId < layout.maxBufferCount());
 
-        this.buf = bufferCreator.apply(layout.bufferSize());
-        this.buf.setZero(0, this.buf.capacity()); // Clear out the buffer as Netty does not do it for us.
+        this.allocator = allocator;
         this.layout = layout;
         this.id = bufferId;
         this.usedBlockCount = 1;
-        formatMetadata();
-    }
-
-    private void formatMetadata() {
-        ByteBuf metadataBuf = getBlockBuffer(0);
-        metadataBuf.writerIndex(0);
-        for (int blockId = 0; blockId < this.layout.blocksPerBuffer(); blockId++) {
-            long m = this.layout.emptyBlockMetadata();
-            m = this.layout.setNextFreeBlockId(m, blockId == this.layout.blocksPerBuffer() - 1 ? CacheLayout.NO_BLOCK_ID : blockId + 1);
-            metadataBuf.writeLong(m);
-        }
     }
 
     @Override
     public synchronized void close() {
-        if (this.buf.refCnt() > 0) {
+        if (this.buf != null && this.buf.refCnt() > 0) {
             this.buf.release();
+            this.buf = null;
         }
+
         this.usedBlockCount = -1;
     }
 
     synchronized int getUsedBlockCount() {
         return this.usedBlockCount;
+    }
+
+    synchronized boolean isAllocated(){
+        return this.buf != null;
     }
 
     synchronized boolean hasCapacity() {
@@ -306,8 +302,30 @@ class Buffer implements AutoCloseable {
 
     @GuardedBy("this")
     private ByteBuf getBlockBuffer(int blockIndex) {
-        return this.buf.slice(blockIndex * this.layout.blockSize(), this.layout.blockSize());
+        return getBuf().slice(blockIndex * this.layout.blockSize(), this.layout.blockSize());
     }
+
+    @GuardedBy("this")
+    private ByteBuf getBuf() {
+        if (this.buf == null) {
+            Exceptions.checkNotClosed(this.usedBlockCount < 0, this);
+            assert this.usedBlockCount == 1;
+            this.buf = this.allocator.directBuffer(this.layout.bufferSize(), this.layout.bufferSize());
+            this.buf.setZero(0, this.buf.capacity()); // Clear out the buffer as Netty does not do it for us.
+
+            // Format metadata.
+            ByteBuf metadataBuf = getBlockBuffer(0);
+            metadataBuf.writerIndex(0);
+            for (int blockId = 0; blockId < this.layout.blocksPerBuffer(); blockId++) {
+                long m = this.layout.emptyBlockMetadata();
+                m = this.layout.setNextFreeBlockId(m, blockId == this.layout.blocksPerBuffer() - 1 ? CacheLayout.NO_BLOCK_ID : blockId + 1);
+                metadataBuf.writeLong(m);
+            }
+        }
+
+        return this.buf;
+    }
+
 
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
@@ -317,7 +335,7 @@ class Buffer implements AutoCloseable {
 
         @Override
         public String toString() {
-            return String.format("DeletedLength = %d, Next = {}", this.deletedLength, layout.getAddressString(successorAddress));
+            return String.format("DeletedLength = %d, Next = %s", this.deletedLength, layout.getAddressString(successorAddress));
         }
     }
 

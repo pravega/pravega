@@ -22,8 +22,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
@@ -32,12 +30,10 @@ import lombok.SneakyThrows;
 @ThreadSafe
 public class DirectMemoryCache implements CacheStorage {
     private final CacheLayout layout;
-    private final UnpooledByteBufAllocator allocator;
-    @GuardedBy("buffers")
     private final Buffer[] buffers;
-    @GuardedBy("buffers")
+    @GuardedBy("availableBufferIds")
     private final ArrayDeque<Integer> availableBufferIds;
-    @GuardedBy("buffers")
+    @GuardedBy("availableBufferIds")
     private final ArrayDeque<Integer> unallocatedBufferIds;
     private final AtomicBoolean closed;
     private final AtomicLong storedBytes;
@@ -52,12 +48,21 @@ public class DirectMemoryCache implements CacheStorage {
         maxSizeBytes = adjustMaxSizeIfNeeded(maxSizeBytes, layout);
 
         this.layout = layout;
-        this.allocator = new UnpooledByteBufAllocator(true, true);
-        this.buffers = new Buffer[(int) (maxSizeBytes / this.layout.bufferSize())];
-        this.availableBufferIds = new ArrayDeque<>();
-        this.unallocatedBufferIds = IntStream.range(0, this.buffers.length - 1).boxed().collect(Collectors.toCollection(ArrayDeque::new));
         this.storedBytes = new AtomicLong(0);
         this.closed = new AtomicBoolean(false);
+        this.buffers = new Buffer[(int) (maxSizeBytes / this.layout.bufferSize())];
+        this.availableBufferIds = new ArrayDeque<>(this.buffers.length);
+        this.unallocatedBufferIds = new ArrayDeque<>(this.buffers.length);
+        createBuffers();
+    }
+
+    @GuardedBy("availableBufferIds")
+    private void createBuffers() {
+        UnpooledByteBufAllocator allocator = new UnpooledByteBufAllocator(true, true);
+        for (int i = 0; i < this.buffers.length; i++) {
+            this.unallocatedBufferIds.addLast(i);
+            this.buffers[i] = new Buffer(i, allocator, this.layout);
+        }
     }
 
     private long adjustMaxSizeIfNeeded(long maxSize, CacheLayout layout) {
@@ -71,17 +76,13 @@ public class DirectMemoryCache implements CacheStorage {
     @Override
     public void close() {
         if (!this.closed.getAndSet(true)) {
-            synchronized (this.buffers) {
-                for (int i = 0; i < this.buffers.length; i++) {
-                    Buffer b = this.buffers[i];
-                    if (b != null) {
-                        b.close();
-                        this.buffers[i] = null;
-                    }
-                }
-
+            synchronized (this.availableBufferIds) {
                 this.availableBufferIds.clear();
                 this.unallocatedBufferIds.clear();
+            }
+
+            for (Buffer b : this.buffers) {
+                b.close();
             }
         }
     }
@@ -115,10 +116,6 @@ public class DirectMemoryCache implements CacheStorage {
             Buffer.WriteResult lastResult = null;
             while (length > 0 || firstBlockAddress == CacheLayout.NO_BLOCK_ID) {
                 Buffer buffer = getNextAvailableBuffer();
-                if (buffer == null) {
-                    buffer = allocateNewBuffer();
-                }
-
                 Buffer.WriteResult writeResult = buffer.write(s, length, firstBlockAddress == CacheLayout.NO_BLOCK_ID);
                 if (writeResult == null) {
                     // Someone else grabbed this buffer and wrote to it before we got a chance.
@@ -189,21 +186,15 @@ public class DirectMemoryCache implements CacheStorage {
 
         // We can only append to fill the last block. For anything else a new write will be needed.
 
-        boolean mustExist = false;
         int appended = 0;
         try (InputStream s = data.getReader()) {
             while (address != CacheLayout.NO_ADDRESS) {
                 int bufferId = this.layout.getBufferId(address);
                 int blockId = this.layout.getBlockId(address);
-                Buffer b = getBuffer(bufferId, mustExist);
-                if (b == null) {
-                    return 0;
-                }
-
+                Buffer b = this.buffers[bufferId];
                 Buffer.AppendResult appendResult = b.tryAppend(blockId, expectedLastBlockLength, s, data.getLength());
                 address = appendResult.getNextBlockAddress();
                 appended += appendResult.getAppendedlength();
-                mustExist = true;
             }
         }
 
@@ -217,23 +208,14 @@ public class DirectMemoryCache implements CacheStorage {
         while (address != CacheLayout.NO_ADDRESS) {
             int bufferId = this.layout.getBufferId(address);
             int blockId = this.layout.getBlockId(address);
-            Buffer b;
-            boolean wasFull;
-            synchronized (this.buffers) {
-                b = this.buffers[bufferId];
-                if (b == null) {
-                    // This could be due to bad initial address or corrupted data. For deletes, we don't care.
-                    return false;
-                }
-
-                wasFull = !b.hasCapacity();
-            }
+            Buffer b = this.buffers[bufferId];
+            boolean wasFull = !b.hasCapacity();
 
             Buffer.DeleteResult result = b.delete(blockId);
             address = result.getSuccessorAddress();
             this.storedBytes.addAndGet(-result.getDeletedLength());
             if (wasFull) {
-                synchronized (this.buffers) {
+                synchronized (this.availableBufferIds) {
                     if (b.hasCapacity()) {
                         this.availableBufferIds.addLast(b.getId());
                     }
@@ -251,11 +233,7 @@ public class DirectMemoryCache implements CacheStorage {
         while (address != CacheLayout.NO_ADDRESS) {
             int bufferId = this.layout.getBufferId(address);
             int blockId = this.layout.getBlockId(address);
-            Buffer b = getBuffer(bufferId, !readBuffers.isEmpty());
-            if (b == null) {
-                return null;
-            }
-
+            Buffer b = this.buffers[bufferId];
             address = b.read(blockId, readBuffers);
         }
 
@@ -269,16 +247,11 @@ public class DirectMemoryCache implements CacheStorage {
         Exceptions.checkNotClosed(this.closed.get(), this);
         int allocatedBufferCount = 0;
         int blockCount = 0;
-        int totalBufferCount;
-        synchronized (this.buffers) {
-            for (Buffer b : this.buffers) {
-                if (b != null) {
-                    allocatedBufferCount++;
-                    blockCount += b.getUsedBlockCount();
-                }
+        for (Buffer b : this.buffers) {
+            if (b.isAllocated()) {
+                allocatedBufferCount++;
+                blockCount += b.getUsedBlockCount();
             }
-
-            totalBufferCount = this.buffers.length;
         }
 
         return new CacheSnapshot(
@@ -286,54 +259,33 @@ public class DirectMemoryCache implements CacheStorage {
                 (long) (blockCount - allocatedBufferCount) * this.layout.blockSize(),
                 (long) allocatedBufferCount * this.layout.blockSize(),
                 (long) allocatedBufferCount * this.layout.bufferSize(),
-                (long) totalBufferCount * this.layout.bufferSize());
+                (long) this.buffers.length * this.layout.bufferSize());
     }
 
     //endregion
 
     //region Helpers
 
-    private Buffer getBuffer(int bufferId, boolean mustExist) {
-        synchronized (this.buffers) {
-            Buffer b = this.buffers[bufferId];
-            if (b == null && mustExist) {
-                // Corrupted state
-                throw new RuntimeException(new Exception("corruption"));
-            }
-            return b;
-        }
-    }
-
     private Buffer getNextAvailableBuffer() {
-        synchronized (this.buffers) {
-            while (!this.availableBufferIds.isEmpty()) {
-                Buffer b = this.buffers[this.availableBufferIds.peekFirst()];
-                assert b != null;
-                if (b.hasCapacity()) {
-                    return b;
-                } else {
-                    // Buffer full. Clean up.
-                    this.availableBufferIds.removeFirst();
+        synchronized (this.availableBufferIds) {
+            do {
+                while (!this.availableBufferIds.isEmpty()) {
+                    Buffer b = this.buffers[this.availableBufferIds.peekFirst()];
+                    if (b.hasCapacity()) {
+                        // Found a buffer.
+                        return b;
+                    } else {
+                        // Buffer full. Clean up.
+                        this.availableBufferIds.removeFirst();
+                    }
                 }
-            }
+                if (!this.unallocatedBufferIds.isEmpty()) {
+                    this.availableBufferIds.addLast(this.unallocatedBufferIds.removeFirst());
+                }
+            } while (!this.unallocatedBufferIds.isEmpty());
         }
 
-        return null;
-    }
-
-    private Buffer allocateNewBuffer() {
-        synchronized (this.buffers) {
-            if (this.unallocatedBufferIds.isEmpty()) {
-                throw new RuntimeException(new Exception("full")); // todo proper exception
-            }
-
-            int bufferId = this.unallocatedBufferIds.removeFirst();
-            assert this.buffers[bufferId] == null;
-            Buffer b = new Buffer(bufferId, size -> this.allocator.directBuffer(size, size), this.layout);
-            this.buffers[bufferId] = b;
-            this.availableBufferIds.add(bufferId);
-            return b;
-        }
+        throw new RuntimeException(new Exception("full")); // todo proper exception
     }
 
     //endregion
