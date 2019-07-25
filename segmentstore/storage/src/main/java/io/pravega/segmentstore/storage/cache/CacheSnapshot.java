@@ -7,14 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.datastore;
+package io.pravega.segmentstore.storage.cache;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 @Getter
-public class StoreSnapshot {
+public class CacheSnapshot {
     private final long storedBytes;
     private final long usedBytes;
     private final long reservedBytes;

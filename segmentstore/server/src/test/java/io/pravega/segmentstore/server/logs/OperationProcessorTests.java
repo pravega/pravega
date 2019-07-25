@@ -41,8 +41,8 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.datastore.DataStore;
-import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
@@ -588,7 +588,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
         final CacheManager cacheManager;
         final Storage storage;
         final SequencedItemList<Operation> memoryLog;
-        final DataStore dataStore;
+        final CacheStorage cacheStorage;
         final UpdateableContainerMetadata metadata;
         final ReadIndex readIndex;
         final MemoryStateUpdater stateUpdater;
@@ -598,8 +598,8 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.storage.initialize(1);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             ReadIndexConfig readIndexConfig = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024).build();
-            this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.dataStore, executorService());
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.storage, this.cacheManager, executorService());
             this.memoryLog = new SequencedItemList<>();
             this.stateUpdater = new MemoryStateUpdater(this.memoryLog, this.readIndex, Runnables.doNothing());
@@ -610,7 +610,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
             this.readIndex.close();
             this.storage.close();
             this.cacheManager.close();
-            this.dataStore.close();
+            this.cacheStorage.close();
         }
     }
 

@@ -7,19 +7,19 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.datastore;
+package io.pravega.segmentstore.storage.cache;
 
 import com.google.common.base.Preconditions;
 
-abstract class StoreLayout {
+abstract class CacheLayout {
     static final long MAX_TOTAL_SIZE = 64 * 1024 * 1024 * 1024L;
-    static final int MAX_ENTRY_LENGTH = 0x03FF_FFFF; // 28 bits = 256MB
+    static final int MAX_ENTRY_SIZE = 0x03FF_FFFF; // 28 bits = 256MB
     static final int NO_ADDRESS = 0; // Valid addresses have cannot be 0 since Block 0 is reserved.
     static final int NO_BLOCK_ID = 0; // 0 is the same as Metadata Block Id, so it's OK to use it.
     private final int maxBufferCount;
     private final int blocksPerBuffer;
 
-    StoreLayout() {
+    CacheLayout() {
         Preconditions.checkState(MAX_TOTAL_SIZE % bufferSize() == 0,
                 "MAX_TOTAL_SIZE (%s) must be a multiple of bufferSize()(%s).", MAX_TOTAL_SIZE, bufferSize());
         this.maxBufferCount = (int) (MAX_TOTAL_SIZE / bufferSize());
@@ -28,7 +28,7 @@ abstract class StoreLayout {
                 "bufferSize() (%s) must be a multiple of blockSize()(%s).", bufferSize(), blockSize());
         this.blocksPerBuffer = bufferSize() / blockSize();
 
-        Preconditions.checkState(this.blocksPerBuffer * blockMetadataLength() == blockSize(),
+        Preconditions.checkState(this.blocksPerBuffer * blockMetadataSize() == blockSize(),
                 "All block metadata must fit exactly into a single block.");
     }
 
@@ -44,7 +44,7 @@ abstract class StoreLayout {
 
     abstract int blockSize();
 
-    abstract int blockMetadataLength();
+    abstract int blockMetadataSize();
 
     abstract int getBufferId(int address);
 
@@ -97,7 +97,7 @@ abstract class StoreLayout {
      *     - If Used & Last: 8-31: Successor Address (26 bits)
      *     - If Used & !Last: 18-31: Block Length (up to 16383, 14 bits)
      */
-    static class DefaultLayout extends StoreLayout {
+    static class DefaultLayout extends CacheLayout {
         private static final int BUFFER_SIZE = 2 * 1024 * 1024; // This should be 2 ....
         private static final int BLOCK_SIZE = 4 * 1024;
         private static final long USED_FLAG = 0x8000_0000_0000_0000L;
@@ -123,7 +123,7 @@ abstract class StoreLayout {
         }
 
         @Override
-        int blockMetadataLength() {
+        int blockMetadataSize() {
             return Long.BYTES;
         }
 

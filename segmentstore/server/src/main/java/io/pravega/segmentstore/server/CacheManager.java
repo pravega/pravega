@@ -16,8 +16,8 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.segmentstore.storage.datastore.DataStore;
-import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -59,7 +59,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.CacheManager metrics;
     @Getter
-    private final DataStore dataStore;
+    private final CacheStorage cacheStorage;
 
     //endregion
 
@@ -72,20 +72,20 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      * @param executorService An executorService to use for scheduled tasks.
      */
     public CacheManager(CachePolicy policy, ScheduledExecutorService executorService) {
-        this(policy, new DirectMemoryStore(policy.getMaxSize()), executorService);
+        this(policy, new DirectMemoryCache(policy.getMaxSize()), executorService);
     }
 
     /**
      * Creates a new instance of the CacheManager class.
      *
      * @param policy          The policy to use with this CacheManager.
-     * @param dataStore       The DataStore to maintain.
+     * @param cacheStorage       The CacheStorage to maintain.
      * @param executorService An executorService to use for scheduled tasks.
      */
     @VisibleForTesting
-    public CacheManager(CachePolicy policy, DataStore dataStore, ScheduledExecutorService executorService) {
+    public CacheManager(CachePolicy policy, CacheStorage cacheStorage, ScheduledExecutorService executorService) {
         Preconditions.checkNotNull(policy, "policy");
-        Preconditions.checkNotNull(dataStore, "dataStore");
+        Preconditions.checkNotNull(cacheStorage, "cacheStorage");
         Preconditions.checkNotNull(executorService, "executorService");
 
         this.policy = policy;
@@ -95,7 +95,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         this.cacheSize = new AtomicLong();
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
-        this.dataStore = dataStore;
+        this.cacheStorage = cacheStorage;
         this.metrics = new SegmentStoreMetrics.CacheManager();
     }
 
@@ -114,7 +114,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 this.clients.clear();
             }
 
-            this.dataStore.close();
+            this.cacheStorage.close();
             this.metrics.close();
             log.info("{} Closed.", TRACE_OBJECT_ID);
         }

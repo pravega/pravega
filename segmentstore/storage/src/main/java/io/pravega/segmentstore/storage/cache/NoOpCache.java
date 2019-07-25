@@ -7,14 +7,14 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.datastore;
+package io.pravega.segmentstore.storage.cache;
 
 import io.pravega.common.util.BufferView;
 
 /**
- * {@link DataStore} implementation that does nothing. Only to be used for stubbing.
+ * {@link CacheStorage} implementation that does nothing. Only to be used for stubbing.
  */
-public class NoOpDataStore implements DataStore {
+public class NoOpCache implements CacheStorage {
     @Override
     public int getBlockAlignment() {
         return 4096;
@@ -22,7 +22,7 @@ public class NoOpDataStore implements DataStore {
 
     @Override
     public int getMaxEntryLength() {
-        return StoreLayout.MAX_ENTRY_LENGTH;
+        return CacheLayout.MAX_ENTRY_SIZE;
     }
 
     @Override
@@ -65,7 +65,7 @@ public class NoOpDataStore implements DataStore {
     }
 
     @Override
-    public StoreSnapshot getSnapshot() {
-        return new StoreSnapshot(0, 0, 0, 0, StoreLayout.MAX_TOTAL_SIZE);
+    public CacheSnapshot getSnapshot() {
+        return new CacheSnapshot(0, 0, 0, 0, CacheLayout.MAX_TOTAL_SIZE);
     }
 }

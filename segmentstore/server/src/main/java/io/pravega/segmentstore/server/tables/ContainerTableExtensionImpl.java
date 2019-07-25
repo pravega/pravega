@@ -32,7 +32,6 @@ import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
-import io.pravega.segmentstore.storage.CacheFactory;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;

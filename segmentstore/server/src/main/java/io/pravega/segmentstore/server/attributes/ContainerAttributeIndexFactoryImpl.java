@@ -12,7 +12,6 @@ package io.pravega.segmentstore.server.attributes;
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.ContainerMetadata;
-import io.pravega.segmentstore.storage.CacheFactory;
 import io.pravega.segmentstore.storage.Storage;
 import java.util.concurrent.ScheduledExecutorService;
 

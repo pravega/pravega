@@ -26,8 +26,8 @@ import io.pravega.segmentstore.server.attributes.AttributeIndexConfig;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndex;
 import io.pravega.segmentstore.server.attributes.ContainerAttributeIndexFactoryImpl;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.datastore.DataStore;
-import io.pravega.segmentstore.storage.datastore.NoOpDataStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
@@ -343,7 +343,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
     //region TestContext
 
     private class TestContext implements AutoCloseable {
-        final DataStore dataStore;
+        final CacheStorage cacheStorage;
         final Storage storage;
         final UpdateableContainerMetadata containerMetadata;
         final ContainerAttributeIndex index;
@@ -358,7 +358,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
             val storageFactory = new FileSystemStorageFactory(storageConfig, executorService());
             this.storage = storageFactory.createStorageAdapter();
             this.containerMetadata = new MetadataBuilder(0).build();
-            this.dataStore = new NoOpDataStore();
+            this.cacheStorage = new NoOpCache();
             this.cacheManager = new CacheManager(CachePolicy.INFINITE, executorService());
             val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheManager, executorService());
             this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage);
@@ -393,7 +393,7 @@ public class AttributeLoadTests extends ThreadPooledTestSuite {
             // We generate a lot of data, we should cleanup before exiting.
             cleanup();
             this.storage.close();
-            this.dataStore.close();
+            this.cacheStorage.close();
         }
     }
 

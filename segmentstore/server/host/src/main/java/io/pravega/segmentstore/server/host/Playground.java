@@ -16,7 +16,7 @@ import io.pravega.common.util.BitConverter;
 import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.Cache;
-import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryCache;
@@ -42,7 +42,7 @@ public class Playground {
         final int iterationCount = 5;
         final int randomCount = 1_000_000;
         @Cleanup
-        val s = new DirectMemoryStore(16 * 1024 * 1024 * 1024L);
+        val s = new DirectMemoryCache(16 * 1024 * 1024 * 1024L);
         for (int i = 0; i < iterationCount; i++) {
             val r = testInMemoryCache(entrySize, keyCount);
             //val r = testRocksDbCache(entrySize, keyCount);
@@ -108,7 +108,7 @@ public class Playground {
         return new Result(insertMillis, replaceMillis, -1, getMillis, removeMillis);
     }
 
-    private static Result testDirectStore(DirectMemoryStore s, int bufSize, int count) throws Exception {
+    private static Result testDirectStore(DirectMemoryCache s, int bufSize, int count) throws Exception {
         val buffer = new ByteArraySegment(new byte[bufSize]);
         val appendBuffer = new ByteArraySegment(buffer.array(), 0, s.getAppendableLength(bufSize));
         new Random(0).nextBytes(buffer.array());
@@ -199,11 +199,11 @@ public class Playground {
 
     private static long testDirectStoreRandom(int bufSize, int count) throws Exception {
         @Cleanup
-        val s = new DirectMemoryStore(16 * 1024 * 1024 * 1024L);
+        val s = new DirectMemoryCache(16 * 1024 * 1024 * 1024L);
         return testDirectStoreRandom(s, bufSize, count);
     }
 
-    private static long testDirectStoreRandom(DirectMemoryStore s, int bufSize, int count) throws Exception {
+    private static long testDirectStoreRandom(DirectMemoryCache s, int bufSize, int count) throws Exception {
         val rnd = new Random(0);
         val buffer = new ByteArraySegment(new byte[bufSize]);
         rnd.nextBytes(buffer.array());

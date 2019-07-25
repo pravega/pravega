@@ -29,7 +29,7 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
@@ -329,7 +329,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         HashSet<Integer> deletedEntries = new HashSet<>();
-        context.dataStore.deleteCallback = deletedEntries::add;
+        context.cacheStorage.deleteCallback = deletedEntries::add;
         context.cacheManager.applyCachePolicy();
         AssertExtensions.assertGreaterThan("Expected at least one cache entry to be removed.", 0, deletedEntries.size());
     }
@@ -821,8 +821,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         ArrayList<Integer> removedEntries = new ArrayList<>();
         @Cleanup
         TestContext context = new TestContext(config, cachePolicy);
-        context.dataStore.disableAppends = true;
-        context.dataStore.deleteCallback = removedEntries::add;// Record every cache removal.
+        context.cacheStorage.disableAppends = true;
+        context.cacheStorage.deleteCallback = removedEntries::add;// Record every cache removal.
 
         // Create the segments (metadata + storage).
         ArrayList<Long> segmentIds = createSegments(context);
@@ -838,7 +838,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             sm.setLength(preStorageData.length);
         }
 
-        val dataStoreMappings = new HashMap<Integer, SegmentOffset>();
+        val cacheMappings = new HashMap<Integer, SegmentOffset>();
 
         // Callback that appends one entry at the end of the given segment id.
         Consumer<Long> appendOneEntry = segmentId -> {
@@ -847,7 +847,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             long offset = sm.getLength();
             sm.setLength(offset + data.length);
             try {
-                context.dataStore.insertCallback = address -> dataStoreMappings.put(address, new SegmentOffset(segmentId, offset));
+                context.cacheStorage.insertCallback = address -> cacheMappings.put(address, new SegmentOffset(segmentId, offset));
                 context.readIndex.append(segmentId, offset, new ByteArraySegment(data));
             } catch (StreamSegmentNotExistsException ex) {
                 throw new CompletionException(ex);
@@ -871,8 +871,8 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 ReadResultEntry resultEntry = result.next();
                 Assert.assertEquals("Unexpected type of ReadResultEntry when trying to load up data into the ReadIndex Cache.", ReadResultEntryType.Storage, resultEntry.getType());
                 CompletableFuture<Void> insertedInCache = new CompletableFuture<>();
-                context.dataStore.insertCallback = address -> {
-                    dataStoreMappings.put(address, new SegmentOffset(segmentId, offset));
+                context.cacheStorage.insertCallback = address -> {
+                    cacheMappings.put(address, new SegmentOffset(segmentId, offset));
                     insertedInCache.complete(null);
                 };
                 resultEntry.requestContent(TIMEOUT);
@@ -950,7 +950,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         // Finally, verify that the evicted items are in the correct order (for each segment). See this test's description for details.
         for (long segmentId : segmentIds) {
             List<SegmentOffset> segmentRemovedKeys = removedEntries.stream()
-                    .map(dataStoreMappings::get)
+                    .map(cacheMappings::get)
                     .filter(e -> e.segmentId == segmentId)
                     .collect(Collectors.toList());
             Assert.assertEquals("Unexpected number of removed entries for segment " + segmentId, expectedRemovalCountPerSegment, segmentRemovedKeys.size());
@@ -1502,7 +1502,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final UpdateableContainerMetadata metadata;
         final ContainerReadIndex readIndex;
         final TestCacheManager cacheManager;
-        final TestDataStore dataStore;
+        final TestCacheStorage cacheStorage;
         final Storage storage;
 
         TestContext() {
@@ -1510,11 +1510,11 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         TestContext(ReadIndexConfig readIndexConfig, CachePolicy cachePolicy) {
-            this.dataStore = new TestDataStore(Integer.MAX_VALUE);
+            this.cacheStorage = new TestCacheStorage(Integer.MAX_VALUE);
             this.metadata = new MetadataBuilder(CONTAINER_ID).build();
             this.storage = InMemoryStorageFactory.newStorage(executorService());
             this.storage.initialize(1);
-            this.cacheManager = new TestCacheManager(cachePolicy, this.dataStore, executorService());
+            this.cacheManager = new TestCacheManager(cachePolicy, this.cacheStorage, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.storage, this.cacheManager, executorService());
         }
 
@@ -1522,24 +1522,24 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         @SneakyThrows
         public void close() {
             this.readIndex.close();
-            AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Read Index did not delete all DataStore entries after closing.",
-                    0L, () -> this.dataStore.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
+            AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Read Index did not delete all CacheStorage entries after closing.",
+                    0L, () -> this.cacheStorage.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
             this.storage.close();
             this.cacheManager.close();
-            this.dataStore.close();
+            this.cacheStorage.close();
         }
     }
 
     //endregion
 
-    //region TestDataStore
+    //region TestCacheStorage
 
-    private static class TestDataStore extends DirectMemoryStore {
+    private static class TestCacheStorage extends DirectMemoryCache {
         Consumer<Integer> insertCallback;
         Consumer<Integer> deleteCallback;
         boolean disableAppends;
 
-        TestDataStore(long maxSizeBytes) {
+        TestCacheStorage(long maxSizeBytes) {
             super(maxSizeBytes);
         }
 

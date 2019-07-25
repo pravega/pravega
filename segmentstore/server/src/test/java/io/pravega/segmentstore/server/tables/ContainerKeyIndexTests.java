@@ -23,8 +23,8 @@ import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
-import io.pravega.segmentstore.storage.datastore.DataStore;
-import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -801,7 +801,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     }
 
     private class TestContext implements AutoCloseable {
-        final DataStore dataStore;
+        final CacheStorage cacheStorage;
         final CacheManager cacheManager;
         final SegmentMock segment;
         final ContainerKeyIndex index;
@@ -815,8 +815,8 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         }
 
         TestContext(Duration recoveryTimeout) {
-            this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.dataStore, executorService());
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.segment = new SegmentMock(executorService());
             this.index = new TestContainerKeyIndex(CONTAINER_ID, this.cacheManager, KeyHashers.DEFAULT_HASHER, executorService());
             this.timer = new TimeoutTimer(TIMEOUT);
@@ -827,7 +827,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         public void close() {
             this.index.close();
             this.cacheManager.close();
-            this.dataStore.close();
+            this.cacheStorage.close();
         }
 
         private class TestContainerKeyIndex extends ContainerKeyIndex {

@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.function.Callbacks;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;
@@ -25,9 +24,7 @@ import io.pravega.segmentstore.server.reading.ContainerReadIndexFactory;
 import io.pravega.segmentstore.server.reading.ReadIndexConfig;
 import io.pravega.segmentstore.storage.DurableDataLog;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.datastore.DataStore;
-import io.pravega.segmentstore.storage.datastore.NoOpDataStore;
-import io.pravega.segmentstore.storage.datastore.StoreSnapshot;
+import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import java.time.Duration;
 import java.util.List;
@@ -90,7 +87,7 @@ public class DebugRecoveryProcessor extends RecoveryProcessor implements AutoClo
 
         StreamSegmentContainerMetadata metadata = new StreamSegmentContainerMetadata(containerId, config.getMaxActiveSegmentCount());
         CacheManager cacheManager = new CacheManager(new CachePolicy(Long.MAX_VALUE, Duration.ofHours(10), Duration.ofHours(1)),
-                new NoOpDataStore(), executor);
+                new NoOpCache(), executor);
         cacheManager.startAsync().awaitRunning();
         ContainerReadIndexFactory rf = new ContainerReadIndexFactory(readIndexConfig, cacheManager, executor);
         Storage s = new InMemoryStorageFactory(executor).createStorageAdapter();

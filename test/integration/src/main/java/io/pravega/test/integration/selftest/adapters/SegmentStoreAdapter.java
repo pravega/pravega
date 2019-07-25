@@ -30,8 +30,6 @@ import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
@@ -99,7 +97,6 @@ class SegmentStoreAdapter extends StoreAdapter {
         this.testExecutor = Preconditions.checkNotNull(testExecutor, "testExecutor");
         this.serviceBuilder = attachDataLogFactory(ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(setup.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> {
                     // We use the Segment Store Executor for the real storage.
                     SingletonStorageFactory factory = new SingletonStorageFactory(setup.getStorageExecutor());

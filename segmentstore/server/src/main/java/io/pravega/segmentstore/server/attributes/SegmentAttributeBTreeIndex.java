@@ -38,7 +38,7 @@ import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
-import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
@@ -99,7 +99,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     private final AtomicReference<SegmentHandle> handle;
     private final Storage storage;
     @GuardedBy("cacheEntries")
-    private final DataStore dataStore;
+    private final CacheStorage cacheStorage;
     @GuardedBy("cacheEntries")
     private int currentCacheGeneration;
     @GuardedBy("cacheEntries")
@@ -123,11 +123,11 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
      * @param config          Attribute Index Configuration.
      * @param executor        An Executor to run async tasks.
      */
-    SegmentAttributeBTreeIndex(@NonNull SegmentMetadata segmentMetadata, @NonNull Storage storage, @NonNull DataStore dataStore,
+    SegmentAttributeBTreeIndex(@NonNull SegmentMetadata segmentMetadata, @NonNull Storage storage, @NonNull CacheStorage cacheStorage,
                                @NonNull AttributeIndexConfig config, @NonNull ScheduledExecutorService executor) {
         this.segmentMetadata = segmentMetadata;
         this.storage = storage;
-        this.dataStore = dataStore;
+        this.cacheStorage = cacheStorage;
         this.config = config;
         this.executor = executor;
         this.handle = new AtomicReference<>();
@@ -561,7 +561,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         synchronized (this.cacheEntries) {
             CacheEntry entry = this.cacheEntries.getOrDefault(offset, null);
             if (entry != null) {
-                BufferView data = this.dataStore.get(entry.getDataAddress());
+                BufferView data = this.cacheStorage.get(entry.getDataAddress());
                 if (data != null && data.getLength() == length) {
                     // We only deem a cache entry valid if it exists and has the expected length; otherwise it's best
                     // if we treat it as a cache miss and re-read it from Storage.
@@ -616,9 +616,9 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     private void storeInCache(CacheEntry entry, ByteArraySegment data) {
         int newAddress;
         if (entry.isStored()) {
-            newAddress = this.dataStore.replace(entry.getDataAddress(), data);
+            newAddress = this.cacheStorage.replace(entry.getDataAddress(), data);
         } else {
-            newAddress = this.dataStore.insert(data);
+            newAddress = this.cacheStorage.insert(data);
         }
 
         entry.setDataAddress(newAddress);
@@ -632,7 +632,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
     @GuardedBy("cacheEntries")
     private void removeFromCache(CacheEntry e) {
-        this.dataStore.delete(e.getDataAddress());
+        this.cacheStorage.delete(e.getDataAddress());
         this.cacheEntries.remove(e.getOffset());
     }
 
@@ -687,21 +687,21 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         }
 
         /**
-         * Gets a value representing the {@link DataStore} address for this Cache Entry's data.
+         * Gets a value representing the {@link CacheStorage} address for this Cache Entry's data.
          */
         synchronized int getDataAddress() {
             return this.dataAddress;
         }
 
         /**
-         * Updates the {@link DataStore} address for this Cache Entry's data.
+         * Updates the {@link CacheStorage} address for this Cache Entry's data.
          */
         synchronized void setDataAddress(int newAddress) {
             this.dataAddress = newAddress;
         }
 
         /**
-         * Gets a value representing whether this Cache Entry does have any data stored in the {@link DataStore}.
+         * Gets a value representing whether this Cache Entry does have any data stored in the {@link CacheStorage}.
          */
         synchronized boolean isStored() {
             return this.dataAddress >= 0;

@@ -16,7 +16,7 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.tables.TableAttributes;
 import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,7 +44,7 @@ import lombok.val;
  * The cache is separated in this manner because the Tail Section is optimized to bear the brunt of all Index Modifications
  * to a Table Segment; all updates and removals will end up modifying this section directly, so it is important that it
  * provides an easily modifiable data structure. The Index Section is designed for less frequent updates but is can handle
- * a larger amount of data being cached (since it is backed by the process-wide {@link DataStore}). The Tail Section, while
+ * a larger amount of data being cached (since it is backed by the process-wide {@link CacheStorage}). The Tail Section, while
  * dynamic, is not expected to grow too large due to the Table Segment being continuously indexed in the background, which
  * causes the Last Indexed Offset to be updated frequently.
  */
@@ -57,7 +57,7 @@ class SegmentKeyCache {
 
     @Getter
     private final long segmentId;
-    private final DataStore dataStore;
+    private final CacheStorage cacheStorage;
     @GuardedBy("this")
     private long lastIndexedOffset;
     @GuardedBy("this")
@@ -98,7 +98,7 @@ class SegmentKeyCache {
      * ({@link ContainerKeyCache}) needs to execute the actual cache eviction.
      *
      * @param oldestGeneration The oldest permissible generation.
-     * @return An {@link EvictionResult} instance containing the number of bytes evicted and the {@link DataStore}
+     * @return An {@link EvictionResult} instance containing the number of bytes evicted and the {@link CacheStorage}
      * addresses for each Cache Entry that needs eviction.
      */
     synchronized EvictionResult evictBefore(int oldestGeneration) {
@@ -339,7 +339,7 @@ class SegmentKeyCache {
          */
         private final long size;
         /**
-         * A list of {@link DataStore} addresses denoting Cache Entries have been unregistered and need to be evicted.
+         * A list of {@link CacheStorage} addresses denoting Cache Entries have been unregistered and need to be evicted.
          */
         private final List<Integer> dataAddresses;
     }
@@ -417,7 +417,7 @@ class SegmentKeyCache {
             return this.highestOffset;
         }
         /**
-         * Gets a value representing the {@link DataStore} address for this Cache Entry's data.
+         * Gets a value representing the {@link CacheStorage} address for this Cache Entry's data.
          */
         synchronized int getDataAddress() {
             return this.dataAddress;
@@ -494,7 +494,7 @@ class SegmentKeyCache {
         private byte[] getFromCache() {
             BufferView data = null;
             if (this.dataAddress >= 0) {
-                data = SegmentKeyCache.this.dataStore.get(this.dataAddress);
+                data = SegmentKeyCache.this.cacheStorage.get(this.dataAddress);
             }
             return data == null ? null : data.getCopy();
         }
@@ -503,9 +503,9 @@ class SegmentKeyCache {
         private void storeInCache(ByteArraySegment data) {
             int newAddress;
             if (this.dataAddress >= 0) {
-                newAddress = SegmentKeyCache.this.dataStore.replace(this.dataAddress, data);
+                newAddress = SegmentKeyCache.this.cacheStorage.replace(this.dataAddress, data);
             } else {
-                newAddress = SegmentKeyCache.this.dataStore.insert(data);
+                newAddress = SegmentKeyCache.this.cacheStorage.insert(data);
             }
 
             this.dataAddress = newAddress;

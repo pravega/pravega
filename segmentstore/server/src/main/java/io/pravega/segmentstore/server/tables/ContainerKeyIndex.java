@@ -102,7 +102,7 @@ class ContainerKeyIndex implements AutoCloseable {
      */
     ContainerKeyIndex(int containerId, @NonNull CacheManager cacheManager, @NonNull KeyHasher keyHasher,
                       @NonNull ScheduledExecutorService executor) {
-        this.cache = new ContainerKeyCache(containerId, cacheManager.getDataStore());
+        this.cache = new ContainerKeyCache(containerId, cacheManager.getCacheStorage());
         this.cacheManager = cacheManager;
         this.cacheManager.register(this.cache);
         this.executor = executor;

@@ -37,8 +37,8 @@ import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
-import io.pravega.segmentstore.storage.datastore.DataStore;
-import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
@@ -759,7 +759,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
     private class TestContext implements AutoCloseable {
         final KeyHasher hasher;
         final MockSegmentContainer container;
-        final DataStore dataStore;
+        final CacheStorage cacheStorage;
         final CacheManager cacheManager;
         final ContainerTableExtensionImpl ext;
         final Random random;
@@ -775,8 +775,8 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
         TestContext(KeyHasher hasher, int maxCompactionSize) {
             this.hasher = hasher;
             this.container = new MockSegmentContainer(() -> new SegmentMock(createSegmentMetadata(), executorService()));
-            this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.dataStore, executorService());
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.ext = createExtension(maxCompactionSize);
             this.random = new Random(0);
         }
@@ -786,7 +786,7 @@ public class ContainerTableExtensionImplTests extends ThreadPooledTestSuite {
             this.ext.close();
             this.cacheManager.close();
             this.container.close();
-            this.dataStore.close();
+            this.cacheStorage.close();
         }
 
         ContainerTableExtensionImpl createExtension() {

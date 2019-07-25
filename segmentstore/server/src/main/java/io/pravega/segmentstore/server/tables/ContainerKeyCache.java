@@ -11,7 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.server.CacheManager;
-import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,7 +31,7 @@ import lombok.val;
 class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     //region Members
 
-    private final DataStore dataStore;
+    private final CacheStorage cacheStorage;
     @GuardedBy("segmentCaches")
     private final Map<Long, SegmentKeyCache> segmentCaches;
     @GuardedBy("segmentCaches")
@@ -48,8 +48,8 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
      * @param containerId  The Id of the SegmentContainer that this instance is associated with.
      * @param cacheFactory A {@link CacheFactory} that can be used to create {@link Cache} instances.
      */
-    ContainerKeyCache(int containerId, @NonNull DataStore dataStore) {
-        this.dataStore = dataStore;
+    ContainerKeyCache(int containerId, @NonNull CacheStorage cacheStorage) {
+        this.cacheStorage = cacheStorage;
         this.segmentCaches = new HashMap<>();
         this.closed = new AtomicBoolean();
     }
@@ -133,7 +133,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         int generation;
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
-            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.dataStore));
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
         }
 
         return cache.includeUpdateBatch(batch, batchOffset, generation);
@@ -152,7 +152,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         int generation;
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
-            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.dataStore));
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
         }
 
         cache.includeTailCache(keyOffsets, generation);
@@ -177,7 +177,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         int generation;
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
-            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.dataStore));
+            cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
         }
 
         return cache.includeExistingKey(keyHash, segmentOffset, generation);
@@ -219,7 +219,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
             if (remove) {
                 cache = this.segmentCaches.remove(segmentId);
             } else {
-                cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.dataStore));
+                cache = this.segmentCaches.computeIfAbsent(segmentId, s -> new SegmentKeyCache(s, this.cacheStorage));
             }
         }
 
@@ -246,7 +246,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         synchronized (this.segmentCaches) {
             generation = this.currentCacheGeneration;
             if (!this.segmentCaches.containsKey(segmentId)) {
-                cache = new SegmentKeyCache(segmentId, this.dataStore);
+                cache = new SegmentKeyCache(segmentId, this.cacheStorage);
             }
         }
 
@@ -296,7 +296,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     }
 
     private long evict(SegmentKeyCache.EvictionResult eviction) {
-        eviction.getDataAddresses().forEach(this.dataStore::delete);
+        eviction.getDataAddresses().forEach(this.cacheStorage::delete);
         return eviction.getSize();
     }
 

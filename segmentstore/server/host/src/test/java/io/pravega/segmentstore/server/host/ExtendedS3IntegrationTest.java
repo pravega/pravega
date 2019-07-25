@@ -12,17 +12,15 @@ package io.pravega.segmentstore.server.host;
 import com.emc.object.s3.S3Config;
 import com.emc.object.s3.jersey.S3JerseyClient;
 import com.google.common.base.Preconditions;
-import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
+import io.pravega.segmentstore.storage.ConfigSetup;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
-import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.storage.extendeds3.ExtendedS3Storage;
 import io.pravega.storage.extendeds3.ExtendedS3StorageConfig;
@@ -72,7 +70,6 @@ public class ExtendedS3IntegrationTest extends BookKeeperIntegrationTestBase {
         ServiceBuilderConfig builderConfig = getBuilderConfig(configBuilder, instanceId);
         return ServiceBuilder
                 .newInMemoryBuilder(builderConfig)
-                .withCacheFactory(setup -> new RocksDBCacheFactory(builderConfig.getConfig(RocksDBConfig::builder)))
                 .withStorageFactory(setup -> new LocalExtendedS3StorageFactory(setup.getConfig(ExtendedS3StorageConfig::builder), setup.getStorageExecutor()))
                 .withDataLogFactory(setup -> new BookKeeperLogFactory(setup.getConfig(BookKeeperConfig::builder),
                         getBookkeeper().getZkClient(), setup.getCoreExecutor()));

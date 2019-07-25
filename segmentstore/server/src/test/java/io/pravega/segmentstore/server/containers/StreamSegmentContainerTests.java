@@ -82,8 +82,8 @@ import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.datastore.DataStore;
-import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
@@ -2131,7 +2131,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         private final ReadIndexFactory readIndexFactory;
         private final AttributeIndexFactory attributeIndexFactory;
         private final WriterFactory writerFactory;
-        private final DataStore dataStore;
+        private final CacheStorage cacheStorage;
         private final CacheManager cacheManager;
         private final Storage storage;
 
@@ -2139,8 +2139,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.storageFactory = new WatchableInMemoryStorageFactory(executorService());
             this.dataLogFactory = new InMemoryDurableDataLogFactory(MAX_DATA_LOG_APPEND_SIZE, executorService());
             this.operationLogFactory = new DurableLogFactory(DEFAULT_DURABLE_LOG_CONFIG, dataLogFactory, executorService());
-            this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
-            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.dataStore, executorService());
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new CacheManager(CachePolicy.INFINITE, this.cacheStorage, executorService());
             this.readIndexFactory = new ContainerReadIndexFactory(DEFAULT_READ_INDEX_CONFIG, this.cacheManager, executorService());
             this.attributeIndexFactory = new ContainerAttributeIndexFactoryImpl(DEFAULT_ATTRIBUTE_INDEX_CONFIG, this.cacheManager, executorService());
             this.writerFactory = new StorageWriterFactory(DEFAULT_WRITER_CONFIG, executorService());
@@ -2178,7 +2178,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             this.storage.close();
             this.storageFactory.close();
             this.cacheManager.close();
-            this.dataStore.close();
+            this.cacheStorage.close();
         }
     }
 

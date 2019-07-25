@@ -7,11 +7,11 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.datastore;
+package io.pravega.segmentstore.storage.cache;
 
 import io.pravega.common.util.BufferView;
 
-public interface DataStore extends AutoCloseable {
+public interface CacheStorage extends AutoCloseable {
 
     int getBlockAlignment();
 
@@ -32,6 +32,5 @@ public interface DataStore extends AutoCloseable {
 
     BufferView get(int address);
 
-    StoreSnapshot getSnapshot();
-
+    CacheSnapshot getSnapshot();
 }

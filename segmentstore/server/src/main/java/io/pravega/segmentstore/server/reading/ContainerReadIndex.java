@@ -373,7 +373,7 @@ public class ContainerReadIndex implements ReadIndex {
                     throw new StreamSegmentNotExistsException(segmentMetadata.getName());
                 }
 
-                index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cacheManager.getDataStore(), this.storage, this.executor, isRecoveryMode());
+                index = new StreamSegmentReadIndex(this.config, segmentMetadata, this.cacheManager.getCacheStorage(), this.storage, this.executor, isRecoveryMode());
                 this.cacheManager.register(index);
                 this.readIndices.put(streamSegmentId, index);
             }

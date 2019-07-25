@@ -86,10 +86,10 @@ abstract class ReadIndexEntry implements SortedIndex.IndexEntry {
     abstract boolean isDataEntry();
 
     /**
-     * Gets the address in the DataStore where the contents of this ReadIndexEntry is located. The result of this method
+     * Gets the address in the CacheStorage where the contents of this ReadIndexEntry is located. The result of this method
      * is undefined if {@link #isDataEntry()} is false.
      *
-     * @return The DataStore address.
+     * @return The CacheStorage address.
      */
     abstract int getDataAddress();
 

@@ -24,8 +24,8 @@ import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.SegmentHandle;
 import io.pravega.segmentstore.storage.SyncStorage;
-import io.pravega.segmentstore.storage.datastore.DataStore;
-import io.pravega.segmentstore.storage.datastore.DirectMemoryStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -683,7 +683,7 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
         final TestContext.TestStorage storage;
         final UpdateableContainerMetadata containerMetadata;
         final ContainerAttributeIndexImpl index;
-        final DataStore dataStore;
+        final CacheStorage cacheStorage;
         final TestCacheManager cacheManager;
 
         TestContext(AttributeIndexConfig config) {
@@ -695,8 +695,8 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             this.memoryStorage.initialize(1);
             this.storage = new TestContext.TestStorage(new RollingStorage(this.memoryStorage, config.getAttributeSegmentRollingPolicy()), executorService());
             this.containerMetadata = new MetadataBuilder(CONTAINER_ID).build();
-            this.dataStore = new DirectMemoryStore(Integer.MAX_VALUE);
-            this.cacheManager = new TestCacheManager(cachePolicy, this.dataStore, executorService());
+            this.cacheStorage = new DirectMemoryCache(Integer.MAX_VALUE);
+            this.cacheManager = new TestCacheManager(cachePolicy, this.cacheStorage, executorService());
             val factory = new ContainerAttributeIndexFactoryImpl(config, this.cacheManager, executorService());
             this.index = factory.createContainerAttributeIndex(this.containerMetadata, this.storage);
         }
@@ -707,10 +707,10 @@ public class AttributeIndexTests extends ThreadPooledTestSuite {
             this.index.close();
             this.storage.close();
             this.memoryStorage.close();
-            AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Attribute Index did not delete all DataStore entries after closing.",
-                    0L, () -> this.dataStore.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
+            AssertExtensions.assertEventuallyEquals("MEMORY LEAK: Attribute Index did not delete all CacheStorage entries after closing.",
+                    0L, () -> this.cacheStorage.getSnapshot().getStoredBytes(), 10, TIMEOUT.toMillis());
             this.cacheManager.close();
-            this.dataStore.close();
+            this.cacheStorage.close();
         }
 
         private class TestStorage extends AsyncStorageWrapper {

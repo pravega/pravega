@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.storage.datastore;
+package io.pravega.segmentstore.storage.cache;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
@@ -30,8 +30,8 @@ import lombok.NonNull;
 import lombok.SneakyThrows;
 
 @ThreadSafe
-public class DirectMemoryStore implements DataStore {
-    private final StoreLayout layout;
+public class DirectMemoryCache implements CacheStorage {
+    private final CacheLayout layout;
     private final UnpooledByteBufAllocator allocator;
     @GuardedBy("buffers")
     private final Buffer[] buffers;
@@ -42,13 +42,13 @@ public class DirectMemoryStore implements DataStore {
     private final AtomicBoolean closed;
     private final AtomicLong storedBytes;
 
-    public DirectMemoryStore(long maxSizeBytes) {
-        this(new StoreLayout.DefaultLayout(), maxSizeBytes);
+    public DirectMemoryCache(long maxSizeBytes) {
+        this(new CacheLayout.DefaultLayout(), maxSizeBytes);
     }
 
-    public DirectMemoryStore(@NonNull StoreLayout layout, long maxSizeBytes) {
-        Preconditions.checkArgument(maxSizeBytes > 0 && maxSizeBytes < StoreLayout.MAX_TOTAL_SIZE,
-                "maxSizeBytes must be a positive number less than %s.", StoreLayout.MAX_TOTAL_SIZE);
+    public DirectMemoryCache(@NonNull CacheLayout layout, long maxSizeBytes) {
+        Preconditions.checkArgument(maxSizeBytes > 0 && maxSizeBytes < CacheLayout.MAX_TOTAL_SIZE,
+                "maxSizeBytes must be a positive number less than %s.", CacheLayout.MAX_TOTAL_SIZE);
         maxSizeBytes = adjustMaxSizeIfNeeded(maxSizeBytes, layout);
 
         this.layout = layout;
@@ -60,7 +60,7 @@ public class DirectMemoryStore implements DataStore {
         this.closed = new AtomicBoolean(false);
     }
 
-    private long adjustMaxSizeIfNeeded(long maxSize, StoreLayout layout) {
+    private long adjustMaxSizeIfNeeded(long maxSize, CacheLayout layout) {
         long r = maxSize % layout.bufferSize();
         if (r != 0) {
             maxSize = maxSize - r + layout.bufferSize();
@@ -86,7 +86,7 @@ public class DirectMemoryStore implements DataStore {
         }
     }
 
-    //region DataStore Implementation
+    //region CacheStorage Implementation
 
     @Override
     public int getBlockAlignment() {
@@ -95,17 +95,17 @@ public class DirectMemoryStore implements DataStore {
 
     @Override
     public int getMaxEntryLength() {
-        return StoreLayout.MAX_ENTRY_LENGTH;
+        return CacheLayout.MAX_ENTRY_SIZE;
     }
 
     @Override
     @SneakyThrows(IOException.class)
     public int insert(BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        Preconditions.checkArgument(data.getLength() < StoreLayout.MAX_ENTRY_LENGTH);
+        Preconditions.checkArgument(data.getLength() < CacheLayout.MAX_ENTRY_SIZE);
 
         int length = data.getLength();
-        int firstBlockAddress = StoreLayout.NO_BLOCK_ID;
+        int firstBlockAddress = CacheLayout.NO_BLOCK_ID;
         try (InputStream s = data.getReader()) {
             // Loop through all the registered buffers
             // Once we get a Buffer, allocate and write data to it. If no more buffers, allocate more.
@@ -113,13 +113,13 @@ public class DirectMemoryStore implements DataStore {
 
             Buffer lastBuffer = null;
             Buffer.WriteResult lastResult = null;
-            while (length > 0 || firstBlockAddress == StoreLayout.NO_BLOCK_ID) {
+            while (length > 0 || firstBlockAddress == CacheLayout.NO_BLOCK_ID) {
                 Buffer buffer = getNextAvailableBuffer();
                 if (buffer == null) {
                     buffer = allocateNewBuffer();
                 }
 
-                Buffer.WriteResult writeResult = buffer.write(s, length, firstBlockAddress == StoreLayout.NO_BLOCK_ID);
+                Buffer.WriteResult writeResult = buffer.write(s, length, firstBlockAddress == CacheLayout.NO_BLOCK_ID);
                 if (writeResult == null) {
                     // Someone else grabbed this buffer and wrote to it before we got a chance.
                     continue;
@@ -127,7 +127,7 @@ public class DirectMemoryStore implements DataStore {
 
                 assert writeResult.getRemainingLength() >= 0 && writeResult.getRemainingLength() < length;
                 length = writeResult.getRemainingLength();
-                if (firstBlockAddress == StoreLayout.NO_BLOCK_ID) {
+                if (firstBlockAddress == CacheLayout.NO_BLOCK_ID) {
                     // First write. Remember this address.
                     firstBlockAddress = writeResult.getFirstBlockAddress();
                 } else {
@@ -141,7 +141,7 @@ public class DirectMemoryStore implements DataStore {
         } catch (Throwable ex) {
             if (!Exceptions.mustRethrow(ex)) {
                 // Cleanup whatever we have done so far.
-                if (firstBlockAddress != StoreLayout.NO_BLOCK_ID) {
+                if (firstBlockAddress != CacheLayout.NO_BLOCK_ID) {
                     delete(firstBlockAddress);
                 }
             }
@@ -192,7 +192,7 @@ public class DirectMemoryStore implements DataStore {
         boolean mustExist = false;
         int appended = 0;
         try (InputStream s = data.getReader()) {
-            while (address != StoreLayout.NO_ADDRESS) {
+            while (address != CacheLayout.NO_ADDRESS) {
                 int bufferId = this.layout.getBufferId(address);
                 int blockId = this.layout.getBlockId(address);
                 Buffer b = getBuffer(bufferId, mustExist);
@@ -214,7 +214,7 @@ public class DirectMemoryStore implements DataStore {
     @Override
     public boolean delete(int address) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        while (address != StoreLayout.NO_ADDRESS) {
+        while (address != CacheLayout.NO_ADDRESS) {
             int bufferId = this.layout.getBufferId(address);
             int blockId = this.layout.getBlockId(address);
             Buffer b;
@@ -248,7 +248,7 @@ public class DirectMemoryStore implements DataStore {
     public BufferView get(int address) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ArrayList<ByteBuf> readBuffers = new ArrayList<>();
-        while (address != StoreLayout.NO_ADDRESS) {
+        while (address != CacheLayout.NO_ADDRESS) {
             int bufferId = this.layout.getBufferId(address);
             int blockId = this.layout.getBlockId(address);
             Buffer b = getBuffer(bufferId, !readBuffers.isEmpty());
@@ -265,7 +265,7 @@ public class DirectMemoryStore implements DataStore {
 
 
     @Override
-    public StoreSnapshot getSnapshot() {
+    public CacheSnapshot getSnapshot() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         int allocatedBufferCount = 0;
         int blockCount = 0;
@@ -281,7 +281,7 @@ public class DirectMemoryStore implements DataStore {
             totalBufferCount = this.buffers.length;
         }
 
-        return new StoreSnapshot(
+        return new CacheSnapshot(
                 this.storedBytes.get(),
                 (long) (blockCount - allocatedBufferCount) * this.layout.blockSize(),
                 (long) allocatedBufferCount * this.layout.blockSize(),

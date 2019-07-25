@@ -9,7 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
-import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
@@ -20,8 +20,8 @@ public class TestCacheManager extends CacheManager {
         super(policy, executorService);
     }
 
-    public TestCacheManager(CachePolicy policy, DataStore dataStore, ScheduledExecutorService executorService) {
-        super(policy, dataStore, executorService);
+    public TestCacheManager(CachePolicy policy, CacheStorage cacheStorage, ScheduledExecutorService executorService) {
+        super(policy, cacheStorage, executorService);
     }
 
     @Override

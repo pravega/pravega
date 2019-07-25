@@ -26,7 +26,7 @@ import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
-import io.pravega.segmentstore.storage.datastore.DataStore;
+import io.pravega.segmentstore.storage.cache.CacheStorage;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.time.Duration;
@@ -65,7 +65,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private final SortedIndex<ReadIndexEntry> indexEntries;
     private final ReadIndexConfig config;
     @GuardedBy("lock")
-    private final DataStore dataStore;
+    private final CacheStorage cacheStorage;
     private final FutureReadResultEntryCollection futureReads;
     @GuardedBy("lock")
     private final HashMap<Long, PendingMerge> pendingMergers; //Key = Source Segment Id, Value = Pending Merge Info.
@@ -89,24 +89,24 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      *
      * @param config       Read Index Configuration.
      * @param metadata     The StreamSegmentMetadata to use.
-     * @param dataStore    The DataStore to use to store, read and manage data entries.
+     * @param cacheStorage    The CacheStorage to use to store, read and manage data entries.
      * @param storage      A ReadOnlyStorage to fetch data if not in Cache.
      * @param executor     An executor to run async operations.
      * @param recoveryMode Whether we are in recovery mode at the time of creation (this can change later on).
      * @throws NullPointerException If any of the arguments are null.
      */
-    StreamSegmentReadIndex(ReadIndexConfig config, SegmentMetadata metadata, DataStore dataStore, ReadOnlyStorage storage,
+    StreamSegmentReadIndex(ReadIndexConfig config, SegmentMetadata metadata, CacheStorage cacheStorage, ReadOnlyStorage storage,
                            ScheduledExecutorService executor, boolean recoveryMode) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(metadata, "metadata");
-        Preconditions.checkNotNull(dataStore, "dataStore");
+        Preconditions.checkNotNull(cacheStorage, "cacheStorage");
         Preconditions.checkNotNull(storage, "storage");
         Preconditions.checkNotNull(executor, "executor");
 
         this.traceObjectId = String.format("ReadIndex[%d-%d]", metadata.getContainerId(), metadata.getId());
         this.config = config;
         this.metadata = metadata;
-        this.dataStore =dataStore;
+        this.cacheStorage = cacheStorage;
         this.recoveryMode = recoveryMode;
         this.indexEntries = new AvlTreeIndex<>();
         this.futureReads = new FutureReadResultEntryCollection();
@@ -285,16 +285,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         return this.metadata.getLength();
     }
 
-    private CacheKey getCacheKey(ReadIndexEntry entry) {
-        if (entry instanceof MergedIndexEntry) {
-            MergedIndexEntry me = (MergedIndexEntry) entry;
-            return new CacheKey(me.getSourceSegmentId(), me.getSourceSegmentOffset());
-        } else {
-            // Return a CacheKey; if a RedirectIndexEntry then no data should be available in the cache.
-            return new CacheKey(this.metadata.getId(), entry.getStreamSegmentOffset());
-        }
-    }
-
     //endregion
 
     //region Recovery
@@ -365,7 +355,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             if (lastEntry != null
                     && lastEntry.isDataEntry()
                     && lastEntry.getLastStreamSegmentOffset() == this.lastAppendedOffset) {
-                int appendableLength = this.dataStore.getAppendableLength((int) lastEntry.getLength());
+                int appendableLength = this.cacheStorage.getAppendableLength((int) lastEntry.getLength());
                 if (appendableLength > 0) {
                     // We can append to the last entry.
                     BufferView toAppend;
@@ -380,7 +370,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     }
 
                     // Add append data to the Data Store.
-                    appendLength = this.dataStore.append(lastEntry.getDataAddress(), (int) lastEntry.getLength(), toAppend);
+                    appendLength = this.cacheStorage.append(lastEntry.getDataAddress(), (int) lastEntry.getLength(), toAppend);
                     assert appendLength <= appendableLength;
                     ((CacheIndexEntry) lastEntry).increaseLength(appendLength);
                     this.lastAppendedOffset += appendLength;
@@ -393,7 +383,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
             if (data != null) {
                 // Add the remainder of the buffer as a new entry.
-                int dataAddress = this.dataStore.insert(data);
+                int dataAddress = this.cacheStorage.insert(data);
                 CacheIndexEntry newEntry = new CacheIndexEntry(offset + appendLength, data.getLength(), dataAddress);
                 ReadIndexEntry oldEntry = addToIndex(newEntry);
                 assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", newEntry, oldEntry);
@@ -517,15 +507,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         LoggerHelpers.traceLeave(log, this.traceObjectId, "completeMerge", traceId);
     }
 
-    @GuardedBy("lock")
-    private void appendEntry(ReadIndexEntry entry) {
-        log.debug("{}: Append (Offset = {}, Length = {}).", this.traceObjectId, entry.getStreamSegmentOffset(), entry.getLength());
-
-        ReadIndexEntry oldEntry = addToIndex(entry);
-        assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", entry, oldEntry);
-        this.lastAppendedOffset = entry.getLastStreamSegmentOffset();
-    }
-
     private void insert(long offset, ByteArraySegment data) {
         log.debug("{}: Insert (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
 
@@ -537,7 +518,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         ReadIndexEntry oldEntry;
         CacheIndexEntry newEntry;
         synchronized (this.lock) {
-            int dataAddress = this.dataStore.insert(data);
+            int dataAddress = this.cacheStorage.insert(data);
             newEntry = new CacheIndexEntry(offset, data.getLength(), dataAddress);
             oldEntry = addToIndex(newEntry);
         }
@@ -700,7 +681,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     return null;
                 }
 
-                entryData = this.dataStore.get(indexEntry.getDataAddress());
+                entryData = this.cacheStorage.get(indexEntry.getDataAddress());
             }
 
             if (entryData == null) {
@@ -1006,7 +987,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         int length = (int) Math.min(maxLength, entry.getLength() - entryOffset);
         assert length > 0 : String.format("length{%d} <= 0. streamSegmentOffset = %d, maxLength = %d, entry.offset = %d, entry.length = %d", length, streamSegmentOffset, maxLength, entry.getStreamSegmentOffset(), entry.getLength());
-        BufferView data = this.dataStore.get(entry.getDataAddress());
+        BufferView data = this.cacheStorage.get(entry.getDataAddress());
         assert data != null : String.format("No Cache Entry could be retrieved for entry %s", entry);
 
         if (updateStats) {
@@ -1119,7 +1100,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     @GuardedBy("lock")
     private void deleteData(ReadIndexEntry entry) {
         if (entry.isDataEntry()) {
-            this.dataStore.delete(entry.getDataAddress());
+            this.cacheStorage.delete(entry.getDataAddress());
         }
     }
 
