@@ -50,11 +50,18 @@ public class ByteBufWrapper implements BufferView {
 
     //region BufferView implementation
 
+    /**
+     * Invokes {@link ByteBuf#retain()} on the underlying buffer.
+     */
     @Override
     public void retain() {
         this.buf.retain();
     }
 
+    /**
+     * Invokes {@link ByteBuf#release()} on the underlying buffer, but only if {@link ByteBuf#refCnt()} is non-zero.
+     * As opposed from {@link ByteBuf#release()}, this method will not throw if invoked too many times.
+     */
     @Override
     public void release() {
         if (this.buf.refCnt() > 0) {
