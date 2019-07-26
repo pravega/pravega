@@ -30,7 +30,7 @@ public class ThrottlerCalculatorTests {
     @Test
     public void testCacheThrottling() {
         val t = ThrottlerCalculator.CACHE_UTILIZATION_THRESHOLD;
-        val maxU = t + ThrottlerCalculator.MAX_DELAY_MILLIS / ThrottlerCalculator.THROTTLING_MILLIS_PER_CACHE_PERCENT_OVER_LIMIT / 100.0;
+        val maxU = ThrottlerCalculator.CACHE_UTILIZATION_FULL_THROTTLE_THRESHOLD;
         val cacheUtilization = new AtomicReference<Double>(0.0);
         val tc = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get).build();
         testThrottling(tc, cacheUtilization,
@@ -39,19 +39,18 @@ public class ThrottlerCalculatorTests {
                 new Double[]{maxU, maxU + 0.01, maxU * 2, Double.MAX_VALUE});
     }
 
-
     /**
      * Tests the ability to properly calculate throttling delays caused by commit log queue overflows.
      */
     @Test
     public void testCommitBacklogThrottling() {
-        val maxU = ThrottlerCalculator.COMMIT_BACKLOG_COUNT_THRESHOLD + ThrottlerCalculator.MAX_DELAY_MILLIS / ThrottlerCalculator.THROTTLING_MILLIS_PER_COMMIT_OVER_LIMIT;
+        val maxU = ThrottlerCalculator.COMMIT_BACKLOG_COUNT_FULL_THROTTLE_THRESHOLD;
         val commitLogCount = new AtomicReference<Integer>(0);
         val tc = ThrottlerCalculator.builder().commitBacklogThrottler(commitLogCount::get).build();
         testThrottling(tc, commitLogCount,
                 new Integer[]{-1, 0, ThrottlerCalculator.COMMIT_BACKLOG_COUNT_THRESHOLD / 2, ThrottlerCalculator.COMMIT_BACKLOG_COUNT_THRESHOLD},
                 new Integer[]{ThrottlerCalculator.COMMIT_BACKLOG_COUNT_THRESHOLD + 1, ThrottlerCalculator.COMMIT_BACKLOG_COUNT_THRESHOLD + 10, maxU},
-                new Integer[]{maxU, maxU + 1, maxU * 2, Integer.MAX_VALUE});
+                new Integer[]{maxU, maxU + 1, maxU * 2, 10000});
     }
 
     /**

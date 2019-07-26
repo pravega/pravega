@@ -248,7 +248,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
         this.metrics.processingDelay(delay.getDurationMillis());
-        log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
+        if (delay.isMaximum() || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog) {
+            // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
+            // processing of operations) or if this is due to the Commit Processor not being able to keep up.
+            log.warn("{}: Processing delay = {}.", this.traceObjectId, delay);
+        } else {
+            log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
+        }
+
         return Futures.delayedFuture(Duration.ofMillis(delay.getDurationMillis()), this.executor);
     }
 
