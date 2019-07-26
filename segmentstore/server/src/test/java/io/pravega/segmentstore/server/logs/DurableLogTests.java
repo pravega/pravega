@@ -1056,7 +1056,7 @@ public class DurableLogTests extends OperationLogTestBase {
                 count -> count == 1,
                 () -> new DurableDataLogException("intentional"));
         setup.dataLog.get().setAppendErrorInjectors(null, asyncErrorInjector);
-        val append1 = new StreamSegmentAppendOperation(segmentId, new byte[MAX_DATA_LOG_APPEND_SIZE], null);
+        val append1 = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[MAX_DATA_LOG_APPEND_SIZE]), null);
         AssertExtensions.assertSuppliedFutureThrows(
                 "Expected the operation to have failed.",
                 () -> dl1.add(append1, TIMEOUT),
@@ -1079,7 +1079,7 @@ public class DurableLogTests extends OperationLogTestBase {
         Assert.assertFalse("Not expecting any other operations.", ops2.hasNext());
 
         // Add a new operation. This one should succeed.
-        val append2 = new StreamSegmentAppendOperation(segmentId, new byte[10], null);
+        val append2 = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[10]), null);
         dl2.add(append2, TIMEOUT).join();
         dl2.stopAsync().awaitTerminated();
         dl2.close();
