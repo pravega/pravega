@@ -193,8 +193,7 @@ class ThrottlerCalculator {
         }
 
         static int getDelayMultiplier(int backlogCount) {
-            int base = backlogCount - COMMIT_BACKLOG_COUNT_THRESHOLD;
-            return base < 0 ? 0 : base * base;
+            return backlogCount - COMMIT_BACKLOG_COUNT_THRESHOLD;
         }
 
         @Override
