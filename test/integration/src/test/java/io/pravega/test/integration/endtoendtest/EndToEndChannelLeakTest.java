@@ -181,7 +181,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(5, connectionPool);
     }
 
-    @Test//(timeout = 30000)
+    @Test(timeout = 30000)
     public void testDetectChannelLeakMultiReaderPooled() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))

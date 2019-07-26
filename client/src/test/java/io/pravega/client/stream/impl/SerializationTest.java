@@ -144,6 +144,7 @@ public class SerializationTest {
         builder.endSegments(createSegmentToLongMap());
         builder.unassignedSegments(createSegmentRangeMap());
         builder.futureSegments(createMap(this::createSegmentWithRange, () -> new HashSet<>(createLongList())));
+        builder.lastReadPosition(createSegmentRangeMap());
         verify(initSerializer, builder.build());
 
     }
@@ -155,7 +156,7 @@ public class SerializationTest {
         verify(serializer, new RemoveReader(createString(), createSegmentToLongMap()));
         verify(serializer, new ReleaseSegment(createString(), createSegment(), r.nextLong()));
         verify(serializer, new AcquireSegment(createString(), createSegment()));
-        verify(serializer, new UpdateDistanceToTail(createString(), r.nextLong()));
+        verify(serializer, new UpdateDistanceToTail(createString(), r.nextLong(), createSegmentRangeMap()));
         verify(serializer, new SegmentCompleted(createString(), createSegmentWithRange(),
                                                 createMap(this::createSegmentWithRange, this::createLongList)));
         verify(serializer, new CheckpointReader(createString(), createString(), createSegmentToLongMap()));

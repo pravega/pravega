@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.client.segment.impl.Segment;
@@ -16,14 +17,15 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
+import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -65,10 +67,13 @@ public class ReaderGroupStateTest {
         addR2.applyTo(readerState, revision);
         assertEquals(2, readerState.getOnlineReaders().size());
         new ReaderGroupState.AcquireSegment("r1", getSegment("S1")).applyTo(readerState, revision);
-        new ReaderGroupState.UpdateDistanceToTail("r1", 1).applyTo(readerState, revision);
+        SegmentWithRange s1r = new SegmentWithRange(getSegment("S1"), 0, 1);
+        ImmutableMap<SegmentWithRange, Long> positions = ImmutableMap.of(s1r, 123L);
+        new ReaderGroupState.UpdateDistanceToTail("r1", 1, positions).applyTo(readerState, revision);
         assertEquals(Collections.singleton(getSegment("S1")), readerState.getSegments("r1"));
         assertEquals(0, readerState.getRanking("r1"));
         assertEquals(1, readerState.getRanking("r2"));
+        assertEquals(123L, readerState.getLastReadpositions(getStream("S1")).get(s1r).longValue());
         new ReaderGroupState.AcquireSegment("r1", getSegment("S2")).applyTo(readerState, revision);
         assertEquals(2, readerState.getSegments("r1").size());
         assertEquals(0, readerState.getRanking("r1"));
@@ -77,10 +82,41 @@ public class ReaderGroupStateTest {
         new ReaderGroupState.ReleaseSegment("r1", getSegment("S2"), 1).applyTo(readerState, revision);
         new ReaderGroupState.AcquireSegment("r2", getSegment("S1")).applyTo(readerState, revision);
         new ReaderGroupState.AcquireSegment("r2", getSegment("S2")).applyTo(readerState, revision);
-        new ReaderGroupState.UpdateDistanceToTail("r2", 1).applyTo(readerState, revision);
+        SegmentWithRange s2r = new SegmentWithRange(getSegment("S2"), 0, 1);
+        positions = ImmutableMap.of(s2r, 123L);
+        new ReaderGroupState.UpdateDistanceToTail("r2", 1, positions).applyTo(readerState, revision);
         assertEquals(0, readerState.getSegments("r1").size());
         assertEquals(1, readerState.getRanking("r1"));
         assertEquals(0, readerState.getRanking("r2"));
+        assertEquals(1L, readerState.getLastReadpositions(getStream("S1")).get(s1r).longValue());
+        assertEquals(123L, readerState.getLastReadpositions(getStream("S2")).get(s2r).longValue());
+    }
+    
+    @Test
+    public void testLastReadPositions() {
+        Map<SegmentWithRange, Long> p1 = readerState.getLastReadpositions(Stream.of(SCOPE, "S1"));
+        assertEquals(1, p1.size());
+        Segment s1 = new Segment(SCOPE, "S1", 0);
+        SegmentWithRange sr1 = new SegmentWithRange(s1, 0, 1);
+        assertEquals(Long.valueOf(1), p1.get(sr1));
+        Map<SegmentWithRange, Long> p2 = readerState.getLastReadpositions(Stream.of(SCOPE, "S2"));
+        assertEquals(1, p2.size());
+        Segment s2 = new Segment(SCOPE, "S2", 0);
+        SegmentWithRange sr2 = new SegmentWithRange(s2, 0, 1);
+        assertEquals(Long.valueOf(1), p2.get(sr2));
+        
+        AddReader addR1 = new ReaderGroupState.AddReader("r1");
+        addR1.applyTo(readerState, revision);
+        AcquireSegment aquire = new ReaderGroupState.AcquireSegment("r1", getSegment("S1"));
+        aquire.applyTo(readerState, revision);
+        SegmentWithRange sr3 = new SegmentWithRange(new Segment(SCOPE, "S1", 1), 0, 1);
+        ImmutableMap<SegmentWithRange, List<Long>> successors = ImmutableMap.of(sr3, ImmutableList.of(0L));
+        SegmentCompleted completed = new ReaderGroupState.SegmentCompleted("r1", sr1, successors);
+        completed.applyTo(readerState, revision);
+        
+        p1 = readerState.getLastReadpositions(Stream.of(SCOPE, "S1"));
+        assertEquals(1, p1.size());
+        assertEquals(Long.valueOf(0), p1.get(sr3));
     }
     
 

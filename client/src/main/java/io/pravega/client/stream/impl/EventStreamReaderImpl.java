@@ -207,7 +207,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             log.info("{} releasing segment {}", this, segment);
             EventSegmentReader reader = readers.stream().filter(r -> r.getSegmentId().equals(segment)).findAny().orElse(null);
             if (reader != null) {
-                if (groupState.releaseSegment(segment, reader.getOffset(), getLag())) {
+                if (groupState.releaseSegment(segment, reader.getOffset(), getLag(), getPosition())) {
                     readers.remove(reader);
                     ranges.remove(reader.getSegmentId());
                     reader.close();
@@ -232,7 +232,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     @GuardedBy("readers")
     private void acquireSegmentsIfNeeded() throws ReaderNotInReaderGroupException {
-        Map<SegmentWithRange, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag());
+        Map<SegmentWithRange, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag(), getPosition());
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
             for (Entry<SegmentWithRange, Long> newSegment : newSegments.entrySet()) {
