@@ -33,6 +33,7 @@ import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
+import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
@@ -1032,6 +1033,68 @@ public class DurableLogTests extends OperationLogTestBase {
                             && ex.getCause() instanceof DataCorruptionException
                             && ex.getCause().getCause() instanceof MetadataUpdateException);
         }
+    }
+
+    /**
+     * Tests the ability of the DurableLog properly recover from situations where operations were split across multiple
+     * DataFrames, but were not persisted in their entirety. These operations should be ignored as they are incomplete
+     * and were never acknowledged to the upstream callers.
+     */
+    @Test
+    public void testRecoveryPartialOperations() {
+        // Setup the first Durable Log and create the segment.
+        @Cleanup
+        ContainerSetup setup = new ContainerSetup(executorService());
+        @Cleanup
+        DurableLog dl1 = setup.createDurableLog();
+        dl1.startAsync().awaitRunning();
+        Assert.assertNotNull("Internal error: could not grab a pointer to the created TestDurableDataLog.", setup.dataLog.get());
+        val segmentId = createStreamSegmentsWithOperations(1, dl1).stream().findFirst().orElse(-1L);
+
+        // Part of this operation should fail.
+        ErrorInjector<Exception> asyncErrorInjector = new ErrorInjector<>(
+                count -> count == 1,
+                () -> new DurableDataLogException("intentional"));
+        setup.dataLog.get().setAppendErrorInjectors(null, asyncErrorInjector);
+        val append1 = new StreamSegmentAppendOperation(segmentId, new byte[MAX_DATA_LOG_APPEND_SIZE], null);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected the operation to have failed.",
+                () -> dl1.add(append1, TIMEOUT),
+                ex -> ex instanceof DurableDataLogException);
+
+        AssertExtensions.assertThrows(
+                "Expected the DurableLog to have failed after failed operation.",
+                dl1::awaitTerminated,
+                ex -> ex instanceof IllegalStateException);
+        dl1.close();
+        setup.dataLog.get().setAppendErrorInjectors(null, null);
+
+        // Setup the second Durable Log. Ensure the recovery succeeds and that we don't see that failed operation.
+        @Cleanup
+        val dl2 = setup.createDurableLog();
+        dl2.startAsync().awaitRunning();
+        val ops2 = dl2.read(0, 10, TIMEOUT).join();
+        Assert.assertTrue("Expected first operation to be a checkpoint.", ops2.hasNext() && ops2.next() instanceof MetadataCheckpointOperation);
+        Assert.assertTrue("Expected second operation to be a segment map.", ops2.hasNext() && ops2.next() instanceof StreamSegmentMapOperation);
+        Assert.assertFalse("Not expecting any other operations.", ops2.hasNext());
+
+        // Add a new operation. This one should succeed.
+        val append2 = new StreamSegmentAppendOperation(segmentId, new byte[10], null);
+        dl2.add(append2, TIMEOUT).join();
+        dl2.stopAsync().awaitTerminated();
+        dl2.close();
+
+        // Setup the third Durable Log. Ensure the recovery succeeds that we only see the operations we care about.
+        @Cleanup
+        val dl3 = setup.createDurableLog();
+        dl3.startAsync().awaitRunning();
+        val ops3 = dl3.read(0, 10, TIMEOUT).join();
+        Assert.assertTrue("Expected first operation to be a checkpoint.", ops3.hasNext() && ops3.next() instanceof MetadataCheckpointOperation);
+        Assert.assertTrue("Expected second operation to be a segment map.", ops3.hasNext() && ops3.next() instanceof StreamSegmentMapOperation);
+        Assert.assertTrue("Expected third operation to be an append.", ops3.hasNext() && ops3.next() instanceof CachedStreamSegmentAppendOperation);
+        Assert.assertFalse("Not expecting any other operations.", ops3.hasNext());
+        dl2.stopAsync().awaitTerminated();
+        dl3.close();
     }
 
     //endregion
