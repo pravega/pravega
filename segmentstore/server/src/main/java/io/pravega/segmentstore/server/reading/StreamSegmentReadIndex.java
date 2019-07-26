@@ -340,7 +340,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // since there is no chance of competing with another write request for the same offset at the same time.
         log.debug("{}: Append (Offset = {}, Length = {}).", this.traceObjectId, offset, data.getLength());
         Preconditions.checkArgument(this.lastAppendedOffset.get() < 0 || offset == this.lastAppendedOffset.get() + 1,
-                "The given range of bytes (Offset=%d) does not start right after the last appended offset (%s).", offset, this.lastAppendedOffset);
+                "The given range of bytes (Offset=%s) does not start right after the last appended offset (%s).", offset, this.lastAppendedOffset);
         ReadIndexEntry lastEntry;
         synchronized (this.lock) {
             lastEntry = this.indexEntries.getLast();
@@ -509,7 +509,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         // There is a very small chance we might be adding data twice, if we get two concurrent requests that slipped past
         // the StorageReadManager. Fixing it would be complicated, so let's see if it poses any problems.
         Exceptions.checkArgument(offset + data.getLength() <= this.metadata.getStorageLength(), "entry",
-                "The given range of bytes (Offset=%d, Length=%d) does not correspond to the StreamSegment range that is in Storage (%d).",
+                "The given range of bytes (Offset=%s, Length=%s) does not correspond to the StreamSegment range that is in Storage (%s).",
                 offset, data.getLength(), this.metadata.getStorageLength());
         ReadIndexEntry oldEntry;
         CacheIndexEntry newEntry;
