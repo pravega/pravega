@@ -27,9 +27,8 @@ COPY pravega/ /opt/pravega/
 COPY scripts/ /opt/pravega/scripts/
 
 # Default shell of jdk11 image is dash.
-# If operator changes health check command,
-# which is not bash compatible can cause failure.
-# Changing login shell to bash to avoid such failures.
+# Changing login shell to bash to avoid compatibility
+# issues with pravega-operator.
 #
 RUN chmod +x -R /opt/pravega/scripts/ && chsh -s /bin/bash
 
