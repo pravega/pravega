@@ -119,7 +119,9 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
     public void testIncrementOldestGeneration() {
         final int cycleCount = 12345;
         final int defaultOldestGeneration = 0;
-        final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(10 * cycleCount), Duration.ofHours(1));
+        final int maxSize = 2048;
+        final double maxUtilization = 0.5;
+        final CachePolicy policy = new CachePolicy(maxSize, maxUtilization, Duration.ofHours(10 * cycleCount), Duration.ofHours(1));
         final long excess = policy.getMaxSize(); // This is the excess size when we want to test Oldest Generation increases.
         @Cleanup
         val cache = new TestCache(policy.getMaxSize());
@@ -150,7 +152,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             if (exceeds) {
                 // If the total size does exceed the policy limit, repeated calls to 'update' should be made until either
                 // the cache is within limits or no change can be made.
-                cache.setUsedBytes(policy.getMaxSize() + excess);
+                cache.setUsedBytes(policy.getMaxUsableSize() + excess);
                 client.setCacheStatus(currentOldestGeneration.get(), currentGeneration.get());
                 client.setUpdateGenerationsImpl((current, oldest) -> {
                     AssertExtensions.assertGreaterThan("Expected an increase in oldestGeneration.", currentOldestGeneration.get(), oldest);
@@ -166,8 +168,8 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 });
             } else {
                 // If the total size does not exceed the policy limit, nothing should change
-                cache.setStoredBytes(policy.getMaxSize() - 1);
-                cache.setUsedBytes(policy.getMaxSize() - 1);
+                cache.setStoredBytes(policy.getMaxUsableSize() - 1);
+                cache.setUsedBytes(policy.getMaxUsableSize() - 1);
                 client.setCacheStatus(defaultOldestGeneration, currentGeneration.get());
                 client.setUpdateGenerationsImpl((current, oldest) -> {
                     Assert.assertEquals("Not expecting a change for oldestGeneration", currentOldestGeneration.get(), (int) oldest);

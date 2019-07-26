@@ -106,7 +106,7 @@ public class ServiceBuilderConfigTests {
         testClasses.put(ServiceConfig.class, ServiceConfig::builder);
 
         // Value generator.
-        val nextValue = new AtomicInteger(1000 * 1000 * 1000);
+        val nextValue = new AtomicInteger(10);
 
         // Create instances of each test class and dynamically assign their properties some arbitrary values
         val expectedValues = new HashMap<Class<?>, Object>();

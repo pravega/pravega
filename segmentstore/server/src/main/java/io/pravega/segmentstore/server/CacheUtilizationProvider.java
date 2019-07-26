@@ -23,4 +23,13 @@ public interface CacheUtilizationProvider {
      * @return The cache utilization.
      */
     double getCacheUtilization();
+
+    /**
+     * Gets a value representing the maximum allowed utilization of the cache, as a ratio of cache used to cache max size.
+     * Any utilization above this limit should cause throttling and/or cache eviction to occur.
+     * See {@link #getCacheUtilization()} for more details.
+     *
+     * @return The maximum cache utilization.
+     */
+    double getCacheMaxUtilization();
 }

@@ -30,13 +30,20 @@ public class ThrottlerCalculatorTests {
     @Test
     public void testCacheThrottling() {
         val t = ThrottlerCalculator.CACHE_UTILIZATION_THRESHOLD;
-        val maxU = ThrottlerCalculator.CACHE_UTILIZATION_FULL_THROTTLE_THRESHOLD;
+        val maxU = 0.98;
         val cacheUtilization = new AtomicReference<Double>(0.0);
-        val tc = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get).build();
+        val tc = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get, maxU).build();
         testThrottling(tc, cacheUtilization,
                 new Double[]{-1.0, 0.0, 0.5, t},
                 new Double[]{t + 0.01, t + 0.05, t + 0.1, maxU},
                 new Double[]{maxU, maxU + 0.01, maxU * 2, Double.MAX_VALUE});
+
+        // Now verify behavior when the max threshold is less than the min threshold.
+        val tc2 = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get, t - 0.01).build();
+        testThrottling(tc2, cacheUtilization,
+                new Double[]{-1.0, 0.0, 0.5, t},
+                new Double[0],
+                new Double[]{t + 0.01, t + 0.05, t + 0.1, maxU, maxU + 0.01, maxU * 2, Double.MAX_VALUE});
     }
 
     /**

@@ -268,7 +268,12 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
 
         @Override
         public double getCacheUtilization() {
-            throw new IllegalStateException("Not Implemented");
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public double getCacheMaxUtilization() {
+            throw new UnsupportedOperationException();
         }
 
         private void invoke(MethodInvocation methodInvocation) {
