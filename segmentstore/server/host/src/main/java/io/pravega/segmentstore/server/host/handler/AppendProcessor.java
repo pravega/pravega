@@ -90,6 +90,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final HashMap<Pair<String, UUID>, Long> latestEventNumbers = new HashMap<>();
     @GuardedBy("lock")
     private Append outstandingAppend = null;
+    @GuardedBy("lock")
+    private long pendingBytes = 0;
 
     //endregion
 
@@ -233,7 +235,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     iterator.remove();
                 }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
-
+                if (pendingBytes > data.readableBytes()) {
+                    pendingBytes -= data.readableBytes();
+                } else {
+                    pendingBytes = 0;
+                }
                 String segment = last.getSegment();
                 long eventNumber = last.getEventNumber();
                 outstandingAppend = new Append(segment, writer, eventNumber, eventCount, data, null, last.getRequestId());
@@ -301,6 +307,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
                 } else {
                     if (!conditionalFailed) {
+                        List<Append> appends = waitingAppends.get(append.getWriterId());
+                        for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
+                            Append a = iterator.next();
+                            if (!a.isConditional()) {
+                                pendingBytes -= a.getData().readableBytes();
+                                if (pendingBytes < 0) {
+                                    pendingBytes = 0;
+                                    break;
+                                }
+                            }
+                        }
                         waitingAppends.removeAll(append.getWriterId());
                         latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
                     }
@@ -381,12 +398,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * If there is room for more data, we resume consuming from the socket.
      */
     private void pauseOrResumeReading() {
-        int bytesWaiting;
+        long bytesWaiting;
         synchronized (lock) {
-            bytesWaiting = waitingAppends.values()
-                    .stream()
-                    .mapToInt(a -> a.getData().readableBytes())
-                    .sum();
+            bytesWaiting = pendingBytes;
         }
 
         if (bytesWaiting > HIGH_WATER_MARK) {
@@ -413,10 +427,10 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             Preconditions.checkState(lastEventNumber != null, "Data from unexpected connection: %s.", id);
             Preconditions.checkState(append.getEventNumber() >= lastEventNumber, "Event was already appended.");
             waitingAppends.put(id, append);
+            pendingBytes += append.getData().readableBytes();
         }
         pauseOrResumeReading();
         performNextWrite();
     }
-
     //endregion
 }
