@@ -537,16 +537,7 @@ project('test:integration') {
 }
 
 project('test:compatibility') {
-    apply plugin: 'maven'
     dependencies {
-        compile project(':common')
-        compile project(':client')
-        compile project(':segmentstore:server')
-        compile project(':segmentstore:server:host')
-        compile project(':controller')
-        compile project(':test:testcommon')
-        compile group: 'junit', name:'junit', version: junitVersion
-        compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile group: 'org.apache.commons', name: 'commons-csv', version: apacheCommonsCsvVersion
         testCompile project(path:':common', configuration:'testRuntime')
