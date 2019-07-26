@@ -111,8 +111,8 @@ public class ControllerWatermarkingTest {
         controller.createStream(scope, stream, config).join();
         controller.createStream(scope, NameUtils.getMarkStreamForStream(stream), config).join();
         Stream streamObj = new StreamImpl(scope, stream);
-        WriterPosition pos1 = new WriterPosition(Collections.singletonMap(new Segment(scope, stream, 0L), 10L));
-        WriterPosition pos2 = new WriterPosition(Collections.singletonMap(new Segment(scope, stream, 0L), 20L));
+        WriterPosition pos1 = WriterPosition.builder().segments(Collections.singletonMap(new Segment(scope, stream, 0L), 10L)).build();
+        WriterPosition pos2 = WriterPosition.builder().segments(Collections.singletonMap(new Segment(scope, stream, 0L), 20L)).build();
         
         controller.noteTimestampFromWriter("1", streamObj, 1L, pos1).join();
         controller.noteTimestampFromWriter("2", streamObj, 2L, pos2).join();
