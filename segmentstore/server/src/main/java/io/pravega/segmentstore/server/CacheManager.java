@@ -216,6 +216,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     private boolean cacheFullCallback() {
         log.info("{}: Cache full. Forcing cache policy.", TRACE_OBJECT_ID);
+        System.out.println("Cache full");
         try {
             return applyCachePolicy();
         } catch (Throwable ex) {
@@ -234,7 +235,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         fetchSnapshot();
         if (currentStatus == null || this.lastSnapshot.get().getStoredBytes() == 0) {
             // We either have no clients or we have clients and they do not have any data stored.
-            System.out.println("CM.NO DATA");
             return false;
         }
 
@@ -246,7 +246,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         if (!currentChanged && !oldestChanged) {
             // Nothing changed, nothing to do.
-            System.out.println("CM.NO CHANGE");
             return false;
         }
 
@@ -389,7 +388,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         }
 
         log.info("{} Gen: {}-{}, Clients: {}, Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, size, this.lastSnapshot);
-        System.out.println(String.format("%s Gen: %s-%s, Clients: %s, Cache: %s.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, size, this.lastSnapshot));
+        //System.out.println(String.format("%s Gen: %s-%s, Clients: %s, Cache: %s.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, size, this.lastSnapshot));
     }
 
     //endregion
