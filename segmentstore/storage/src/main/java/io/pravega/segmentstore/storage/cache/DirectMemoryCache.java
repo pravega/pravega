@@ -11,7 +11,7 @@ package io.pravega.segmentstore.storage.cache;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferView;
@@ -32,9 +32,14 @@ import lombok.val;
 
 @ThreadSafe
 public class DirectMemoryCache implements CacheStorage {
+    //region Members
+
+    /**
+     * The maximum number of attempts to invoke {@link #tryCleanup()} if at capacity and needing to insert more data.
+     */
     private static final int MAX_CLEANUP_ATTEMPTS = 5;
     private final CacheLayout layout;
-    private final Buffer[] buffers;
+    private final DirectMemoryBuffer[] buffers;
     @GuardedBy("availableBufferIds")
     private final ArrayDeque<Integer> availableBufferIds;
     @GuardedBy("availableBufferIds")
@@ -43,12 +48,32 @@ public class DirectMemoryCache implements CacheStorage {
     private final AtomicLong storedBytes;
     private final AtomicReference<Supplier<Boolean>> tryCleanup;
 
+    //endregion
+
+    //region Constructor
+
+    /**
+     * Creates a new instance of the {@link DirectMemoryCache} class.
+     *
+     * @param maxSizeBytes The maximum size (in bytes) of the cache. The actual capacity of the cache may be rounded up
+     *                     to the nearest buffer size alignment, which is a multiple of {@link CacheLayout.DefaultLayout#bufferSize()}.
+     * @throws IllegalArgumentException If maxSizeBytes is less than or equal to 0 or greater than {@link CacheLayout#MAX_TOTAL_SIZE}.
+     */
     public DirectMemoryCache(long maxSizeBytes) {
         this(new CacheLayout.DefaultLayout(), maxSizeBytes);
     }
 
+    /**
+     * Creates a new instance of the {@link DirectMemoryCache} class.
+     *
+     * @param layout       The {@link CacheLayout} to use.
+     * @param maxSizeBytes The maximum size (in bytes) of the cache. The actual capacity of the cache may be rounded up
+     *                     to the nearest buffer size alignment, which is a multiple of {@link CacheLayout#bufferSize()}
+     *                     when applied to layout.
+     * @throws IllegalArgumentException If maxSizeBytes is less than or equal to 0 or greater than {@link CacheLayout#MAX_TOTAL_SIZE}.
+     */
     private DirectMemoryCache(@NonNull CacheLayout layout, long maxSizeBytes) {
-        Preconditions.checkArgument(maxSizeBytes > 0 && maxSizeBytes < CacheLayout.MAX_TOTAL_SIZE,
+        Preconditions.checkArgument(maxSizeBytes > 0 && maxSizeBytes <= CacheLayout.MAX_TOTAL_SIZE,
                 "maxSizeBytes must be a positive number less than %s.", CacheLayout.MAX_TOTAL_SIZE);
         maxSizeBytes = adjustMaxSizeIfNeeded(maxSizeBytes, layout);
 
@@ -56,21 +81,27 @@ public class DirectMemoryCache implements CacheStorage {
         this.tryCleanup = new AtomicReference<>(null);
         this.storedBytes = new AtomicLong(0);
         this.closed = new AtomicBoolean(false);
-        this.buffers = new Buffer[(int) (maxSizeBytes / this.layout.bufferSize())];
+        this.buffers = new DirectMemoryBuffer[(int) (maxSizeBytes / this.layout.bufferSize())];
         this.availableBufferIds = new ArrayDeque<>(this.buffers.length);
         this.unallocatedBufferIds = new ArrayDeque<>(this.buffers.length);
         createBuffers();
     }
 
+    /**
+     * Creates all the {@link DirectMemoryBuffer} instances for this {@link DirectMemoryCache} instance.
+     */
     @GuardedBy("availableBufferIds")
     private void createBuffers() {
         UnpooledByteBufAllocator allocator = new UnpooledByteBufAllocator(true, true);
         for (int i = 0; i < this.buffers.length; i++) {
             this.unallocatedBufferIds.addLast(i);
-            this.buffers[i] = new Buffer(i, allocator, this.layout);
+            this.buffers[i] = new DirectMemoryBuffer(i, allocator, this.layout);
         }
     }
 
+    /**
+     * Rounds up the maxSize argument to be a multiple of {@link CacheLayout#bufferSize()} for the given layout.
+     */
     private long adjustMaxSizeIfNeeded(long maxSize, CacheLayout layout) {
         long r = maxSize % layout.bufferSize();
         if (r != 0) {
@@ -78,6 +109,10 @@ public class DirectMemoryCache implements CacheStorage {
         }
         return maxSize;
     }
+
+    //endregion
+
+    //region AutoCloseable Implementation
 
     @Override
     public void close() {
@@ -87,11 +122,13 @@ public class DirectMemoryCache implements CacheStorage {
                 this.unallocatedBufferIds.clear();
             }
 
-            for (Buffer b : this.buffers) {
+            for (DirectMemoryBuffer b : this.buffers) {
                 b.close();
             }
         }
     }
+
+    //endregion
 
     //region CacheStorage Implementation
 
@@ -114,27 +151,34 @@ public class DirectMemoryCache implements CacheStorage {
         int length = data.getLength();
         int firstBlockAddress = CacheLayout.NO_BLOCK_ID;
         try (InputStream s = data.getReader()) {
-            // Loop through all the registered buffers
-            // Once we get a Buffer, allocate and write data to it. If no more buffers, allocate more.
-            // Continue looping until we've written the whole data or run out of space.
-
-            Buffer lastBuffer = null;
-            Buffer.WriteResult lastResult = null;
+            // As long as we still have data to copy, we try to reuse an existing, non-full buffer or allocate a new one,
+            // and write the remaining data to it.
+            DirectMemoryBuffer lastBuffer = null;
+            DirectMemoryBuffer.WriteResult lastResult = null;
             while (length > 0 || firstBlockAddress == CacheLayout.NO_BLOCK_ID) {
-                Buffer buffer = getNextAvailableBuffer();
-                Buffer.WriteResult writeResult = buffer.write(s, length, firstBlockAddress == CacheLayout.NO_BLOCK_ID);
+                // Get a Buffer to write data to. If we are full, this will throw an appropriate exception.
+                DirectMemoryBuffer buffer = getNextAvailableBuffer();
+
+                // Write the data to the buffer.
+                DirectMemoryBuffer.WriteResult writeResult = buffer.write(s, length, firstBlockAddress == CacheLayout.NO_BLOCK_ID);
                 if (writeResult == null) {
-                    // Someone else grabbed this buffer and wrote to it before we got a chance.
+                    // Someone else grabbed this buffer and wrote to it before we got a chance. Go back and find another one.
                     continue;
                 }
 
-                assert writeResult.getRemainingLength() >= 0 && writeResult.getRemainingLength() < length;
-                length = writeResult.getRemainingLength();
+                // Update our state, including the number of bytes written. In case of a subsequent error (and rollback),
+                // invoking delete() will undo this changes as well.
+                int writtenBytes = length - writeResult.getRemainingLength();
+                assert writtenBytes > 0 && writtenBytes <= length;
+                length -= writtenBytes;
+                this.storedBytes.addAndGet(writtenBytes);
+
                 if (firstBlockAddress == CacheLayout.NO_BLOCK_ID) {
-                    // First write. Remember this address.
+                    // This was the first buffer we wrote it. Remember the first block's address as that's what we'll be
+                    // returning to our caller.
                     firstBlockAddress = writeResult.getFirstBlockAddress();
                 } else {
-                    // Chain
+                    // Update the last block we wrote to in the previous buffer to point to the first one in this one.
                     lastBuffer.setSuccessor(lastResult.getLastBlockAddress(), writeResult.getFirstBlockAddress());
                 }
 
@@ -142,11 +186,10 @@ public class DirectMemoryCache implements CacheStorage {
                 lastResult = writeResult;
             }
         } catch (Throwable ex) {
-            if (!Exceptions.mustRethrow(ex)) {
-                // Cleanup whatever we have done so far.
-                if (firstBlockAddress != CacheLayout.NO_BLOCK_ID) {
-                    delete(firstBlockAddress);
-                }
+            if (!Exceptions.mustRethrow(ex) && firstBlockAddress != CacheLayout.NO_BLOCK_ID) {
+                // We wrote something, but got interrupted. We need to clean up whatever we wrote so we don't leave
+                // unreferenced data in the cache.
+                delete(firstBlockAddress);
             }
             throw ex;
         }
@@ -157,26 +200,18 @@ public class DirectMemoryCache implements CacheStorage {
 
     @Override
     public int replace(int address, BufferView data) {
-        // We need a way to ensure that a replace (with a longer buffer) will not corrupt the data if it fails due to
-        // store being full. Doing this correctly is complex and may have a performance penalty. For now, a compromise
-        // solution involves: write a new entry, then (if successful) delete the old one. This approach also handles
-        // read consistency: we don't need to worry about a caller reading the data while we are updating it.
+        // The simplest and safest way to do a replace is to first insert the new data and then remove the old one. This
+        // will ensure the Cache remains consistent during the operation and we won't need to worry about concurrency or
+        // potential CacheFullExceptions.
         int newAddress = insert(data);
         delete(address);
         return newAddress;
     }
 
-    /**
-     * Gets the number of bytes that can be appended to an entry of the given length.
-     *
-     * @param currentLength
-     * @return
-     */
     @Override
     public int getAppendableLength(int currentLength) {
-        // Length == 0 - > BlockSIze;
-        // Else if Length at Block Boundary -> 0
-        // else Block Length - Excess.
+        // If the current length is 0, we still allocate a block for it, so we need to indicate we can return the full
+        // block length for that. Otherwise we can only append up to the end of the last block.
         return currentLength == 0
                 ? this.layout.blockSize()
                 : (currentLength % this.layout.blockSize() == 0 ? 0 : this.layout.blockSize() - currentLength % this.layout.blockSize());
@@ -188,48 +223,54 @@ public class DirectMemoryCache implements CacheStorage {
         Exceptions.checkNotClosed(this.closed.get(), this);
         int expectedLastBlockLength = expectedLength % this.layout.blockSize();
         Preconditions.checkArgument(expectedLastBlockLength + data.getLength() <= this.layout.blockSize(),
-                "");
+                "data is too long; use getAppendableLength() to determine how much data can be appended.");
 
         // We can only append to fill the last block. For anything else a new write will be needed.
-
-        int appended = 0;
+        int appendedBytes = 0;
         try (InputStream s = data.getReader()) {
             while (address != CacheLayout.NO_ADDRESS) {
                 int bufferId = this.layout.getBufferId(address);
                 int blockId = this.layout.getBlockId(address);
-                Buffer b = this.buffers[bufferId];
-                Buffer.AppendResult appendResult = b.tryAppend(blockId, expectedLastBlockLength, s, data.getLength());
+                DirectMemoryBuffer b = this.buffers[bufferId];
+
+                // Buffer.tryAppend will return CacheLayout.NO_ADDRESS if it reached the last block of an entry (along with
+                // the number of bytes appended), or the address of the next Buffer-Block in the chain if not.
+                DirectMemoryBuffer.AppendResult appendResult = b.tryAppend(blockId, expectedLastBlockLength, s, data.getLength());
                 address = appendResult.getNextBlockAddress();
-                appended += appendResult.getAppendedlength();
+                appendedBytes += appendResult.getAppendedLength();
             }
         }
 
-        this.storedBytes.addAndGet(appended);
-        return appended;
+        this.storedBytes.addAndGet(appendedBytes);
+        return appendedBytes;
     }
 
     @Override
-    public boolean delete(int address) {
+    public void delete(int address) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         while (address != CacheLayout.NO_ADDRESS) {
+            // Locate the Buffer-Block for the current address.
             int bufferId = this.layout.getBufferId(address);
             int blockId = this.layout.getBlockId(address);
-            Buffer b = this.buffers[bufferId];
+            DirectMemoryBuffer b = this.buffers[bufferId];
+
+            // Keep track if this was full before we removed anything from it.
             boolean wasFull = !b.hasCapacity();
 
-            Buffer.DeleteResult result = b.delete(blockId);
+            // Delete whatever we can from it and remember the successor.
+            DirectMemoryBuffer.DeleteResult result = b.delete(blockId);
             address = result.getSuccessorAddress();
             this.storedBytes.addAndGet(-result.getDeletedLength());
             if (wasFull) {
                 synchronized (this.availableBufferIds) {
                     if (b.hasCapacity()) {
+                        // This block was full before, but it no longer is now. Add it to the pool of available buffer ids
+                        // so we can reuse it if we need to.
                         this.availableBufferIds.addLast(b.getId());
                     }
                 }
             }
         }
-
-        return true;
     }
 
     @Override
@@ -237,14 +278,24 @@ public class DirectMemoryCache implements CacheStorage {
         Exceptions.checkNotClosed(this.closed.get(), this);
         ArrayList<ByteBuf> readBuffers = new ArrayList<>();
         while (address != CacheLayout.NO_ADDRESS) {
+            // Locate the Buffer-Block for the current address.
             int bufferId = this.layout.getBufferId(address);
             int blockId = this.layout.getBlockId(address);
-            Buffer b = this.buffers[bufferId];
+            DirectMemoryBuffer b = this.buffers[bufferId];
+
+            // Fetch the read data into our buffer collection and then set the address to the next in the chain.
             address = b.read(blockId, readBuffers);
         }
 
-        ByteBuf[] result = readBuffers.stream().filter(ByteBuf::isReadable).toArray(ByteBuf[]::new);
-        return new ByteBufWrapper(Unpooled.wrappedBuffer(result));
+        if (readBuffers.isEmpty()) {
+            // Couldn't read anything, so this address must not point to anything.
+            return null;
+        } else {
+            // Compose the result and return it.
+            ByteBuf first = readBuffers.get(0);
+            ByteBuf result = readBuffers.size() == 1 ? first : new CompositeByteBuf(first.alloc(), false, readBuffers.size(), readBuffers);
+            return new ByteBufWrapper(result);
+        }
     }
 
     @Override
@@ -252,7 +303,7 @@ public class DirectMemoryCache implements CacheStorage {
         Exceptions.checkNotClosed(this.closed.get(), this);
         int allocatedBufferCount = 0;
         int blockCount = 0;
-        for (Buffer b : this.buffers) {
+        for (DirectMemoryBuffer b : this.buffers) {
             if (b.isAllocated()) {
                 allocatedBufferCount++;
                 blockCount += b.getUsedBlockCount();
@@ -268,36 +319,42 @@ public class DirectMemoryCache implements CacheStorage {
     }
 
     @Override
-    public void setCacheFullCallback(Supplier<Boolean> tryCleanup) {
-        this.tryCleanup.set(tryCleanup);
+    public void setCacheFullCallback(Supplier<Boolean> cacheFullCallback) {
+        this.tryCleanup.set(cacheFullCallback);
     }
 
     //endregion
 
     //region Helpers
 
-    private Buffer getNextAvailableBuffer() {
+    private DirectMemoryBuffer getNextAvailableBuffer() {
         int attempts = 0;
         do {
             synchronized (this.availableBufferIds) {
                 while (!this.availableBufferIds.isEmpty() || !this.unallocatedBufferIds.isEmpty()) {
                     while (!this.availableBufferIds.isEmpty()) {
-                        Buffer b = this.buffers[this.availableBufferIds.peekFirst()];
+                        // We found a Buffer that is available.
+                        DirectMemoryBuffer b = this.buffers[this.availableBufferIds.peekFirst()];
                         if (b.hasCapacity()) {
                             // Reusing a buffer.
                             return b;
                         } else {
-                            // Buffer full. Clean up.
+                            // Buffer is actually full. Clean up. We lazily remove buffers from this pool, since we want
+                            // to introduce as little synchronization overhead in the insert() method so we delay this
+                            // as much as we can.
                             this.availableBufferIds.removeFirst();
                         }
                     }
 
-                    // If we get here, we can't reuse any existing buffers. Try to allocate a new one, if any are available.
                     if (!this.unallocatedBufferIds.isEmpty()) {
+                        // We can't reuse any existing buffers, but there are unallocated ones. Fetch one and use it.
                         this.availableBufferIds.addLast(this.unallocatedBufferIds.removeFirst());
                     }
                 }
             }
+
+            // If we get here, there are no available buffers and we have allocated all the buffers we could. Notify
+            // any upstream listeners to attempt a cleanup (if possible).
         } while (tryCleanup() && ++attempts < MAX_CLEANUP_ATTEMPTS);
 
         // Unable to reuse any existing buffer or find a new one to allocate and upstream code could not free up data.

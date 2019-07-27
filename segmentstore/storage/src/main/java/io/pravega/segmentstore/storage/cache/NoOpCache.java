@@ -55,9 +55,8 @@ public class NoOpCache implements CacheStorage {
     }
 
     @Override
-    public boolean delete(int address) {
+    public void delete(int address) {
         // Nothing to do.
-        return true;
     }
 
     @Override
@@ -71,7 +70,7 @@ public class NoOpCache implements CacheStorage {
     }
 
     @Override
-    public void setCacheFullCallback(Supplier<Boolean> tryCleanup) {
+    public void setCacheFullCallback(Supplier<Boolean> cacheFullCallback) {
 
     }
 }

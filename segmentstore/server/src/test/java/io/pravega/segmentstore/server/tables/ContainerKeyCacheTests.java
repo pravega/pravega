@@ -37,7 +37,6 @@ import org.junit.rules.Timeout;
  * Unit tests for the {@link ContainerKeyCache} class.
  */
 public class ContainerKeyCacheTests {
-    private static final int CONTAINER_ID = 1;
     private static final int SEGMENT_COUNT = 3;
     private static final int KEYS_PER_SEGMENT = 1000;
     private static final KeyHasher KEY_HASHER = KeyHashers.DEFAULT_HASHER;
@@ -63,7 +62,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testIncludeExistingKey() {
         @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.cacheStorage);
+        val keyCache = new ContainerKeyCache(this.cacheStorage);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
         // Insert.
@@ -127,7 +126,7 @@ public class ContainerKeyCacheTests {
         final long segmentId = 0L;
         final long baseOffset = 1000;
         @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.cacheStorage);
+        val keyCache = new ContainerKeyCache(this.cacheStorage);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
         // Insert some pre-existing values.
@@ -174,7 +173,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testBatchInsert() {
         @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.cacheStorage);
+        val keyCache = new ContainerKeyCache(this.cacheStorage);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
@@ -194,7 +193,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testBatchUpdate() {
         @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.cacheStorage);
+        val keyCache = new ContainerKeyCache(this.cacheStorage);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
@@ -233,7 +232,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testBatchRemove() {
         @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.cacheStorage);
+        val keyCache = new ContainerKeyCache(this.cacheStorage);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
@@ -301,12 +300,12 @@ public class ContainerKeyCacheTests {
         val keyHash = newSimpleHash();
 
         @Cleanup
-        val cache1 = new ContainerKeyCache(CONTAINER_ID, this.cacheStorage);
+        val cache1 = new ContainerKeyCache(this.cacheStorage);
         cache1.includeExistingKey(segmentId, keyHash, 0L);
         cache1.close();
 
         @Cleanup
-        val cache2 = new ContainerKeyCache(CONTAINER_ID, this.cacheStorage);
+        val cache2 = new ContainerKeyCache(this.cacheStorage);
         val result2 = cache2.get(segmentId, keyHash);
         Assert.assertNull("Not expecting the cache to have contents after close & reinitialize.", result2);
     }
@@ -333,7 +332,7 @@ public class ContainerKeyCacheTests {
         // 2. With SegmentIndexOffset set to MAX - driven by generations.
         // 3. With SegmentIndexOffset controlled - driven by itself.
         @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.cacheStorage);
+        val keyCache = new ContainerKeyCache(this.cacheStorage);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 
@@ -392,7 +391,7 @@ public class ContainerKeyCacheTests {
     public void testTailCacheMigration() {
         final long segmentId = 1L;
         @Cleanup
-        val keyCache = new ContainerKeyCache(CONTAINER_ID, this.cacheStorage);
+        val keyCache = new ContainerKeyCache(this.cacheStorage);
         val rnd = new Random(0);
         val expectedResult = new HashMap<TestKey, CacheBucketOffset>();
 

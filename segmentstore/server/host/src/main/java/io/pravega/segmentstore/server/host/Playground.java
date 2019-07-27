@@ -44,9 +44,9 @@ public class Playground {
         @Cleanup
         val s = new DirectMemoryCache(16 * 1024 * 1024 * 1024L);
         for (int i = 0; i < iterationCount; i++) {
-            val r = testInMemoryCache(entrySize, keyCount);
+            //val r = testInMemoryCache(entrySize, keyCount);
             //val r = testRocksDbCache(entrySize, keyCount);
-            //val r = testDirectStore(s, entrySize, keyCount);
+            val r = testDirectStore(s, entrySize, keyCount);
             System.out.println(String.format("Insert: %d, Replace: %d, Append: %d, Get: %d, Remove: %d",
                     r.insertMillis, r.replaceMillis, r.appendMillis, r.getMillis, r.removeMillis));
 
@@ -218,7 +218,7 @@ public class Playground {
             } else {
                 // delete
                 int toRemove = ids.remove(rnd.nextInt(ids.size()));
-                boolean r = s.delete(toRemove);
+                s.delete(toRemove);
             }
 
             if (!ids.isEmpty()) {

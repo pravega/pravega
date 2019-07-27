@@ -45,10 +45,9 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
     /**
      * Creates a new instance of the ContainerKeyCache class.
      *
-     * @param containerId  The Id of the SegmentContainer that this instance is associated with.
-     * @param cacheFactory A {@link CacheFactory} that can be used to create {@link Cache} instances.
+     * @param cacheStorage A {@link CacheStorage} that can be used to store data in memory.
      */
-    ContainerKeyCache(int containerId, @NonNull CacheStorage cacheStorage) {
+    ContainerKeyCache(@NonNull CacheStorage cacheStorage) {
         this.cacheStorage = cacheStorage;
         this.segmentCaches = new HashMap<>();
         this.closed = new AtomicBoolean();
@@ -108,7 +107,8 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
         boolean anyEvicted = false;
         for (val e : evictions) {
-            anyEvicted = evict(e) | anyEvicted;
+            evict(e);
+            anyEvicted |= !e.getDataAddresses().isEmpty();
         }
 
         return anyEvicted;
@@ -298,13 +298,8 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         return cache == null ? ifNotExists : ifExists.apply(cache);
     }
 
-    private boolean evict(SegmentKeyCache.EvictionResult eviction) {
-        boolean anyDeleted = false;
-        for (val address : eviction.getDataAddresses()) {
-            anyDeleted = this.cacheStorage.delete(address) | anyDeleted;
-        }
-
-        return anyDeleted;
+    private void evict(SegmentKeyCache.EvictionResult eviction) {
+        eviction.getDataAddresses().forEach(this.cacheStorage::delete);
     }
 
     //endregion

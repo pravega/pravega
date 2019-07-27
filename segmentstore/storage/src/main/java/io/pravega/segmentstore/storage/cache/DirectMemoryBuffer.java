@@ -26,7 +26,9 @@ import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
 @ThreadSafe
-class Buffer implements AutoCloseable {
+class DirectMemoryBuffer implements AutoCloseable {
+    //region Members
+
     @Getter
     private final int id;
     private final CacheLayout layout;
@@ -36,7 +38,11 @@ class Buffer implements AutoCloseable {
     @GuardedBy("this")
     private int usedBlockCount;
 
-    Buffer(int bufferId, @NonNull ByteBufAllocator allocator, @NonNull CacheLayout layout) {
+    //endregion
+
+    //region Constructor
+
+    DirectMemoryBuffer(int bufferId, @NonNull ByteBufAllocator allocator, @NonNull CacheLayout layout) {
         Preconditions.checkArgument(bufferId >= 0 && bufferId < layout.maxBufferCount());
 
         this.allocator = allocator;
@@ -44,6 +50,10 @@ class Buffer implements AutoCloseable {
         this.id = bufferId;
         this.usedBlockCount = 1;
     }
+
+    //endregion
+
+    //region AutoCloseable Implementation
 
     @Override
     public synchronized void close() {
@@ -54,6 +64,10 @@ class Buffer implements AutoCloseable {
 
         this.usedBlockCount = -1;
     }
+
+    //endregion
+
+    //region Properties
 
     synchronized int getUsedBlockCount() {
         return this.usedBlockCount;
@@ -71,6 +85,10 @@ class Buffer implements AutoCloseable {
     public synchronized String toString() {
         return String.format("Id=%d, UsedBlockCount=%d", this.id, this.usedBlockCount);
     }
+
+    //endregion
+
+    //region Buffer Implementation
 
     synchronized WriteResult write(InputStream data, int length, boolean first) throws IOException {
         if (this.usedBlockCount >= this.layout.blocksPerBuffer()) {
@@ -142,8 +160,10 @@ class Buffer implements AutoCloseable {
             int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
             if (successorAddress == CacheLayout.NO_ADDRESS) {
                     // Found the last block. Append to it.
-                Preconditions.checkArgument(blockLength == expectedLastBlockLength,
-                        "Incorrect last block length. Expected %s, given %s.", blockLength, expectedLastBlockLength);
+                if (blockLength != expectedLastBlockLength) {
+                    throw new IncorrectCacheEntryLengthException(String.format(
+                            "Incorrect last block length. Expected %s, given %s.", blockLength, expectedLastBlockLength));
+                }
 
                 maxLength = Math.min(maxLength, this.layout.blockSize() - blockLength);
                 blockLength += writeBlock(getBlockBuffer(blockId), blockLength, data, maxLength);
@@ -328,6 +348,10 @@ class Buffer implements AutoCloseable {
         return this.buf;
     }
 
+    //endregion
+
+    //region Result Classes
+
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
     class DeleteResult {
@@ -356,26 +380,16 @@ class Buffer implements AutoCloseable {
 
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
-    class ReWriteResult {
-        private final int remainingLength;
-        private final int lastBlockAddress;
-
-        @Override
-        public String toString() {
-            return String.format("LastBlockId=%d, RemainingLength=%d", layout.getBlockId(this.lastBlockAddress), this.remainingLength);
-        }
-    }
-
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    @Getter
     class AppendResult {
-        private final int appendedlength;
+        private final int appendedLength;
         private final int nextBlockAddress;
 
         @Override
         public String toString() {
-            return String.format("NextBlock={%s}, AppendedLength=%d", layout.getAddressString(this.nextBlockAddress), this.appendedlength);
+            return String.format("NextBlock={%s}, AppendedLength=%d", layout.getAddressString(this.nextBlockAddress), this.appendedLength);
         }
     }
+
+    //endregion
 }
 
