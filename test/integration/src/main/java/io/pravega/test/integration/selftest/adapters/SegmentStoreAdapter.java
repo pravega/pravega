@@ -37,6 +37,8 @@ import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.storage.filesystem.FileSystemStorageConfig;
+import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
@@ -363,7 +365,8 @@ class SegmentStoreAdapter extends StoreAdapter {
         private final Storage storage;
 
         SingletonStorageFactory(ScheduledExecutorService executor) {
-            this.storage = new InMemoryStorageFactory(executor).createStorageAdapter();
+            this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT,"/tmp/pravega/storage").build(),
+                    executor).createStorageAdapter();
             this.storage.initialize(1);
             this.closed = new AtomicBoolean();
         }

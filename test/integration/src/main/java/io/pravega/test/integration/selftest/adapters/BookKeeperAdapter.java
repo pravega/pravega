@@ -11,6 +11,7 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.ProcessStarter;
@@ -282,6 +283,7 @@ class BookKeeperAdapter extends StoreAdapter {
                 .stdErr(ProcessBuilder.Redirect.to(new File(config.getComponentErrLogPath("bk", 0))))
                 .start();
         ZooKeeperServiceRunner.waitForServerUp(config.getZkPort());
+        Exceptions.handleInterrupted(() -> Thread.sleep(2000));
         TestLogger.log(logId, "Zookeeper (Port %s) and BookKeeper (Ports %s-%s) started.",
                 config.getZkPort(), config.getBkPort(0), config.getBkPort(bookieCount - 1));
         return p;

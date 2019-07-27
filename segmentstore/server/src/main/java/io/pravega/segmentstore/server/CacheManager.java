@@ -85,17 +85,14 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
      */
     @VisibleForTesting
     public CacheManager(CachePolicy policy, CacheStorage cacheStorage, ScheduledExecutorService executorService) {
-        Preconditions.checkNotNull(policy, "policy");
-        Preconditions.checkNotNull(cacheStorage, "cacheStorage");
-        Preconditions.checkNotNull(executorService, "executorService");
-
-        this.policy = policy;
+        this.policy = Preconditions.checkNotNull(policy, "policy");
+        this.executorService = Preconditions.checkNotNull(executorService, "executorService");
+        this.cacheStorage = Preconditions.checkNotNull(cacheStorage, "cacheStorage");
+        this.cacheStorage.setCacheFullCallback(this::cacheFullCallback);
         this.clients = new HashSet<>();
         this.oldestGeneration = new AtomicInteger();
         this.currentGeneration = new AtomicInteger();
-        this.executorService = executorService;
         this.closed = new AtomicBoolean();
-        this.cacheStorage = cacheStorage;
         this.lastSnapshot = new AtomicReference<>(this.cacheStorage.getSnapshot());
         this.metrics = new SegmentStoreMetrics.CacheManager();
     }
@@ -217,13 +214,28 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     //region Helpers
 
-    protected void applyCachePolicy() {
+    private boolean cacheFullCallback() {
+        log.info("{}: Cache full. Forcing cache policy.", TRACE_OBJECT_ID);
+        try {
+            return applyCachePolicy();
+        } catch (Throwable ex) {
+            if (Exceptions.mustRethrow(ex)) {
+                throw ex;
+            }
+
+            log.error("{}: Error.", TRACE_OBJECT_ID, ex);
+            return false;
+        }
+    }
+
+    protected boolean applyCachePolicy() {
         // Run through all the active clients and gather status.
         CacheStatus currentStatus = collectStatus();
         fetchSnapshot();
         if (currentStatus == null || this.lastSnapshot.get().getStoredBytes() == 0) {
             // We either have no clients or we have clients and they do not have any data stored.
-            return;
+            System.out.println("CM.NO DATA");
+            return false;
         }
 
         // Increment current generation (if needed).
@@ -234,21 +246,25 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         if (!currentChanged && !oldestChanged) {
             // Nothing changed, nothing to do.
-            return;
+            System.out.println("CM.NO CHANGE");
+            return false;
         }
 
         // Notify clients that something changed (if any of the above got changed). Run in a loop, until either we can't
         // adjust the oldest anymore or we are unable to trigger any changes to the clients.
-        boolean reduced;
+        boolean reducedInIteration;
+        boolean reducedOverall = false;
         do {
-            reduced = updateClients();
-            if (reduced) {
+            reducedInIteration = updateClients();
+            if (reducedInIteration) {
                 fetchSnapshot();
                 logCurrentStatus(currentStatus);
                 oldestChanged = adjustOldestGeneration(currentStatus);
+                reducedOverall = true;
             }
-        } while (reduced && oldestChanged);
+        } while (reducedInIteration && oldestChanged);
         this.metrics.report(this.lastSnapshot.get().getAllocatedBytes(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
+        return reducedOverall;
     }
 
     private CacheStatus collectStatus() {
@@ -373,6 +389,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         }
 
         log.info("{} Gen: {}-{}, Clients: {}, Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, size, this.lastSnapshot);
+        System.out.println(String.format("%s Gen: %s-%s, Clients: %s, Cache: %s.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, size, this.lastSnapshot));
     }
 
     //endregion

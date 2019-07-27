@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.storage.cache;
 
 import io.pravega.common.util.BufferView;
+import java.util.function.Supplier;
 
 /**
  * {@link CacheStorage} implementation that does nothing. Only to be used for stubbing.
@@ -67,5 +68,10 @@ public class NoOpCache implements CacheStorage {
     @Override
     public CacheSnapshot getSnapshot() {
         return new CacheSnapshot(0, 0, 0, 0, CacheLayout.MAX_TOTAL_SIZE);
+    }
+
+    @Override
+    public void setCacheFullCallback(Supplier<Boolean> tryCleanup) {
+
     }
 }

@@ -22,13 +22,17 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
 import lombok.SneakyThrows;
+import lombok.val;
 
 @ThreadSafe
 public class DirectMemoryCache implements CacheStorage {
+    private static final int MAX_CLEANUP_ATTEMPTS = 5;
     private final CacheLayout layout;
     private final Buffer[] buffers;
     @GuardedBy("availableBufferIds")
@@ -37,17 +41,19 @@ public class DirectMemoryCache implements CacheStorage {
     private final ArrayDeque<Integer> unallocatedBufferIds;
     private final AtomicBoolean closed;
     private final AtomicLong storedBytes;
+    private final AtomicReference<Supplier<Boolean>> tryCleanup;
 
     public DirectMemoryCache(long maxSizeBytes) {
         this(new CacheLayout.DefaultLayout(), maxSizeBytes);
     }
 
-    public DirectMemoryCache(@NonNull CacheLayout layout, long maxSizeBytes) {
+    private DirectMemoryCache(@NonNull CacheLayout layout, long maxSizeBytes) {
         Preconditions.checkArgument(maxSizeBytes > 0 && maxSizeBytes < CacheLayout.MAX_TOTAL_SIZE,
                 "maxSizeBytes must be a positive number less than %s.", CacheLayout.MAX_TOTAL_SIZE);
         maxSizeBytes = adjustMaxSizeIfNeeded(maxSizeBytes, layout);
 
         this.layout = layout;
+        this.tryCleanup = new AtomicReference<>(null);
         this.storedBytes = new AtomicLong(0);
         this.closed = new AtomicBoolean(false);
         this.buffers = new Buffer[(int) (maxSizeBytes / this.layout.bufferSize())];
@@ -261,33 +267,46 @@ public class DirectMemoryCache implements CacheStorage {
                 (long) this.buffers.length * this.layout.bufferSize());
     }
 
+    @Override
+    public void setCacheFullCallback(Supplier<Boolean> tryCleanup) {
+        this.tryCleanup.set(tryCleanup);
+    }
+
     //endregion
 
     //region Helpers
 
     private Buffer getNextAvailableBuffer() {
-        synchronized (this.availableBufferIds) {
-            while (!this.availableBufferIds.isEmpty() || !this.unallocatedBufferIds.isEmpty()) {
-                while (!this.availableBufferIds.isEmpty()) {
-                    Buffer b = this.buffers[this.availableBufferIds.peekFirst()];
-                    if (b.hasCapacity()) {
-                        // Reusing a buffer.
-                        return b;
-                    } else {
-                        // Buffer full. Clean up.
-                        this.availableBufferIds.removeFirst();
+        int attempts = 0;
+        do {
+            synchronized (this.availableBufferIds) {
+                while (!this.availableBufferIds.isEmpty() || !this.unallocatedBufferIds.isEmpty()) {
+                    while (!this.availableBufferIds.isEmpty()) {
+                        Buffer b = this.buffers[this.availableBufferIds.peekFirst()];
+                        if (b.hasCapacity()) {
+                            // Reusing a buffer.
+                            return b;
+                        } else {
+                            // Buffer full. Clean up.
+                            this.availableBufferIds.removeFirst();
+                        }
+                    }
+
+                    // If we get here, we can't reuse any existing buffers. Try to allocate a new one, if any are available.
+                    if (!this.unallocatedBufferIds.isEmpty()) {
+                        this.availableBufferIds.addLast(this.unallocatedBufferIds.removeFirst());
                     }
                 }
-
-                // If we get here, we can't reuse any existing buffers. Try to allocate a new one, if any are available.
-                if (!this.unallocatedBufferIds.isEmpty()) {
-                    this.availableBufferIds.addLast(this.unallocatedBufferIds.removeFirst());
-                }
             }
-        }
+        } while (tryCleanup() && ++attempts < MAX_CLEANUP_ATTEMPTS);
 
-        // Unable to reuse any existing buffer or find a new one to allocate.
+        // Unable to reuse any existing buffer or find a new one to allocate and upstream code could not free up data.
         throw new CacheFullException(String.format("%s full: %s.", DirectMemoryCache.class.getSimpleName(), getSnapshot()));
+    }
+
+    private boolean tryCleanup() {
+        val c = this.tryCleanup.get();
+        return c != null && c.get();
     }
 
     //endregion

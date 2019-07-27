@@ -28,11 +28,11 @@ public class CachePolicy {
      * and the Operation Processor's Throttler are pegged to this value, we want to instruct the Cache Manager to attempt
      * evicting the cache before the Throttler reaches its maximum limit.
      *
-     * For example, if MaxUtilization = 0.98 and the adjustment is -0.01, the Cache Manager will attempt to keep the Cache
-     * at or below 0.97 of its maximum allowed size ({@link #getMaxSize()}). However the Throttler will only apply maximum
+     * For example, if MaxUtilization = 0.98 and the adjustment is -0.08, the Cache Manager will attempt to keep the Cache
+     * at or below 0.9 of its maximum allowed size ({@link #getMaxSize()}). However the Throttler will only apply maximum
      * throttling when the cache reaches 0.98 (so if the Cache Manager is successful, it should not never reach that spot).
      */
-    private static final double USABLE_RATIO_ADJUSTMENT = -0.01;
+    private static final double USABLE_RATIO_ADJUSTMENT = -0.08;
     /**
      * The maximum size of the cache.
      */

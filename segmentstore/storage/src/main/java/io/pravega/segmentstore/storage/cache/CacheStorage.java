@@ -10,9 +10,9 @@
 package io.pravega.segmentstore.storage.cache;
 
 import io.pravega.common.util.BufferView;
+import java.util.function.Supplier;
 
 public interface CacheStorage extends AutoCloseable {
-
     int getBlockAlignment();
 
     int getMaxEntryLength();
@@ -33,4 +33,6 @@ public interface CacheStorage extends AutoCloseable {
     BufferView get(int address);
 
     CacheSnapshot getSnapshot();
+
+    void setCacheFullCallback(Supplier<Boolean> tryCleanup);
 }

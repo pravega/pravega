@@ -182,7 +182,7 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
      *
      * @param operation The operation to register.
      */
-    private void addToReadIndex(StorageOperation operation) {
+    private void addToReadIndex(StorageOperation operation) throws DataCorruptionException {
         try {
             if (operation instanceof StreamSegmentAppendOperation) {
                 // Record a StreamSegmentAppendOperation. Just in case, we also support this type of operation, but we need to
@@ -206,6 +206,8 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
             // The Segment is in the process of being deleted. We usually end up in here because a concurrent delete
             // request has updated the metadata while we were executing.
             log.warn("Not adding operation '{}' to ReadIndex because it refers to a deleted StreamSegment.", operation);
+        } catch (Exception ex) {
+            throw new DataCorruptionException(String.format("Unable to add operation '%s' to ReadIndex.", operation), ex);
         }
     }
 
