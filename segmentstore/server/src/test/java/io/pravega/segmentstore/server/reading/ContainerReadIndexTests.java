@@ -814,7 +814,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final int cacheMaxSize = SEGMENT_COUNT * entriesPerSegment * appendSize;
         final int postStorageEntryCount = entriesPerSegment / 4; // 25% of the entries are beyond the StorageOffset
         final int preStorageEntryCount = entriesPerSegment - postStorageEntryCount; // 75% of the entries are before the StorageOffset.
-        CachePolicy cachePolicy = new CachePolicy(cacheMaxSize, 1.0, Duration.ofMillis(1000 * 2 * entriesPerSegment), Duration.ofMillis(1000));
+        CachePolicy cachePolicy = new CachePolicy(cacheMaxSize, 1.0, 1.0, Duration.ofMillis(1000 * 2 * entriesPerSegment), Duration.ofMillis(1000));
 
         // To properly test this, we want predictable storage reads.
         ReadIndexConfig config = ReadIndexConfig.builder().with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, appendSize).build();
@@ -1117,6 +1117,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         CachePolicy cachePolicy = new CachePolicy(1, Duration.ZERO, Duration.ofMillis(1));
         @Cleanup
         TestContext context = new TestContext(DEFAULT_CONFIG, cachePolicy);
+        context.cacheStorage.usedBytesSameAsStoredBytes = true;
 
         // Create parent segment and one transaction
         long parentId = createSegment(0, context);

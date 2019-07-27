@@ -323,6 +323,11 @@ public class ContainerReadIndex implements ReadIndex {
     }
 
     @Override
+    public double getCacheTargetUtilization() {
+        return this.cacheManager.getCacheTargetUtilization();
+    }
+
+    @Override
     public double getCacheMaxUtilization() {
         return this.cacheManager.getCacheMaxUtilization();
     }

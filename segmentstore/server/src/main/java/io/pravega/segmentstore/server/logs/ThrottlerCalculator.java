@@ -42,10 +42,16 @@ class ThrottlerCalculator {
     @VisibleForTesting
     static final int MAX_DELAY_MILLIS = 25000;
     /**
-     * Cache utilization (on a scale of 0 to 1), above which throttling will apply.
+     * Adjustment to the target utilization ratio at or above which throttling will begin to apply. This value helps
+     * separate the goals of the {@link ThrottlerCalculator.CacheThrottler} (slow operations if we exceed the target) and
+     * the CacheManager (keep the Cache Utilization at or below target, so that we may not need to slow operations if
+     * we don't need to).
+     *
+     * Example: If CachePolicy.getTargetUtilization()==0.85 and Adjustment==0.05, then throttling will begin to apply
+     * at 0.85+0.05=0.90 (90%) of maximum cache capacity.
      */
     @VisibleForTesting
-    static final double CACHE_UTILIZATION_THRESHOLD = 0.85;
+    static final double CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT = 0.05;
     /**
      * Number of items in the Commit Backlog above which throttling will apply.
      */
@@ -147,28 +153,26 @@ class ThrottlerCalculator {
      * on the cache. This is based on ReadIndex statistics, mainly cache utilization ratio.
      */
     private static class CacheThrottler extends Throttler {
+        private final double targetCacheUtilization;
         private final int baseDelay;
         @NonNull
         private final Supplier<Double> getCacheUtilization;
 
-        CacheThrottler(Supplier<Double> getCacheUtilization, double maxCacheUtilization) {
+        CacheThrottler(Supplier<Double> getCacheUtilization, double targetCacheUtilization, double maxCacheUtilization) {
+            this.targetCacheUtilization = targetCacheUtilization + CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT;
             this.getCacheUtilization = getCacheUtilization;
-            if (maxCacheUtilization <= CACHE_UTILIZATION_THRESHOLD) {
+            if (this.targetCacheUtilization >= maxCacheUtilization) {
                 // Since this is externally provided, we need to be able to handle invalid values. If we get too small of
                 // a utilization, then we will apply maximum throttle as soon as we reach the min utilization threshold.
                 this.baseDelay = MAX_DELAY_MILLIS;
             } else {
-                this.baseDelay = calculateBaseDelay(maxCacheUtilization, CacheThrottler::getDelayMultiplier);
+                this.baseDelay = calculateBaseDelay(maxCacheUtilization, this::getDelayMultiplier);
             }
         }
 
         @Override
         boolean isThrottlingRequired() {
-            return this.getCacheUtilization.get() > CACHE_UTILIZATION_THRESHOLD;
-        }
-
-        static double getDelayMultiplier(double utilization) {
-            return 100 * (utilization - CACHE_UTILIZATION_THRESHOLD);
+            return this.getCacheUtilization.get() > this.targetCacheUtilization;
         }
 
         @Override
@@ -180,6 +184,10 @@ class ThrottlerCalculator {
         @Override
         ThrottlerName getName() {
             return ThrottlerName.Cache;
+        }
+
+        private double getDelayMultiplier(double utilization) {
+            return 100 * (utilization - this.targetCacheUtilization);
         }
     }
 
@@ -261,13 +269,14 @@ class ThrottlerCalculator {
         /**
          * Includes a Cache Throttler.
          *
-         * @param getCacheUtilization A Supplier that, when invoked, returns a non-negative number representing the cache
-         *                            utilization (calculated as the ratio of used cache to total cache available).
-         * @param maxCacheUtilization Maximum allowed cache utilization, at or above which full throttling will apply.
+         * @param getCacheUtilization    A Supplier that, when invoked, returns a non-negative number representing the cache
+         *                               utilization (calculated as the ratio of used cache to total cache available).
+         * @param targetCacheUtilization Target cache utilization, at or above which throttling will gradually begin to apply.
+         * @param maxCacheUtilization    Maximum allowed cache utilization, at or above which full throttling will apply.
          * @return This builder.
          */
-        ThrottlerCalculatorBuilder cacheThrottler(Supplier<Double> getCacheUtilization, double maxCacheUtilization) {
-            return throttler(new CacheThrottler(getCacheUtilization, maxCacheUtilization));
+        ThrottlerCalculatorBuilder cacheThrottler(Supplier<Double> getCacheUtilization, double targetCacheUtilization, double maxCacheUtilization) {
+            return throttler(new CacheThrottler(getCacheUtilization, targetCacheUtilization, maxCacheUtilization));
         }
 
         /**

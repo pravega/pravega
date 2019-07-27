@@ -49,7 +49,8 @@ public class ServiceConfig {
     public static final Property<String> CERT_FILE = Property.named("certFile", "");
     public static final Property<String> KEY_FILE = Property.named("keyFile", "");
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
-    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cacheMaxUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_MAX_CACHE_UTILIZATION));
+    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cacheTargetUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
+    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cacheMaxUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION));
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
     public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
@@ -306,10 +307,11 @@ public class ServiceConfig {
         this.keyFile = properties.get(KEY_FILE);
         this.certFile = properties.get(CERT_FILE);
         long cachePolicyMaxSize = properties.getLong(CACHE_POLICY_MAX_SIZE);
-        double cachepolicyMaxUtilization = properties.getInt(CACHE_POLICY_MAX_UTILIZATION) / 100.0;
+        double cachePolicyTargetUtilization = properties.getInt(CACHE_POLICY_TARGET_UTILIZATION) / 100.0;
+        double cachePolicyMaxUtilization = properties.getInt(CACHE_POLICY_MAX_UTILIZATION) / 100.0;
         int cachePolicyMaxTime = properties.getInt(CACHE_POLICY_MAX_TIME);
         int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);
-        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, cachepolicyMaxUtilization,
+        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, cachePolicyTargetUtilization, cachePolicyMaxUtilization,
                 Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
         this.replyWithStackTraceOnError = properties.getBoolean(REPLY_WITH_STACK_TRACE_ON_ERROR);
         this.instanceId = properties.get(INSTANCE_ID);

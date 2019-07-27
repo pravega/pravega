@@ -29,21 +29,22 @@ public class ThrottlerCalculatorTests {
      */
     @Test
     public void testCacheThrottling() {
-        val t = ThrottlerCalculator.CACHE_UTILIZATION_THRESHOLD;
+        val t = 0.85;
+        val tAdj = t + ThrottlerCalculator.CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT;
         val maxU = 0.98;
         val cacheUtilization = new AtomicReference<Double>(0.0);
-        val tc = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get, maxU).build();
+        val tc = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get, t, maxU).build();
         testThrottling(tc, cacheUtilization,
-                new Double[]{-1.0, 0.0, 0.5, t},
-                new Double[]{t + 0.01, t + 0.05, t + 0.1, maxU},
+                new Double[]{-1.0, 0.0, 0.5, tAdj},
+                new Double[]{tAdj + 0.01, tAdj + 0.05, tAdj + 0.06, maxU},
                 new Double[]{maxU, maxU + 0.01, maxU * 2, Double.MAX_VALUE});
 
         // Now verify behavior when the max threshold is less than the min threshold.
-        val tc2 = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get, t - 0.01).build();
+        val tc2 = ThrottlerCalculator.builder().cacheThrottler(cacheUtilization::get, t, t - 0.01).build();
         testThrottling(tc2, cacheUtilization,
-                new Double[]{-1.0, 0.0, 0.5, t},
+                new Double[]{-1.0, 0.0, 0.5, tAdj},
                 new Double[0],
-                new Double[]{t + 0.01, t + 0.05, t + 0.1, maxU, maxU + 0.01, maxU * 2, Double.MAX_VALUE});
+                new Double[]{tAdj + 0.01, tAdj + 0.05, tAdj + 0.06, maxU, maxU + 0.01, maxU * 2, Double.MAX_VALUE});
     }
 
     /**

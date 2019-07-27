@@ -272,6 +272,11 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public double getCacheTargetUtilization() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public double getCacheMaxUtilization() {
             throw new UnsupportedOperationException();
         }

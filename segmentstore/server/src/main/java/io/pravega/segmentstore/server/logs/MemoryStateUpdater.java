@@ -72,6 +72,11 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
     }
 
     @Override
+    public double getCacheTargetUtilization() {
+        return this.readIndex.getCacheTargetUtilization();
+    }
+
+    @Override
     public double getCacheMaxUtilization() {
         return this.readIndex.getCacheMaxUtilization();
     }

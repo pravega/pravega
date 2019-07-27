@@ -25,8 +25,20 @@ public interface CacheUtilizationProvider {
     double getCacheUtilization();
 
     /**
+     * Gets a value representing the target utilization of the cache, as a ratio of cache used to cache max size.
+     * The cache should be kept at or below this level. Any utilization above this limit should cause throttling and/or
+     * cache eviction to occur.
+     *
+     * See {@link #getCacheUtilization()} for more details.
+     *
+     * @return The maximum cache utilization.
+     */
+    double getCacheTargetUtilization();
+
+    /**
      * Gets a value representing the maximum allowed utilization of the cache, as a ratio of cache used to cache max size.
-     * Any utilization above this limit should cause throttling and/or cache eviction to occur.
+     * Any utilization above this limit should cause both full throttling and cache eviction to occur.
+     *
      * See {@link #getCacheUtilization()} for more details.
      *
      * @return The maximum cache utilization.

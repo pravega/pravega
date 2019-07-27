@@ -98,10 +98,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, OperationSerializer.DEFAULT, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
         this.throttlerCalculator = ThrottlerCalculator.builder()
-                                                      .cacheThrottler(stateUpdater::getCacheUtilization, stateUpdater.getCacheMaxUtilization())
-                                                      .commitBacklogThrottler(this.commitQueue::size)
-                                                      .batchingThrottler(durableDataLog::getQueueStatistics)
-                                                      .build();
+                .cacheThrottler(stateUpdater::getCacheUtilization, stateUpdater.getCacheTargetUtilization(), stateUpdater.getCacheMaxUtilization())
+                .commitBacklogThrottler(this.commitQueue::size)
+                .batchingThrottler(durableDataLog::getQueueStatistics)
+                .build();
     }
 
     //endregion
