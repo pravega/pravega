@@ -145,6 +145,11 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     }
 
     @Override
+    public double getCacheTargetUtilization() {
+        return this.policy.getTargetUtilization();
+    }
+
+    @Override
     public double getCacheMaxUtilization() {
         return this.policy.getMaxUtilization();
     }
@@ -329,7 +334,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         // We need to increment the OldestGeneration only if any of the following conditions occurred:
         // 1. We currently exceed the maximum usable size as defined by the cache policy.
         // 2. The oldest generation reported by the clients is older than the oldest permissible generation.
-        return currentStatus.getSize() > this.policy.getMaxUsableSize()
+        return currentStatus.getSize() > this.policy.getEvictionThreshold()
                 || currentStatus.getOldestGeneration() < getOldestPermissibleGeneration();
     }
 
