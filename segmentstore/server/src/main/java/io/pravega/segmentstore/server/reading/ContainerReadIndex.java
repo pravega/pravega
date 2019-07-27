@@ -330,7 +330,7 @@ public class ContainerReadIndex implements ReadIndex {
 
     @Override
     public double getCacheMaxUtilization() {
-        return this.cacheManager.getCacheUtilization();
+        return this.cacheManager.getCacheMaxUtilization();
     }
 
     //endregion
