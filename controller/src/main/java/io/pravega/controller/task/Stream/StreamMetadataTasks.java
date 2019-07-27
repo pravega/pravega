@@ -45,6 +45,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -143,6 +144,20 @@ public class StreamMetadataTasks extends TaskBase {
         writerInitFuture.complete(null);
     }
 
+    /**
+     * Method to create stream with retries for lock failed exception.
+     *
+     * @param scope           scope.
+     * @param stream          stream name.
+     * @param config          stream configuration.
+     * @param createTimestamp creation timestamp.
+     * @return CompletableFuture which when completed will have creation status for the stream.
+     */
+    public CompletableFuture<CreateStreamStatus.Status> createStreamWithReries(String scope, String stream, StreamConfiguration config, long createTimestamp) {
+        return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp), 
+                e -> Exceptions.unwrap(e) instanceof LockFailedException, 10, executor);
+    }
+    
     /**
      * Create stream.
      *

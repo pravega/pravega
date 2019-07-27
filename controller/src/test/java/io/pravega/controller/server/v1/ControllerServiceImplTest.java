@@ -16,7 +16,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -303,33 +302,7 @@ public abstract class ControllerServiceImplTest {
         status = result6.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
     }
-
-    @Test
-    public void testCreateStreamThrowsLockFailed() {
-        // Check that concurrent calls to create a stream throw FailedLockingException
-        final String lockingScope = "locking-scope";
-        final String lockingStream = "locking";
-        final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
-
-        ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
-        this.controllerService.createScope(ScopeInfo.newBuilder().setScope(lockingScope).build(), result);
-        Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
-
-        ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
-        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
-        this.blockCriticalSection();
-        this.controllerService.createStream(ModelHelper.decode(lockingScope, lockingStream, configuration), result1);
-        this.controllerService.createStream(ModelHelper.decode(lockingScope, lockingStream, configuration), result2);
-        AssertExtensions.assertThrows(
-                "Concurrent call to create stream did not fail to lock or has thrown something else.",
-                () -> {
-                    result2.get();
-                    result1.get();
-                },
-                ex -> ex.getCause() instanceof LockFailedException);
-    }
-
+    
     @Test
     public void updateStreamTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));

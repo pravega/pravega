@@ -21,6 +21,8 @@ import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
@@ -118,15 +120,24 @@ public class ControllerService {
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
 
-        return streamMetadataTasks.createStream(scope,
-                                                stream,
-                                                streamConfig,
-                                                createTimestamp)
-                  .thenApplyAsync(status -> {
-                       reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
-                                timer.getElapsed());
-                       return CreateStreamStatus.newBuilder().setStatus(status).build();
-                  }, executor);
+        return Futures.exceptionallyExpecting(streamStore.getState(scope, stream, true, null, executor), 
+            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN) 
+        .thenCompose(state -> {
+            if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                return streamMetadataTasks.createStreamWithReries(scope,
+                        stream,
+                        streamConfig,
+                        createTimestamp).thenApplyAsync(status -> {
+                                              reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
+                                                      timer.getElapsed());
+                                              return CreateStreamStatus.newBuilder().setStatus(status).build();
+                                          }, executor);
+            } else {
+                return CompletableFuture.completedFuture(
+                        CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
+            }
+        });
+        
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {
