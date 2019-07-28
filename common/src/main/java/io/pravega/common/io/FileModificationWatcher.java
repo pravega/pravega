@@ -51,7 +51,7 @@ public class FileModificationWatcher extends Thread {
      */
     private final Consumer<WatchEvent<?>> callback;
 
-    private final UncaughtExceptionHandler uncaughtExceptionalHandler = (t, e) -> logException(t.getName(), e);
+    private final UncaughtExceptionHandler uncaughtExceptionalHandler = (t, e) -> logException(e);
 
     private boolean loopContinuously;
 
@@ -167,12 +167,8 @@ public class FileModificationWatcher extends Thread {
                     break;
                 }
             }
-        } catch (InterruptedException e) {
-            log.info("Thread {}, watching for modifications in file {}, interrupted with cause {}",
-                    this.getName(), this.pathOfFileToWatch, e.getMessage());
-            // Ignore.
-        } catch (IOException e) {
-            logException(this.getName(), e);
+        } catch (InterruptedException | IOException e) {
+            logException(e);
             throw new RuntimeException(e);
         } finally {
             if (watchKey != null) {
@@ -185,11 +181,12 @@ public class FileModificationWatcher extends Thread {
                     log.warn("Error closing watch service", e);
                 }
             }
-            log.info("[{}] thread exiting.", getName());
+            log.info("Thread [{}], watching for modifications in file [{}] exiting,", getName(), this.pathOfFileToWatch);
         }
     }
 
-    private void logException(String name, Throwable e) {
-        log.warn("Exception occurred from thread {}", name, e);
+    private void logException(Throwable e) {
+        log.warn("Thread [{}], watching for modifications in file [{}], encountered exception with cause [{}]",
+                this.getName(), this.pathOfFileToWatch, e.getMessage());
     }
 }
