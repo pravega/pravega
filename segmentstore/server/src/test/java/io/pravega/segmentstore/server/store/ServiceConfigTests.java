@@ -69,6 +69,7 @@ public class ServiceConfigTests {
                 .with(ServiceConfig.CERT_FILE, "/cert.pem")
                 .with(ServiceConfig.KEY_FILE, "/key.pem")
                 .with(ServiceConfig.INSTANCE_ID, "1234")
+                .with(ServiceConfig.ENABLE_TLS_RELOAD, true)
                 .build();
         Assert.assertNotNull(config.toString());
     }

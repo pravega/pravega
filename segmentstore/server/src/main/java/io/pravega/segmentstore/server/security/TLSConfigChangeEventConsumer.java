@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.handler.ssl.SslContext;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -40,12 +41,21 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
 
     @Override
     public void accept(WatchEvent<?> watchEvent) {
-        log.debug("Invoked for [{}]", watchEvent.context());
+        if (watchEvent != null) {
+            log.info("Invoked for [{}]", watchEvent.context());
+        } else {
+            log.warn("Invoked for null watchEvent");
+        }
         handleTlsConfigChange();
     }
 
     private void handleTlsConfigChange() {
         log.info("Current reload count = {}", numOfConfigChangesSinceStart.incrementAndGet());
         sslContext.set(TLSHelper.newServerSslContext(pathToCertificateFile, pathToKeyFile));
+    }
+
+    @VisibleForTesting
+    int getNumOfConfigChangesSinceStart() {
+        return numOfConfigChangesSinceStart.get();
     }
 }
