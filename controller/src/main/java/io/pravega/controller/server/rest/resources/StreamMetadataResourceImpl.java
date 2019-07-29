@@ -685,6 +685,14 @@ public class StreamMetadataResourceImpl implements ApiV1.ScopesApi {
                                  final SecurityContext securityContext, final AsyncResponse asyncResponse) {
         long traceId = LoggerHelpers.traceEnter(log, "getScalingEvents");
 
+        if (from == null || to == null) {
+            // Validate the input since there is no mechanism in JAX-RS to validate query params.
+            log.warn("Received an invalid request with missing query parameters for scopeName/streamName: {}/{}", scopeName, streamName);
+            asyncResponse.resume(Response.status(Status.BAD_REQUEST).build());
+            LoggerHelpers.traceLeave(log, "getScalingEvents", traceId);
+            return;
+        }
+
         try {
             restAuthHelper.authenticateAuthorize(
                     getAuthorizationHeader(),
