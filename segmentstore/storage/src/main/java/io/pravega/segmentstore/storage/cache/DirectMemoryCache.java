@@ -194,7 +194,6 @@ public class DirectMemoryCache implements CacheStorage {
             throw ex;
         }
 
-        this.storedBytes.addAndGet(data.getLength());
         return firstBlockAddress;
     }
 

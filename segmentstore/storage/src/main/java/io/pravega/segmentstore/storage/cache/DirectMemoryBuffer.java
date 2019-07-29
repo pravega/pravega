@@ -73,7 +73,7 @@ class DirectMemoryBuffer implements AutoCloseable {
         return this.usedBlockCount;
     }
 
-    synchronized boolean isAllocated(){
+    synchronized boolean isAllocated() {
         return this.buf != null;
     }
 
@@ -159,7 +159,7 @@ class DirectMemoryBuffer implements AutoCloseable {
             int blockLength = this.layout.getLength(blockMetadata);
             int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
             if (successorAddress == CacheLayout.NO_ADDRESS) {
-                    // Found the last block. Append to it.
+                // Found the last block. Append to it.
                 if (blockLength != expectedLastBlockLength) {
                     throw new IncorrectCacheEntryLengthException(String.format(
                             "Incorrect last block length. Expected %s, given %s.", blockLength, expectedLastBlockLength));
@@ -169,7 +169,7 @@ class DirectMemoryBuffer implements AutoCloseable {
                 blockLength += writeBlock(getBlockBuffer(blockId), blockLength, data, maxLength);
 
                 // Update metadata.
-                    blockMetadata = this.layout.setLength(blockMetadata, blockLength);
+                blockMetadata = this.layout.setLength(blockMetadata, blockLength);
                 metadataBuf.setLong(bufIndex, blockMetadata);
                 return new AppendResult(blockLength - expectedLastBlockLength, CacheLayout.NO_ADDRESS);
             } else if (blockLength < this.layout.blockSize()) {

@@ -1575,14 +1575,12 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public boolean delete(int address) {
-            boolean r = super.delete(address);
+        public void delete(int address) {
+            super.delete(address);
             Consumer<Integer> callback = this.deleteCallback;
             if (callback != null) {
                 callback.accept(address);
             }
-
-            return r;
         }
 
         @Override
