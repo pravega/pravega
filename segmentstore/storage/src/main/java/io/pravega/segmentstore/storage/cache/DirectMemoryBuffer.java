@@ -12,9 +12,11 @@ package io.pravega.segmentstore.storage.cache;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.Unpooled;
 import io.pravega.common.Exceptions;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -332,6 +334,8 @@ class DirectMemoryBuffer implements AutoCloseable {
         if (this.buf == null) {
             Exceptions.checkNotClosed(this.usedBlockCount < 0, this);
             assert this.usedBlockCount == 1;
+
+            // TODO: this can also be changed to wrap a ByteBuffer.
             this.buf = this.allocator.directBuffer(this.layout.bufferSize(), this.layout.bufferSize());
             this.buf.setZero(0, this.buf.capacity()); // Clear out the buffer as Netty does not do it for us.
 
