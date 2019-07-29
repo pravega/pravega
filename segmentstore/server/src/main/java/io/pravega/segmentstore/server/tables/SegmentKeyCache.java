@@ -25,7 +25,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
@@ -96,10 +95,9 @@ class SegmentKeyCache {
      * ({@link ContainerKeyCache}) needs to execute the actual cache eviction.
      *
      * @param oldestGeneration The oldest permissible generation.
-     * @return An {@link EvictionResult} instance containing the number of bytes evicted and the {@link CacheStorage}
-     * addresses for each Cache Entry that needs eviction.
+     * @return A List of {@link CacheEntry} instances representing the evicted entries.
      */
-    synchronized EvictionResult evictBefore(int oldestGeneration) {
+    synchronized List<CacheEntry> evictBefore(int oldestGeneration) {
         // Remove those entries that have a generation below the oldest permissible one.
         ArrayList<CacheEntry> removedEntries = new ArrayList<>();
         for (val e : this.cacheEntries.entrySet()) {
@@ -112,7 +110,7 @@ class SegmentKeyCache {
 
         // Clear the expired cache entries.
         removedEntries.forEach(e -> this.cacheEntries.remove(e.hashGroup));
-        return new EvictionResult(removedEntries.stream().map(CacheEntry::getDataAddress).collect(Collectors.toList()));
+        return removedEntries;
     }
 
     /**
@@ -120,11 +118,11 @@ class SegmentKeyCache {
      *
      * @return See {@link #evictBefore}
      */
-    synchronized EvictionResult evictAll() {
+    synchronized List<CacheEntry> evictAll() {
         // Remove those entries that have a generation below the oldest permissible one.
-        val addresses = this.cacheEntries.values().stream().map(CacheEntry::getDataAddress).collect(Collectors.toList());
+        val entries = this.cacheEntries.values().stream().collect(Collectors.toList());
         this.cacheEntries.clear();
-        return new EvictionResult(addresses);
+        return entries;
     }
 
     //endregion
@@ -318,18 +316,6 @@ class SegmentKeyCache {
     //region Helper Classes
 
     /**
-     * Represents a result from a call to {@link #evictBefore} or {@link #evictAll}.
-     */
-    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    @Getter
-    static class EvictionResult {
-        /**
-         * A list of {@link CacheStorage} addresses denoting Cache Entries have been unregistered and need to be evicted.
-         */
-        private final List<Integer> dataAddresses;
-    }
-
-    /**
      * Represents a candidate for Migration from the Tail Cache to the Index Cache.
      */
     @RequiredArgsConstructor
@@ -358,10 +344,12 @@ class SegmentKeyCache {
      * Each CacheEntry will contain a collection of {KeyHash, CacheValue} pairs, with the property that all KeyHashes in
      * a CacheEntry will have the same KeyHashGroup.
      */
-    private class CacheEntry {
+    class CacheEntry {
         private static final int HEADER_LENGTH = Integer.BYTES;
         private static final int HASH_LENGTH = KeyHasher.HASH_SIZE_BYTES;
         private static final int ENTRY_LENGTH = HEADER_LENGTH + HASH_LENGTH + VALUE_SERIALIZATION_LENGTH;
+        private static final int INITIAL_ADDRESS = -1;
+        private static final int EVICTED_ADDRESS = -2;
         private final short hashGroup;
         @GuardedBy("this")
         private int generation;
@@ -370,11 +358,11 @@ class SegmentKeyCache {
         @GuardedBy("this")
         private int dataAddress;
 
-        CacheEntry(short hashGroup, int currentGeneration) {
+        private CacheEntry(short hashGroup, int currentGeneration) {
             this.hashGroup = hashGroup;
             this.generation = currentGeneration;
             this.highestOffset = 0;
-            this.dataAddress = -1;
+            this.dataAddress = INITIAL_ADDRESS;
         }
 
         /**
@@ -465,6 +453,17 @@ class SegmentKeyCache {
             this.highestOffset = Math.max(this.highestOffset, segmentOffset);
         }
 
+        synchronized boolean evict() {
+            int address = this.dataAddress;
+            this.dataAddress = EVICTED_ADDRESS;
+            if (address >= 0) {
+                SegmentKeyCache.this.cacheStorage.delete(address);
+                return true;
+            }
+
+            return false;
+        }
+
         @GuardedBy("this")
         private byte[] getFromCache() {
             BufferView data = null;
@@ -477,6 +476,7 @@ class SegmentKeyCache {
         @GuardedBy("this")
         private void storeInCache(ByteArraySegment data) {
             int newAddress;
+            Preconditions.checkState(this.dataAddress != EVICTED_ADDRESS, "CacheEntry evicted; cannot store.");
             if (this.dataAddress >= 0) {
                 newAddress = SegmentKeyCache.this.cacheStorage.replace(this.dataAddress, data);
             } else {

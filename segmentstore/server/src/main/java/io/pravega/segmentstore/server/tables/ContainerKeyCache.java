@@ -66,7 +66,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
                 this.segmentCaches.clear();
             }
 
-            toEvict.forEach(s -> evict(s.evictAll()));
+            toEvict.forEach(s -> s.evictAll().forEach(SegmentKeyCache.CacheEntry::evict));
         }
     }
 
@@ -97,18 +97,17 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
         // Instruct each Segment Cache to perform its own cache management, collect eviction candidates, and remove them
         // from the cache.
-        val evictions = new ArrayList<SegmentKeyCache.EvictionResult>();
+        val evictions = new ArrayList<SegmentKeyCache.CacheEntry>();
         synchronized (this.segmentCaches) {
             this.currentCacheGeneration = currentGeneration;
             for (SegmentKeyCache segmentCache : this.segmentCaches.values()) {
-                evictions.add(segmentCache.evictBefore(oldestGeneration));
+                evictions.addAll(segmentCache.evictBefore(oldestGeneration));
             }
         }
 
         boolean anyEvicted = false;
         for (val e : evictions) {
-            evict(e);
-            anyEvicted |= !e.getDataAddresses().isEmpty();
+            anyEvicted = e.evict() | anyEvicted;
         }
 
         return anyEvicted;
@@ -228,7 +227,7 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
 
         if (cache != null) {
             if (remove) {
-                evict(cache.evictAll());
+                cache.evictAll().forEach(SegmentKeyCache.CacheEntry::evict);
             } else {
                 cache.setLastIndexedOffset(indexOffset, generation);
             }
@@ -296,10 +295,6 @@ class ContainerKeyCache implements CacheManager.Client, AutoCloseable {
         }
 
         return cache == null ? ifNotExists : ifExists.apply(cache);
-    }
-
-    private void evict(SegmentKeyCache.EvictionResult eviction) {
-        eviction.getDataAddresses().forEach(this.cacheStorage::delete);
     }
 
     //endregion

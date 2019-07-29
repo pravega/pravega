@@ -378,12 +378,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         if (data != null) {
             // Add the remainder of the buffer as a new entry.
-            int dataAddress = this.cacheStorage.insert(data);
-            CacheIndexEntry newEntry = new CacheIndexEntry(offset + appendLength, data.getLength(), dataAddress);
-            synchronized (this.lock) {
-                ReadIndexEntry oldEntry = addToIndex(newEntry);
-                assert oldEntry == null : String.format("Added a new entry in the ReadIndex that overrode an existing element. New = %s, Old = %s.", newEntry, oldEntry);
-            }
+            CacheIndexEntry newEntry = addToIndex(data, offset + appendLength, "Append");
             this.lastAppendedOffset.set(newEntry.getLastStreamSegmentOffset());
         }
     }
@@ -511,23 +506,39 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Exceptions.checkArgument(offset + data.getLength() <= this.metadata.getStorageLength(), "entry",
                 "The given range of bytes (Offset=%s, Length=%s) does not correspond to the StreamSegment range that is in Storage (%s).",
                 offset, data.getLength(), this.metadata.getStorageLength());
-        ReadIndexEntry oldEntry;
-        CacheIndexEntry newEntry;
+
+        addToIndex(data, offset, "Insert");
+    }
+
+    private CacheIndexEntry addToIndex(BufferView data, long offset, String operationName) {
         int dataAddress = this.cacheStorage.insert(data);
-        synchronized (this.lock) {
+        CacheIndexEntry newEntry;
+        ReadIndexEntry oldEntry;
+        try {
             newEntry = new CacheIndexEntry(offset, data.getLength(), dataAddress);
-            oldEntry = addToIndex(newEntry);
+            synchronized (this.lock) {
+                newEntry = new CacheIndexEntry(offset, data.getLength(), dataAddress);
+                oldEntry = addToIndex(newEntry);
+            }
+        } catch (Throwable ex) {
+            if (!Exceptions.mustRethrow(ex)) {
+                // Clean up the data we inserted if we were unable to add it to the index.
+                this.cacheStorage.delete(dataAddress);
+            }
+            throw ex;
         }
 
         if (oldEntry != null) {
             deleteData(oldEntry);
-            log.warn("{}: Insert overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).",
-                    this.traceObjectId, newEntry.getStreamSegmentOffset(), newEntry.getLength(), oldEntry.getLength());
+            log.warn("{}: {} overrode existing entry (Offset = {}, OldLength = {}, NewLength = {}).",
+                    this.traceObjectId, operationName, newEntry.getStreamSegmentOffset(), newEntry.getLength(), oldEntry.getLength());
         }
+        return newEntry;
     }
 
     @GuardedBy("lock")
     private ReadIndexEntry addToIndex(ReadIndexEntry entry) {
+        Exceptions.checkNotClosed(this.closed, this);
         // Insert the new entry and figure out if an old entry was overwritten.
         ReadIndexEntry oldEntry = this.indexEntries.put(entry);
         if (entry.isDataEntry()) {
