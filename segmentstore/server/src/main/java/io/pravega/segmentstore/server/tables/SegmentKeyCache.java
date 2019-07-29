@@ -453,6 +453,12 @@ class SegmentKeyCache {
             this.highestOffset = Math.max(this.highestOffset, segmentOffset);
         }
 
+        /**
+         * Removes the contents of this entry from the cache, if anything was stored there in the first place. Invoking
+         * this will cause {@link #storeInCache} to throw an {@link IllegalStateException} going forward.
+         *
+         * @return True if there was anything evicted, false otherwise.
+         */
         synchronized boolean evict() {
             int address = this.dataAddress;
             this.dataAddress = EVICTED_ADDRESS;

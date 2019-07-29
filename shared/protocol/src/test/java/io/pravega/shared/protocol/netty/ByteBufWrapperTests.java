@@ -12,8 +12,10 @@ package io.pravega.shared.protocol.netty;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
@@ -116,6 +118,32 @@ public class ByteBufWrapperTests {
         val outputStream1 = new ByteArrayOutputStream();
         wrap.copyTo(outputStream1);
         Assert.assertArrayEquals("Unexpected result from copyTo.", expectedData, outputStream1.toByteArray());
+    }
+
+    /**
+     * Tests the ability of {@link ByteBufWrapper} to return slices of itself.
+     */
+    @Test
+    public void testSlice() throws IOException {
+        val data = newData();
+        @Cleanup("release")
+        val buf = wrap(data);
+        val wrap = new ByteBufWrapper(buf);
+        for (int offset = 0; offset < data.length; offset += 19) {
+            for (int length = 0; length < data.length - offset; length += 11) {
+                val expected = new byte[length];
+                System.arraycopy(data, offset, expected, 0, length);
+                val slice = wrap.slice(offset, length).getCopy();
+                Assert.assertArrayEquals("Unexpected slice() result for offset " + offset + ", length " + length, expected, slice);
+                if (length == 0) {
+                    Assert.assertEquals("Unexpected getReader() result for offset " + offset + ", length " + length,
+                            0, wrap.getReader(offset, length).available());
+                } else {
+                    val stream = StreamHelpers.readAll(wrap.getReader(offset, length), length);
+                    Assert.assertArrayEquals("Unexpected getReader() result for offset " + offset + ", length " + length, expected, slice);
+                }
+            }
+        }
     }
 
     private byte[] newData() {

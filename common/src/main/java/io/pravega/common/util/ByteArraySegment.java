@@ -126,7 +126,7 @@ public class ByteArraySegment implements ArrayView {
     }
 
     @Override
-    public BufferView slice(int offset, int length) {
+    public ByteArraySegment slice(int offset, int length) {
         return subSegment(offset, length);
     }
 
@@ -242,6 +242,7 @@ public class ByteArraySegment implements ArrayView {
      * @throws ArrayIndexOutOfBoundsException If offset or length are invalid.
      */
     public ByteArraySegment subSegment(int offset, int length) {
+        // TODO: drop this in favor of slice(). Also rename the one with `readOnly`
         return subSegment(offset, length, this.readOnly);
     }
 
