@@ -31,7 +31,6 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
-import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
@@ -365,7 +364,7 @@ class SegmentStoreAdapter extends StoreAdapter {
         private final Storage storage;
 
         SingletonStorageFactory(ScheduledExecutorService executor) {
-            this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT,"/tmp/pravega/storage").build(),
+            this.storage = new FileSystemStorageFactory(FileSystemStorageConfig.builder().with(FileSystemStorageConfig.ROOT, "/tmp/pravega/storage").build(),
                     executor).createStorageAdapter();
             this.storage.initialize(1);
             this.closed = new AtomicBoolean();
