@@ -32,10 +32,20 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class AuthInterceptor implements ServerInterceptor {
 
-    private static final String AUTH_CONTEXT = "PravegaContext";
-    private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
-    static final Context.Key<Principal> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
-    static final Context.Key<AuthInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
+    private static final String PRINCIPAL_KEY_NAME = "PravegaContext";
+    private static final String INTERCEPTOR_KEY_NAME = "InterceptorContext";
+
+    /**
+     * Represents the key used for indexing the {@link java.security.Principal} object stored in the current
+     * {@link io.grpc.Context}.
+     */
+    static final Context.Key<Principal> PRINCIPAL_OBJECT_KEY = Context.key(PRINCIPAL_KEY_NAME);
+
+    /**
+     * Represents the key used for indexing an object instance of this class stored in the current
+     * {@link io.grpc.Context}.
+     */
+    static final Context.Key<AuthInterceptor> AUTH_INTERCEPTOR_OBJECT_KEY = Context.key(INTERCEPTOR_KEY_NAME);
 
     @Getter
     private final AuthHandler handler;
@@ -71,7 +81,8 @@ public class AuthInterceptor implements ServerInterceptor {
                             call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
                             return null;
                         }
-                        context = context.withValues(AUTH_CONTEXT_TOKEN, principal, INTERCEPTOR_OBJECT, this);
+                        // Creates a new Context with the given key/value pairs.
+                        context = context.withValues(PRINCIPAL_OBJECT_KEY, principal, AUTH_INTERCEPTOR_OBJECT_KEY, this);
                     }
                 }
             }
