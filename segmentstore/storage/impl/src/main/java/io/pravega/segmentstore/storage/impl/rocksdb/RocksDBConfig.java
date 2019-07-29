@@ -25,7 +25,8 @@ public class RocksDBConfig {
     public static final Property<Integer> WRITE_BUFFER_SIZE_MB = Property.named("writeBufferSizeMB", 64);
     public static final Property<Integer> READ_CACHE_SIZE_MB = Property.named("readCacheSizeMB", 8);
     public static final Property<Integer> CACHE_BLOCK_SIZE_KB = Property.named("cacheBlockSizeKB", 32);
-    public static final Property<String> ROCKSDB_LOG_LEVEL = Property.named("rocksDBLogLevel", "DEBUG");
+    public static final Property<String> ROCKSDB_LOG_LEVEL = Property.named("rocksDBLogLevel", "WARN");
+    public static final Property<Boolean> ROCKSDB_STATISTICS = Property.named("rocksDBStatistics", true);
     public static final Property<Boolean> DIRECT_READS = Property.named("directReads", false);
     private static final String COMPONENT_CODE = "rocksdb";
 
@@ -70,6 +71,13 @@ public class RocksDBConfig {
     private final String rocksDBLogLevel;
 
     /**
+     * Setting rocksDBStatistics to True will enable the statistics in RockDB, it will dump the statistics to the log
+     * every 5 minutes.
+     */
+    @Getter
+    private final Boolean rocksDBStatistics;
+
+    /**
      * Enabling direct reads may be beneficial for performance due to: i) it avoids extra copies of data on OS page
      * cache, ii) it exploits better knowledge of the behavior of data to apply policies (e.g., replacement). However,
      * as not all OS/environments support direct IO, we keep it disabled by default for safety.
@@ -92,6 +100,7 @@ public class RocksDBConfig {
         this.readCacheSizeMB = properties.getInt(READ_CACHE_SIZE_MB);
         this.cacheBlockSizeKB = properties.getInt(CACHE_BLOCK_SIZE_KB);
         this.rocksDBLogLevel = properties.get(ROCKSDB_LOG_LEVEL);
+        this.rocksDBStatistics = properties.getBoolean(ROCKSDB_STATISTICS);
         this.directReads = properties.getBoolean(DIRECT_READS);
     }
 

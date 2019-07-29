@@ -67,6 +67,7 @@ class RocksDBCache implements Cache {
     private final int readCacheSizeMB;
     private final int cacheBlockSizeKB;
     private final String rocksDBLogLevel;
+    private final boolean rocksDBStatistics;
     private final boolean directReads;
 
     //endregion
@@ -95,6 +96,7 @@ class RocksDBCache implements Cache {
         this.readCacheSizeMB = config.getReadCacheSizeMB();
         this.cacheBlockSizeKB = config.getCacheBlockSizeKB();
         this.rocksDBLogLevel = config.getRocksDBLogLevel();
+        this.rocksDBStatistics = config.getRocksDBStatistics();
         this.directReads = config.isDirectReads();
         try {
             this.databaseOptions = createDatabaseOptions();
@@ -255,12 +257,11 @@ class RocksDBCache implements Cache {
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
-                .setUseDirectReads(false);
+                .setUseDirectReads(directReads);
 
         InfoLogLevel logLevel = translateRocksDBLogLevel(rocksDBLogLevel);
         try(final Options logOptions = new Options().
-                setInfoLogLevel(logLevel).
-                setCreateIfMissing(true);
+                setInfoLogLevel(logLevel);
 
             final Logger logger = new Logger(logOptions) {
                 @Override
@@ -282,25 +283,16 @@ class RocksDBCache implements Cache {
                             log.error(logMsg);
                             break;
                     }
+                    return;
                 }
             }) {
             databaseOptions.setLogger(logger);
         }
 
-        try (final Statistics statistics = new Statistics()) {
-            databaseOptions.setStatistics(statistics).setCreateIfMissing(true);
-        }
-
-        try(final Statistics stats = databaseOptions.statistics()) {
-
-            final StatsCallback callback = new StatsCallback();
-            final StatsCollectorInput statsInput =
-                    new StatsCollectorInput(stats, callback);
-
-            final StatisticsCollector statsCollector = new StatisticsCollector(
-                    Collections.singletonList(statsInput), 100);
-            statsCollector.start();
-
+        if(this.rocksDBStatistics) {
+            try (final Statistics statistics = new Statistics()) {
+                databaseOptions.setStatistics(statistics).setStatsDumpPeriodSec(60);
+            }
         }
         return databaseOptions;
     }
