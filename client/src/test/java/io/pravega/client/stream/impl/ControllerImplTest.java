@@ -548,7 +548,6 @@ public class ControllerImplTest {
                 }
             }
 
-
             @Override
             public void isSegmentValid(SegmentId request,
                     StreamObserver<SegmentValidityResponse> responseObserver) {
