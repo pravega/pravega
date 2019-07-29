@@ -1894,12 +1894,12 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertTrue("Segment '" + segmentName + "' still exists in Storage.", attemptsLeft >= 0);
     }
 
+    @SneakyThrows
     private void checkAppendLeaks(Collection<RefCountByteArraySegment> appends) {
         Assert.assertTrue("At least one append buffer has never been retained.",
                 appends.stream().allMatch(RefCountByteArraySegment::wasRetained));
 
-        Assert.assertTrue("Memory Leak: At least one append buffer did not have its data released.",
-                appends.stream().allMatch(r -> r.getRefCount() == 0));
+        AssertExtensions.assertEventuallyEquals(0, () -> (int) appends.stream().mapToInt(RefCountByteArraySegment::getRefCount).sum(), 10);
     }
 
     private void appendToParentsAndTransactions(Collection<String> segmentNames, HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
