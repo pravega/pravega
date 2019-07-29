@@ -51,6 +51,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime.SegmentLocation;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamConfig;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
@@ -514,6 +515,39 @@ public class ControllerImplTest {
                     responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
                 }
             }
+
+            @Override
+            public void getStreamState(StreamInfo request, StreamObserver<StreamStatus> responseObserver) {
+                if (request.getStream().equals("stream1")) {
+                    responseObserver.onNext(StreamStatus.newBuilder()
+                            .setState(StreamStatus.State.UNKNOWN)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream2")) {
+                    responseObserver.onNext(StreamStatus.newBuilder()
+                            .setState(StreamStatus.State.CREATING)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream3")) {
+                    responseObserver.onNext(StreamStatus.newBuilder()
+                            .setState(StreamStatus.State.ACTIVE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream4")) {
+                    responseObserver.onNext(StreamStatus.newBuilder()
+                            .setState(StreamStatus.State.SEALING)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getStream().equals("stream5")) {
+                    responseObserver.onNext(StreamStatus.newBuilder()
+                            .setState(StreamStatus.State.SEALED)
+                            .build());
+                    responseObserver.onCompleted();
+                } else {
+                    responseObserver.onError(Status.INTERNAL.withDescription("Server error").asRuntimeException());
+                }
+            }
+
 
             @Override
             public void isSegmentValid(SegmentId request,
@@ -1016,6 +1050,25 @@ public class ControllerImplTest {
 
         streamSegments = controllerClient.getCurrentSegments("scope1", "stream2");
         AssertExtensions.assertFutureThrows("Should throw Exception", streamSegments, throwable -> true);
+    }
+
+    @Test
+    public void testGetStreamState() {
+        CompletableFuture<StreamState> streamState;
+        streamState = controllerClient.getStreamState("scope1", "stream1");
+        assertEquals(streamState.join(), StreamState.UNKNOWN);
+
+        streamState = controllerClient.getStreamState("scope1", "stream2");
+        assertEquals(streamState.join(), StreamState.CREATING);
+
+        streamState = controllerClient.getStreamState("scope1", "stream3");
+        assertEquals(streamState.join(), StreamState.ACTIVE);
+
+        streamState = controllerClient.getStreamState("scope1", "stream4");
+        assertEquals(streamState.join(), StreamState.SEALING);
+
+        streamState = controllerClient.getStreamState("scope1", "stream5");
+        assertEquals(streamState.join(), StreamState.SEALED);
     }
 
     @Test
