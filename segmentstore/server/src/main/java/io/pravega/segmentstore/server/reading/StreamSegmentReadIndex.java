@@ -1003,7 +1003,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             entry.setGeneration(generation);
         }
 
-        return new CacheReadResultEntry(entry.getStreamSegmentOffset(), data.getReader(entryOffset, length), length);
+        return new CacheReadResultEntry(entry.getStreamSegmentOffset() + entryOffset, data.getReader(entryOffset, length), length);
     }
 
     /**

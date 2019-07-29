@@ -9,10 +9,9 @@
  */
 package io.pravega.segmentstore.server.reading;
 
-import io.pravega.common.Exceptions;
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
-
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
@@ -24,16 +23,15 @@ class CacheReadResultEntry extends ReadResultEntryBase {
      * Creates a new instance of the CacheReadResultEntry class.
      *
      * @param streamSegmentOffset The offset within the StreamSegment where this ReadResultEntry starts at. NOTE: this is
-     *                            not where the first byte of 'data' starts, rather it's where dataOffset points to in the
-     *                            StreamSegment.
+     *                            where the first byte of 'data' starts; internally it will set {@link #getStreamSegmentOffset()}
+     *                            to the sum of this value and dataOffset.
      * @param data                The data buffer that contains the data.
      * @param dataOffset          The offset within data where this ReadResultEntry starts at.
      * @param dataLength          The length of the data that this ReadResultEntry has.
      */
+    @VisibleForTesting
     CacheReadResultEntry(long streamSegmentOffset, byte[] data, int dataOffset, int dataLength) {
-        super(ReadResultEntryType.Cache, streamSegmentOffset + dataOffset, dataLength);
-        Exceptions.checkArrayRange(dataOffset, dataLength, data.length, "dataOffset", "dataLength");
-        complete(new ReadResultEntryContents(new ByteArrayInputStream(data, dataOffset, dataLength), dataLength));
+        this(streamSegmentOffset + dataOffset, new ByteArrayInputStream(data, dataOffset, dataLength), dataLength);
     }
 
     /**
