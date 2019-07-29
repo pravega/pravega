@@ -51,6 +51,4 @@ public class TLSHelperTests {
                 () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_NONEXISTENT),
                 e -> e instanceof IllegalStateException);
     }
-
-    //public void testNewServerSslContextFailsWhen
 }
