@@ -14,7 +14,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
-import java.io.ByteArrayOutputStream;
+import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
@@ -84,14 +85,14 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
             segment.lastEventNumber = ca.getEventNumber();
-            ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            EnhancedByteArrayOutputStream bout = new EnhancedByteArrayOutputStream();
             ca.getEvent().writeFields(new DataOutputStream(bout));
-            byte[] data = bout.toByteArray(); 
+            ByteArraySegment data = bout.getData();
             result = new Append(segment.getName(),
                     ca.getWriterId(),
                     ca.getEventNumber(),
                     1,
-                    Unpooled.wrappedBuffer(data),
+                    Unpooled.wrappedBuffer(data.array(), data.arrayOffset(), data.getLength()),
                     ca.getExpectedOffset(), ca.getRequestId());
             break;
         case APPEND_BLOCK:
