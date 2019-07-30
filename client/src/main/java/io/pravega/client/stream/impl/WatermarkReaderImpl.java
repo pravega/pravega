@@ -1,36 +1,34 @@
 package io.pravega.client.stream.impl;
 
+import com.google.common.base.Preconditions;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
-import io.pravega.client.stream.Position;
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.TimeWindow;
-import io.pravega.common.util.OrderedItemProcessor;
+import io.pravega.client.watermark.WatermarkSerializer;
+import io.pravega.common.concurrent.LatestItemSequentialProcessor;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
-@RequiredArgsConstructor
 public class WatermarkReaderImpl {
 
     private final Stream stream;
-    private final Executor executor;
-
-    private final OrderedItemProcessor<Position, Void> processor;
-    
+    private final WatermarkFetcher fetcher;
+    private final LatestItemSequentialProcessor<Map<SegmentWithRange, Long>> processor;
     
     
     private final Object lock = new Object();
@@ -38,22 +36,21 @@ public class WatermarkReaderImpl {
     private final ArrayDeque<Watermark> inflight = new ArrayDeque<>();
     @GuardedBy("lock")
     private long passedTimestamp;
-
     
-    
+    @RequiredArgsConstructor
     private static class WatermarkFetcher {
-        private final RevisionedStreamClient<Watermark> client; //StreamSegmentNameUtils.getMarkForStream(streamName)    //TODO watermarking: make sure buffer is set small on the input stream
+        private final RevisionedStreamClient<Watermark> client; 
         @GuardedBy("$lock")
-        private Revision location;
+        private Revision location = null;
         @GuardedBy("$lock")
-        private Iterator<Entry<Revision, Watermark>> iter;
+        private Iterator<Entry<Revision, Watermark>> iter = null;
         
         /**
          * This returns the next mark in the stream. It holds onto iterator between calls as this will safe a metadata check on the length.
          */
         @Synchronized
         private Watermark fetchNextMark() {
-            if (iter.hasNext()) {
+            if (iter != null && iter.hasNext()) {
                 Entry<Revision, Watermark> next = iter.next();
                 location = next.getKey();
                 return next.getValue();
@@ -67,18 +64,11 @@ public class WatermarkReaderImpl {
             return null;
         }
     }
-    
-    private CompletableFuture<Void> processPositionUpdate(Position pos) {
-        ArrayList<Watermark> toAddToInflight = new ArrayList<>();
-        for (Iterator<Entry<Revision, Watermark>> iter = client.readFrom(location.get()); iter.hasNext();) {
-            Entry<Revision, Watermark> entry = iter.next();
-            Revision revision = entry.getKey();
-            Watermark mark = entry.getValue();
 
-        }
-        //TODO: 
+    private final Consumer<Map<SegmentWithRange, Long>> processFunction = new Consumer<Map<SegmentWithRange, Long>>() {
 
-        synchronized (lock) {
+        @Override
+        public void accept(Map<SegmentWithRange, Long> position) {
             while (!inflight.isEmpty()) {
                 int compare = compare(position, inflight.getFirst());
                 if (compare > 0) {
@@ -87,11 +77,8 @@ public class WatermarkReaderImpl {
                     break;
                 }
             }
-            //TODO: Problem with concurrent calls. They really should be queued so that we don't need to run them in parallel. 
-            //Ideally this should not block the thread calling advance. A simple solution would be to use a thread pool to internally fetch the next mark and update the inflight.
-            //So this whole thing needs to be made async to avoid blocking the thread pool thread. But revision stream client is not async.
             while (inflight.isEmpty() || compare(position, inflight.getLast()) < 0) {
-                Watermark mark = fetchNextMark();
+                Watermark mark = fetcher.fetchNextMark();
                 if (mark == null) {
                     break;
                 }
@@ -99,41 +86,55 @@ public class WatermarkReaderImpl {
                     inflight.addLast(mark);
                 }
             }
-        }        
-    } 
+        }
+    };
 
+    
+    /**
+     * Creates a Reader to keep track of the current time window for a given stream.
+     * 
+     * @param stream The stream to read the water marks for.
+     * @param clientFactory A factory to create the water mark reader. NOTE: This must use the same scope as the `stream` passed.
+     * @param executor A threadpool to perform background operations.
+     */
+    public WatermarkReaderImpl(Stream stream, SynchronizerClientFactory clientFactory, Executor executor) {
+        this.stream = Preconditions.checkNotNull(stream);       
+        
+        SynchronizerConfig config = SynchronizerConfig.builder().readBufferSize(4096).build();
+        this.fetcher = new WatermarkFetcher(clientFactory.createRevisionedStreamClient(StreamSegmentNameUtils.getMarkForStream(stream.getStreamName()),
+                                                                                       new WatermarkSerializer(),
+                                                                                       config));
+        this.processor = new LatestItemSequentialProcessor<>(processFunction, Preconditions.checkNotNull(executor));     
+    }
+    
     /**
      * Advances the position in the watermark segment based on the provided position.
      * 
-     * @param position - The position of the local reader.
-     * @param minPeerTimestamp - The oldest timestamp reported by any reader in the reader group. (This forms a lower bound of 
-     * 
+     * @param readerGroupPosition - The latest read positions of the open segments in the reader group.
      */
-    public void advanceTo(PositionInternal position, long minPeerTimestamp) {
-       
+    public void advanceTo(Map<SegmentWithRange, Long> readerGroupPosition) {
+        processor.updateItem(readerGroupPosition);      
     }
 
-
-
-    public long getLocalMinTimestamp() {
-        return passedTimestamp;
-    }
     
+    /**
+     * Returns the current time window of the reader group for the associated stream.
+     * The value returned will only change after calling {@link #advanceTo(Map)}.
+     * @return TimeWindow the bounds on the upper and lower times provided by the writer at the time of writing.
+     */
     public TimeWindow getTimeWindow() {
-        // return min time for inflight.0 and max time for inflight[length-2]
+        if (inflight.isEmpty()) {
+            return new TimeWindow(passedTimestamp, null);
+        }
+        
+        return new TimeWindow(inflight.getFirst().getLowerTimeBound(), inflight.getLast().getUpperTimeBound());
     }
+
     
-    //Need to deal with case where time windows skip over watermark in which case there is only one inflight.
-    //It by definition is greater than the last seen in the inflight.
-    //So instead we should have one pre-inflight and one post-inflight.
-    //Then the timewindow min is the min of the pre-inflight max and the min inflight min
-    //the and the window max is the max of the post-inflight min and the max inflight max
-    //in the event we are at the tail there may be no post inflight and the Upper limit to the time window may be meaningless. 
+    //TODO watermarking: Need to add tests assert these properties.
     
-    // Need to add tests assert these properties.
-    
-    private int compare(Position pos, Watermark mark) {
-        Map<SegmentWithRange, Long> left = pos.asImpl().getOwnedSegmentRangesWithOffsets();
+    private int compare(Map<SegmentWithRange, Long> readerGroupPosition, Watermark mark) {
+        Map<SegmentWithRange, Long> left = readerGroupPosition;
         Map<SegmentWithRange, Long> right = new HashMap<>();
         for (Entry<io.pravega.shared.watermarks.SegmentWithRange, Long> entry : mark.getStreamCut().entrySet()) {
             Segment segment = new Segment(stream.getScope(), stream.getStreamName(), entry.getKey().getSegmentId());
