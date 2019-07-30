@@ -27,7 +27,7 @@ package io.pravega.shared;
  * - segmentstore.bookkeeper: metrics related to bookkeeper (Tier 1)
  * - segmentstore.container: metrics for segment containers
  * - segmentstore.thread_pool: metrics for segmentstore thread pool
- * - segmentstore.cache: cache-related metrics (RocksDB)
+ * - segmentstore.cache: cache-related metrics
  * - controller.stream: metrics for operations on streams (e.g., number of streams created)
  * - controller.segments: metrics about segments, per stream (e.g., count, splits, merges)
  * - controller.transactions: metrics related to transactions (e.g., created, committed, aborted)
@@ -98,7 +98,7 @@ public final class MetricsNames {
     public static final String STORAGE_WRITE_BYTES = PREFIX + "segmentstore.storage.write_bytes";        // Counter
     public static final String STORAGE_CREATE_COUNT = PREFIX + "segmentstore.storage.create_count";      // Counter
 
-    // Cache (RocksDB) stats
+    // Cache stats
     public static final String CACHE_INSERT_LATENCY = PREFIX + "segmentstore.cache.insert_latency_ms";   // Histogram
     public static final String CACHE_WRITE_BYTES = PREFIX + "segmentstore.cache.write_bytes";            // Counter
     public static final String CACHE_GET_LATENCY = PREFIX + "segmentstore.cache.get_latency_ms";         // Histogram
