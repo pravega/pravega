@@ -146,7 +146,6 @@ public class AuthHandlerManager {
     /**
      * Loads the custom implementations of the AuthHandler interface dynamically. Registers the interceptors with grpc.
      * Stores the implementation in a local map for routing the REST auth request.
-     *
      * @param builder The grpc service builder to register the interceptors.
      */
     public void registerInterceptors(ServerBuilder<?> builder) {

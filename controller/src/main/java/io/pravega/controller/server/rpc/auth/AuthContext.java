@@ -33,14 +33,16 @@ public class AuthContext {
 
     /**
      * Initiates a new instance using the current {@link io.grpc.Context}.
-     *u
+     *
      * @return an instance containing {@link Principal} and {@link AuthHandler} from the current {@link io.grpc.Context}
      */
     public static AuthContext current() {
-        // Obtains the Principal object stored in the current gRPC Context
+        // Obtains the Principal object stored in the current gRPC Context. The 'get()' method gets the value from the
+        // Context associated with the current gRPC scope, so the value changes for each gRPC request/scope.
         Principal principal = AuthInterceptor.PRINCIPAL_OBJECT_KEY.get();
 
-        // Obtains the AuthInterceptor object stored in the current gRPC Context
+        // Obtains the AuthInterceptor object stored in the current gRPC Context. The 'get()' method gets the value
+        // from the Context associated with the current gRPC scope, so the value changes for each gRPC request/scope.
         AuthInterceptor serverAuthInterceptor = AuthInterceptor.AUTH_INTERCEPTOR_OBJECT_KEY.get();
 
         AuthHandler authHandler = null;
