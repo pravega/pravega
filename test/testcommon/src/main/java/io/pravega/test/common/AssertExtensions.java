@@ -128,7 +128,7 @@ public class AssertExtensions {
             if (!tester.test(ex.getCause())) {
                 throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex.getCause(), ex);
             }
-        } catch (Exception ex) {
+        } catch (Throwable ex) {
             if (!tester.test(ex)) {
                 throw new AssertionError(message + " Exception thrown was of unexpected type: " + ex, ex);
             }

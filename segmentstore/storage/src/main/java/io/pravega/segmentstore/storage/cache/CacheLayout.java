@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.cache;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 /**
@@ -140,7 +141,7 @@ abstract class CacheLayout {
      *
      * @param blockMetadata The block metadata to extract from.
      * @return The successor address. This value is undefined if `blockMetadata` was not generated using one of the methods
-     * in this class.
+     * in this class or if {@link #isUsedBlock} returns false on `blockMetadata`.
      */
     abstract int getSuccessorAddress(long blockMetadata);
 
@@ -156,7 +157,8 @@ abstract class CacheLayout {
     /**
      * Gets the length of the Buffer-Block associated with the given block metadata.
      * @param blockMetadata The block metadata to get from.
-     * @return The length. This value is undefined if `blockMetadata` was not generated using one of the methods in this class.
+     * @return The length. This value is undefined if `blockMetadata` was not generated using one of the methods in this class
+     * or if {@link #isUsedBlock} returns false on `blockMetadata`.
      */
     abstract int getLength(long blockMetadata);
 
@@ -173,7 +175,7 @@ abstract class CacheLayout {
      * Gets the next free block id from the given block metadata.
      * @param blockMetadata The block metadata to get from.
      * @return The next free block id. This value is undefined if `blockMetadata` was not generated using one of the methods
-     * in this class.
+     * in this class or if {@link #isUsedBlock} returns true on `blockMetadata`.
      */
     abstract int getNextFreeBlockId(long blockMetadata);
 
@@ -184,6 +186,16 @@ abstract class CacheLayout {
      * the methods in this class.
      */
     abstract boolean isUsedBlock(long blockMetadata);
+
+    /**
+     * Gets a value indicating whether the Buffer-Block associated with the given block metadata is the first one for
+     * an entry.
+     *
+     * @param blockMetadata The block metadata to query.
+     * @return True if first, false otherwise. This value is undefined if `blockMetadata` was not generated using one of
+     * the methods in this class or if {@link #isUsedBlock} returns false on `blockMetadata`.
+     */
+    abstract boolean isFirstBlock(long blockMetadata);
 
     /**
      * Generates a new Buffer-Block Metadata having IsUsed set to true.
@@ -234,17 +246,20 @@ abstract class CacheLayout {
      * - Bits 32-63: Successor Address.
      */
     static class DefaultLayout extends CacheLayout {
+        @VisibleForTesting
+        static final int ADDRESS_BIT_COUNT = Integer.SIZE;
+        @VisibleForTesting
+        static final int BLOCK_LENGTH_BIT_COUNT = 14;
+        @VisibleForTesting
+        static final int BLOCK_ID_BIT_COUNT = 10;
         private static final int BUFFER_SIZE = 2 * 1024 * 1024;
         private static final int BLOCK_SIZE = 4 * 1024;
         private static final long USED_FLAG = 0x8000_0000_0000_0000L;
         private static final long FIRST_BLOCK_FLAG = 0x4000_0000_0000_0000L;
         private static final long EMPTY_BLOCK_METADATA = 0L; // Not used, not first, no length and no successor.
-        private static final int BLOCK_LENGTH_BIT_COUNT = 14;
         private static final int BLOCK_LENGTH_MASK = 0x3FFF; // 14 Bits.
-        private static final int ADDRESS_BIT_COUNT = Integer.SIZE;
         private static final int NEXT_FREE_BLOCK_ID_SHIFT_BITS = BLOCK_LENGTH_BIT_COUNT + ADDRESS_BIT_COUNT;
         private static final long NEXT_FREE_BLOCK_ID_CLEAR_MASK = 0xFF00_3FFF_FFFF_FFFFL; // Clear 10 bits in middle
-        private static final int BLOCK_ID_BIT_COUNT = 10;
         private static final int BLOCK_ID_MASK = 0x3FF;
 
         @Override
@@ -317,6 +332,11 @@ abstract class CacheLayout {
         @Override
         boolean isUsedBlock(long blockMetadata) {
             return (blockMetadata & USED_FLAG) == USED_FLAG;
+        }
+
+        @Override
+        boolean isFirstBlock(long blockMetadata) {
+            return (blockMetadata & FIRST_BLOCK_FLAG) == FIRST_BLOCK_FLAG;
         }
 
         @Override

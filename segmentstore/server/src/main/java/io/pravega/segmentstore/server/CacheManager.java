@@ -113,7 +113,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
             }
 
             this.cacheStorage.close();
-            this.metrics.close();
             log.info("{} Closed.", TRACE_OBJECT_ID);
         }
     }
@@ -267,7 +266,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 reducedOverall = true;
             }
         } while (reducedInIteration && oldestChanged);
-        this.metrics.report(this.lastSnapshot.get().getAllocatedBytes(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
+        this.metrics.report(this.lastSnapshot.get(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
         return reducedOverall;
     }
 

@@ -194,6 +194,7 @@ public class DirectMemoryCache implements CacheStorage {
             throw ex;
         }
 
+        CacheMetrics.insert(data.getLength());
         return firstBlockAddress;
     }
 
@@ -241,12 +242,14 @@ public class DirectMemoryCache implements CacheStorage {
         }
 
         this.storedBytes.addAndGet(appendedBytes);
+        CacheMetrics.append(appendedBytes);
         return appendedBytes;
     }
 
     @Override
     public void delete(int address) {
         Exceptions.checkNotClosed(this.closed.get(), this);
+        int deletedLength = 0;
         while (address != CacheLayout.NO_ADDRESS) {
             // Locate the Buffer-Block for the current address.
             int bufferId = this.layout.getBufferId(address);
@@ -259,7 +262,7 @@ public class DirectMemoryCache implements CacheStorage {
             // Delete whatever we can from it and remember the successor.
             DirectMemoryBuffer.DeleteResult result = b.delete(blockId);
             address = result.getSuccessorAddress();
-            this.storedBytes.addAndGet(-result.getDeletedLength());
+            deletedLength += result.getDeletedLength();
             if (wasFull) {
                 synchronized (this.availableBufferIds) {
                     if (b.hasCapacity()) {
@@ -270,6 +273,9 @@ public class DirectMemoryCache implements CacheStorage {
                 }
             }
         }
+
+        this.storedBytes.addAndGet(-deletedLength);
+        CacheMetrics.delete(deletedLength);
     }
 
     @Override
@@ -293,6 +299,7 @@ public class DirectMemoryCache implements CacheStorage {
             // Compose the result and return it.
             ByteBuf first = readBuffers.get(0);
             ByteBuf result = readBuffers.size() == 1 ? first : new CompositeByteBuf(first.alloc(), false, readBuffers.size(), readBuffers);
+            CacheMetrics.get(result.readableBytes());
             return new ByteBufWrapper(result);
         }
     }
