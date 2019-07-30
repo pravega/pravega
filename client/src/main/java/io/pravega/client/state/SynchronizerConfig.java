@@ -21,10 +21,12 @@ import lombok.Data;
 @Builder
 public class SynchronizerConfig implements Serializable {
 
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
     EventWriterConfig eventWriterConfig;
+    int readBufferSize;
     
     public static class SynchronizerConfigBuilder {
         private EventWriterConfig eventWriterConfig = EventWriterConfig.builder().build();
+        private int readBufferSize = 256 * 1024;
     }
 }
