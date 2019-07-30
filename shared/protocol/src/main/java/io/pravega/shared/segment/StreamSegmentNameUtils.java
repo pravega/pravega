@@ -11,6 +11,7 @@ package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.shared.NameUtils;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -370,9 +371,6 @@ public final class StreamSegmentNameUtils {
     
     // region watermark
     public static String getMarkForStream(String stream) {
-        StringBuffer sb = new StringBuffer();
-        sb.append(MARK);
-        sb.append(stream);
-        return sb.toString();
+        return NameUtils.getMarkStreamForStream(stream);
     }
 }
