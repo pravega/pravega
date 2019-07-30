@@ -35,6 +35,7 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentsAtTime;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.task.TaskData;
@@ -666,6 +667,16 @@ public abstract class ControllerServiceImplTest {
         NodeUri nodeUri = result1.get();
         Assert.assertEquals("localhost", nodeUri.getEndpoint());
         Assert.assertEquals(12345, nodeUri.getPort());
+    }
+
+    @Test
+    public void getStreamStateTest() {
+        createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
+
+        ResultObserver<StreamStatus> result1 = new ResultObserver<>();
+        this.controllerService.getStreamState(ModelHelper.createStreamInfo(SCOPE1, STREAM1), result1);
+        StreamStatus streamStatus = result1.get();
+        Assert.assertEquals(StreamStatus.State.ACTIVE, streamStatus.getState());
     }
 
     @Test
