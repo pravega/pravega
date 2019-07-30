@@ -140,6 +140,7 @@ public class AuthHandlerManager {
      */
     @VisibleForTesting
     public synchronized void registerHandler(AuthHandler authHandler) {
+        Preconditions.checkNotNull(authHandler, "authHandler");
         this.handlerMap.put(authHandler.getHandlerName(), authHandler);
     }
 
