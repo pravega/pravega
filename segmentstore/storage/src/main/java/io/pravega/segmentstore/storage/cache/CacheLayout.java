@@ -15,6 +15,8 @@ import com.google.common.base.Preconditions;
  * Base class that defines the memory layout for a block-based {@link CacheStorage}.
  */
 abstract class CacheLayout {
+    //region Members
+
     /**
      * The maximum number of bytes that can be stored in a {@link CacheStorage} using this type of layout.
      */
@@ -34,6 +36,10 @@ abstract class CacheLayout {
     private final int maxBufferCount;
     private final int blocksPerBuffer;
 
+    //endregion
+
+    //region Constructor
+
     /**
      * Creates a new instance of the {@link CacheLayout} class and performs any necessary sanity checks.
      */
@@ -49,6 +55,10 @@ abstract class CacheLayout {
         Preconditions.checkState(this.blocksPerBuffer * blockMetadataSize() == blockSize(),
                 "All block metadata must fit exactly into a single block.");
     }
+
+    //endregion
+
+    //region Properties
 
     /**
      * Gets a value indicating the number of Buffers to use for this layout.
@@ -199,6 +209,8 @@ abstract class CacheLayout {
     String getAddressString(int address) {
         return address == NO_ADDRESS ? "" : String.format("Buffer = %d, Block = %d", getBufferId(address), getBlockId(address));
     }
+
+    //endregion
 
     //region Default Layout
 

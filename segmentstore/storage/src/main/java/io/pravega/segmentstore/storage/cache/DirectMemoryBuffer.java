@@ -354,10 +354,19 @@ class DirectMemoryBuffer implements AutoCloseable {
 
     //region Result Classes
 
+    /**
+     * Result from {@link #delete}.
+     */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
     class DeleteResult {
+        /**
+         * Number of bytes freed.
+         */
         private final int deletedLength;
+        /**
+         * The address of the next Block-Buffer in the chain (from the last Block-Buffer that was deleted).
+         */
         private final int successorAddress;
 
         @Override
@@ -366,11 +375,23 @@ class DirectMemoryBuffer implements AutoCloseable {
         }
     }
 
+    /**
+     * Result from {@link #write}.
+     */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
     class WriteResult {
+        /**
+         * The number of bytes remaining to be written after this Buffer.
+         */
         private final int remainingLength;
+        /**
+         * The address of the first Block written to in this Buffer.
+         */
         private final int firstBlockAddress;
+        /**
+         * The address of the last Block written to in this Buffer.
+         */
         private final int lastBlockAddress;
 
         @Override
@@ -380,10 +401,20 @@ class DirectMemoryBuffer implements AutoCloseable {
         }
     }
 
+    /**
+     * Result from {@link #tryAppend}
+     */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     @Getter
     class AppendResult {
+        /**
+         * The number of bytes appended. This is 0 if {@link #getNextBlockAddress()} is {@link CacheLayout#NO_ADDRESS}.
+         */
         private final int appendedLength;
+        /**
+         * The address of the next Block-Buffer in the chain for the entry to append. This value is undefined if
+         * {@link #getAppendedLength()} is non-zero.
+         */
         private final int nextBlockAddress;
 
         @Override
