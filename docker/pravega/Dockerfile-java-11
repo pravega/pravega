@@ -7,7 +7,7 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-FROM openjdk:11.0-jdk-slim
+FROM openjdk:11.0-jre-slim
 
 RUN apt-get update && apt-get install -y -q \
     rpcbind \
@@ -26,10 +26,10 @@ WORKDIR /opt/pravega
 COPY pravega/ /opt/pravega/
 COPY scripts/ /opt/pravega/scripts/
 
-# Default shell of jdk11 image is dash.
-# Changing login shell to bash to avoid compatibility
-# issues with pravega-operator.
-#
-RUN chmod +x -R /opt/pravega/scripts/ && chsh -s /bin/bash
+# Default shell of jdk11 image is dash
+# Creating symlink to point to bash
+RUN ln -sf /bin/bash /bin/sh
+
+RUN chmod +x -R /opt/pravega/scripts/
 
 ENTRYPOINT [ "/opt/pravega/scripts/entrypoint.sh" ]
