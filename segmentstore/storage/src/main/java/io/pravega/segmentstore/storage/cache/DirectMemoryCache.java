@@ -300,7 +300,7 @@ public class DirectMemoryCache implements CacheStorage {
             ByteBuf first = readBuffers.get(0);
             ByteBuf result = readBuffers.size() == 1 ? first : new CompositeByteBuf(first.alloc(), false, readBuffers.size(), readBuffers);
             CacheMetrics.get(result.readableBytes());
-            return new ByteBufWrapper(result);
+            return new NonReleaseableByteBufWrapper(result);
         }
     }
 
@@ -370,6 +370,29 @@ public class DirectMemoryCache implements CacheStorage {
     private boolean tryCleanup() {
         val c = this.tryCleanup.get();
         return c != null && c.get();
+    }
+
+    //endregion
+
+    //region NonReleaseableByteBufWrapper
+
+    /**
+     * {@link ByteBufWrapper} that does not enable releasing buffers.
+     */
+    private static class NonReleaseableByteBufWrapper extends ByteBufWrapper {
+        NonReleaseableByteBufWrapper(@NonNull ByteBuf buf) {
+            super(buf);
+        }
+
+        @Override
+        public void retain() {
+            // Nothing to do.
+        }
+
+        @Override
+        public void release() {
+            // Nothing to do. We don't want an external caller to release and deallocate our internal cache buffers.
+        }
     }
 
     //endregion

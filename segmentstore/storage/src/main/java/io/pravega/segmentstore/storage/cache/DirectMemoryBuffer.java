@@ -25,10 +25,16 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * A block-based, direct memory buffer used by {@link DirectMemoryCache}.
+ */
 @ThreadSafe
 class DirectMemoryBuffer implements AutoCloseable {
     //region Members
 
+    /**
+     * Buffer Id.
+     */
     @Getter
     private final int id;
     private final CacheLayout layout;
@@ -42,13 +48,21 @@ class DirectMemoryBuffer implements AutoCloseable {
 
     //region Constructor
 
+    /**
+     * Creates a new instance of the {@link DirectMemoryBuffer} class. This does not allocate any memory for the buffer
+     * yet (that will be done on its first use).
+     *
+     * @param bufferId  If of this buffer. Must be a non-negative value less than `layout.maxBufferCount()`.
+     * @param allocator A {@link ByteBufAllocator} to use for allocating buffers.
+     * @param layout    A {@link CacheLayout} that is used to organize the buffer.
+     */
     DirectMemoryBuffer(int bufferId, @NonNull ByteBufAllocator allocator, @NonNull CacheLayout layout) {
         Preconditions.checkArgument(bufferId >= 0 && bufferId < layout.maxBufferCount());
 
         this.allocator = allocator;
         this.layout = layout;
         this.id = bufferId;
-        this.usedBlockCount = 1;
+        this.usedBlockCount = 1; // Metadata Buffer.
     }
 
     //endregion
@@ -69,14 +83,30 @@ class DirectMemoryBuffer implements AutoCloseable {
 
     //region Properties
 
+    /**
+     * Gets a value indicating the number of used Blocks in this buffer.
+     *
+     * @return The number of used blocks.
+     */
     synchronized int getUsedBlockCount() {
         return this.usedBlockCount;
     }
 
+    /**
+     * Gets a value indicating whether this buffer has allocated any memory yet.
+     *
+     * @return The result.
+     */
     synchronized boolean isAllocated() {
         return this.buf != null;
     }
 
+    /**
+     * Gets a value indicating whether this buffer has any capacity to add new blocks (NOTE: there may be capacity for
+     * appending to existing blocks, but this method refers to new blocks).
+     *
+     * @return True if at least one block is free, false otherwise.
+     */
     synchronized boolean hasCapacity() {
         return this.usedBlockCount > 0 && this.usedBlockCount < this.layout.blocksPerBuffer();
     }
@@ -90,6 +120,20 @@ class DirectMemoryBuffer implements AutoCloseable {
 
     //region Buffer Implementation
 
+    /**
+     * Writes new data to this buffer, if {@link #hasCapacity()} is true.
+     *
+     * This will begin writing data to the first available block in the buffer, and filling blocks until either running
+     * out of available blocks or all the data has been written.
+     *
+     * @param data   An {@link InputStream} representing the data to add. This InputStream will not be closed or reset
+     *               throughout the execution of this method, even in case of failure.
+     * @param length The length of the data to add.
+     * @param first  True if this `data` refers to the beginning of an entry.
+     * @return A {@link WriteResult} representing the result of the write, or null if {@link #hasCapacity()} is false.
+     * If all the data has been written, then  {@link WriteResult#getRemainingLength()} will be 0.
+     * @throws IOException If an {@link IOException} occurred while reading from `data`.
+     */
     synchronized WriteResult write(InputStream data, int length, boolean first) throws IOException {
         if (this.usedBlockCount >= this.layout.blocksPerBuffer()) {
             // Full
@@ -143,14 +187,24 @@ class DirectMemoryBuffer implements AutoCloseable {
                 this.layout.calculateAddress(this.id, writtenBlocks.get(writtenBlocks.size() - 1)));
     }
 
+    /**
+     * Attempts to append some data to an entry whose first block in this buffer is known.
+     *
+     * @param blockId                 The if of the first Buffer-Block for the entry to append that resides in this buffer.
+     * @param expectedLastBlockLength The expected length of the last Buffer-Block for the entry. If this value does not
+     *                                match what is stored in that Buffer-Block metdata, the append will not execute.
+     * @param data                    An {@link InputStream} representing the data to append. This InputStream will not
+     *                                be closed or reset throughout the execution of this method, even in case of failure.
+     * @param maxLength               The maximum length to append.
+     * @return An {@link AppendResult} representing the result of the operation. If {@link AppendResult#getAppendedLength()}
+     * is 0, then no data has been appended. If different from 0 and if {@link AppendResult#getNextBlockAddress()} does not
+     * equal {@link CacheLayout#NO_ADDRESS}, then this Buffer does not contain the latest Buffer-Block for this entry
+     * and the operation must resume from that address.
+     * @throws IOException                        If an {@link IOException} has occurred while reading from `data`.
+     * @throws IncorrectCacheEntryLengthException If `expectedLastBlockLength` differs from the last block's length.
+     */
     synchronized AppendResult tryAppend(int blockId, int expectedLastBlockLength, InputStream data, int maxLength) throws IOException {
-        // Follow the block Id chain and find the last block.
-        // If not found, return 0 bytes appended and the address of the last block.
-        // Otherwise fill up last block and return number of bytes appended and the address.
-
-        Preconditions.checkState(this.usedBlockCount > 1, "empty");
-        Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer());
-
+        validateBlockId(blockId);
         ByteBuf metadataBuf = getBlockBuffer(0);
         while (blockId != CacheLayout.NO_BLOCK_ID) {
             int bufIndex = blockId * this.layout.blockMetadataSize();
@@ -189,10 +243,16 @@ class DirectMemoryBuffer implements AutoCloseable {
         return new AppendResult(0, CacheLayout.NO_ADDRESS);
     }
 
+    /**
+     * Reads from the buffer beginning at the given block id.
+     *
+     * @param blockId     The id of the Buffer-Block to begin reading from.
+     * @param readBuffers A list of {@link ByteBuf} to add read data to.
+     * @return The address of the next Buffer-Block in the sequence, or {@link CacheLayout#NO_ADDRESS} if we have reached
+     * the end of this entry.
+     */
     synchronized int read(int blockId, List<ByteBuf> readBuffers) {
-        Preconditions.checkState(this.usedBlockCount > 1, "empty");
-        Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer());
-
+        validateBlockId(blockId);
         ByteBuf metadataBuf = getBlockBuffer(0);
         while (blockId != CacheLayout.NO_BLOCK_ID) {
             int bufIndex = blockId * this.layout.blockMetadataSize();
@@ -224,10 +284,14 @@ class DirectMemoryBuffer implements AutoCloseable {
         return CacheLayout.NO_ADDRESS;
     }
 
+    /**
+     * Deletes the given Buffer-Block and all blocks it points to.
+     *
+     * @param blockId The id of the Buffer-Block to begin deleting at.
+     * @return A {@link DeleteResult} containing the result of the deletion.
+     */
     synchronized DeleteResult delete(int blockId) {
-        Preconditions.checkState(this.usedBlockCount > 1, "empty");
-        Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer());
-
+        validateBlockId(blockId);
         ByteBuf metadataBuf = getBlockBuffer(0);
         int deletedLength = 0;
         int successorAddress = CacheLayout.NO_ADDRESS;
@@ -256,12 +320,18 @@ class DirectMemoryBuffer implements AutoCloseable {
         return new DeleteResult(deletedLength, successorAddress);
     }
 
+    /**
+     * Updates the metadata of the Buffer-Block with given address to point to the given block as a successor.
+     *
+     * @param blockAddress          The address of the Buffer-Block to update.
+     * @param successorBlockAddress The address of the Buffer-Block to point to.
+     */
     synchronized void setSuccessor(int blockAddress, int successorBlockAddress) {
-        Preconditions.checkState(this.usedBlockCount > 1, "empty");
         int bufId = this.layout.getBufferId(blockAddress);
         int blockId = this.layout.getBlockId(blockAddress);
-        Preconditions.checkArgument(this.id == bufId);
-        Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer());
+        Preconditions.checkArgument(this.id == bufId, "blockAddress does not refer to this Buffer.");
+        validateBlockId(blockId);
+
         ByteBuf metadataBuf = getBlockBuffer(0);
         int bufIndex = blockId * this.layout.blockMetadataSize();
         long blockMetadata = metadataBuf.getLong(bufIndex);
@@ -270,6 +340,12 @@ class DirectMemoryBuffer implements AutoCloseable {
         metadataBuf.setLong(bufIndex, blockMetadata);
     }
 
+    /**
+     * Marks the given Buffer-Blocks as free and makes them available for re-writing.
+     *
+     * @param blocks      A list of Buffer-Block ids.
+     * @param metadataBuf A {@link ByteBuf} representing the metadata buffer.
+     */
     @GuardedBy("this")
     private void deallocateBlocks(List<Integer> blocks, ByteBuf metadataBuf) {
         Iterator<Integer> iterator = blocks.iterator();
@@ -312,6 +388,16 @@ class DirectMemoryBuffer implements AutoCloseable {
         this.usedBlockCount -= blocks.size();
     }
 
+    /**
+     * Writes the given data to the given buffer.
+     *
+     * @param blockBuffer A {@link ByteBuf} representing the Buffer-Block to write to.
+     * @param bufferIndex The index within `blockBuffer` to begin writing at.
+     * @param data        An {@link InputStream} representing the data to write.
+     * @param blockLength The length of the block.
+     * @return The number of bytes written.
+     * @throws IOException If an exception occurred.
+     */
     private int writeBlock(ByteBuf blockBuffer, int bufferIndex, InputStream data, int blockLength) throws IOException {
         blockBuffer.writerIndex(bufferIndex);
         int count = 0;
@@ -333,7 +419,7 @@ class DirectMemoryBuffer implements AutoCloseable {
             Exceptions.checkNotClosed(this.usedBlockCount < 0, this);
             assert this.usedBlockCount == 1;
 
-            // TODO: this can also be changed to wrap a ByteBuffer.
+            // TODO: this can also be changed to wrap a ByteBuffer or use ByteBuffer altogether.
             this.buf = this.allocator.directBuffer(this.layout.bufferSize(), this.layout.bufferSize());
             this.buf.setZero(0, this.buf.capacity()); // Clear out the buffer as Netty does not do it for us.
 
@@ -348,6 +434,13 @@ class DirectMemoryBuffer implements AutoCloseable {
         }
 
         return this.buf;
+    }
+
+    @GuardedBy("this")
+    private void validateBlockId(int blockId) {
+        Preconditions.checkState(this.usedBlockCount > 1, "Empty buffer.");
+        Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer(),
+                "blockId must be a number in the interval [1, %s).", this.layout.blocksPerBuffer());
     }
 
     //endregion
