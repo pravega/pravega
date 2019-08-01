@@ -209,6 +209,10 @@ class DirectMemoryBuffer implements AutoCloseable {
         while (blockId != CacheLayout.NO_BLOCK_ID) {
             int bufIndex = blockId * this.layout.blockMetadataSize();
             long blockMetadata = metadataBuf.getLong(bufIndex);
+            if (!this.layout.isUsedBlock(blockMetadata)) {
+                throw new CacheCorruptedException(String.format("Buffer %s, Block %s: Found pointer to non-used block.", this.id, blockId));
+            }
+
             assert this.layout.isUsedBlock(blockMetadata);
             int blockLength = this.layout.getLength(blockMetadata);
             int successorAddress = this.layout.getSuccessorAddress(blockMetadata);
@@ -335,7 +339,9 @@ class DirectMemoryBuffer implements AutoCloseable {
         ByteBuf metadataBuf = getBlockBuffer(0);
         int bufIndex = blockId * this.layout.blockMetadataSize();
         long blockMetadata = metadataBuf.getLong(bufIndex);
-        Preconditions.checkArgument(this.layout.isUsedBlock(blockMetadata));
+        Preconditions.checkArgument(this.layout.isUsedBlock(blockMetadata), "Buffer %s, Block %s is not used. Cannot assign successor.", this.id, blockId);
+        Preconditions.checkArgument(this.layout.getLength(blockMetadata) == this.layout.blockSize(),
+                "Buffer %s, Block %s is not full. Cannot assign successor.", this.id, blockId);
         blockMetadata = this.layout.setSuccessorAddress(blockMetadata, successorBlockAddress);
         metadataBuf.setLong(bufIndex, blockMetadata);
     }
