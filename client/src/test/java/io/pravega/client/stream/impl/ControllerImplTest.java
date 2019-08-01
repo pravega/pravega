@@ -20,6 +20,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.ScopeDoesNotExistException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -102,6 +103,8 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class ControllerImplTest {
     private static final int SERVICE_PORT = 12345;
+    private static final String NON_EXISTENT = "non-existent";
+    private static final String FAILING = "failing";
 
     @Rule
     public final Timeout globalTimeout = new Timeout(120, TimeUnit.SECONDS);
@@ -723,25 +726,35 @@ public class ControllerImplTest {
 
             @Override
             public void listStreamsInScope(Controller.StreamsInScopeRequest request, StreamObserver<Controller.StreamsInScopeResponse> responseObserver) {
-                if (Strings.isNullOrEmpty(request.getContinuationToken().getToken())) {
+                if (request.getScope().getScope().equals(NON_EXISTENT)) {
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                            .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (request.getScope().getScope().equals(FAILING)) {
+                    responseObserver.onNext(Controller.StreamsInScopeResponse
+                            .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.FAILURE)
+                            .build());
+                    responseObserver.onCompleted();
+                } else if (Strings.isNullOrEmpty(request.getContinuationToken().getToken())) {
                     List<StreamInfo> list1 = new LinkedList<>();
                     list1.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream1").build());
                     list1.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream2").build());
                     responseObserver.onNext(Controller.StreamsInScopeResponse
-                            .newBuilder().addAllStreams(list1)
+                            .newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).addAllStreams(list1)
                             .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken").build()).build());
                     responseObserver.onCompleted();
                 } else if (request.getContinuationToken().getToken().equals("myToken")) {
                     List<StreamInfo> list2 = new LinkedList<>();
                     list2.add(StreamInfo.newBuilder().setScope(request.getScope().getScope()).setStream("stream3").build());
                     responseObserver.onNext(Controller.StreamsInScopeResponse
-                            .newBuilder().addAllStreams(list2)
+                            .newBuilder().addAllStreams(list2).setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS)
                             .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("myToken2").build()).build());
                     responseObserver.onCompleted();
                 } else if (request.getContinuationToken().getToken().equals("myToken2")) {
                     List<StreamInfo> list3 = new LinkedList<>();
                     responseObserver.onNext(Controller.StreamsInScopeResponse
-                            .newBuilder().addAllStreams(list3)
+                            .newBuilder().addAllStreams(list3).setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS)
                             .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken("").build()).build());
                     responseObserver.onCompleted();
                 } else {
@@ -1245,6 +1258,14 @@ public class ControllerImplTest {
         assertEquals("stream2", m.getStreamName());
         m = iterator.getNext().join();
         assertEquals("stream3", m.getStreamName());
+
+        AssertExtensions.assertFutureThrows("Non existent scope",
+                controllerClient.listStreams(NON_EXISTENT).getNext(),
+                e -> Exceptions.unwrap(e) instanceof ScopeDoesNotExistException);
+
+        AssertExtensions.assertFutureThrows("failing request",
+                controllerClient.listStreams(FAILING).getNext(),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException);
     }
 
     @Test

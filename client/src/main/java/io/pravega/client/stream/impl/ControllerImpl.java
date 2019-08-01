@@ -25,6 +25,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.ScopeDoesNotExistException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -243,9 +244,18 @@ public class ControllerImpl implements Controller {
                                                                   .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
                         return callback.getFuture()
                                        .thenApply(x -> {
-                                           List<Stream> result = x.getStreamsList().stream()
-                                                                  .map(y -> new StreamImpl(y.getScope(), y.getStream())).collect(Collectors.toList());
-                                           return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);
+                                           switch (x.getStatus()) {
+                                               case SCOPE_NOT_FOUND:
+                                                   throw new ScopeDoesNotExistException();
+                                               case FAILURE:
+                                                   throw new RuntimeException("Failure while trying to list streams");
+                                               case SUCCESS: 
+                                               default: // we will treat all other case as success for backward 
+                                                   // compatibility reasons
+                                                   List<Stream> result = x.getStreamsList().stream()
+                                                                          .map(y -> new StreamImpl(y.getScope(), y.getStream())).collect(Collectors.toList());
+                                                   return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);
+                                           }
                                        });
                     }, this.executor);
             return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());

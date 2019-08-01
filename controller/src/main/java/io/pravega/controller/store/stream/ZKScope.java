@@ -131,7 +131,7 @@ public class ZKScope implements Scope {
 
     @Override
     public CompletableFuture<List<String>> listStreamsInScope() {
-        return store.getChildren(scopePath);
+        return store.getChildren(scopePath, false);
     }
 
     @Override
@@ -225,10 +225,10 @@ public class ZKScope implements Scope {
 
     private CompletableFuture<Void> computeOnChildren(String path, Function<Integer, CompletableFuture<Boolean>> function,
                                                       Executor executor) {
-        return store.getChildren(path)
+        return store.getChildren(path, false)
                     .thenCompose(children -> {
                         AtomicInteger index = new AtomicInteger(0);
-                        AtomicBoolean continueLoop = new AtomicBoolean(true);
+                        AtomicBoolean continueLoop = new AtomicBoolean(!children.isEmpty());
                         List<Integer> list = children.stream().map(Integer::parseInt).sorted().collect(Collectors.toList());
                         return Futures.loop(continueLoop::get,
                                 () -> function.apply(list.get(index.get())).thenAccept(canContinue -> {
@@ -298,13 +298,13 @@ public class ZKScope implements Scope {
             private void read00(RevisionDataInput revisionDataInput, Token.TokenBuilder builder) throws IOException {
                 builder.msb(revisionDataInput.readCompactInt())
                        .middle(revisionDataInput.readCompactInt())
-                       .lsb(revisionDataInput.readCompactInt());
+                       .lsb(revisionDataInput.readInt());
             }
 
             private void write00(Token token, RevisionDataOutput revisionDataOutput) throws IOException {
                 revisionDataOutput.writeCompactInt(token.msb);
                 revisionDataOutput.writeCompactInt(token.middle);
-                revisionDataOutput.writeCompactInt(token.lsb);
+                revisionDataOutput.writeInt(token.lsb);
             }
 
             @Override

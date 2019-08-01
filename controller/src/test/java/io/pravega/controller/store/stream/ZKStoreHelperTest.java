@@ -106,6 +106,24 @@ public class ZKStoreHelperTest {
     }
     
     @Test
+    public void testGetChildren() {
+        zkStoreHelper.createZNodeIfNotExist("/1").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/1").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/2").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/3").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/4").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/1/1").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/1/2").join();
+        assertEquals(zkStoreHelper.getChildren("/1").join().size(), 4);
+        assertEquals(zkStoreHelper.getChildren("/1/1").join().size(), 2);
+        assertEquals(zkStoreHelper.getChildren("/1/1/2").join().size(), 0);
+        assertEquals(zkStoreHelper.getChildren("/112").join().size(), 0);
+        AssertExtensions.assertFutureThrows("data not found",
+                zkStoreHelper.getChildren("/112", false),
+                e -> e instanceof StoreException.DataNotFoundException);
+    }
+    
+    @Test
     public void testSync() {
         String path = "/path";
         byte[] entry = new byte[1];

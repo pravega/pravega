@@ -15,6 +15,7 @@ import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.Exceptions;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
@@ -22,6 +23,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -403,19 +405,26 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(
                 () -> this.authHelper.checkAuthorization(AuthResourceRepresentation.ofScope(scopeName),
                         AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.listStreams(
-                        scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
-                        .thenApply(response -> {
-                             List<StreamInfo> streams = response.getKey().stream()
-                                     .filter(streamName -> authHelper.isAuthorized(
-                                             AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
-                                             AuthHandler.Permissions.READ))
-                                     .map(m -> StreamInfo.newBuilder().setScope(scopeName).setStream(m).build())
-                                     .collect(Collectors.toList());
-                             return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(streams)
-                                     .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(
-                                             response.getValue()).build()).build();
-                        }),
+                delegationToken -> Futures.exceptionallyExpecting(controllerService.listStreams(
+                        scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit),
+                        e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                                          .thenApply(response -> {
+                                              if (response == null) {
+                                                  return Controller.StreamsInScopeResponse.newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND)
+                                                                                          .build();
+                                              } else {
+                                                  List<StreamInfo> streams = response.getKey().stream()
+                                                                                     .filter(streamName -> authHelper.isAuthorized(
+                                                                                             AuthResourceRepresentation.ofStreamInScope(scopeName, streamName),
+                                                                                             AuthHandler.Permissions.READ))
+                                                                                     .map(m -> StreamInfo.newBuilder().setScope(scopeName).setStream(m).build())
+                                                                                     .collect(Collectors.toList());
+                                                  return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(streams)
+                                                                                          .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(
+                                                                                                  response.getValue()).build())
+                                                                                          .setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).build();
+                                              }
+                                          }),
                         responseObserver, requestTag);
     }
 

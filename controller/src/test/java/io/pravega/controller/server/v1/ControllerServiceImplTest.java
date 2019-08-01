@@ -157,6 +157,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.listStreamsInScope(streamsInScopeRequest1, streamsInScopeResponse1);
         List<Controller.StreamInfo> list = streamsInScopeResponse1.get().getStreamsList();
         // check continuation token
+        assertEquals(streamsInScopeResponse1.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
         assertFalse(Strings.isNullOrEmpty(streamsInScopeResponse1.get().getContinuationToken().getToken()));
         assertEquals(2, list.size());
 
@@ -166,6 +167,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.listStreamsInScope(streamsInScopeRequest2, streamsInScopeResponse2);
         list = streamsInScopeResponse2.get().getStreamsList();
         // check continuation token
+        assertEquals(streamsInScopeResponse1.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
         assertFalse(Strings.isNullOrEmpty(streamsInScopeResponse2.get().getContinuationToken().getToken()));
         assertEquals(1, list.size());
 
@@ -175,6 +177,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.listStreamsInScope(streamsInScopeRequest3, streamsInScopeResponse3);
         list = streamsInScopeResponse3.get().getStreamsList();
         // check continuation token
+        assertEquals(streamsInScopeResponse1.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
         assertEquals(streamsInScopeResponse2.get().getContinuationToken().getToken(), streamsInScopeResponse3.get().getContinuationToken().getToken());
         assertEquals(0, list.size());
 
@@ -186,7 +189,13 @@ public abstract class ControllerServiceImplTest {
         assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM1)));
         assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM2)));
         assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM3)));
-        
+
+        Controller.StreamsInScopeRequest nonExistentScopeRequest = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(ScopeInfo.newBuilder().setScope("NonExistent").build()).setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+        ResultObserver<Controller.StreamsInScopeResponse> nonExistentScopeResponse = new ResultObserver<>();
+
+        this.controllerService.listStreamsInScope(nonExistentScopeRequest, nonExistentScopeResponse);
+        assertEquals(nonExistentScopeResponse.get().getStatus(), Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND);
     }
 
     @Test
