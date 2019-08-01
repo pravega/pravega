@@ -204,7 +204,7 @@ class DirectMemoryBuffer implements AutoCloseable {
      * @throws IncorrectCacheEntryLengthException If `expectedLastBlockLength` differs from the last block's length.
      */
     synchronized AppendResult tryAppend(int blockId, int expectedLastBlockLength, InputStream data, int maxLength) throws IOException {
-        validateBlockId(blockId);
+        validateBlockId(blockId, false);
         ByteBuf metadataBuf = getBlockBuffer(0);
         while (blockId != CacheLayout.NO_BLOCK_ID) {
             int bufIndex = blockId * this.layout.blockMetadataSize();
@@ -256,7 +256,7 @@ class DirectMemoryBuffer implements AutoCloseable {
      * the end of this entry.
      */
     synchronized int read(int blockId, List<ByteBuf> readBuffers) {
-        validateBlockId(blockId);
+        validateBlockId(blockId, true);
         ByteBuf metadataBuf = getBlockBuffer(0);
         while (blockId != CacheLayout.NO_BLOCK_ID) {
             int bufIndex = blockId * this.layout.blockMetadataSize();
@@ -295,7 +295,7 @@ class DirectMemoryBuffer implements AutoCloseable {
      * @return A {@link DeleteResult} containing the result of the deletion.
      */
     synchronized DeleteResult delete(int blockId) {
-        validateBlockId(blockId);
+        validateBlockId(blockId, false);
         ByteBuf metadataBuf = getBlockBuffer(0);
         int deletedLength = 0;
         int successorAddress = CacheLayout.NO_ADDRESS;
@@ -334,7 +334,7 @@ class DirectMemoryBuffer implements AutoCloseable {
         int bufId = this.layout.getBufferId(blockAddress);
         int blockId = this.layout.getBlockId(blockAddress);
         Preconditions.checkArgument(this.id == bufId, "blockAddress does not refer to this Buffer.");
-        validateBlockId(blockId);
+        validateBlockId(blockId, false);
 
         ByteBuf metadataBuf = getBlockBuffer(0);
         int bufIndex = blockId * this.layout.blockMetadataSize();
@@ -443,8 +443,8 @@ class DirectMemoryBuffer implements AutoCloseable {
     }
 
     @GuardedBy("this")
-    private void validateBlockId(int blockId) {
-        Preconditions.checkState(this.usedBlockCount > 1, "Empty buffer.");
+    private void validateBlockId(int blockId, boolean canBeEmpty) {
+        Preconditions.checkState(canBeEmpty || this.usedBlockCount > 1, "Empty buffer.");
         Preconditions.checkArgument(blockId >= 1 && blockId < this.layout.blocksPerBuffer(),
                 "blockId must be a number in the interval [1, %s).", this.layout.blocksPerBuffer());
     }

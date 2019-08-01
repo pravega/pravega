@@ -9,8 +9,10 @@
  */
 package io.pravega.segmentstore.storage.cache;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.pravega.common.Exceptions;
@@ -72,7 +74,8 @@ public class DirectMemoryCache implements CacheStorage {
      *                     when applied to layout.
      * @throws IllegalArgumentException If maxSizeBytes is less than or equal to 0 or greater than {@link CacheLayout#MAX_TOTAL_SIZE}.
      */
-    private DirectMemoryCache(@NonNull CacheLayout layout, long maxSizeBytes) {
+    @VisibleForTesting
+    DirectMemoryCache(@NonNull CacheLayout layout, long maxSizeBytes) {
         Preconditions.checkArgument(maxSizeBytes > 0 && maxSizeBytes <= CacheLayout.MAX_TOTAL_SIZE,
                 "maxSizeBytes must be a positive number less than %s.", CacheLayout.MAX_TOTAL_SIZE);
         maxSizeBytes = adjustMaxSizeIfNeeded(maxSizeBytes, layout);
@@ -92,11 +95,16 @@ public class DirectMemoryCache implements CacheStorage {
      */
     @GuardedBy("availableBufferIds")
     private void createBuffers() {
-        UnpooledByteBufAllocator allocator = new UnpooledByteBufAllocator(true, true);
+        ByteBufAllocator allocator = createAllocator();
         for (int i = 0; i < this.buffers.length; i++) {
             this.unallocatedBufferIds.addLast(i);
             this.buffers[i] = new DirectMemoryBuffer(i, allocator, this.layout);
         }
+    }
+
+    @VisibleForTesting
+    protected ByteBufAllocator createAllocator() {
+        return new UnpooledByteBufAllocator(true, true);
     }
 
     /**
@@ -212,16 +220,15 @@ public class DirectMemoryCache implements CacheStorage {
     public int getAppendableLength(int currentLength) {
         // If the current length is 0, we still allocate a block for it, so we need to indicate we can return the full
         // block length for that. Otherwise we can only append up to the end of the last block.
-        return currentLength == 0
-                ? this.layout.blockSize()
-                : (currentLength % this.layout.blockSize() == 0 ? 0 : this.layout.blockSize() - currentLength % this.layout.blockSize());
+        int lastBlockLength = currentLength % this.layout.blockSize();
+        return currentLength == 0 ? this.layout.blockSize() : (lastBlockLength == 0 ? 0 : this.layout.blockSize() - lastBlockLength);
     }
 
     @Override
     @SneakyThrows(IOException.class)
     public int append(int address, int expectedLength, BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        int expectedLastBlockLength = expectedLength % this.layout.blockSize();
+        int expectedLastBlockLength = this.layout.blockSize() - getAppendableLength(expectedLength);
         Preconditions.checkArgument(expectedLastBlockLength + data.getLength() <= this.layout.blockSize(),
                 "data is too long; use getAppendableLength() to determine how much data can be appended.");
 

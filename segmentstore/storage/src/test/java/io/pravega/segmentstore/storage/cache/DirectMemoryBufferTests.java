@@ -65,7 +65,7 @@ public class DirectMemoryBufferTests {
         Assert.assertFalse(b.hasCapacity());
         Assert.assertEquals(-1, b.getUsedBlockCount());
         AssertExtensions.assertThrows("Was able to read after closing",
-                () -> b.read(w1.getFirstBlockAddress(), new ArrayList<>()),
+                () -> b.read(LAYOUT.getBlockId(w1.getFirstBlockAddress()), new ArrayList<>()),
                 ex -> ex instanceof IllegalStateException);
     }
 
@@ -284,18 +284,11 @@ public class DirectMemoryBufferTests {
                 contents.remove(blockId);
                 b.delete(blockId);
                 val readBuffers = new ArrayList<ByteBuf>();
-                if (blocks.isEmpty()) {
-                    // If the buffer is empty, we should not allow a read. That is indicative of cache corruption (invalid pointers).
-                    AssertExtensions.assertThrows(
-                            "read allowed reading from empty buffer.",
-                            () -> b.read(blockId, readBuffers),
-                            ex -> ex instanceof IllegalStateException);
-                } else {
-                    // Verify that we cannot read anything.
-                    val readResult = b.read(blockId, readBuffers);
-                    Assert.assertEquals("Unexpected result from read() for deleted block.", CacheLayout.NO_ADDRESS, readResult);
-                    Assert.assertEquals("Not expecting to read anything for a deleted block.", 0, readBuffers.size());
-                }
+
+                // Verify that we cannot read anything.
+                val readResult = b.read(blockId, readBuffers);
+                Assert.assertEquals("Unexpected result from read() for deleted block.", CacheLayout.NO_ADDRESS, readResult);
+                Assert.assertEquals("Not expecting to read anything for a deleted block.", 0, readBuffers.size());
             }
 
             // Check all remaining entries.
