@@ -342,38 +342,41 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Preconditions.checkArgument(this.lastAppendedOffset.get() < 0 || offset == this.lastAppendedOffset.get() + 1,
                 "The given range of bytes (Offset=%s) does not start right after the last appended offset (%s).", offset, this.lastAppendedOffset);
         ReadIndexEntry lastEntry;
+        int appendableLength = -1;
         synchronized (this.lock) {
             lastEntry = this.indexEntries.getLast();
+            if (lastEntry != null
+                    && lastEntry.isDataEntry()
+                    && lastEntry.getLastStreamSegmentOffset() == this.lastAppendedOffset.get()) {
+                appendableLength = this.cacheStorage.getAppendableLength((int) lastEntry.getLength());
+                if (appendableLength > 0) {
+                    // We are about to append to this entry; update its generation to prevent it from being evicted
+                    // while we are appending.
+                    int generation = this.summary.touchOne(lastEntry.getGeneration());
+                    lastEntry.setGeneration(generation);
+                }
+            }
         }
 
-        int appendLength = 0;
-        if (lastEntry != null
-                && lastEntry.isDataEntry()
-                && lastEntry.getLastStreamSegmentOffset() == this.lastAppendedOffset.get()) {
-            int appendableLength = this.cacheStorage.getAppendableLength((int) lastEntry.getLength());
-            if (appendableLength > 0) {
-                // We can append to the last entry.
-                BufferView toAppend;
-                if (data.getLength() <= appendableLength) {
-                    // The whole buffer can fit as an append.
-                    toAppend = data;
-                    data = null;
-                } else {
-                    // Only part of the buffer can fit as an append.
-                    toAppend = data.slice(0, appendableLength);
-                    data = data.slice(appendableLength, data.getLength() - appendableLength);
-                }
-
-                // Add append data to the Data Store.
-                appendLength = this.cacheStorage.append(lastEntry.getDataAddress(), (int) lastEntry.getLength(), toAppend);
-                assert appendLength <= appendableLength;
-                ((CacheIndexEntry) lastEntry).increaseLength(appendLength);
-                this.lastAppendedOffset.addAndGet(appendLength);
-
-                // Update the generation for this entry and record its size change.
-                int generation = this.summary.touchOne(lastEntry.getGeneration());
-                lastEntry.setGeneration(generation);
+        int appendLength = 0; // appendLength is how much we actually appended; appendableLength is how much we CAN append.
+        if (appendableLength > 0) {
+            // We can append to the last entry.
+            BufferView toAppend;
+            if (data.getLength() <= appendableLength) {
+                // The whole buffer can fit as an append.
+                toAppend = data;
+                data = null;
+            } else {
+                // Only part of the buffer can fit as an append.
+                toAppend = data.slice(0, appendableLength);
+                data = data.slice(appendableLength, data.getLength() - appendableLength);
             }
+
+            // Add append data to the Data Store.
+            appendLength = this.cacheStorage.append(lastEntry.getDataAddress(), (int) lastEntry.getLength(), toAppend);
+            assert appendLength <= appendableLength;
+            ((CacheIndexEntry) lastEntry).increaseLength(appendLength);
+            this.lastAppendedOffset.addAndGet(appendLength);
         }
 
         if (data != null) {
