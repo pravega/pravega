@@ -277,7 +277,7 @@ public class DirectMemoryBufferTests {
                 Assert.assertEquals("Unexpected used blocks after write.", usedBlocks, b.getUsedBlockCount());
                 int blockId = LAYOUT.getBlockId(w.getFirstBlockAddress());
                 blocks.add(blockId);
-                contents.put(blockId, new AbstractMap.SimpleImmutableEntry(offset, length - w.getRemainingLength()));
+                contents.put(blockId, new AbstractMap.SimpleImmutableEntry<>(offset, length - w.getRemainingLength()));
             } else {
                 // Pick an arbitrary entry and remove it.
                 int blockId = blocks.remove(rnd.nextInt(blocks.size()));

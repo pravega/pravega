@@ -11,14 +11,18 @@ package io.pravega.segmentstore.storage.cache;
 
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.IntentionalException;
 import java.util.AbstractMap;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.val;
 import org.junit.Assert;
@@ -205,7 +209,7 @@ public class DirectMemoryCacheTests {
                 val address = c.insert(new ByteArraySegment(data, offset, length));
                 storedBytes += length;
                 addresses.add(address);
-                contents.put(address, new AbstractMap.SimpleImmutableEntry(offset, length));
+                contents.put(address, new AbstractMap.SimpleImmutableEntry<>(offset, length));
             } else {
                 // Pick an arbitrary entry and remove it.
                 int address = addresses.remove(rnd.nextInt(addresses.size()));
@@ -226,15 +230,114 @@ public class DirectMemoryCacheTests {
      */
     @Test
     public void testCacheFull() {
+        final int cleanAfterInvocations = DirectMemoryCache.MAX_CLEANUP_ATTEMPTS;
+        final int maxSize = LAYOUT.bufferSize();
+        final int maxStoredSize = maxSize - LAYOUT.blockSize();
+        final BufferView toInsert = new ByteArraySegment(new byte[1]);
+        @Cleanup
+        val c = new TestCache(maxSize);
+
+        // Fill up the cache.
+        val address1 = c.insert(new ByteArraySegment(new byte[maxStoredSize]));
+        checkSnapshot(c, (long) maxStoredSize, (long) maxSize, (long) LAYOUT.blockSize(), (long) maxSize, (long) maxSize);
+
+        val reportClean = new AtomicBoolean(false); // Return value from the setCacheFullCallback supplier.
+        val actualClean = new AtomicBoolean(false); // If true, will actually perform a cleanup.
+        val throwError = new AtomicBoolean(false);  // If true, will throw an error.
+        val invocationCount = new AtomicInteger(0);
+        c.setCacheFullCallback(() -> {
+            invocationCount.incrementAndGet();
+            if (actualClean.get() && invocationCount.get() >= cleanAfterInvocations) {
+                c.delete(address1);
+            }
+
+            if (throwError.get()) {
+                throw new IntentionalException();
+            }
+
+            return reportClean.get();
+        });
+
+        // 1. No cleanup, no error, reporting the truth. We should only try once.
+        reportClean.set(false);
+        actualClean.set(false);
+        throwError.set(false);
+        invocationCount.set(0);
+        AssertExtensions.assertThrows(
+                "Expected CacheFullException when no cleanup and no error.",
+                () -> c.insert(toInsert),
+                ex -> ex instanceof CacheFullException);
+        Assert.assertEquals("Unexpected number of invocations when no cleanup and no error.", 1, invocationCount.get());
+
+        // 2. No cleanup, no error, reporting that we did clean up. We should try as many times as possible.
+        reportClean.set(true);
+        actualClean.set(false);
+        throwError.set(false);
+        invocationCount.set(0);
+        AssertExtensions.assertThrows(
+                "Expected CacheFullException when no cleanup and no error, but reporting clean.",
+                () -> c.insert(toInsert),
+                ex -> ex instanceof CacheFullException);
+        Assert.assertEquals("Unexpected number of invocations when no cleanup but reporting clean.",
+                DirectMemoryCache.MAX_CLEANUP_ATTEMPTS, invocationCount.get());
+
+        // 3. No cleanup, throw error.
+        reportClean.set(false);
+        actualClean.set(false);
+        throwError.set(true);
+        invocationCount.set(0);
+        AssertExtensions.assertThrows(
+                "Expected IntentionalException when error.",
+                () -> c.insert(toInsert),
+                ex -> ex instanceof IntentionalException);
+        Assert.assertEquals("Unexpected number of invocations when error.", 1, invocationCount.get());
+
+        // 4. Cleanup.
+        reportClean.set(true);
+        actualClean.set(true);
+        throwError.set(false);
+        invocationCount.set(0);
+        val address2 = c.insert(toInsert);
+        Assert.assertEquals("Unexpected number of invocations when successful cleanup.", cleanAfterInvocations, invocationCount.get());
+        Assert.assertEquals("Unexpected second entry.", 1, c.get(address2).getLength());
+        checkSnapshot(c, 1L, LAYOUT.blockSize() * 2L, (long) LAYOUT.blockSize(), (long) maxSize, (long) maxSize);
 
     }
 
     /**
-     * Tests the ability to roll back any modifications that may have been performed while writing or appending.
+     * Tests the ability to roll back any modifications that may have been performed while inserting. The easiest one to
+     * trigger is {@link CacheFullException}s.
      */
     @Test
-    public void testWriteErrors() {
+    public void testInsertErrors() {
+        final int cleanAfterInvocations = DirectMemoryCache.MAX_CLEANUP_ATTEMPTS;
+        final int maxSize = 2 * LAYOUT.bufferSize(); // 2-buffer cache.
+        final int firstWriteSize = LAYOUT.bufferSize() - 4 * LAYOUT.blockSize(); // Leave 3 blocks empty from first cache.
+        final int secondWriteSize = maxSize - firstWriteSize; // Second write would attempt to overfill the cache.
+        final BufferView toInsert = new ByteArraySegment(new byte[1]);
+        @Cleanup
+        val c = new TestCache(maxSize);
 
+        val firstWrite = new byte[firstWriteSize];
+        rnd.nextBytes(firstWrite);
+        val address = c.insert(new ByteArraySegment(firstWrite));
+        checkSnapshot(c, (long) firstWriteSize, (long) firstWriteSize + LAYOUT.blockSize(), (long) LAYOUT.blockSize(), (long) LAYOUT.bufferSize(), (long) maxSize);
+
+        AssertExtensions.assertThrows(
+                "Expected CacheFullException when inserting entry that would overfill.",
+                () -> c.insert(new ByteArraySegment(new byte[secondWriteSize])),
+                ex -> ex instanceof CacheFullException);
+
+        AssertExtensions.assertThrows(
+                "Expected CacheFullException when replacing entry with entry that would overfill.",
+                () -> c.replace(address, new ByteArraySegment(new byte[secondWriteSize])),
+                ex -> ex instanceof CacheFullException);
+
+        // We should still have the same amount of bytes stored, but we should have allocated the second buffer.
+        checkSnapshot(c, (long) firstWriteSize, firstWriteSize + LAYOUT.blockSize() * 2L, LAYOUT.blockSize() * 2L, (long) maxSize, (long) maxSize);
+
+        // Verify our original write is still intact.
+        checkData(c, address, firstWrite, 0, firstWrite.length);
     }
 
     private void checkData(TestCache c, HashMap<Integer, Map.Entry<Integer, Integer>> entryData, byte[] data) {
@@ -275,7 +378,11 @@ public class DirectMemoryCacheTests {
         private UnpooledByteBufAllocator allocator;
 
         TestCache() {
-            super(LAYOUT, REQUESTED_MAX_SIZE);
+            this(REQUESTED_MAX_SIZE);
+        }
+
+        TestCache(long requestedMaxSize) {
+            super(LAYOUT, requestedMaxSize);
         }
 
         @Override

@@ -39,7 +39,8 @@ public class DirectMemoryCache implements CacheStorage {
     /**
      * The maximum number of attempts to invoke {@link #tryCleanup()} if at capacity and needing to insert more data.
      */
-    private static final int MAX_CLEANUP_ATTEMPTS = 5;
+    @VisibleForTesting
+    static final int MAX_CLEANUP_ATTEMPTS = 5;
     private final CacheLayout layout;
     private final DirectMemoryBuffer[] buffers;
     @GuardedBy("availableBufferIds")
@@ -368,7 +369,7 @@ public class DirectMemoryCache implements CacheStorage {
 
             // If we get here, there are no available buffers and we have allocated all the buffers we could. Notify
             // any upstream listeners to attempt a cleanup (if possible).
-        } while (tryCleanup() && ++attempts < MAX_CLEANUP_ATTEMPTS);
+        } while (++attempts <= MAX_CLEANUP_ATTEMPTS && tryCleanup());
 
         // Unable to reuse any existing buffer or find a new one to allocate and upstream code could not free up data.
         throw new CacheFullException(String.format("%s full: %s.", DirectMemoryCache.class.getSimpleName(), getSnapshot()));
