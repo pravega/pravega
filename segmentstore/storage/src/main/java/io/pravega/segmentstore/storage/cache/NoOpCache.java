@@ -9,12 +9,14 @@
  */
 package io.pravega.segmentstore.storage.cache;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.util.BufferView;
 import java.util.function.Supplier;
 
 /**
  * {@link CacheStorage} implementation that does nothing. Only to be used for stubbing.
  */
+@VisibleForTesting
 public class NoOpCache implements CacheStorage {
     @Override
     public int getBlockAlignment() {
@@ -45,7 +47,7 @@ public class NoOpCache implements CacheStorage {
 
     @Override
     public int getAppendableLength(int currentLength) {
-        return currentLength == 0 ? getBlockAlignment() : currentLength - currentLength % getBlockAlignment();
+        return currentLength == 0 ? getBlockAlignment() : getBlockAlignment() - currentLength % getBlockAlignment();
     }
 
     @Override
