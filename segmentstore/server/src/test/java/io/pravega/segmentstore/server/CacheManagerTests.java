@@ -11,7 +11,9 @@ package io.pravega.segmentstore.server;
 
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.storage.cache.CacheSnapshot;
+import io.pravega.segmentstore.storage.cache.DirectMemoryCache;
 import io.pravega.segmentstore.storage.cache.NoOpCache;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -19,6 +21,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import lombok.Cleanup;
@@ -35,6 +40,7 @@ import org.junit.rules.Timeout;
  * Unit tests for the CacheManager class.
  */
 public class CacheManagerTests extends ThreadPooledTestSuite {
+    private static final int CLEANUP_TIMEOUT_MILLIS = 2000;
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10);
 
@@ -258,6 +264,121 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             return false;
         });
         cm.applyCachePolicy();
+    }
+
+    /**
+     * Tests the ability to auto-cleanup the cache if it indicates it has reached capacity and needs some eviction(s)
+     * in order to accomodate more data.
+     */
+    @Test
+    public void testCacheFullCleanup() {
+        final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
+        @Cleanup
+        val cache = new DirectMemoryCache(policy.getMaxSize());
+        int maxCacheSize = (int) cache.getSnapshot().getMaxBytes();
+
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
+        TestClient client = new TestClient();
+        cm.register(client);
+
+        // Almost fill up the cache.
+        int length1 = maxCacheSize / 2;
+        val write1 = cache.insert(new ByteArraySegment(new byte[length1]));
+
+        // Setup the TestClient to evict write1 when requested.
+        val cleanupRequestCount = new AtomicInteger(0);
+        client.setCacheStatus(0, 1);
+        client.setUpdateGenerationsImpl((ng, og) -> {
+            cleanupRequestCount.incrementAndGet();
+            cache.delete(write1);
+            return true;
+        });
+
+        // Insert an entry that would fill up the cache.
+        int length2 = maxCacheSize / 2 + 1;
+        val write2 = cache.insert(new ByteArraySegment(new byte[length2]));
+
+        // Verify we were asked to cleanup.
+        Assert.assertEquals("Unexpected number of cleanup requests.", 1, cleanupRequestCount.get());
+        Assert.assertEquals("New entry was not inserted.", length2, cache.get(write2).getLength());
+        Assert.assertEquals("Unexpected number of stored bytes.", length2, cache.getSnapshot().getStoredBytes());
+    }
+
+    /**
+     * Tests the ability to handle concurrent requests to {@link  CacheManager#applyCachePolicy()}.
+     */
+    @Test
+    public void testApplyPolicyConcurrency() throws Exception {
+        // Almost fill up the cache.
+        final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
+        @Cleanup
+        val cache = new DirectMemoryCache(policy.getMaxSize());
+        int maxCacheSize = (int) cache.getSnapshot().getMaxBytes();
+
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
+        TestClient client = new TestClient();
+        cm.register(client);
+
+        // Almost fill up the cache (75%)
+        int initialLength = maxCacheSize * 3 / 4;
+        val initialWrite = cache.insert(new ByteArraySegment(new byte[initialLength]));
+
+        // Setup the TestClient to evict write1 when requested.
+        val firstCleanupRequested = new CompletableFuture<Void>();
+        val firstCleanupBlock = new CompletableFuture<Void>();
+        val cleanupRequestCount = new AtomicInteger(0);
+        val concurrentRequest = new AtomicBoolean(false);
+        client.setCacheStatus(0, 1);
+        client.setUpdateGenerationsImpl((ng, og) -> {
+            int rc = cleanupRequestCount.incrementAndGet();
+            if (rc == 1) {
+                // This is the first concurrent request requesting a cleanup.
+                // Notify that cleanup has been requested.
+                firstCleanupRequested.complete(null);
+
+                // Wait until we are ready to proceed.
+                firstCleanupBlock.join();
+
+                // We only need to delete this once.
+                cache.delete(initialWrite);
+            } else {
+                // This is the second concurrent request requesting a cleanup.
+                if (!firstCleanupBlock.isDone()) {
+                    // This has executed before the first reuqest completed.
+                    concurrentRequest.set(true);
+                }
+            }
+
+            return true;
+        });
+
+        // Send one write that would end up filling the cache.
+        int length1 = maxCacheSize / 3;
+        val write1Future = CompletableFuture.supplyAsync(() -> cache.insert(new ByteArraySegment(new byte[length1])), executorService());
+
+        // Wait for the cleanup to be requested.
+        firstCleanupRequested.get(CLEANUP_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+
+        // Send another write that would also fill up the cache.
+        int length2 = length1 + 1;
+        val write2Future = CompletableFuture.supplyAsync(() -> cache.insert(new ByteArraySegment(new byte[length2])), executorService());
+
+        Thread.sleep(50);
+
+        // Unblock the first cleanup.
+        firstCleanupBlock.complete(null);
+
+        // Get the results of the two suspended writes.
+        val write1 = write1Future.get(CLEANUP_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+        val write2 = write2Future.get(CLEANUP_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
+
+        // Verify that things did work as intended.
+        Assert.assertFalse("Concurrent call to applyCachePolicy detected.", concurrentRequest.get());
+        Assert.assertEquals("Unexpected number of cleanup requests", 2, cleanupRequestCount.get());
+        Assert.assertEquals("Unexpected entry #2.", length1, cache.get(write1).getLength());
+        Assert.assertEquals("Unexpected entry #3.", length2, cache.get(write2).getLength());
     }
 
     private static class TestClient implements CacheManager.Client {

@@ -358,7 +358,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             }
         }
 
-        int appendLength = 0; // appendLength is how much we actually appended; appendableLength is how much we CAN append.
         if (appendableLength > 0) {
             // We can append to the last entry.
             BufferView toAppend;
@@ -373,15 +372,16 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             }
 
             // Add append data to the Data Store.
-            appendLength = this.cacheStorage.append(lastEntry.getDataAddress(), (int) lastEntry.getLength(), toAppend);
+            int appendLength = this.cacheStorage.append(lastEntry.getDataAddress(), (int) lastEntry.getLength(), toAppend);
             assert appendLength <= appendableLength;
             ((CacheIndexEntry) lastEntry).increaseLength(appendLength);
             this.lastAppendedOffset.addAndGet(appendLength);
+            offset += appendLength;
         }
 
         if (data != null) {
-            // Add the remainder of the buffer as a new entry.
-            CacheIndexEntry newEntry = addToIndex(data, offset + appendLength, "Append");
+            // Add the remainder of the buffer as a new entry (with the offset updated).
+            CacheIndexEntry newEntry = addToIndex(data, offset, "Append");
             this.lastAppendedOffset.set(newEntry.getLastStreamSegmentOffset());
         }
     }
