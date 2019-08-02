@@ -1,5 +1,6 @@
 package io.pravega.client.stream.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -29,8 +30,7 @@ public class WatermarkReaderImpl {
     private final Stream stream;
     private final WatermarkFetcher fetcher;
     private final LatestItemSequentialProcessor<Map<SegmentWithRange, Long>> processor;
-    
-    
+
     private final Object lock = new Object();
     @GuardedBy("lock")
     private final ArrayDeque<Watermark> inflight = new ArrayDeque<>();
@@ -69,27 +69,28 @@ public class WatermarkReaderImpl {
 
         @Override
         public void accept(Map<SegmentWithRange, Long> position) {
-            while (!inflight.isEmpty()) {
-                int compare = compare(position, inflight.getFirst());
-                if (compare > 0) {
-                    passedTimestamp = inflight.removeFirst().getLowerTimeBound();
-                } else {
-                    break;
+            synchronized (lock) {
+                while (!inflight.isEmpty()) {
+                    int compare = compare(stream, position, inflight.getFirst());
+                    if (compare > 0) {
+                        passedTimestamp = inflight.removeFirst().getLowerTimeBound();
+                    } else {
+                        break;
+                    }
                 }
-            }
-            while (inflight.isEmpty() || compare(position, inflight.getLast()) < 0) {
-                Watermark mark = fetcher.fetchNextMark();
-                if (mark == null) {
-                    break;
-                }
-                if (compare(position, mark) <= 0) {
-                    inflight.addLast(mark);
+                while (inflight.isEmpty() || compare(stream, position, inflight.getLast()) < 0) {
+                    Watermark mark = fetcher.fetchNextMark();
+                    if (mark == null) {
+                        break;
+                    }
+                    if (compare(stream, position, mark) <= 0) {
+                        inflight.addLast(mark);
+                    }
                 }
             }
         }
     };
 
-    
     /**
      * Creates a Reader to keep track of the current time window for a given stream.
      * 
@@ -123,17 +124,17 @@ public class WatermarkReaderImpl {
      * @return TimeWindow the bounds on the upper and lower times provided by the writer at the time of writing.
      */
     public TimeWindow getTimeWindow() {
-        if (inflight.isEmpty()) {
-            return new TimeWindow(passedTimestamp, null);
+        synchronized (lock) {
+            if (inflight.isEmpty()) {
+                return new TimeWindow(passedTimestamp, null);
+            }
+
+            return new TimeWindow(inflight.getFirst().getLowerTimeBound(), inflight.getLast().getUpperTimeBound());
         }
-        
-        return new TimeWindow(inflight.getFirst().getLowerTimeBound(), inflight.getLast().getUpperTimeBound());
     }
 
-    
-    //TODO watermarking: Need to add tests assert these properties.
-    
-    private int compare(Map<SegmentWithRange, Long> readerGroupPosition, Watermark mark) {
+    @VisibleForTesting
+    static int compare(Stream stream, Map<SegmentWithRange, Long> readerGroupPosition, Watermark mark) {
         Map<SegmentWithRange, Long> left = readerGroupPosition;
         Map<SegmentWithRange, Long> right = new HashMap<>();
         for (Entry<io.pravega.shared.watermarks.SegmentWithRange, Long> entry : mark.getStreamCut().entrySet()) {
