@@ -11,8 +11,15 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.mock.MockClientFactory;
+import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.client.watermark.WatermarkSerializer;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
+import io.pravega.test.common.InlineExecutor;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.junit.Test;
@@ -58,8 +65,87 @@ public class WatermarkReaderImplTest {
         overlap = ImmutableMap.of(s1, 0L, s2, 3L);
         assertEquals(0, WatermarkReaderImpl.compare(stream, overlap, watermark));
         overlap = ImmutableMap.of(s1, 3L, s2, 0L);
-        assertEquals(0, WatermarkReaderImpl.compare(stream, overlap, watermark));
+        assertEquals(0, WatermarkReaderImpl.compare(stream, overlap, watermark));   
+    }
+    
+    @Test
+    public void testUpdates() {
+        Stream stream = new StreamImpl("Scope", "streamName");
+        MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        MockClientFactory clientFactory = new MockClientFactory("Scope", segmentStreamFactory);
+        RevisionedStreamClient<Watermark> writer = clientFactory.createRevisionedStreamClient(NameUtils.getMarkStreamForStream("streamName"),
+                                                                                              new WatermarkSerializer(),
+                                                                                              SynchronizerConfig.builder().build());
+        InlineExecutor executor = new InlineExecutor();
+        WatermarkReaderImpl impl = new WatermarkReaderImpl(stream, clientFactory, executor);
+
+        SegmentWithRange s0 = new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), 0), 0, 0.5);
+        SegmentWithRange s1 = new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), 1), 0.5, 1);
+        SegmentWithRange s2 = new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), 2), 0, 0.5);
+        SegmentWithRange s3 = new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), 3), 0.5, 1);
         
+        Map<SegmentWithRange, Long> m1 = ImmutableMap.of(s0, 0L, s1, 0L);
+        Map<SegmentWithRange, Long> m2 = ImmutableMap.of(s0, 2L, s1, 0L);
+        Map<SegmentWithRange, Long> m3 = ImmutableMap.of(s0, 2L, s1, 2L);
+        Map<SegmentWithRange, Long> m4 = ImmutableMap.of(s2, 0L, s1, 2L);
+        Map<SegmentWithRange, Long> m5 = ImmutableMap.of(s2, 4L, s1, 2L);
+        Map<SegmentWithRange, Long> m6 = ImmutableMap.of(s2, 4L, s1, 4L);
+        Map<SegmentWithRange, Long> m7 = ImmutableMap.of(s2, 4L, s3, 0L);
+        Map<SegmentWithRange, Long> m8 = ImmutableMap.of(s2, 6L, s3, 4L);
+        
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m1)).lowerTimeBound(10).upperTimeBound(19).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m2)).lowerTimeBound(20).upperTimeBound(29).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m3)).lowerTimeBound(30).upperTimeBound(39).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m4)).lowerTimeBound(40).upperTimeBound(49).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m5)).lowerTimeBound(50).upperTimeBound(59).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m6)).lowerTimeBound(60).upperTimeBound(69).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m7)).lowerTimeBound(70).upperTimeBound(79).build());
+        writer.writeUnconditionally(Watermark.builder().streamCut(convert(m8)).lowerTimeBound(80).upperTimeBound(89).build());
+  
+        assertEquals(null, impl.getTimeWindow().getLowerTimeBound());
+        assertEquals(null, impl.getTimeWindow().getUpperTimeBound());
+        impl.advanceTo(ImmutableMap.of(s0, 1L, s1, 0L));
+        assertEquals(10, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(29, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s0, 3L, s1, 0L));
+        assertEquals(20, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(49, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s0, 5L, s1, 0L));
+        assertEquals(20, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(49, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s0, 6L, s1, 0L));
+        assertEquals(20, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(49, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s0, 6L, s1, 1L));
+        assertEquals(20, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(49, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s0, 6L, s1, 3L));
+        assertEquals(30, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(69, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s2, 0L, s1, 3L));
+        assertEquals(40, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(69, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s2, 4L, s1, 3L));
+        assertEquals(50, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(69, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s2, 4L, s1, 5L));
+        assertEquals(60, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(79, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s2, 4L, s3, 1L));
+        assertEquals(70, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(89, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s2, 5L, s3, 1L));
+        assertEquals(70, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(89, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s2, 5L, s3, 5L));
+        assertEquals(70, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(89, impl.getTimeWindow().getUpperTimeBound().longValue());
+        impl.advanceTo(ImmutableMap.of(s2, 6L, s3, 5L));
+        assertEquals(80, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(null, impl.getTimeWindow().getUpperTimeBound());
+        impl.advanceTo(ImmutableMap.of(s2, 7L, s3, 7L));
+        assertEquals(80, impl.getTimeWindow().getLowerTimeBound().longValue());
+        assertEquals(null, impl.getTimeWindow().getUpperTimeBound());
     }
     
 }

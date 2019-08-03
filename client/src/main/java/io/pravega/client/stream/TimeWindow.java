@@ -34,14 +34,14 @@ public class TimeWindow {
     /**
      * Returns true if the reader is currently near the tail of the stream and therefore no upper time bound can be obtained.
      */
-    private boolean isNearTailOfStream() {
+    public boolean isNearTailOfStream() {
         return upperTimeBound == null;
     }
     
     /**
      * Returns true if the reader is currently near the head of the stream and therefor no lower time bound can be obtained.
      */
-    private boolean isNearHeadOfStream() {
+    public boolean isNearHeadOfStream() {
         return lowerTimeBound == null;
     }
 }

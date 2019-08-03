@@ -35,7 +35,7 @@ public class WatermarkReaderImpl {
     @GuardedBy("lock")
     private final ArrayDeque<Watermark> inflight = new ArrayDeque<>();
     @GuardedBy("lock")
-    private long passedTimestamp;
+    private Long passedTimestamp = null;
     
     @RequiredArgsConstructor
     private static class WatermarkFetcher {
@@ -44,7 +44,7 @@ public class WatermarkReaderImpl {
         private Revision location = null;
         @GuardedBy("$lock")
         private Iterator<Entry<Revision, Watermark>> iter = null;
-        
+
         /**
          * This returns the next mark in the stream. It holds onto iterator between calls as this will safe a metadata check on the length.
          */
@@ -54,6 +54,9 @@ public class WatermarkReaderImpl {
                 Entry<Revision, Watermark> next = iter.next();
                 location = next.getKey();
                 return next.getValue();
+            }
+            if (location == null) {
+                location = client.fetchOldestRevision();
             }
             iter = client.readFrom(location);
             if (iter.hasNext()) {
@@ -78,13 +81,15 @@ public class WatermarkReaderImpl {
                         break;
                     }
                 }
-                while (inflight.isEmpty() || compare(stream, position, inflight.getLast()) < 0) {
+                while (inflight.isEmpty() || compare(stream, position, inflight.getLast()) >= 0) {
                     Watermark mark = fetcher.fetchNextMark();
                     if (mark == null) {
                         break;
                     }
                     if (compare(stream, position, mark) <= 0) {
                         inflight.addLast(mark);
+                    } else {
+                        passedTimestamp = mark.getLowerTimeBound();
                     }
                 }
             }
@@ -125,11 +130,8 @@ public class WatermarkReaderImpl {
      */
     public TimeWindow getTimeWindow() {
         synchronized (lock) {
-            if (inflight.isEmpty()) {
-                return new TimeWindow(passedTimestamp, null);
-            }
-
-            return new TimeWindow(inflight.getFirst().getLowerTimeBound(), inflight.getLast().getUpperTimeBound());
+            Long upperBound = inflight.isEmpty() ? null : inflight.getLast().getUpperTimeBound();
+            return new TimeWindow(passedTimestamp, upperBound);
         }
     }
 

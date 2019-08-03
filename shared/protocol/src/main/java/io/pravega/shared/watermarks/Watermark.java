@@ -15,6 +15,7 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
@@ -56,12 +57,13 @@ public class Watermark {
     
     @SneakyThrows(IOException.class)
     public static Watermark fromByteBuf(final ByteBuffer data) {
-        return SERIALIZER.deserialize(data.array());
+        return SERIALIZER.deserialize(new ByteArraySegment(data));
     }
 
     @SneakyThrows(IOException.class)
     public ByteBuffer toByteBuf() {
-        return ByteBuffer.wrap(SERIALIZER.serialize(this).getCopy());
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
     }
 
     private static class WatermarkSerializer
@@ -80,7 +82,6 @@ public class Watermark {
                             Watermark.WatermarkBuilder builder) throws IOException {
             builder.lowerTimeBound(revisionDataInput.readLong());
             builder.upperTimeBound(revisionDataInput.readLong());
-
             ImmutableMap.Builder<SegmentWithRange, Long> mapBuilder = ImmutableMap.builder();
             revisionDataInput.readMap(SegmentWithRange.SERIALIZER::deserialize, DataInput::readLong, mapBuilder);
             builder.streamCut(mapBuilder.build());
