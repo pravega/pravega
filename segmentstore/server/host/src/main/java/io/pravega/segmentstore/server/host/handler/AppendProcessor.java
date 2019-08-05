@@ -235,11 +235,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     iterator.remove();
                 }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
-                if (pendingBytes > data.readableBytes()) {
-                    pendingBytes -= data.readableBytes();
-                } else {
-                    pendingBytes = 0;
-                }
+                pendingBytes -= data.readableBytes();
                 String segment = last.getSegment();
                 long eventNumber = last.getEventNumber();
                 outstandingAppend = new Append(segment, writer, eventNumber, eventCount, data, null, last.getRequestId());
@@ -308,16 +304,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 } else {
                     if (!conditionalFailed) {
                         List<Append> appends = waitingAppends.get(append.getWriterId());
-                        for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
-                            Append a = iterator.next();
-                            if (!a.isConditional()) {
-                                pendingBytes -= a.getData().readableBytes();
-                                if (pendingBytes < 0) {
-                                    pendingBytes = 0;
-                                    break;
-                                }
-                            }
-                        }
+                        pendingBytes -= appends.stream().filter(a -> !a.isConditional())
+                                .mapToInt(a -> a.getData().readableBytes()).sum();
                         waitingAppends.removeAll(append.getWriterId());
                         latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
                     }
