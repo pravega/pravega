@@ -254,14 +254,16 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     private void validateAppend(Append append, Session session) {
         if (append.getEventCount() <= 0) {
-            throw new InvalidMessageException("Invalid eventCount : " + append.getEventCount() + " in the append");
+            throw new InvalidMessageException("Invalid eventCount : " + append.getEventCount() +
+                    " in the append for Writer id: " + append.getWriterId());
         }
         if (session == null || !session.id.equals(append.getWriterId())) {
             throw new InvalidMessageException("Sending appends without setting up the append. Append Writer id: " + append.getWriterId());
         }
         if (append.getEventNumber() <= session.lastEventNumber) {
-            throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber()
-            + " following: " + session.lastEventNumber);
+            throw new InvalidMessageException("Events written out of order. Received: " + append.getEventNumber() +
+            " following: " + session.lastEventNumber +
+            " for Writer id: " + append.getWriterId());
         }
         if (append.isConditional()) {
             throw new IllegalArgumentException("Conditional appends should be written via a ConditionalAppend object.");

@@ -110,7 +110,9 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
                 throw new InvalidMessageException("Last event number went backwards." +
                         " Segment last Event number : " + segment.lastEventNumber +
-                        " Append block End Event number : " + blockEnd.getLastEventNumber());
+                        " Append block End Event number : " + blockEnd.getLastEventNumber() +
+                        " for Writer Id : " + writerId +
+                        " and Segment Name : "+ segment.name);
             }
             if (currentBlock != null) {
                if (!currentBlock.getWriterId().equals(writerId)) {
