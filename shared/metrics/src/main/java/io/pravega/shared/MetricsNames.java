@@ -136,7 +136,7 @@ public final class MetricsNames {
     public static final String OPERATION_PROCESSOR_DELAY_MILLIS = PREFIX + "segmentstore.container.operation_processor.delay_ms";            // Per-container Histogram
     public static final String OPERATION_COMMIT_LATENCY = PREFIX + "segmentstore.container.operation_commit.latency_ms";                     // Per-container Histogram
     public static final String OPERATION_LATENCY = PREFIX + "segmentstore.container.operation.latency_ms";                                   // Per-container Histogram
-    public static final String OPERATION_COMMIT_METADATA_TXN_COUNT = PREFIX + "segmentstore.container.operation_commit.metadata_txn_count";  // Per-container Histogram
+    public static final String OPERATION_COMMIT_MEMORY_COUNT = PREFIX + "segmentstore.container.operation_commit.memory_count";              // Per-container Histogram
     public static final String OPERATION_COMMIT_MEMORY_LATENCY = PREFIX + "segmentstore.container.operation_commit.memory_latency_ms";       // Per-container Histogram
     public static final String OPERATION_LOG_SIZE = PREFIX + "segmentstore.container.operation.log_size";                                    // Per-container Counter
 
