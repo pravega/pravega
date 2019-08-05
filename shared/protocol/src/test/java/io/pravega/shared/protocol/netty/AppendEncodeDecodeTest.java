@@ -594,10 +594,13 @@ public class AppendEncodeDecodeTest {
             commandEncoder.encode(ctx, new Append("segment2", writerId2, i, event, 10), fakeNetwork);
         }
         read(fakeNetwork, received);
-        assertEquals(4, received.size());
+        assertEquals(5, received.size());
         Append readAppend = (Append) received.get(3);
-        assertEquals((8192 + TYPE_PLUS_LENGTH_SIZE) * 128L, readAppend.data.readableBytes());
-        assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 128L, readAppend.data.readableBytes());
+        assertEquals((8192 + TYPE_PLUS_LENGTH_SIZE) * 127L, readAppend.data.readableBytes());
+        assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 127L, readAppend.data.readableBytes());
+        readAppend = (Append) received.get(4);
+        assertEquals(8192 + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
+        assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
     }
 
     @Test
@@ -606,6 +609,7 @@ public class AppendEncodeDecodeTest {
         final UUID writerId3 = new UUID(1, 4);
         final UUID writerId4 = new UUID(1, 5);
         final UUID writerId5 = new UUID(1, 6);
+        final UUID writerId6 = new UUID(1, 7);
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
@@ -630,6 +634,9 @@ public class AppendEncodeDecodeTest {
         setupAppend = new SetupAppend(13, writerId5, "segment5", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
+        setupAppend = new SetupAppend(14, writerId6, "segment6", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
         Append msg = new Append("segment", writerId, 1, event, 1);
         commandEncoder.encode(ctx, msg, fakeNetwork);
         content = new byte[1024 * 1023];
@@ -639,10 +646,10 @@ public class AppendEncodeDecodeTest {
         commandEncoder.encode(ctx, new Append("segment3", writerId3, 1, event, 11), fakeNetwork);
         commandEncoder.encode(ctx, new Append("segment4", writerId4, 1, event, 12), fakeNetwork);
         commandEncoder.encode(ctx, new Append("segment5", writerId5, 1, event, 13), fakeNetwork);
-        commandEncoder.encode(ctx, new Append("segment2", writerId2, 2, event, 10), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment6", writerId6, 1, event, 14), fakeNetwork);
         read(fakeNetwork, received);
-        assertEquals(10, received.size());  // Segment2 gets combined as one block
-        Append readAppend = (Append) received.get(9);
+        assertEquals(12, received.size());
+        Append readAppend = (Append) received.get(11);
         assertEquals(1024 * 1023 + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
         assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
     }

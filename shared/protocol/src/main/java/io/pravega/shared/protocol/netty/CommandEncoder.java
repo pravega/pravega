@@ -87,11 +87,12 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     @RequiredArgsConstructor
     private final class Session {
+        private static final int MIN_BLOCK_SIZE = 256;  // 256 bytes
         private static final int MAX_BLOCK_SIZE = 1024 * 1024;  // 1MB
         private static final int MAX_EVENTS = 500;
         private final UUID id;
         private final long requestId;
-        private final ByteBuf buffer = buffer();
+        private final ByteBuf buffer = buffer(MIN_BLOCK_SIZE, MAX_BLOCK_SIZE);
         private long lastEventNumber = -1L;
         private int eventCount = 0;
 
@@ -104,13 +105,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
 
         /**
-         * Check if the session is empty or not.
+         * Check if session overflows for given data size.
          *
          * @return true if there are no pending Events to write; false otherwise.
          */
-        private boolean isEmpty() {
-            return eventCount == 0;
+        private boolean isFull(int size) {
+            return (buffer.readableBytes() + size) > MAX_BLOCK_SIZE;
         }
+
 
         /**
          * Write the Append data to Session' buffer.
@@ -134,9 +136,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 if (pendingBytes > MAX_DATA_SIZE) {
                     breakCurrentAppend(out);
                     flushAll(out);
-                } else if (buffer.readableBytes() > MAX_BLOCK_SIZE) {
-                    breakCurrentAppend(out);
-                    flush(out);
                 }
             }
             if (eventCount > MAX_EVENTS) {
@@ -152,11 +151,12 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         * @param out   Network channel buffer.
         */
        private void flush(ByteBuf out) {
-            if (!isEmpty()) {
+            if (eventCount > 0) {
                 pendingBytes -= buffer.readableBytes();
                 writeMessage(new AppendBlockEnd(id, 0, buffer, eventCount, lastEventNumber, requestId), out);
                 pendingWrites.remove(id);
                 buffer.clear();
+                buffer.release();
                 eventCount = 0;
             }
         }
@@ -196,28 +196,26 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
             validateAppend(append, session);
             final ByteBuf data = append.getData().slice();
+            final int msgSize = data.readableBytes();
             final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
                     appendTracker.apply(append.getFlowId());
 
             if (blockSizeSupplier != null) {
-                blockSizeSupplier.recordAppend(append.getEventNumber(), data.readableBytes());
+                blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
             }
 
+            if (session.isFull(msgSize)) {
+                breakCurrentAppend(out);
+                session.flush(out);
+            }
+            session.record(append);
             if (isChannelFree()) {
-                if (session.isEmpty()) {
-                    session.record(append);
-                    if (startAppend(ctx, blockSizeSupplier, append, out)) {
-                        continueAppend(data, out);
-                    } else {
-                        completeAppend(data, out);
-                    }
+                if (startAppend(ctx, blockSizeSupplier, append, out)) {
+                    continueAppend(data, out);
                 } else {
-                    session.record(append);
-                    session.write(data, out);
-                    session.flush(out);
+                    completeAppend(data, out);
                 }
             } else {
-                session.record(append);
                 if (isChannelOwner(append.getWriterId(), append.getSegment())) {
                     if (bytesLeftInBlock > data.readableBytes()) {
                         continueAppend(data, out);
