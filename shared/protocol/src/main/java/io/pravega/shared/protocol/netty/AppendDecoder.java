@@ -112,7 +112,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                         " Segment last Event number : " + segment.lastEventNumber +
                         " Append block End Event number : " + blockEnd.getLastEventNumber() +
                         " for Writer Id : " + writerId +
-                        " and Segment Name : "+ segment.name);
+                        " and Segment Name : " + segment.name);
             }
             if (currentBlock != null) {
                if (!currentBlock.getWriterId().equals(writerId)) {
