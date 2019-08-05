@@ -21,10 +21,14 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.PriorityQueue;
 import java.util.Random;
+import java.util.stream.IntStream;
 import lombok.Cleanup;
+import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -298,6 +302,86 @@ public class DirectMemoryBufferTests {
         }
     }
 
+    /**
+     * Tests the ability to properly allocate and deallocate Buffer-Blocks and re-link empty blocks together. This tests
+     * the working of the private method {@link DirectMemoryBuffer#deallocateBlocks}.
+     *
+     * This test begins by filling up all the buffer with single-block entries, then deleting every other one. Next it
+     * fills the leftover capacity with two-block entries, and again deletes every other entry (of all, not just the new
+     * ones). This is repeated until we make the largest possible write (all blocks at once).
+     *
+     * At each step the allocated blocks are checked against a parallel-maintained structure whose purpose is to validate
+     * the buffer is used as expected and that we do not lose free blocks once we remove entries.
+     */
+    @Test
+    public void testFreeBlockManagement() throws Exception {
+        final int maxWriteBlockSize = LAYOUT.blocksPerBuffer() - 1; // Excluding metadata block.
+        final byte[] data = new byte[maxWriteBlockSize * LAYOUT.blockSize()];
+
+        // Keep a sorted list of free blocks.
+        val freeBlocks = new ArrayList<Integer>();
+        IntStream.range(1, LAYOUT.blocksPerBuffer()).forEach(freeBlocks::add);
+        freeBlocks.sort(Comparator.reverseOrder());
+        //val writtenEntries = new HashMap<Integer, WriteEntry>(); // Key=Starting Block Id.
+        val writtenEntries = new PriorityQueue<WriteEntry>(Comparator.comparingInt(WriteEntry::getFirstBlockId));
+
+        @Cleanup
+        val b = newBuffer();
+        // We repeat writing, at each time filling up the buffer with equal-sized writes. We begin with 1 block writes
+        // until we make writes equalling the entire buffer length.
+        for (int writeBlocks = 1; writeBlocks <= maxWriteBlockSize; writeBlocks++) {
+            int writeLength = writeBlocks * LAYOUT.blockSize();
+
+            // Fill up the buffer with writes of this size.
+            while (!freeBlocks.isEmpty()) {
+                Assert.assertTrue("Expecting buffer to have capacity left.", b.hasCapacity());
+                val w = b.write(new ByteArrayInputStream(data, 0, writeLength), writeLength, true);
+                int firstBlockId = LAYOUT.getBlockId(w.getFirstBlockAddress());
+                int lastBlockId = LAYOUT.getBlockId(w.getLastBlockAddress());
+
+                // Determine how many blocks were actually expected and validate.
+                val expectedBlocks = updateFreeBlocksAfterWriting(freeBlocks, writeBlocks);
+                Assert.assertEquals("Unexpected First Block Id.", expectedBlocks.getFirstBlockId(), firstBlockId);
+                Assert.assertEquals("Unexpected Last Block Id.", expectedBlocks.getLastBlockId(), lastBlockId);
+                Assert.assertEquals("Unexpected value from getUsedBlockCount.",
+                        LAYOUT.blocksPerBuffer() - freeBlocks.size(), b.getUsedBlockCount());
+
+                writtenEntries.add(expectedBlocks);
+            }
+
+            // Delete every 1 other.
+            boolean delete = true;
+            val entryIterator = writtenEntries.iterator();
+            while (entryIterator.hasNext()) {
+                WriteEntry e = entryIterator.next();
+                if (delete) {
+                    val d = b.delete(e.getFirstBlockId());
+                    Assert.assertEquals("Expected whole blocks to be deleted.", 0, d.getDeletedLength() % LAYOUT.blockSize());
+                    Assert.assertEquals("Unexpected number of blocks deleted.", e.blockIds.size(), d.getDeletedLength() / LAYOUT.blockSize());
+                    updateFreeBlocksAfterDeletion(freeBlocks, e);
+                    entryIterator.remove();
+                }
+
+                delete = !delete;
+            }
+        }
+    }
+
+    private void updateFreeBlocksAfterDeletion(ArrayList<Integer> freeBlocks, WriteEntry writeEntry) {
+        freeBlocks.addAll(writeEntry.blockIds);
+        freeBlocks.sort(Comparator.reverseOrder());
+    }
+
+    private WriteEntry updateFreeBlocksAfterWriting(ArrayList<Integer> freeBlocks, int writeBlockCount) {
+        val writeBlocks = new ArrayList<Integer>();
+        while (!freeBlocks.isEmpty() && writeBlockCount > 0) {
+            writeBlocks.add(freeBlocks.remove(freeBlocks.size() - 1));
+            writeBlockCount--;
+        }
+
+        return writeBlocks.isEmpty() ? null : new WriteEntry(writeBlocks);
+    }
+
     private DirectMemoryBuffer newBuffer() {
         return new DirectMemoryBuffer(BUFFER_ID, this.allocator, LAYOUT);
     }
@@ -318,4 +402,31 @@ public class DirectMemoryBufferTests {
         Assert.assertEquals("Unexpected length.", expectedData.getLength(), data1.length);
         AssertExtensions.assertArrayEquals("Unexpected data.", expectedData.array(), expectedData.arrayOffset(), data1, 0, expectedData.getLength());
     }
+
+    //region Helper Classes
+    @RequiredArgsConstructor
+    private static class WriteEntry {
+        final ArrayList<Integer> blockIds;
+
+        int getFirstBlockId() {
+            return this.blockIds.get(0);
+        }
+
+        int getLastBlockId() {
+            return this.blockIds.get(this.blockIds.size() - 1);
+        }
+
+        double getFragmentation() {
+            int spread = getLastBlockId() - getFirstBlockId() + 1;
+            return 1.0 - (double) this.blockIds.size() / spread;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%d-%d (Count=%d, Fragmentation=%.1f%%)", getFirstBlockId(), getLastBlockId(),
+                    this.blockIds.size(), getFragmentation() * 100);
+        }
+    }
+
+    //endregion
 }

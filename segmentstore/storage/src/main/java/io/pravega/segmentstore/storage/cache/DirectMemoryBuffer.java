@@ -62,7 +62,7 @@ class DirectMemoryBuffer implements AutoCloseable {
         this.allocator = allocator;
         this.layout = layout;
         this.id = bufferId;
-        this.usedBlockCount = 1; // Metadata Buffer.
+        this.usedBlockCount = 1; // Metadata Block.
     }
 
     //endregion
