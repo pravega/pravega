@@ -21,11 +21,17 @@ import java.security.Principal;
 public class AuthContext {
 
     @Getter
-    private Principal principal;
+    private final Principal principal;
 
     @Getter
-    private AuthHandler authHandler;
+    private final AuthHandler authHandler;
 
+    /**
+     * Constructs an object.
+     *
+     * @param principal the principal representing the subject. Null is allowed.
+     * @param authHandler the authHandler. Null is allowed.
+     */
     private AuthContext(Principal principal, AuthHandler authHandler) {
         this.principal = principal;
         this.authHandler = authHandler;

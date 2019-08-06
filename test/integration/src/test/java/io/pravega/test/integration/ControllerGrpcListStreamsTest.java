@@ -16,7 +16,7 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
-import io.pravega.test.integration.auth.customplugin.CustomAuthHandler;
+import io.pravega.test.integration.auth.customplugin.TestAuthHandler;
 import io.pravega.test.integration.demo.ClusterWrapper;
 import io.pravega.test.integration.utils.PasswordAuthHandlerInput;
 import lombok.Cleanup;
@@ -139,8 +139,8 @@ public class ControllerGrpcListStreamsTest {
 
             // Act
             System.setProperty("pravega.client.auth.loadDynamic", "true");
-            System.setProperty("pravega.client.auth.method",  CustomAuthHandler.METHOD);
-            System.setProperty("pravega.client.auth.token", CustomAuthHandler.TOKEN);
+            System.setProperty("pravega.client.auth.method",  TestAuthHandler.METHOD);
+            System.setProperty("pravega.client.auth.token", TestAuthHandler.TOKEN);
 
             Set<Stream> streams = listStreams(ClientConfig.builder()
                     .controllerURI(URI.create(cluster.controllerUri()))

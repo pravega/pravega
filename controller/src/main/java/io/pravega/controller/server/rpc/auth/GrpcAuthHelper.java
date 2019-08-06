@@ -64,7 +64,7 @@ public class GrpcAuthHelper {
                 log.warn("AuthContext is null");
             }
             String message = String.format("Principal [%s] not allowed [%s] access for resource [%s]",
-                    ctx != null ? ctx.getPrincipal() : null, expectedLevel.toString(), resource);
+                    ctx != null ? ctx.getPrincipal() : null, expectedLevel, resource);
             throw new RuntimeException(new AuthorizationException(message));
         }
     }

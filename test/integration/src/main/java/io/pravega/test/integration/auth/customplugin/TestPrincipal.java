@@ -16,11 +16,11 @@ import java.security.Principal;
 
 @Slf4j
 @ToString
-public class CustomPrincipal implements Principal {
+public class TestPrincipal implements Principal {
 
     private String token;
 
-    CustomPrincipal(String token) {
+    TestPrincipal(String token) {
         if (token == null || token.trim().isEmpty()) {
             log.warn("Token is blank");
             throw new IllegalArgumentException("token is blank");

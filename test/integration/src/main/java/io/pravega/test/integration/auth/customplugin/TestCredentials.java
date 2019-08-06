@@ -11,13 +11,13 @@ package io.pravega.test.integration.auth.customplugin;
 
 import io.pravega.client.stream.impl.Credentials;
 
-public class CustomCredentials implements Credentials {
+public class TestCredentials implements Credentials {
 
     private static final String TOKEN = "static-token";
 
     @Override
     public String getAuthenticationType() {
-        return CustomAuthHandler.METHOD;
+        return TestAuthHandler.METHOD;
     }
 
     @Override

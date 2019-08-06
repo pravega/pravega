@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.security.Principal;
 
 @Slf4j
-public class CustomAuthHandler implements AuthHandler {
+public class TestAuthHandler implements AuthHandler {
 
     public static final String METHOD = "CustomMethod";
 
@@ -33,7 +33,7 @@ public class CustomAuthHandler implements AuthHandler {
     public Principal authenticate(String token) throws AuthException {
         log.debug("Authenticating using token [{}]", token);
         if (token.equals(TOKEN)) {
-            Principal result = new CustomPrincipal(TOKEN);
+            Principal result = new TestPrincipal(TOKEN);
             log.debug("Returning principal [{}] after successful authentication", result);
             return result;
         } else {

@@ -7,4 +7,4 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
-io.pravega.test.integration.auth.customplugin.CustomAuthHandler
+io.pravega.test.integration.auth.customplugin.TestAuthHandler

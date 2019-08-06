@@ -66,7 +66,6 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.Controller
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
-import lombok.SneakyThrows;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -86,9 +85,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.pravega.controller.auth.AuthFileUtils.credentialsAndAclAsString;
 
@@ -384,7 +384,8 @@ public class ControllerGrpcAuthFocusedTest {
     }
 
     @Test
-    public void listStreamsReturnsAllWhenUserHasWildCardAccessUsingAsyncStub() {
+    public void listStreamsReturnsAllWhenUserHasWildCardAccessUsingAsyncStub()
+            throws ExecutionException, InterruptedException {
         // Arrange
         String scopeName = "scope1";
         createScopeAndStreams(scopeName, Arrays.asList("stream1", "stream2"),
@@ -403,8 +404,6 @@ public class ControllerGrpcAuthFocusedTest {
         assertFalse(Strings.isNullOrEmpty(responseObserver.get().getContinuationToken().getToken()));
         assertEquals(2, streamsInResponse.size());
     }
-
-
 
     @Test
     public void listStreamReturnsEmptyResultWhenUserHasNoAccessToStreams() {
@@ -617,8 +616,7 @@ public class ControllerGrpcAuthFocusedTest {
 
     static class ResultObserver<T> implements StreamObserver<T> {
         private T result = null;
-        private Throwable error;
-        private final AtomicBoolean completed = new AtomicBoolean(false);
+        private final CompletableFuture<T> future = new CompletableFuture<>();
 
         @Override
         public void onNext(T value) {
@@ -627,37 +625,16 @@ public class ControllerGrpcAuthFocusedTest {
 
         @Override
         public void onError(Throwable t) {
-            synchronized (this) {
-                error = t;
-                completed.set(true);
-                this.notifyAll();
-            }
+            future.completeExceptionally(t);
         }
 
         @Override
         public void onCompleted() {
-            synchronized (this) {
-                completed.set(true);
-                this.notifyAll();
-            }
+            future.complete(result);
         }
 
-        @SneakyThrows
-        public T get() {
-            synchronized (this) {
-                while (!completed.get()) {
-                    try {
-                        this.wait();
-                    } catch (InterruptedException e) {
-                        return null;
-                    }
-                }
-            }
-            if (error != null) {
-                throw error;
-            } else {
-                return result;
-            }
+        public T get() throws ExecutionException, InterruptedException {
+            return future.get();
         }
     }
 }
