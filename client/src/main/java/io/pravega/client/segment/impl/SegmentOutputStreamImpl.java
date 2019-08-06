@@ -30,6 +30,7 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
+import io.pravega.shared.protocol.netty.WireCommands.CloseAppend;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.NoSuchSegment;
@@ -481,7 +482,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
         log.debug("Closing writer: {}", writerId);
         // Wait until all the inflight events are written
-        flush();
+        clearInFlight(new CloseAppend(writerId, segmentName));
         state.setClosed(true);
         ClientConnection connection = state.getConnection();
         if (connection != null) {
@@ -494,16 +495,20 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     public void flush() throws SegmentSealedException {
+        clearInFlight(new KeepAlive());
+    }
+
+    private void clearInFlight(WireCommand cmd) throws SegmentSealedException {
         int numInflight = state.getNumInflight();
         log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
         if (numInflight != 0) {
             try {
                 ClientConnection connection = Futures.getThrowingException(getConnection());
-                connection.send(new KeepAlive());
+                connection.send(cmd);
             } catch (SegmentSealedException | NoSuchSegmentException e) {
                 if (StreamSegmentNameUtils.isTransactionSegment(segmentName)) {
                     log.warn("Exception observed during a flush on a transaction segment, this indicates that the transaction is " +
-                                     "committed/aborted. Details: {}", e.getMessage());
+                            "committed/aborted. Details: {}", e.getMessage());
                     failConnection(e);
                 } else {
                     log.info("Exception observed while obtaining connection during flush. Details: {} ", e.getMessage());
@@ -522,7 +527,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
     }
-    
+
+
+
     private void failConnection(Throwable e) {
         log.warn("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));

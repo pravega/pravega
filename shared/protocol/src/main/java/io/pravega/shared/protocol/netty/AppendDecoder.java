@@ -77,6 +77,11 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             appendingSegments.put(append.getWriterId(), new Segment(append.getSegment()));
             result = append;
             break;
+        case CLOSE_APPEND:
+            WireCommands.CloseAppend closeAppend = (WireCommands.CloseAppend) command;
+            appendingSegments.remove(closeAppend.getWriterId());
+            result = null;
+            break;
         case CONDITIONAL_APPEND:
             WireCommands.ConditionalAppend ca = (WireCommands.ConditionalAppend) command;
             segment = getSegment(ca.getWriterId());

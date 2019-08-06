@@ -102,6 +102,7 @@ public enum WireCommandType {
 
     READ_TABLE_ENTRIES(85, WireCommands.ReadTableEntries::readFrom),
     TABLE_ENTRIES_READ(86, WireCommands.TableEntriesRead::readFrom),
+    CLOSE_APPEND(87, WireCommands.CloseAppend::readFrom),
 
     KEEP_ALIVE(100, WireCommands.KeepAlive::readFrom);
 
