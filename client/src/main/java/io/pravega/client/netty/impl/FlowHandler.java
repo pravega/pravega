@@ -15,6 +15,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.concurrent.ScheduledFuture;
+import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableFutureLatch;
@@ -252,6 +253,10 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        invokeProcessingFailureForAllFlows(cause);
+    }
+
+    private void invokeProcessingFailureForAllFlows(Throwable cause) {
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
             try {
                 log.debug("Exception observed for flow id {} due to {}", flowId, cause.getMessage());
@@ -266,12 +271,13 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            Channel ch = channel.get();
+            Channel ch = channel.getAndSet(null);
             if (ch != null) {
                 log.debug("Closing channel {} ", ch);
                 final int openFlowCount = flowIdReplyProcessorMap.size();
                 if (openFlowCount != 0) {
                     log.warn("{} flows are not closed", openFlowCount);
+                    invokeProcessingFailureForAllFlows(new ConnectionClosedException());
                 }
                 final int appendTrackerCount = flowIDBatchSizeTrackerMap.size();
                 if (appendTrackerCount != 0) {
