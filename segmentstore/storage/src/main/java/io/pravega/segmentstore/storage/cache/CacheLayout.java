@@ -126,24 +126,24 @@ abstract class CacheLayout {
     abstract int calculateAddress(int bufferId, int blockId);
 
     /**
-     * Updates the given Block Metadata to indicate that its associated Buffer-Block has a successor with the given address.
+     * Updates the given Block Metadata to indicate that its associated Buffer-Block has a predecessor with the given address.
      *
      * @param blockMetadata         The Block Metadata to update.
-     * @param successorBlockAddress The successor address to set.
-     * @return The resulting block metadata having the successor address set. This value is undefined if `blockMetadata`
-     * was not generated using one of the methods in this class or if `successorBlockAddress` was not generated using
+     * @param predecessorAddress The predecessor address to set.
+     * @return The resulting block metadata having the predecessor address set. This value is undefined if `blockMetadata`
+     * was not generated using one of the methods in this class or if `predecessorAddress` was not generated using
      * {@link #calculateAddress}.
      */
-    abstract long setSuccessorAddress(long blockMetadata, int successorBlockAddress);
+    abstract long setPredecessorAddress(long blockMetadata, int predecessorAddress);
 
     /**
-     * Gets the successor address from the given block metadata.
+     * Gets the predecessor address from the given block metadata.
      *
      * @param blockMetadata The block metadata to extract from.
-     * @return The successor address. This value is undefined if `blockMetadata` was not generated using one of the methods
+     * @return The predecessor address. This value is undefined if `blockMetadata` was not generated using one of the methods
      * in this class or if {@link #isUsedBlock} returns false on `blockMetadata`.
      */
-    abstract int getSuccessorAddress(long blockMetadata);
+    abstract int getPredecessorAddress(long blockMetadata);
 
     /**
      * Updates the given block metadata to indicate its associated Buffer-Block has a specific length.
@@ -188,24 +188,13 @@ abstract class CacheLayout {
     abstract boolean isUsedBlock(long blockMetadata);
 
     /**
-     * Gets a value indicating whether the Buffer-Block associated with the given block metadata is the first one for
-     * an entry.
-     *
-     * @param blockMetadata The block metadata to query.
-     * @return True if first, false otherwise. This value is undefined if `blockMetadata` was not generated using one of
-     * the methods in this class or if {@link #isUsedBlock} returns false on `blockMetadata`.
-     */
-    abstract boolean isFirstBlock(long blockMetadata);
-
-    /**
      * Generates a new Buffer-Block Metadata having IsUsed set to true.
-     * @param first True if this is the first Buffer-Block for an entry (overall, not in the current Buffer).
-     * @param nextFreeBlockId The Id of the next unallocated Buffer-Block.
-     * @param length The length of the data in this Buffer-Block.
-     * @param successorAddress The address of the next block in the sequence.
+     * @param nextFreeBlockId    The Id of the next unallocated Buffer-Block.
+     * @param length             The length of the data in this Buffer-Block.
+     * @param predecessorAddress The address of the next block in the sequence.
      * @return A new block metadata.
      */
-    abstract long newBlockMetadata(boolean first, int nextFreeBlockId, int length, int successorAddress);
+    abstract long newBlockMetadata(int nextFreeBlockId, int length, int predecessorAddress);
 
     /**
      * Generates a new Buffer-Block metadata with no contents.
@@ -239,11 +228,10 @@ abstract class CacheLayout {
      *
      * Metadata Layout (8 Bytes)
      * - Bit 0: Used Flag.
-     * - Bit 1: First Block of Object.
-     * - Bits 2-7: Not used.
+     * - Bits 1-7: Not used.
      * - Bits 8-17: Next Free Block Id (10 bits. NO_BLOCK_ID if Used=1)
      * - Bits 18-31: Block Length (up to 16383, 14 bits)
-     * - Bits 32-63: Successor Address.
+     * - Bits 32-63: Predecessor Address.
      */
     static class DefaultLayout extends CacheLayout {
         @VisibleForTesting
@@ -255,8 +243,7 @@ abstract class CacheLayout {
         private static final int BUFFER_SIZE = 2 * 1024 * 1024;
         private static final int BLOCK_SIZE = 4 * 1024;
         private static final long USED_FLAG = 0x8000_0000_0000_0000L;
-        private static final long FIRST_BLOCK_FLAG = 0x4000_0000_0000_0000L;
-        private static final long EMPTY_BLOCK_METADATA = 0L; // Not used, not first, no length and no successor.
+        private static final long EMPTY_BLOCK_METADATA = 0L; // Not used, no length and no predecessor.
         private static final int BLOCK_LENGTH_MASK = 0x3FFF; // 14 Bits.
         private static final int NEXT_FREE_BLOCK_ID_SHIFT_BITS = BLOCK_LENGTH_BIT_COUNT + ADDRESS_BIT_COUNT;
         private static final long NEXT_FREE_BLOCK_ID_CLEAR_MASK = 0xFF00_3FFF_FFFF_FFFFL; // Clear 10 bits in middle
@@ -295,19 +282,19 @@ abstract class CacheLayout {
         }
 
         @Override
-        long setSuccessorAddress(long blockMetadata, int successorBlockAddress) {
-            return (blockMetadata & 0xFFFF_FFFF_0000_0000L) | successorBlockAddress;
+        long setPredecessorAddress(long blockMetadata, int predecessorAddress) {
+            return (blockMetadata & 0xFFFF_FFFF_0000_0000L) | predecessorAddress;
         }
 
         @Override
-        int getSuccessorAddress(long blockMetadata) {
+        int getPredecessorAddress(long blockMetadata) {
             return (int) (blockMetadata & 0XFFFF_FFFF);
         }
 
         @Override
         long setLength(long blockMetadata, int length) {
             // Clear current length.
-            blockMetadata &= ~(long) BLOCK_LENGTH_MASK << ADDRESS_BIT_COUNT;
+            blockMetadata &= ~((long) BLOCK_LENGTH_MASK << ADDRESS_BIT_COUNT);
 
             // Set new length.
             blockMetadata |= (long) (length & BLOCK_LENGTH_MASK) << ADDRESS_BIT_COUNT;
@@ -335,19 +322,9 @@ abstract class CacheLayout {
         }
 
         @Override
-        boolean isFirstBlock(long blockMetadata) {
-            return (blockMetadata & FIRST_BLOCK_FLAG) == FIRST_BLOCK_FLAG;
-        }
-
-        @Override
-        long newBlockMetadata(boolean first, int nextFreeBlockId, int length, int successorAddress) {
+        long newBlockMetadata(int nextFreeBlockId, int length, int predecessorAddress) {
             // If we write something to it, it's used.
             long result = USED_FLAG;
-
-            // Set First Block flag.
-            if (first) {
-                result |= FIRST_BLOCK_FLAG;
-            }
 
             // Write next Free Block Id.
             result |= ((long) nextFreeBlockId & BLOCK_ID_MASK) << NEXT_FREE_BLOCK_ID_SHIFT_BITS;
@@ -355,8 +332,8 @@ abstract class CacheLayout {
             // Write length.
             result |= ((long) length & BLOCK_LENGTH_MASK) << ADDRESS_BIT_COUNT;
 
-            // Write successor address.
-            result |= 0xFFFF_FFFFL & successorAddress;
+            // Write predecessor address.
+            result |= 0xFFFF_FFFFL & predecessorAddress;
             return result;
         }
 

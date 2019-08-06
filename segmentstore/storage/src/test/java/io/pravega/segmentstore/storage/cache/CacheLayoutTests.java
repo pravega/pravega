@@ -48,11 +48,11 @@ public class CacheLayoutTests {
     }
 
     /**
-     * Tests {@link CacheLayout#setSuccessorAddress} and {@link CacheLayout#getSuccessorAddress}.
+     * Tests {@link CacheLayout#setPredecessorAddress} and {@link CacheLayout#getPredecessorAddress}.
      */
     @Test
-    public void testSuccessorAddress() {
-        testMetadataField(CacheLayout::getSuccessorAddress, CacheLayout::setSuccessorAddress, CacheLayout.NO_ADDRESS, getAddressBitCount());
+    public void testPredecessorAddress() {
+        testMetadataField(CacheLayout::getPredecessorAddress, CacheLayout::setPredecessorAddress, CacheLayout.NO_ADDRESS, getAddressBitCount());
     }
 
     /**
@@ -87,23 +87,21 @@ public class CacheLayoutTests {
                     int expectedLength = (int) l;
                     for (long a : addresses) {
                         int expectedAddress = (int) a;
-                        long m = layout().newBlockMetadata(first, expectedBlockId, expectedLength, expectedAddress);
+                        long m = layout().newBlockMetadata(expectedBlockId, expectedLength, expectedAddress);
                         Assert.assertTrue(layout().isUsedBlock(m));
-                        Assert.assertEquals(first, layout().isFirstBlock(m));
                         Assert.assertEquals(expectedBlockId, layout().getNextFreeBlockId(m));
                         Assert.assertEquals(expectedLength, layout().getLength(m));
-                        Assert.assertEquals(expectedAddress, layout().getSuccessorAddress(m));
+                        Assert.assertEquals(expectedAddress, layout().getPredecessorAddress(m));
                     }
                 }
             }
         }
 
         // Test the empty metadata.
-        Assert.assertFalse(layout().isFirstBlock(layout().emptyBlockMetadata()));
         Assert.assertFalse(layout().isUsedBlock(layout().emptyBlockMetadata()));
         Assert.assertEquals(CacheLayout.NO_BLOCK_ID, layout().getNextFreeBlockId(layout().emptyBlockMetadata()));
         Assert.assertEquals(0, layout().getLength(layout().emptyBlockMetadata()));
-        Assert.assertEquals(CacheLayout.NO_ADDRESS, layout().getSuccessorAddress(layout().emptyBlockMetadata()));
+        Assert.assertEquals(CacheLayout.NO_ADDRESS, layout().getPredecessorAddress(layout().emptyBlockMetadata()));
     }
 
     private void testMetadataField(BiFunction<CacheLayout, Long, Integer> get, TriFunction<CacheLayout, Long, Integer, Long> set, int emptyResult, int fieldBitCount) {
