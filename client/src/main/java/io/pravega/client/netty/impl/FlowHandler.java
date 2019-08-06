@@ -277,6 +277,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                 final int openFlowCount = flowIdReplyProcessorMap.size();
                 if (openFlowCount != 0) {
                     log.warn("{} flows are not closed", openFlowCount);
+                    // ensure all the ReplyProcessors are informed immediately about the channel being closed.
                     invokeProcessingFailureForAllFlows(new ConnectionClosedException());
                 }
                 final int appendTrackerCount = flowIDBatchSizeTrackerMap.size();
