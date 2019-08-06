@@ -23,6 +23,7 @@ public class EventWriterConfig implements Serializable {
     private final int maxBackoffMillis;
     private final int retryAttempts;
     private final int backoffMultiple;
+    private final boolean enableConnectionPooling;
     /*
      * The transaction timeout parameter corresponds to the lease renewal period.
      * In every period, the client must send at least one ping to keep the txn alive.
@@ -52,5 +53,7 @@ public class EventWriterConfig implements Serializable {
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
         private long transactionTimeoutTime = 30 * 1000 - 1;
+        // connection pooling for event writers is enabled by default.
+        private boolean enableConnectionPooling = true;
     }
 }
