@@ -71,19 +71,25 @@ public class AuthInterceptor implements ServerInterceptor {
                 String token = parts[1];
                 if (!Strings.isNullOrEmpty(method)) {
                     if (method.equals(handler.getHandlerName())) {
+                        log.debug("Handler [{}] successfully matched auth method [{}]", handler, method);
                         Principal principal;
                         try {
                             if ((principal = handler.authenticate(token)) == null) {
+                                log.warn("Handler for method [{}] returned a null Principal upon authentication for the"
+                                        + "given token", method);
                                 call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
                                 return null;
                             }
                         } catch (AuthException e) {
+                            log.warn("Authentication failed", e);
                             call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
                             return null;
                         }
                         // Creates a new Context with the given key/value pairs.
                         context = context.withValues(PRINCIPAL_OBJECT_KEY, principal, AUTH_INTERCEPTOR_OBJECT_KEY, this);
                     }
+                } else {
+                    log.debug("Credentials are present, but method [{}] is null or empty", method);
                 }
             }
         }
