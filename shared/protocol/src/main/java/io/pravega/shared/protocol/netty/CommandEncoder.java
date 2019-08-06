@@ -156,7 +156,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 writeMessage(new AppendBlockEnd(id, 0, buffer, eventCount, lastEventNumber, requestId), out);
                 pendingWrites.remove(id);
                 buffer.clear();
-                buffer.release();
                 eventCount = 0;
             }
         }
