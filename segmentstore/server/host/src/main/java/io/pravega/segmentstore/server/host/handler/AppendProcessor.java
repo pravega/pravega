@@ -303,9 +303,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
                 } else {
                     if (!conditionalFailed) {
-                        List<Append> appends = waitingAppends.get(append.getWriterId());
-                        pendingBytes -= appends.stream().filter(a -> !a.isConditional())
-                                .mapToInt(a -> a.getData().readableBytes()).sum();
                         waitingAppends.removeAll(append.getWriterId());
                         latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
                     }
