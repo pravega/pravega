@@ -16,11 +16,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.EventLoop;
 import io.netty.channel.ChannelPromise;
-import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -69,8 +67,6 @@ public class FlowHandlerTest {
     private FlowHandler flowHandler;
     @Mock
     private ReplyProcessor processor;
-    @Mock
-    private AppendBatchSizeTracker tracker;
     @Mock
     private Append appendCmd;
     @Mock
@@ -326,7 +322,7 @@ public class FlowHandlerTest {
     }
 
     @Test
-    public void keepAliveTest() throws Exception {
+    public void keepAliveFailureTest() throws Exception {
         ReplyProcessor replyProcessor = mock(ReplyProcessor.class);
         @Cleanup
         ClientConnection connection1 = flowHandler.createFlow(flow, processor);
