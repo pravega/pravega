@@ -528,8 +528,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
     }
 
-
-
     private void failConnection(Throwable e) {
         log.warn("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));
