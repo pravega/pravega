@@ -81,13 +81,15 @@ public abstract class AbstractService implements Service {
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
     private static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
-    private static final String VERSION = System.getProperty("imageVersion", "latest");
+    private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
+    private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
     private static final String PRAVEGA_OPERATOR_IMAGE = System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest");
     private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
+    private static Boolean IS_LATER_OPERATOR = true;
 
     final K8sClient k8sClient;
     private final String id;
@@ -124,46 +126,89 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
-        // use the latest version of bookkeeper.
-
-        String bookkeeperImg = DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME;
-
-        final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", ImmutableMap.of("repository", bookkeeperImg))
-                                                                                        .put("replicas", bookieCount)
-                                                                                        .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
-                                                                                        .put("storage", ImmutableMap.builder()
-                                                                                                                    .put("indexVolumeClaimTemplate", bkPersistentVolumeSpec)
-                                                                                                                    .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
-                                                                                                                    .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
-                                                                                                                    .build())
-                                                                                        .put("autoRecovery", true)
-                                                                                        .build();
 
         // generate Pravega Spec.
         final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
 
-        String pravegaImg = DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME;
+        String BOOKKEEPER_IMAGE = DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME;
+        String PRAVEGA_IMAGE = DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME;
 
-        final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
-                                                                                    .put("segmentStoreReplicas", segmentStoreCount)
-                                                                                    .put("debugLogging", true)
-                                                                                    .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
-                                                                                    .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
-                                                                                    .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
-                                                                                    .put("options", props)
-                                                                                    .put("image", ImmutableMap.of("repository", pravegaImg))
-                                                                                    .put("tier2", tier2Spec())
-                                                                                    .build();
+        if(IS_LATER_OPERATOR){
 
-        return ImmutableMap.<String, Object>builder()
-                .put("apiVersion", "pravega.pravega.io/v1alpha1")
-                .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
-                .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", ImmutableMap.builder().put("zookeeperUri", zkLocation)
-                                         .put("bookkeeper", bookkeeperSpec)
-                                         .put("pravega", pravegaSpec)
-                                         .put("version", VERSION)
-                                         .build())
+            final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", ImmutableMap.of("repository", BOOKKEEPER_IMAGE))
+                    .put("replicas", bookieCount)
+                    .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
+                    .put("storage", ImmutableMap.builder()
+                            .put("indexVolumeClaimTemplate", bkPersistentVolumeSpec)
+                            .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
+                            .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
+                            .build())
+                    .put("autoRecovery", true)
+                    .build();
+
+
+            final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
+                    .put("segmentStoreReplicas", segmentStoreCount)
+                    .put("debugLogging", true)
+                    .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
+                    .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
+                    .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
+                    .put("options", props)
+                    .put("image", ImmutableMap.of("repository", PRAVEGA_IMAGE))
+                    .put("tier2", tier2Spec())
+                    .build();
+
+            return ImmutableMap.<String, Object>builder()
+                    .put("apiVersion", "pravega.pravega.io/v1alpha1")
+                    .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
+                    .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
+                    .put("spec", ImmutableMap.builder().put("zookeeperUri", zkLocation)
+                            .put("bookkeeper", bookkeeperSpec)
+                            .put("pravega", pravegaSpec)
+                            .put("version", PRAVEGA_VERSION)
+                            .build())
+                    .build();
+        }else{
+
+            final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image",
+                    getImageSpec(BOOKKEEPER_IMAGE, PRAVEGA_BOOKKEEPER_VERSION))
+                    .put("replicas", bookieCount)
+                    .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
+                    .put("storage", ImmutableMap.builder()
+                            .put("indexVolumeClaimTemplate", bkPersistentVolumeSpec)
+                            .put("ledgerVolumeClaimTemplate", bkPersistentVolumeSpec)
+                            .put("journalVolumeClaimTemplate", bkPersistentVolumeSpec)
+                            .build())
+                    .put("autoRecovery", true)
+                    .build();
+
+            final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
+                    .put("segmentStoreReplicas", segmentStoreCount)
+                    .put("debugLogging", true)
+                    .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
+                    .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
+                    .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
+                    .put("options", props)
+                    .put("image", getImageSpec(PRAVEGA_IMAGE, PRAVEGA_VERSION))
+                    .put("tier2", tier2Spec())
+                    .build();
+
+            return ImmutableMap.<String, Object>builder()
+                    .put("apiVersion", "pravega.pravega.io/v1alpha1")
+                    .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
+                    .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
+                    .put("spec", ImmutableMap.builder().put("zookeeperUri", zkLocation)
+                            .put("bookkeeper", bookkeeperSpec)
+                            .put("pravega", pravegaSpec)
+                            .build())
+                    .build();
+        }
+    }
+
+    private Map<String, Object> getImageSpec(String imageName, String tag) {
+        return ImmutableMap.<String, Object>builder().put("repository", imageName)
+                .put("tag", tag)
+                .put("pullPolicy", IMAGE_PULL_POLICY)
                 .build();
     }
 
@@ -215,6 +260,15 @@ public abstract class AbstractService implements Service {
     }
 
     private V1beta1CustomResourceDefinition getPravegaCRD() {
+
+        String PRAVEGA_OPERATOR_TAG = PRAVEGA_OPERATOR_IMAGE.substring(PRAVEGA_OPERATOR_IMAGE.lastIndexOf(":")+1);
+        if(!PRAVEGA_OPERATOR_TAG.equals("latest")){
+            String version = PRAVEGA_OPERATOR_TAG.substring(0,PRAVEGA_OPERATOR_TAG.lastIndexOf("."));
+            float v = Float.parseFloat(version);
+            if(v < 0.4){
+                IS_LATER_OPERATOR = false;
+            }
+        }
 
         return new V1beta1CustomResourceDefinitionBuilder()
                 .withApiVersion("apiextensions.k8s.io/v1beta1")
