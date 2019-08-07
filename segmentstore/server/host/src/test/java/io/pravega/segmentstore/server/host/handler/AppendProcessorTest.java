@@ -19,6 +19,7 @@ import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -32,6 +33,7 @@ import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
+import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands.AppendSetup;
 import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
@@ -390,6 +392,40 @@ public class AppendProcessorTest {
         reply = sendRequest(channel, new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null,
                                                 requestId));
         assertNull("No WireCommand reply is expected", reply);
+        // Verify that the channel is closed by the AppendProcessor.
+        assertEventuallyEquals(false, channel::isOpen, 3000);
+    }
+
+    @Test(timeout = 5000)
+    public void testBadAttributeException() throws Exception {
+        String streamSegmentName = "scope/stream/testAppendSegment";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[]{1, 2, 3, 4, 6, 7, 8, 9};
+
+        // Setup mocks.
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        setupGetAttributes(streamSegmentName, clientId, store);
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        result.completeExceptionally(new BadAttributeUpdateException(streamSegmentName,
+                                                                     new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.ReplaceIfEquals, 100, 101),
+                                                                     false, "error"));
+        when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
+                .thenReturn(result);
+
+        @Cleanup
+        EmbeddedChannel channel = createChannel(store);
+
+        // Send a setup append WireCommand.
+        Reply reply = sendRequest(channel, new SetupAppend(requestId, clientId, streamSegmentName, ""));
+        assertEquals(new AppendSetup(1, streamSegmentName, clientId, 0), reply);
+
+        // Send an append which will cause a RuntimeException to be thrown by the store.
+        reply = sendRequest(channel, new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null,
+                                                requestId));
+        // validate InvalidEventNumber Wirecommand is sent before closing the Channel.
+        assertNotNull("Invalid Event WireCommand is expected", reply);
+        assertEquals(WireCommandType.INVALID_EVENT_NUMBER.getCode(), ((WireCommand) reply).getType().getCode());
+
         // Verify that the channel is closed by the AppendProcessor.
         assertEventuallyEquals(false, channel::isOpen, 3000);
     }
