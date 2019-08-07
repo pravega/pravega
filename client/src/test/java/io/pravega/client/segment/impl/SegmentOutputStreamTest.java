@@ -345,7 +345,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0)));
         assertEquals(false, acked.isCompletedExceptionally());
         assertEquals(true, acked.isDone());
-        verify(connection, Mockito.atMost(1)).send(new WireCommands.CloseAppend(cid, SEGMENT));
+        verify(connection, Mockito.atMost(1)).send(new WireCommands.KeepAlive());
         verify(connection).close();
         verifyNoMoreInteractions(connection);
     }
@@ -559,7 +559,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                 cf.getProcessor(uri).connectionDropped();
                 throw new ConnectionFailedException();
             }
-        }).doNothing().when(connection).send(new WireCommands.CloseAppend(cid, SEGMENT));
+        }).doNothing().when(connection).send(new WireCommands.KeepAlive());
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -580,7 +580,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0));
         });
         // Verify the order of WireCommands sent.
-        inOrder.verify(connection).send(new WireCommands.CloseAppend(cid, SEGMENT));
+        inOrder.verify(connection).send(new WireCommands.KeepAlive());
         // Two SetupAppend WireCommands are sent since the connection is dropped right after the first KeepAlive WireCommand is sent.
         // The second SetupAppend WireCommand is sent while trying to re-establish connection.
         inOrder.verify(connection, times(2)).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
