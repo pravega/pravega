@@ -180,7 +180,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         super.channelRegistered(ctx);
         Channel ch = ctx.channel();
         channel.set(ch);
-        log.info("Connection established with endpoint {} on ChannelId {}", connectionName, ch);
+        log.info("Connection established with endpoint {} on channel {}", connectionName, ch);
         ch.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
@@ -204,6 +204,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             future.cancel(false);
         }
         channel.set(null);
+        log.info("Connection drop observed with endpoint {}", connectionName);
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
             try {
                 log.debug("Connection dropped for flow id {}", flowId);
@@ -273,10 +274,10 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         if (closed.compareAndSet(false, true)) {
             Channel ch = channel.getAndSet(null);
             if (ch != null) {
-                log.debug("Closing channel {} ", ch);
+                log.info("Closing connection with endpoint {} on channel {}", connectionName, ch);
                 final int openFlowCount = flowIdReplyProcessorMap.size();
                 if (openFlowCount != 0) {
-                    log.warn("{} flows are not closed", openFlowCount);
+                    log.debug("{} flows are not closed", openFlowCount);
                     // ensure all the ReplyProcessors are informed immediately about the channel being closed.
                     invokeProcessingFailureForAllFlows(new ConnectionClosedException());
                 }
