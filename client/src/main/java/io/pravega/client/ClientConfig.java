@@ -33,7 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 @Builder(toBuilder = true)
 public class ClientConfig implements Serializable {
 
-    static final int DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE = 5;
+    static final int DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE = 10;
     private static final long serialVersionUID = 1L;
 
 
@@ -122,12 +122,24 @@ public class ClientConfig implements Serializable {
         @VisibleForTesting
         ClientConfigBuilder extractCredentials(Properties properties, Map<String, String> env) {
             if (credentials != null) {
+                log.info("Client credentials were extracted using the explicitly supplied credentials object.");
                 return this;
             }
-
-            credentials = extractCredentialsFromProperties(properties);
-            if (credentials == null) {
+            if (properties != null) {
+                credentials = extractCredentialsFromProperties(properties);
+                if (credentials != null) {
+                    log.info("Client credentials were extracted from system properties. {}",
+                            "They weren't explicitly supplied as a Credentials object.");
+                    return this;
+                }
+            }
+            if (env != null) {
                 credentials = extractCredentialsFromEnv(env);
+                if (credentials != null) {
+                    log.info("Client credentials were extracted from environment variables. {}",
+                            "They weren't explicitly supplied as a Credentials object or system properties.");
+                    return this;
+                }
             }
             return this;
         }

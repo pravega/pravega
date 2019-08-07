@@ -41,7 +41,6 @@ import io.pravega.shared.metrics.MetricRegistryUtils;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
-import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.common.ThreadPooledTestSuite;
@@ -59,8 +58,10 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
 import static io.pravega.shared.MetricsTags.segmentTags;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -99,7 +100,7 @@ public class MetricsTest extends ThreadPooledTestSuite {
         MetricsConfig metricsConfig = MetricsConfig.builder()
                 .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
                 .build();
-        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(5));
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(2));
 
         MetricsProvider.initialize(metricsConfig);
         statsProvider = MetricsProvider.getMetricsProvider();
@@ -117,7 +118,8 @@ public class MetricsTest extends ThreadPooledTestSuite {
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
         this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, tableStore,
-                monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(), null, null, true);
+                monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
+                null, null, true);
         this.server.startListening();
 
         // 4. Start Pravega Controller service
@@ -187,10 +189,11 @@ public class MetricsTest extends ThreadPooledTestSuite {
             log.info("Creating Reader group : {}", readerGroupName1);
 
             readerGroupManager.createReaderGroup(readerGroupName1,
-                                                 ReaderGroupConfig.builder()
-                                                                  .stream(Stream.of(scope, STREAM_NAME))
-                                                                  .automaticCheckpointIntervalMillis(2000)
-                                                                  .build());
+                    ReaderGroupConfig
+                            .builder()
+                            .stream(Stream.of(scope, STREAM_NAME))
+                            .automaticCheckpointIntervalMillis(2000)
+                            .build());
 
             EventStreamReader<String> reader1 = clientFactory.createReader(readerName,
                     readerGroupName1,
@@ -199,18 +202,20 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
             readAllEvents(reader1);
 
-            AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
-                return (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes", segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0")).count();
-            }, 10000);
+            final String[] streamTags = segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0");
+            assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count());
+
+            //Wait for cache eviction to happen
+            Thread.sleep(5000);
 
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
 
             readerGroupManager.createReaderGroup(readerGroupName2,
-                                                 ReaderGroupConfig.builder()
-                                                                  .stream(Stream.of(scope, STREAM_NAME))
-                                                                  .automaticCheckpointIntervalMillis(2000)
-                                                                  .build());
+                    ReaderGroupConfig.builder()
+                            .stream(Stream.of(scope, STREAM_NAME))
+                            .automaticCheckpointIntervalMillis(2000)
+                            .build());
 
             EventStreamReader<String> reader2 = clientFactory.createReader(readerName,
                     readerGroupName2,
@@ -219,11 +224,9 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
             readAllEvents(reader2);
 
-            long countAfterCacheEvicted = (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes", segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0")).count();
-
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
-            Assert.assertEquals(bytesWritten, countAfterCacheEvicted);
+            assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count());
 
             Map<Double, Double> map = new HashMap<>();
             map.put(0.0, 1.0);
@@ -243,9 +246,8 @@ public class MetricsTest extends ThreadPooledTestSuite {
 
             readAllEvents(reader1);
 
-            AssertExtensions.assertEventuallyEquals(bytesWritten, () -> {
-                return (long) MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes", segmentTags(scope + "/" + STREAM_NAME + "/1.#epoch.1")).count();
-            }, 10000);
+            final String[] streamTags2nd = segmentTags(scope + "/" + STREAM_NAME + "/1.#epoch.1");
+            assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd).count());
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);
             readerGroupManager.deleteReaderGroup(readerGroupName2);

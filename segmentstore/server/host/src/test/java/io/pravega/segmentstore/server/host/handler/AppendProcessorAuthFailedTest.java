@@ -9,11 +9,11 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.pravega.auth.TokenException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.util.UUID;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,17 +29,17 @@ public class AppendProcessorAuthFailedTest {
     public void setUp() throws Exception {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         connection = mock(ServerConnection.class);
-        processor = new AppendProcessor(store, connection, new FailingRequestProcessor(), (resource, token, expectedLevel) -> false);
 
-    }
-
-    @After
-    public void tearDown() throws Exception {
+        processor = new AppendProcessor(store, connection, new FailingRequestProcessor(),
+                (resource, token, expectedLevel) -> {
+                    throw new TokenException("Token verification failed.");
+                });
     }
 
     @Test
     public void setupAppend() {
-        processor.setupAppend(new WireCommands.SetupAppend(100L, UUID.randomUUID(), "segment", "token"));
+        processor.setupAppend(new WireCommands.SetupAppend(100L,
+                UUID.randomUUID(), "segment", "token"));
         verify(connection).send(new WireCommands.AuthTokenCheckFailed(100L, ""));
     }
 }

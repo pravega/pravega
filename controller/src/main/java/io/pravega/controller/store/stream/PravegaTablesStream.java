@@ -725,7 +725,7 @@ class PravegaTablesStream extends PersistentStreamBase {
         String tableName = getCompletedTransactionsBatchTableName(batch);
 
         Map<String, byte[]> map = complete.entrySet().stream().collect(Collectors.toMap(
-                x -> String.format(COMPLETED_TRANSACTIONS_KEY_FORMAT, getScope(), getName(), x.getKey().toString()), Map.Entry::getValue));
+                x -> getCompletedTransactionKey(getScope(), getName(), x.getKey()), Map.Entry::getValue));
 
         return Futures.toVoid(Futures.exceptionallyComposeExpecting(
                 storeHelper.addNewEntriesIfAbsent(tableName, map),
@@ -736,7 +736,13 @@ class PravegaTablesStream extends PersistentStreamBase {
                 });
     }
 
-    private String getCompletedTransactionsBatchTableName(int batch) {
+    @VisibleForTesting
+    static String getCompletedTransactionKey(String scope, String stream, String txnId) {
+        return String.format(COMPLETED_TRANSACTIONS_KEY_FORMAT, scope, stream, txnId);
+    }
+
+    @VisibleForTesting
+    static String getCompletedTransactionsBatchTableName(int batch) {
         return getQualifiedTableName(INTERNAL_SCOPE_NAME, 
                 String.format(COMPLETED_TRANSACTIONS_BATCH_TABLE_FORMAT, batch));
     }
@@ -763,7 +769,7 @@ class PravegaTablesStream extends PersistentStreamBase {
                           .thenCompose(v -> {
                               return Futures.allOfWithResults(batches.stream().map(batch -> {
                                   String table = getCompletedTransactionsBatchTableName(batch);
-                                  String key = String.format(COMPLETED_TRANSACTIONS_KEY_FORMAT, getScope(), getName(), txId.toString());
+                                  String key = getCompletedTransactionKey(getScope(), getName(), txId.toString());
 
                                   return storeHelper.expectingDataNotFound(
                                           storeHelper.getCachedData(table, key, CompletedTxnRecord::fromBytes), null);

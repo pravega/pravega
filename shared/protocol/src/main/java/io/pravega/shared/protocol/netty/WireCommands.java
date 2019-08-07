@@ -1507,6 +1507,11 @@ public final class WireCommands {
         public long getRequestId() {
             return -1;
         }
+
+        @Override
+        public boolean mustLog() {
+            return false;
+        }
     }
 
     @Data

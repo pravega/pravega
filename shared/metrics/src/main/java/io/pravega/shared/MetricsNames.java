@@ -136,7 +136,7 @@ public final class MetricsNames {
     public static final String OPERATION_PROCESSOR_DELAY_MILLIS = PREFIX + "segmentstore.container.operation_processor.delay_ms";            // Per-container Histogram
     public static final String OPERATION_COMMIT_LATENCY = PREFIX + "segmentstore.container.operation_commit.latency_ms";                     // Per-container Histogram
     public static final String OPERATION_LATENCY = PREFIX + "segmentstore.container.operation.latency_ms";                                   // Per-container Histogram
-    public static final String OPERATION_COMMIT_METADATA_TXN_COUNT = PREFIX + "segmentstore.container.operation_commit.metadata_txn_count";  // Per-container Histogram
+    public static final String OPERATION_COMMIT_MEMORY_COUNT = PREFIX + "segmentstore.container.operation_commit.memory_count";              // Per-container Histogram
     public static final String OPERATION_COMMIT_MEMORY_LATENCY = PREFIX + "segmentstore.container.operation_commit.memory_latency_ms";       // Per-container Histogram
     public static final String OPERATION_LOG_SIZE = PREFIX + "segmentstore.container.operation.log_size";                                    // Per-container Counter
 
@@ -188,8 +188,8 @@ public final class MetricsNames {
 
     // Stream segment counts
     public static final String SEGMENTS_COUNT = PREFIX + "controller.segments.count";    // Per-stream Gauge
-    public static final String SEGMENTS_SPLITS = PREFIX + "controller.segment.splits";   // Per-stream Counter
-    public static final String SEGMENTS_MERGES = PREFIX + "controller.segment.merges";   // Per-stream Counter
+    public static final String SEGMENTS_SPLITS = PREFIX + "controller.segment.splits";   // Per-stream Gauge
+    public static final String SEGMENTS_MERGES = PREFIX + "controller.segment.merges";   // Per-stream Gauge
 
     // Stream retention operations
     public static final String RETENTION_FREQUENCY = PREFIX + "controller.retention.frequency";   // Per-stream Counter

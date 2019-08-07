@@ -182,6 +182,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
+            this.metadataStore.close();
             this.extensions.values().forEach(SegmentContainerExtension::close);
             Futures.await(Services.stopAsync(this, this.executor));
             this.metadataCleaner.close();
@@ -832,11 +833,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout) {
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.storage
-                .openWrite(segmentName)
-                .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
-                .thenComposeAsync(v -> this.attributeIndex.delete(segmentName, timer.getRemaining()), this.executor);
+        // Delete both the Segment and its Attribute Index in parallel. This handles the case when the segment file does
+        // not exist (no data appended) but it does have attributes.
+        return CompletableFuture.allOf(
+                this.storage
+                        .openWrite(segmentName)
+                        .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor),
+                this.attributeIndex.delete(segmentName, timeout));
     }
 
     private CompletableFuture<Void> deleteSegmentDelayed(long segmentId, Duration timeout) {

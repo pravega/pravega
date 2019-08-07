@@ -36,23 +36,23 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
 
-    private static final int FLOW_DISABLED = -1;
+    private static final int FLOW_DISABLED = 0;
     private final String connectionName;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
     @Getter
-    private final AppendBatchSizeTracker batchSizeTracker;
     private final ReusableFutureLatch<Void> registeredFutureLatch = new ReusableFutureLatch<>();
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final ConcurrentHashMap<Integer, ReplyProcessor> flowIdReplyProcessorMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Integer, AppendBatchSizeTracker> flowIDBatchSizeTrackerMap = new ConcurrentHashMap<>();
+
     private final AtomicBoolean disableFlow = new AtomicBoolean(false);
 
-    public FlowHandler(String connectionName, AppendBatchSizeTracker batchSizeTracker) {
+    public FlowHandler(String connectionName) {
         this.connectionName = connectionName;
-        this.batchSizeTracker = batchSizeTracker;
     }
 
     /**
@@ -64,11 +64,13 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     public ClientConnection createFlow(final Flow flow, final ReplyProcessor rp) {
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkState(!disableFlow.get(), "Ensure flows are enabled.");
+        final int flowID = flow.getFlowId();
         log.info("Creating Flow {} for endpoint {}. The current Channel is {}.", flow.getFlowId(), connectionName, channel.get());
-        if (flowIdReplyProcessorMap.put(flow.getFlowId(), rp) != null) {
-            throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flow.getFlowId());
+        if (flowIdReplyProcessorMap.put(flowID, rp) != null) {
+            throw new IllegalArgumentException("Multiple flows cannot be created with the same Flow id " + flowID);
         }
-        return new ClientConnectionImpl(connectionName, flow.getFlowId(), batchSizeTracker, this);
+        createAppendBatchSizeTrackerIfNeeded(flowID);
+        return new ClientConnectionImpl(connectionName, flowID, this);
     }
 
     /**
@@ -82,7 +84,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         Preconditions.checkState(!disableFlow.getAndSet(true), "Flows are disabled, incorrect usage pattern.");
         log.info("Creating a new connection with flow disabled for endpoint {}. The current Channel is {}.", connectionName, channel.get());
         flowIdReplyProcessorMap.put(FLOW_DISABLED, rp);
-        return new ClientConnectionImpl(connectionName, FLOW_DISABLED, batchSizeTracker, this);
+        createAppendBatchSizeTrackerIfNeeded(FLOW_DISABLED);
+        return new ClientConnectionImpl(connectionName, FLOW_DISABLED, this);
     }
 
     /**
@@ -94,10 +97,36 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         int flow = clientConnectionImpl.getFlowId();
         log.info("Closing Flow {} for endpoint {}", flow, clientConnectionImpl.getConnectionName());
         flowIdReplyProcessorMap.remove(flow);
+        flowIDBatchSizeTrackerMap.remove(flow);
+    }
+
+    /**
+     * Create a Batch size tracker, ignore if already existing
+     *
+     * @param flowID flow ID.
+     */
+    private void createAppendBatchSizeTrackerIfNeeded(final int  flowID) {
+        if (flowIDBatchSizeTrackerMap.containsKey(flowID)) {
+            log.debug("Reusing Batch size tracker for Flow ID {}.", flowID);
+        } else {
+            log.debug("Creating Batch size tracker for flow ID {}.", flowID);
+            flowIDBatchSizeTrackerMap.put(flowID, new AppendBatchSizeTrackerImpl());
+        }
+    }
+
+    /**
+     * Get a Batch size tracker for requestID.
+     *
+     * @param requestID flow ID.
+     * @return Batch size Tracker object.
+     */
+    public AppendBatchSizeTracker getAppendBatchSizeTracker(final long requestID) {
+        return flowIDBatchSizeTrackerMap.get(Flow.toFlowID(requestID));
     }
 
     /**
      * Returns the number of open flows.
+     * @return Flow count.
      */
     public int getOpenFlowCount() {
         return flowIdReplyProcessorMap.size();
@@ -171,8 +200,13 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         }
         channel.set(null);
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
-            rp.connectionDropped();
-            log.debug("Connection dropped for flow id {}", flowId);
+            try {
+                log.debug("Connection dropped for flow id {}", flowId);
+                rp.connectionDropped();
+            } catch (Exception e) {
+                // Suppressing exception which prevents all ReplyProcessor.connectionDropped from being invoked.
+                log.warn("Encountered exception invoking ReplyProcessor for flow id {}", flowId, e);
+            }
         });
         super.channelUnregistered(ctx);
     }
@@ -183,18 +217,30 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         log.debug(connectionName + " processing reply {} with flow {}", cmd, Flow.from(cmd.getRequestId()));
 
         if (cmd instanceof WireCommands.Hello) {
-            flowIdReplyProcessorMap.forEach((flowId, rp) -> rp.hello((WireCommands.Hello) cmd));
+            flowIdReplyProcessorMap.forEach((flowId, rp) -> {
+                try {
+                    rp.hello((WireCommands.Hello) cmd);
+                } catch (Exception e) {
+                    // Suppressing exception which prevents all ReplyProcessor.hello from being invoked.
+                    log.warn("Encountered exception invoking ReplyProcessor.hello for flow id {}", flowId, e);
+                }
+            });
             return;
         }
 
         if (cmd instanceof WireCommands.DataAppended) {
-            batchSizeTracker.recordAck(((WireCommands.DataAppended) cmd).getEventNumber());
+            final WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) cmd;
+            final AppendBatchSizeTracker batchSizeTracker = getAppendBatchSizeTracker(dataAppended.getRequestId());
+            if (batchSizeTracker != null) {
+                batchSizeTracker.recordAck(dataAppended.getEventNumber());
+            }
         }
         // Obtain ReplyProcessor and process the reply.
         getReplyProcessor(cmd).ifPresent(processor -> {
             try {
                 processor.process(cmd);
             } catch (Exception e) {
+                log.warn("ReplyProcessor.process failed for reply {} due to {}", cmd, e.getMessage());
                 processor.processingFailure(e);
             }
         });
@@ -203,8 +249,13 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
-            rp.processingFailure(new ConnectionFailedException(cause));
-            log.debug("Exception observed for flow id {}", flowId);
+            try {
+                log.debug("Exception observed for flow id {} due to {}", flowId, cause.getMessage());
+                rp.processingFailure(new ConnectionFailedException(cause));
+            } catch (Exception e) {
+                // Suppressing exception which prevents all ReplyProcessor.processingFailure from being invoked.
+                log.warn("Encountered exception invoking ReplyProcessor.processingFailure for flow id {}", flowId, e);
+            }
         });
     }
 
@@ -217,6 +268,10 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                 final int openFlowCount = flowIdReplyProcessorMap.size();
                 if (openFlowCount != 0) {
                     log.warn("{} flows are not closed", openFlowCount);
+                }
+                final int appendTrackerCount = flowIDBatchSizeTrackerMap.size();
+                if (appendTrackerCount != 0) {
+                    log.warn("{} AppendBatchSizeTrackers are not closed", appendTrackerCount);
                 }
                 ch.close();
             }
@@ -238,7 +293,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     }
 
     private Optional<ReplyProcessor> getReplyProcessor(Reply cmd) {
-        int flowId = disableFlow.get() ? FLOW_DISABLED : Flow.from(cmd.getRequestId()).getFlowId();
+        int flowId = disableFlow.get() ? FLOW_DISABLED : Flow.toFlowID(cmd.getRequestId());
         final ReplyProcessor processor = flowIdReplyProcessorMap.get(flowId);
         if (processor == null) {
             log.warn("No ReplyProcessor found for the provided flowId {}. Ignoring response", flowId);
