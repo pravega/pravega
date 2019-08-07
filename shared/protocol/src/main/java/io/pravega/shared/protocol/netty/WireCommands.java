@@ -520,27 +520,6 @@ public final class WireCommands {
     }
 
     @Data
-    public static final class CloseAppend implements WireCommand {
-        final WireCommandType type = WireCommandType.CLOSE_APPEND;
-        final UUID writerId;
-        final String segment;
-
-        @Override
-        public void writeFields(DataOutput out) throws IOException {
-            out.writeLong(writerId.getMostSignificantBits());
-            out.writeLong(writerId.getLeastSignificantBits());
-            out.writeUTF(segment);
-        }
-
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
-            UUID uuid = new UUID(in.readLong(), in.readLong());
-            String segment = in.readUTF();
-            return new CloseAppend(uuid, segment);
-        }
-    }
-
-
-    @Data
     public static final class AppendBlock implements WireCommand {
         final WireCommandType type = WireCommandType.APPEND_BLOCK;
         final UUID writerId;

@@ -27,7 +27,6 @@ import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
-import io.pravega.shared.protocol.netty.WireCommands.CloseAppend;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -405,23 +404,6 @@ public class AppendEncodeDecodeTest {
         commandEncoder.encode(ctx, new Append("segment", writerId, 1, 0, data, (long) data.readableBytes(), 1), fakeNetwork);
         read(fakeNetwork, received);
     }
-
-    @Test
-    public void testCloseAppend() throws Exception {
-        @Cleanup("release")
-        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
-        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
-        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
-        commandEncoder.encode(null, setupAppend, fakeNetwork);
-        appendDecoder.processCommand(setupAppend);
-        CloseAppend closeAppend = new CloseAppend(writerId, "segment");
-        commandEncoder.encode(null, closeAppend, fakeNetwork);
-        appendDecoder.processCommand(closeAppend);
-        ArrayList<Object> received = new ArrayList<>();
-        read(fakeNetwork, received);
-        assertEquals(2, received.size());
-    }
-
 
     @Test
     public void testVerySmallBlockSize() throws Exception {

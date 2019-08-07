@@ -62,11 +62,6 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testCloseAppend() throws IOException {
-        testCommand(new WireCommands.CloseAppend(uuid, testString1));
-    }
-
-    @Test
     public void testAppendSetup() throws IOException {
         testCommand(new WireCommands.AppendSetup(l, testString1, uuid, l));
     }
