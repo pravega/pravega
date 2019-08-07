@@ -33,7 +33,6 @@ import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
-import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.util.Collections;
@@ -42,9 +41,6 @@ import java.util.Map;
 import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -54,8 +50,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import java.net.ServerSocket;
-import java.io.IOException;
 import java.net.URI;
 
 @Slf4j
@@ -83,7 +77,7 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
-	controllerUri = URI.create("tcp://localhost:9090");
+        controllerUri = URI.create("tcp://localhost:9090");
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
 
         StreamManager streamManager = StreamManager.create(clientConfig);
