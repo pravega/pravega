@@ -84,9 +84,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -384,8 +382,7 @@ public class ControllerGrpcAuthFocusedTest {
     }
 
     @Test
-    public void listStreamsReturnsAllWhenUserHasWildCardAccessUsingAsyncStub()
-            throws ExecutionException, InterruptedException {
+    public void listStreamsReturnsAllWhenUserHasWildCardAccessUsingAsyncStub() {
         // Arrange
         String scopeName = "scope1";
         createScopeAndStreams(scopeName, Arrays.asList("stream1", "stream2"),
@@ -460,14 +457,6 @@ public class ControllerGrpcAuthFocusedTest {
     }
 
     //region Private methods
-
-    private static TxnId decode(UUID txnId) {
-        Preconditions.checkNotNull(txnId, "txnId");
-        return Controller.TxnId.newBuilder()
-                .setHighBits(txnId.getMostSignificantBits())
-                .setLowBits(txnId.getLeastSignificantBits())
-                .build();
-    }
 
     private TxnId createTransaction(StreamInfo streamInfo, int lease) {
         Preconditions.checkNotNull(streamInfo, "streamInfo");
@@ -633,8 +622,8 @@ public class ControllerGrpcAuthFocusedTest {
             future.complete(result);
         }
 
-        public T get() throws ExecutionException, InterruptedException {
-            return future.get();
+        public T get() {
+            return future.join();
         }
     }
 }
