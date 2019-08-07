@@ -21,10 +21,12 @@ import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.io.IOException;
 import java.util.AbstractMap.SimpleImmutableEntry;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.List;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -33,7 +35,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.netty.buffer.Unpooled.buffer;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 
@@ -61,11 +62,11 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
  * need to be parsed out of individual messages. Notably this includes the event number of the last
  * event in the block, so that it can be acknowledged.
  *
- * if the channel is not free, then each append is enqueued to the session buffer.
- * This session buffer gets flushed under following conditions
- *      if the session buffer exceed the threshold (MAX_BLOCK_SIZE)
- *      if the multiple sessions are present , then total session buffer exceed the threshold (MAX_DATA_SIZE)
+ * if the channel is not free, then each append is enqueued to the session's pending List.
+ * This session pending list gets flushed under following conditions
+ *      if the session buffer exceed the threshold (MAX_DATA_SIZE)
  *      if the total number of events exceeds the threshold (MAX_EVENTS)
+ *      if the block timeout is triggered.
  *
  */
 @NotThreadSafe
@@ -73,7 +74,6 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 @Slf4j
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
-    private static final int MAX_DATA_SIZE = 4 * 1024 * 1024; // 4MB
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
     private final AtomicLong tokenCounter = new AtomicLong(0);
@@ -82,17 +82,15 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private int currentBlockSize;
     private int bytesLeftInBlock;
     private final Map<UUID, Session> pendingWrites = new HashMap<>();
-    private long pendingBytes = 0;
-
 
     @RequiredArgsConstructor
     private final class Session {
-        private static final int MIN_BLOCK_SIZE = 256;  // 256 bytes
-        private static final int MAX_BLOCK_SIZE = 1024 * 1024;  // 1MB
         private static final int MAX_EVENTS = 500;
+        private static final int MAX_DATA_SIZE = 1024 * 1024; // 1MB
         private final UUID id;
         private final long requestId;
-        private final ByteBuf buffer = buffer(MIN_BLOCK_SIZE, MAX_BLOCK_SIZE);
+        private final List<ByteBuf> pendingList = new ArrayList<>();
+        private int  pendingBytes = 0;
         private long lastEventNumber = -1L;
         private int eventCount = 0;
 
@@ -105,58 +103,45 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
 
         /**
-         * Check if session overflows for given data size.
+         * Check if session overflows for given data size or events.
          *
-         * @return true if there are no pending Events to write; false otherwise.
+         * @return true if pending data size is more than MAX_DATA_SIZE or events are more than MAX EVENTS; false otherwise.
          */
-        private boolean isFull(int size) {
-            return (buffer.readableBytes() + size) > MAX_BLOCK_SIZE;
+        private boolean isFull(int size, int events) {
+            return (pendingBytes + size) > MAX_DATA_SIZE || (eventCount + events) > MAX_EVENTS;
         }
 
 
         /**
-         * Write the Append data to Session' buffer.
-         * session will be enqueued for the future writing to network channel.
-         * data will be appended to sessions buffer.
-         * if the session buffer size exceeds  MAX_BLOCK_SIZE then
-         * events are flushed to network channel buffer.
-         * if the total pending data size exceeds MAX_DATA_SIZE then
-         * all pending events are flushed to network channel buffer.
-         * if the pending events of session exceeds the MAX_EVENTS then
-         * all session's events are flushed to network channel buffer.
-         *
+         * queue the Append data to Session' list.
          * @param data  data bytes.
-         * @param out   Network channel buffer.
          */
-        private void write(ByteBuf data, ByteBuf out) {
+        private void write(ByteBuf data) {
             pendingWrites.putIfAbsent(id, this);
             if (data.readableBytes() > 0) {
                 pendingBytes += data.readableBytes();
-                buffer.writeBytes(data);
-                if (pendingBytes > MAX_DATA_SIZE) {
-                    breakCurrentAppend(out);
-                    flushAll(out);
-                }
-            }
-            if (eventCount > MAX_EVENTS) {
-                breakCurrentAppend(out);
-                flush(out);
+                pendingList.add(data);
             }
         }
 
        /**
-        * Write/flush session's buffered data to network channel.
+        * Write/flush session's data to network channel.
         * by enclosing the session buffer data into Append Block End.
         *
         * @param out   Network channel buffer.
         */
        private void flush(ByteBuf out) {
             if (eventCount > 0) {
-                pendingBytes -= buffer.readableBytes();
-                writeMessage(new AppendBlockEnd(id, 0, buffer, eventCount, lastEventNumber, requestId), out);
                 pendingWrites.remove(id);
-                buffer.clear();
-                eventCount = 0;
+                if (pendingBytes > 0) {
+                    writeMessage(new AppendBlock(id), pendingBytes, out);
+                    for (Iterator<ByteBuf> iterator = pendingList.iterator(); iterator.hasNext(); ) {
+                        out.writeBytes(iterator.next());
+                        iterator.remove();
+                    }
+                }
+                flush(pendingBytes, null, out);
+                pendingBytes = 0;
             }
         }
 
@@ -183,7 +168,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (!pendingWrites.isEmpty()) {
             ArrayList<Session> sessions = new ArrayList<>(pendingWrites.values());
             sessions.forEach(session -> session.flush(out));
-            pendingBytes = 0;
         }
     }
 
@@ -203,7 +187,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
             }
 
-            if (session.isFull(msgSize)) {
+            if (session.isFull(msgSize, append.getEventCount())) {
                 breakCurrentAppend(out);
                 session.flush(out);
             }
@@ -224,7 +208,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                         flushAll(out);
                     }
                 } else {
-                      session.write(data, out);
+                      session.write(data);
                 }
             }
         } else if (msg instanceof SetupAppend) {

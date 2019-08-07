@@ -619,6 +619,11 @@ public class AppendEncodeDecodeTest {
         idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
         CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
         ArrayList<Object> received = new ArrayList<>();
+        Mockito.when(ch.writeAndFlush(Mockito.any())).thenAnswer(i -> {
+            commandEncoder.encode(ctx, i.getArgument(0), fakeNetwork);
+            return null;
+        });
+
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(ctx, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
@@ -647,6 +652,7 @@ public class AppendEncodeDecodeTest {
         commandEncoder.encode(ctx, new Append("segment4", writerId4, 1, event, 12), fakeNetwork);
         commandEncoder.encode(ctx, new Append("segment5", writerId5, 1, event, 13), fakeNetwork);
         commandEncoder.encode(ctx, new Append("segment6", writerId6, 1, event, 14), fakeNetwork);
+        Thread.sleep(idBatchSizeTrackerMap.get(1L).getBatchTimeout() + 100);
         read(fakeNetwork, received);
         assertEquals(12, received.size());
         Append readAppend = (Append) received.get(11);
