@@ -24,6 +24,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -155,7 +156,14 @@ public class StreamMetadataTasks extends TaskBase {
      */
     public CompletableFuture<CreateStreamStatus.Status> createStreamWithReries(String scope, String stream, StreamConfiguration config, long createTimestamp) {
         return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp), 
-                e -> Exceptions.unwrap(e) instanceof LockFailedException, 10, executor);
+                e -> Exceptions.unwrap(e) instanceof LockFailedException, 10, executor)
+                .exceptionally(e -> {
+                    if (e instanceof RetriesExhaustedException) {
+                        throw new CompletionException(Exceptions.unwrap(e));
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                });
     }
     
     /**

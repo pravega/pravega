@@ -36,7 +36,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.task.TaskData;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -752,12 +751,4 @@ public abstract class ControllerServiceImplTest {
             }
         }
     }
-
-    /**
-     * Blocks call inside a critical section started with
-     * {@link TaskMetadataStore#lock(Resource, TaskData, String, String, String, String)} to force a concurrent
-     * execution.
-     */
-    abstract void blockCriticalSection();
-
 }

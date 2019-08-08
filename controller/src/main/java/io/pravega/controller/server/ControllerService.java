@@ -120,23 +120,23 @@ public class ControllerService {
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
 
-        return Futures.exceptionallyExpecting(streamStore.getState(scope, stream, true, null, executor), 
-            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN) 
-        .thenCompose(state -> {
-            if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                return streamMetadataTasks.createStreamWithReries(scope,
-                        stream,
-                        streamConfig,
-                        createTimestamp).thenApplyAsync(status -> {
-                                              reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
-                                                      timer.getElapsed());
-                                              return CreateStreamStatus.newBuilder().setStatus(status).build();
-                                          }, executor);
-            } else {
-                return CompletableFuture.completedFuture(
-                        CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
-            }
-        });
+        return Futures.exceptionallyExpecting(streamStore.getState(scope, stream, true, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
+                      .thenCompose(state -> {
+                          if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                              return streamMetadataTasks.createStreamWithReries(scope,
+                                      stream,
+                                      streamConfig,
+                                      createTimestamp).thenApplyAsync(status -> {
+                                  reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
+                                          timer.getElapsed());
+                                  return CreateStreamStatus.newBuilder().setStatus(status).build();
+                              }, executor);
+                          } else {
+                              return CompletableFuture.completedFuture(
+                                      CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
+                          }
+                      });
         
     }
 

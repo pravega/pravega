@@ -41,7 +41,6 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
-import io.pravega.controller.store.task.TaskStoreFactoryForTests.ZKTaskMetadataStoreForTests;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
@@ -140,11 +139,6 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         storeClient.close();
         zkClient.close();
         zkServer.close();
-    }
-
-    @Override
-    void blockCriticalSection() {
-        ((ZKTaskMetadataStoreForTests) taskMetadataStore).blockCriticalSection();
     }
 
     @Test
