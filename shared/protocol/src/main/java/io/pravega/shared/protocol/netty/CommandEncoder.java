@@ -201,7 +201,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     if (startAppend(ctx, blockSizeSupplier, append, out)) {
                         continueAppend(data, out);
                     } else {
-                        completeAppend(data, out);
+                        continueAppend(data, out);
+                        completeAppend(null, out);
                     }
                 } else {
                     session.record(append);
@@ -292,7 +293,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
      * @param blockSizeSupplier Append batch size tracker.
      * @param append            Append data.
      * @param out               channel Buffer.
-     * @return true if the append is started; false otherwise.
+     * @return true if the append is started and it can continue; false otherwise.
      */
     private boolean startAppend(ChannelHandlerContext ctx, AppendBatchSizeTracker blockSizeSupplier, Append append, ByteBuf out) {
         final int msgSize = append.getData().readableBytes();
@@ -309,8 +310,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                     blockSizeSupplier.getBatchTimeout(),
                     TimeUnit.MILLISECONDS);
             return true;
+        } else {
+            writeMessage(new AppendBlock(writerIdPerformingAppends), msgSize, out);
+            return false;
         }
-        return false;
     }
 
     /**
