@@ -20,6 +20,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import javax.annotation.concurrent.NotThreadSafe;
@@ -137,6 +138,11 @@ public class TruncateableArray implements ArrayView {
 
     @Override
     public void copyTo(OutputStream target) {
+        throw new UnsupportedOperationException("copyTo() not supported.");
+    }
+
+    @Override
+    public void copyTo(ByteBuffer byteBuffer) {
         throw new UnsupportedOperationException("copyTo() not supported.");
     }
 
