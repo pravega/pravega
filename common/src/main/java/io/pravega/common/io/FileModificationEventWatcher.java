@@ -28,16 +28,18 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Monitors modifications to the specified file and perform a specified action (in the form of a callback) upon
- * modification detection.
+ * Watches for modifications to the specified file and perform a specified action (in the form of a callback) upon
+ * modification detection. It uses event-based Java WatchService to watch any changes to the specified file..
  *
  * Note that:
  * - The specified actions may trigger slightly later than when the file is actually modified.
  * - If there are multiple file modifications in quick succession, only the last one may trigger the specified action.
+ * - This class won't work for files that is under a symbolic link (pointing to a directory). This is because the
+ *   Java WatchService does not raise events for changes to such files.
  *
  */
 @Slf4j
-public class FileModificationWatcher extends Thread {
+public class FileModificationEventWatcher extends Thread implements FileModificationMonitor {
 
     private static final AtomicInteger THREAD_NUM = new AtomicInteger();
 
@@ -64,7 +66,7 @@ public class FileModificationWatcher extends Thread {
      * @throws InvalidPathException if {@code fileToWatch} is invalid
      * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
      */
-    public FileModificationWatcher(@NonNull String fileToWatch, @NonNull Consumer<WatchEvent<?>> callback)
+    public FileModificationEventWatcher(@NonNull String fileToWatch, @NonNull Consumer<WatchEvent<?>> callback)
             throws FileNotFoundException {
         this(Paths.get(fileToWatch), callback, true);
     }
@@ -72,25 +74,23 @@ public class FileModificationWatcher extends Thread {
     /**
      * Creates a new instance.
      *
-     * @param pathOfFileToWatch path of the file to watch
+     * @param fileToWatch path of the file to watch
      * @param callback          the callback to invoke when a modification to the {@code fileToWatch} is detected
      * @param loopContinuously  whether to keep the thread look for file modification after one iteration. This option
      *                          is useful for testing only.
      * @throws InvalidPathException if {@code fileToWatch} is invalid
      * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
      * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
+     * @throws NullPointerException if either {@code fileToWatch}  or {@code callback} is null
      */
     @VisibleForTesting
-    FileModificationWatcher(@NonNull Path pathOfFileToWatch, @NonNull Consumer<WatchEvent<?>> callback,
-                                   boolean loopContinuously)
+    FileModificationEventWatcher(Path fileToWatch, Consumer<WatchEvent<?>> callback,
+                                 boolean loopContinuously)
             throws FileNotFoundException {
         super();
+        this.validateInput(fileToWatch, callback);
 
-        this.pathOfFileToWatch = pathOfFileToWatch;
-
-        if (!this.pathOfFileToWatch.toFile().exists()) {
-            throw new FileNotFoundException(String.format("File [%s] does not exist.", pathOfFileToWatch));
-        }
+        this.pathOfFileToWatch = fileToWatch;
         this.callback = callback;
         setUncaughtExceptionHandler(uncaughtExceptionalHandler);
 
@@ -150,7 +150,7 @@ public class FileModificationWatcher extends Thread {
                             .findAny(); // we only care to know whether the
 
                     if (modificationDetectionEvent.isPresent()) {
-                        log.debug("Detected that the file [{}] has modified", this.pathOfFileToWatch);
+                        log.info("Detected that the file [{}] has modified", this.pathOfFileToWatch);
                         callback.accept(modificationDetectionEvent.get());
                     }
 
@@ -183,6 +183,20 @@ public class FileModificationWatcher extends Thread {
             }
             log.info("Thread [{}], watching for modifications in file [{}] exiting,", getName(), this.pathOfFileToWatch);
         }
+    }
+
+    @Override
+    public void startMonitoring() {
+        this.setDaemon(true);
+        this.start();
+        log.info("Done setting up TLS reload, which in turn will be based on changes in file: {}",
+                this.pathOfFileToWatch);
+    }
+
+    @Override
+    public void stopMonitoring() {
+        log.info("Interrupting the file change watcher task for file {}", this.pathOfFileToWatch);
+        this.interrupt();
     }
 
     private void logException(Throwable e) {

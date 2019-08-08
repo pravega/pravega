@@ -25,19 +25,15 @@ import lombok.extern.slf4j.Slf4j;
  *
  * It creates a new {@link SslContext} and sets it in the constructor injected {@code sslContext}.
  */
-@RequiredArgsConstructor
 @Slf4j
 public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
 
-    /**
-     * A counter representing the number of times this object has been asked to
-     * consume an event.
-     */
-    private final AtomicInteger numOfConfigChangesSinceStart = new AtomicInteger(0);
+    private final TLSConfigChangeHandler handler;
 
-    private @NonNull final AtomicReference<SslContext> sslContext;
-    private @NonNull final String pathToCertificateFile;
-    private @NonNull final String pathToKeyFile;
+    public TLSConfigChangeEventConsumer(AtomicReference<SslContext> sslContext, String pathToCertificateFile,
+                                 String pathToKeyFile) {
+        handler = new TLSConfigChangeHandler(sslContext, pathToCertificateFile, pathToKeyFile);
+    }
 
     @Override
     public void accept(WatchEvent<?> watchEvent) {
@@ -46,16 +42,6 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
         } else {
             log.warn("Invoked for null watchEvent");
         }
-        handleTlsConfigChange();
-    }
-
-    private void handleTlsConfigChange() {
-        log.info("Current reload count = {}", numOfConfigChangesSinceStart.incrementAndGet());
-        sslContext.set(TLSHelper.newServerSslContext(pathToCertificateFile, pathToKeyFile));
-    }
-
-    @VisibleForTesting
-    int getNumOfConfigChangesSinceStart() {
-        return numOfConfigChangesSinceStart.get();
+        handler.handleTlsConfigChange();
     }
 }

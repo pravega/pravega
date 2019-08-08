@@ -30,13 +30,16 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
-import io.pravega.common.io.FileModificationWatcher;
+import io.pravega.common.io.FileModificationEventWatcher;
+import io.pravega.common.io.FileModificationMonitor;
+import io.pravega.common.io.FileModificationPollingMonitor;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
+import io.pravega.segmentstore.server.security.TLSConfigChangeConsumer;
 import io.pravega.segmentstore.server.security.TLSConfigChangeEventConsumer;
 import io.pravega.segmentstore.server.security.TLSHelper;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -46,6 +49,9 @@ import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.FileNotFoundException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
@@ -75,7 +81,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final boolean enableTlsReload; // whether to reload TLS certificate when the certificate changes
     private final String pathToTlsCertFile;
     private final String pathToTlsKeyFile;
-    private FileModificationWatcher tlsCertFileChangeWatcherTask; // used only if tls reload is enabled
+
+    private FileModificationMonitor tlsCertFileChangeMonitor; // used only if tls reload is enabled
 
     //endregion
 
@@ -193,19 +200,24 @@ public final class PravegaConnectionListener implements AutoCloseable {
          });
 
         if (enableTls && enableTlsReload) {
-            log.debug("TLS reload is enabled, so setting up a FileChangeWatcher object to watch changes in file: {}",
+            log.debug("TLS reload is enabled, so setting up a file change monitor object to watch changes in file: {}",
                     this.pathToTlsCertFile);
             try {
-                tlsCertFileChangeWatcherTask = new FileModificationWatcher(
-                        this.pathToTlsCertFile,
-                        new TLSConfigChangeEventConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile));
-                tlsCertFileChangeWatcherTask.setDaemon(true);
-
-                tlsCertFileChangeWatcherTask.start();
-                log.info("Done setting up TLS reload, which in turn will be based on changes in file: {}",
-                        this.pathToTlsCertFile);
+                if (Files.isSymbolicLink(Paths.get(pathToTlsCertFile))) {
+                    tlsCertFileChangeMonitor = new FileModificationPollingMonitor(
+                            this.pathToTlsCertFile,
+                            new TLSConfigChangeConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile)
+                    );
+                } else {
+                    // For non symbolic links we'll depend on event-based watcher, which is more efficient than a
+                    // polling-based file change monitor.
+                    tlsCertFileChangeMonitor = new FileModificationEventWatcher(
+                            this.pathToTlsCertFile,
+                            new TLSConfigChangeEventConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile));
+                }
+                tlsCertFileChangeMonitor.startMonitoring();
             } catch (FileNotFoundException e) {
-                log.warn("Failed to setup a watcher on the file {}", this.pathToTlsCertFile, e);
+                log.warn("Failed to setup a monitoring for the file {}", this.pathToTlsCertFile, e);
                 throw new RuntimeException(e);
             }
         }
@@ -224,9 +236,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
 
-        if (tlsCertFileChangeWatcherTask != null) {
-            log.info("Interrupting the file change watcher task for file {}", this.pathToTlsCertFile);
-            tlsCertFileChangeWatcherTask.interrupt();
+        if (tlsCertFileChangeMonitor != null) {
+            tlsCertFileChangeMonitor.stopMonitoring();
         }
     }
 }

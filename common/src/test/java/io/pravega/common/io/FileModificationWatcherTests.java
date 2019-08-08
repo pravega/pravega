@@ -37,25 +37,25 @@ public class FileModificationWatcherTests {
     @Test
     public void testCtorRejectsNullInput() {
         assertThrows("Null fileToWatch argument wasn't rejected.",
-                () -> new FileModificationWatcher(PATH_NULL, NOOP_CONSUMER),
+                () -> new FileModificationEventWatcher(PATH_NULL, NOOP_CONSUMER),
                 e -> e instanceof NullPointerException);
 
         assertThrows("Null callback argument wasn't rejected.",
-                () -> new FileModificationWatcher(PATH_NONEMPTY, null),
+                () -> new FileModificationEventWatcher(PATH_NONEMPTY, null),
                 e -> e instanceof NullPointerException);
     }
 
     @Test
     public void testCtorRejectsEmptyFileToWatchArgument() {
         assertThrows("Empty fileToWatch argument wasn't rejected.",
-                () -> new FileModificationWatcher(PATH_EMPTY, NOOP_CONSUMER),
+                () -> new FileModificationEventWatcher(PATH_EMPTY, NOOP_CONSUMER),
                 e -> e instanceof FileNotFoundException);
     }
 
     @Test
     public void testCtorRejectsNonExistentFileToWatchArgument() {
         assertThrows("Empty fileToWatch argument wasn't rejected.",
-                () -> new FileModificationWatcher(PATH_NONEXISTENT, NOOP_CONSUMER),
+                () -> new FileModificationEventWatcher(PATH_NONEXISTENT, NOOP_CONSUMER),
                 e -> e instanceof FileNotFoundException);
     }
 
@@ -66,7 +66,7 @@ public class FileModificationWatcherTests {
         Path filePath = file.toPath();
 
         AtomicBoolean isCallbackInvoked = new AtomicBoolean(false);
-        FileModificationWatcher watcher = new FileModificationWatcher(filePath,
+        FileModificationEventWatcher watcher = new FileModificationEventWatcher(filePath,
                 c -> isCallbackInvoked.set(true), false);
         watcher.setDaemon(true);
         watcher.start();
