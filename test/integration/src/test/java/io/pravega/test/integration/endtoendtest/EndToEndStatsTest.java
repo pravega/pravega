@@ -1,20 +1,17 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
- * <p>
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * <p>
- * http://www.apache.org/licenses/LICENSE-2.0
- * <p>
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.integration.endtoendtest;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Meter;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
@@ -36,8 +33,9 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +44,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
+import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
+import static io.pravega.shared.MetricsTags.segmentTags;
 import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
 
 @Slf4j
@@ -109,32 +110,39 @@ public class EndToEndStatsTest {
         EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
 
+        String[] tags = segmentTags(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L));
+
         for (int i = 0; i < 10; i++) {
             test.writeEvent("test").get();
         }
-        assertEventuallyEquals(10, () -> statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 2000);
+        assertEventuallyEquals(10, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_EVENTS, tags).count()), 2000);
+        assertEventuallyEquals(190, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_BYTES, tags).count()), 100);
 
         Transaction<String> transaction = test.beginTxn();
         for (int i = 0; i < 10; i++) {
             transaction.writeEvent("0", "txntest1");
         }
-        assertEventuallyEquals(10, () -> statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 2000);
+        assertEventuallyEquals(10, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_EVENTS, tags).count()), 2000);
+        assertEventuallyEquals(190, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_BYTES, tags).count()), 100);
 
         transaction.commit();
 
-        assertEventuallyEquals(20, () -> statsRecorder.getSegments().get(StreamSegmentNameUtils.getQualifiedStreamSegmentName("test", "test", 0L)).get(), 10000);
+        assertEventuallyEquals(20, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_EVENTS, tags).count()), 10000);
+        assertEventuallyEquals(420, () -> (int) (statsRecorder.getRegistry().counter(SEGMENT_WRITE_BYTES, tags).count()), 100);
     }
 
     private static class TestStatsRecorder implements SegmentStatsRecorder {
+
         @Getter
-        HashMap<String, AtomicInteger> segments = new HashMap<>();
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+        // A placeholder to keep strong references to metric objects, as caching is skipped in the test.
+        // Note Micrometer registry holds weak references only, so there is chance metric objects without strong references might be garbage collected.
+        private List<Meter> references = Collections.synchronizedList(new ArrayList<Meter>());
 
         @Override
         public void createSegment(String streamSegmentName, byte type, int targetRate, Duration elapsed) {
-            String parent = StreamSegmentNameUtils.getParentStreamSegmentName(streamSegmentName);
-            if (parent == null) {
-                segments.put(streamSegmentName, new AtomicInteger());
-            }
+
         }
 
         @Override
@@ -144,7 +152,7 @@ public class EndToEndStatsTest {
 
         @Override
         public void sealSegment(String streamSegmentName) {
-            segments.remove(streamSegmentName);
+
         }
 
         @Override
@@ -154,18 +162,24 @@ public class EndToEndStatsTest {
 
         @Override
         public void recordAppend(String streamSegmentName, long dataLength, int numOfEvents, Duration elapsed) {
-            segments.computeIfPresent(streamSegmentName, (x, y) -> {
-                y.addAndGet(numOfEvents);
-                return y;
-            });
+            if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+                Counter eventCounter = registry.counter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
+                Counter byteCounter = registry.counter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
+                references.add(eventCounter);
+                references.add(byteCounter);
+                eventCounter.increment(numOfEvents);
+                byteCounter.increment(dataLength);
+            }
         }
 
         @Override
         public void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime) {
-            segments.computeIfPresent(streamSegmentName, (x, y) -> {
-                y.addAndGet(numOfEvents);
-                return y;
-            });
+            Counter eventCounter = registry.counter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
+            Counter byteCounter = registry.counter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
+            references.add(eventCounter);
+            references.add(byteCounter);
+            eventCounter.increment(numOfEvents);
+            byteCounter.increment(dataLength);
         }
 
         @Override

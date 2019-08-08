@@ -47,12 +47,14 @@ public class MultiControllerTest extends AbstractSystemTest {
 
     private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
     private Service controllerService = null;
+    private Service segmentStoreService = null;
     private AtomicReference<URI> controllerURIDirect = new AtomicReference<>();
     private AtomicReference<URI> controllerURIDiscover = new AtomicReference<>();
 
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUris = startZookeeperInstance();
+        startBookkeeperInstances(zkUris);
         URI controllerUri = ensureControllerRunning(zkUris);
         log.info("Controller is currently running at {}", controllerUri);
         Service controllerService = Utils.createPravegaControllerService(zkUris);
@@ -87,11 +89,16 @@ public class MultiControllerTest extends AbstractSystemTest {
         log.info("Controller Service direct URI: {}", controllerURIDirect);
         controllerURIDiscover.set(URI.create("pravega://" + String.join(",", uris)));
         log.info("Controller Service discovery URI: {}", controllerURIDiscover);
+
+        segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerService.getServiceDetails().get(0));
     }
 
     @After
     public void tearDown() {
         ExecutorServiceHelpers.shutdown(executorService);
+        // The test scales down the controller instances to 0.
+        // Scale down the segment store instances to 0 to ensure the next tests start with a clean slate.
+        segmentStoreService.scaleService(0);
     }
 
     /**
@@ -128,15 +135,16 @@ public class MultiControllerTest extends AbstractSystemTest {
             controllerURIDiscover.set(URI.create("pravega://0.0.0.0:9090"));
         }
 
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect.get());
         log.info("Test tcp:// with no controller instances running");
         AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDirect.get()),
+                () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), clientConfig),
                 throwable -> throwable instanceof RetriesExhaustedException);
 
         if (!DOCKER_BASED) {
             log.info("Test pravega:// with no controller instances running");
             AssertExtensions.assertThrows("Should throw RetriesExhaustedException",
-                    () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), controllerURIDiscover.get()),
+                    () -> createScope("scope" + RandomStringUtils.randomAlphanumeric(10), clientConfig),
                     throwable -> throwable instanceof RetriesExhaustedException);
         }
 
@@ -156,12 +164,12 @@ public class MultiControllerTest extends AbstractSystemTest {
     }
 
     private boolean createScopeWithSimpleRetry(String scopeName, URI controllerURI) throws ExecutionException, InterruptedException {
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
         // Need to retry since there is a delay for the mesos DNS name to resolve correctly.
         @Cleanup
         final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(ClientConfig.builder()
-                        .controllerURI(controllerURI)
-                        .build())
+                .clientConfig(clientConfig)
                 .build(), executorService);
 
         CompletableFuture<Boolean> retryResult = Retry.withExpBackoff(500, 2, 10, 5000)
@@ -172,12 +180,10 @@ public class MultiControllerTest extends AbstractSystemTest {
         return retryResult.get();
     }
 
-    private boolean createScope(String scopeName, URI controllerURI) throws ExecutionException, InterruptedException {
+    private boolean createScope(String scopeName, ClientConfig clientConfig) throws ExecutionException, InterruptedException {
         @Cleanup
         final ControllerImpl controllerClient = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(ClientConfig.builder()
-                        .controllerURI(controllerURI)
-                        .build())
+                .clientConfig(clientConfig)
                 .build(), executorService);
         return controllerClient.createScope(scopeName).get();
     }

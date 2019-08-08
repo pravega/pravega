@@ -18,6 +18,7 @@ import io.pravega.shared.protocol.netty.ReplyProcessor;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,6 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class ConnectionFactoryImpl implements ConnectionFactory {
 
+    private static final AtomicInteger POOLCOUNT = new AtomicInteger();
+    
     private final ClientConfig clientConfig;
     private final ScheduledExecutorService executor;
     @VisibleForTesting
@@ -43,7 +46,8 @@ public final class ConnectionFactoryImpl implements ConnectionFactory {
     public ConnectionFactoryImpl(ClientConfig clientConfig, ConnectionPool connectionPool, Integer numThreadsInPool) {
         this.clientConfig = Preconditions.checkNotNull(clientConfig, "clientConfig");
         this.connectionPool = Preconditions.checkNotNull(connectionPool);
-        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(getThreadPoolSize(numThreadsInPool), "clientInternal");
+        this.executor = ExecutorServiceHelpers.newScheduledThreadPool(getThreadPoolSize(numThreadsInPool),
+                                                                      "clientInternal-" + POOLCOUNT.incrementAndGet());
     }
 
     @VisibleForTesting

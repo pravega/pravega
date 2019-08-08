@@ -224,7 +224,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                 // every single byte in the entry has been truncated out.
                 long lastOffset = entry.getLastStreamSegmentOffset();
                 boolean canRemove = entry.isDataEntry()
-                        && lastOffset <= this.metadata.getStorageLength()
+                        && lastOffset < this.metadata.getStorageLength()
                         && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
                 if (canRemove) {
                     toRemove.add(entry);
@@ -272,6 +272,15 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         Preconditions.checkState(!this.merged, "StreamSegmentReadIndex %d is already merged.", this.metadata.getId());
         log.debug("{}: Merged.", this.traceObjectId);
         this.merged = true;
+    }
+
+    /**
+     * Gets a value indicating whether the Segment that this ReadIndex points to is still active (in memory) and not deleted.
+     *
+     * @return True if active, false otherwise.
+     */
+    boolean isActive() {
+        return this.metadata.isActive() && !this.metadata.isDeleted();
     }
 
     /**

@@ -77,4 +77,22 @@ public class RawClientTest {
         assertEquals(reply, future.get());
     }
 
+    @Test
+    public void testOverloadConstructor() {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, connection);
+
+        RawClient rawClient = new RawClient(endpoint, connectionFactory);
+
+        rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
+        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.Hello(0, 0)),
+                Mockito.any(ClientConnection.CompletedCallback.class));
+        rawClient.close();
+        Mockito.verify(connection).close();
+    }
+
 }

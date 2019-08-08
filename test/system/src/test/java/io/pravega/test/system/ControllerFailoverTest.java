@@ -36,6 +36,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -54,7 +55,8 @@ public class ControllerFailoverTest extends AbstractSystemTest {
     public Timeout globalTimeout = Timeout.seconds(3 * 60);
 
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
-    private Service controllerService1 = null;
+    private Service controllerService = null;
+    private Service segmentStoreService = null;
     private URI controllerURIDirect = null;
 
     @Environment
@@ -72,19 +74,28 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService1 = Utils.createPravegaControllerService(zkUris.get(0));
-        if (!controllerService1.isRunning()) {
-            controllerService1.start(true);
+        controllerService = Utils.createPravegaControllerService(zkUris.get(0));
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
         }
 
-        List<URI> conUris = controllerService1.getServiceDetails();
-        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
-        log.debug("Pravega Controller service  details: {}", conUris);
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        log.info("Controller uris: {} {}", controllerUris.get(0), controllerUris.get(1));
+        log.debug("Pravega Controller service  details: {}", controllerUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
+
+        segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerUris.get(0));
+    }
+
+    @After
+    public void cleanup() {
+        // This test scales the controller instances to 0.
+        // Scale down the segment store instances to 0 to ensure the next tests starts with a clean slate.
+        segmentStoreService.scaleService(0);
     }
 
     @Test
@@ -96,10 +107,11 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         Map<Double, Double> newRangesToCreate = new HashMap<>();
         newRangesToCreate.put(0.0, 1.0);
 
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         // Connect with first controller instance.
         final Controller controller1 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .clientConfig(clientConfig)
                                     .build(), executorService);
 
         // Create scope, stream, and a transaction with high timeout value.
@@ -116,26 +128,27 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         controller1.startScale(stream1, segmentsToSeal, newRangesToCreate).join();
 
         // Now stop the controller instance executing scale operation.
-        Futures.getAndHandleExceptions(controllerService1.scaleService(0), ExecutionException::new);
+        Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
         log.info("Successfully stopped one instance of controller service");
 
         // restart controller service
-        Futures.getAndHandleExceptions(controllerService1.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
         log.info("Successfully stopped one instance of controller service");
 
-        List<URI> conUris = controllerService1.getServiceDetails();
+        List<URI> controllerUris = controllerService.getServiceDetails();
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority)
+        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
+        ClientConfig clientConf = Utils.buildClientConfig(controllerURIDirect);
         // Connect to another controller instance.
         @Cleanup
         final Controller controller2 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .clientConfig(clientConf)
                                     .build(), executorService);
 
         // Note: if scale does not complete within desired time, test will timeout.
@@ -155,7 +168,7 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
         log.info("Checking whether scale operation succeeded by fetching current segments");
         StreamSegments streamSegments = controller2.getCurrentSegments(scope, stream).join();
-        log.info("Current segment count=", streamSegments.getSegments().size());
+        log.info("Current segment count= {}", streamSegments.getSegments().size());
         Assert.assertEquals(2, streamSegments.getSegments().size());
     }
 

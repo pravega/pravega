@@ -28,17 +28,22 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
 import io.pravega.shared.controller.event.ScaleOpEvent;
+import io.pravega.shared.controller.event.SealStreamEvent;
 import io.pravega.test.common.TestingServerStarter;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -165,7 +170,71 @@ public abstract class RequestSweeperTest {
         // verify that entity is removed. 
         entities = hostIndex.getEntities(HOSTNAME).join();
         assertTrue(entities.isEmpty());
+        
+        // verify that the host is removed.
+        Set<String> hosts = hostIndex.getHosts().join();
+        assertTrue(hosts.isEmpty());
+    }
+
+    @Test(timeout = 30000L)
+    public void testRequestSweeperLimits() {
+        doAnswer(x -> CompletableFuture.completedFuture(null)).when(requestEventWriter).writeEvent(any(), any());
+
+        List<List<String>> processed = new LinkedList<>();
+        Consumer<List<String>> consumer = processed::add;
+        
+        TestRequestSweeper requestSweeper = new TestRequestSweeper(streamStore, executor, streamMetadataTasks, consumer);
+
+        ControllerEventSerializer serializer = new ControllerEventSerializer();
+        
+        HostIndex hostIndex = getHostIndex();
+        ControllerEvent event1 = new SealStreamEvent("scope", "stream1", 0L);
+        ControllerEvent event2 = new SealStreamEvent("scope", "stream2", 0L);
+        ControllerEvent event3 = new SealStreamEvent("scope", "stream3", 0L);
+        hostIndex.addEntity(HOSTNAME, "entity1", serializer.toByteBuffer(event1).array()).join();
+        hostIndex.addEntity(HOSTNAME, "entity2", serializer.toByteBuffer(event2).array()).join();
+        hostIndex.addEntity(HOSTNAME, "entity3", serializer.toByteBuffer(event3).array()).join();
+        
+        List<String> entities = hostIndex.getEntities(HOSTNAME).join();
+        assertEquals(entities.size(), 3);
+        Set<String> hosts = hostIndex.getHosts().join();
+        assertEquals(hosts.size(), 1);
+
+        requestSweeper.handleFailedProcess(HOSTNAME).join();
+
+        // after failover all entities and host must have been removed
+        entities = hostIndex.getEntities(HOSTNAME).join();
+        assertTrue(entities.isEmpty());
+        hosts = hostIndex.getHosts().join();
+        assertTrue(hosts.isEmpty());
+        
+        // the processing loop should have been called four times. 
+        // first three times, it should get one entity. 
+        // in the exit condition it should get empty list and exit.
+        assertEquals(processed.size(), 4);
+        assertEquals(processed.get(0).size(), 1);
+        assertEquals(processed.get(1).size(), 1);
+        assertEquals(processed.get(2).size(), 1);
+        assertEquals(processed.get(3).size(), 0);
     }
 
     abstract HostIndex getHostIndex();
+    
+    static class TestRequestSweeper extends RequestSweeper {
+        private final Consumer<List<String>> consumer;
+        
+        public TestRequestSweeper(StreamMetadataStore metadataStore, ScheduledExecutorService executor, StreamMetadataTasks streamMetadataTasks, Consumer<List<String>> consumer) {
+            super(metadataStore, executor, streamMetadataTasks, 1);
+            this.consumer = consumer;
+        }
+
+        @Override
+        CompletableFuture<List<String>> postRequest(String oldHostId) {
+            return super.postRequest(oldHostId)
+                    .thenApply(list -> {
+                        consumer.accept(list);
+                        return list;
+                    });
+        }
+    }
 }

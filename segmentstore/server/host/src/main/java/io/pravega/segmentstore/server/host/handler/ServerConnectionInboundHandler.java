@@ -14,6 +14,8 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoop;
+import io.pravega.common.Exceptions;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommand;
@@ -38,7 +40,12 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         Request cmd = (Request) msg;
-        log.debug("Processing request: {}", cmd);
+        if (cmd.mustLog()) {
+            log.debug("Received request: {}", cmd);
+        } else {
+            log.trace("Received request: {}", cmd);
+        }
+
         RequestProcessor requestProcessor = processor.get();
         if (requestProcessor == null) {
             throw new IllegalStateException("No command processor set for connection");
@@ -49,7 +56,7 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         // Close the connection when an exception is raised.
-        log.error("Caught exception on connection: ", cause);
+        logError(cause);
         ctx.close();
     }
 
@@ -99,7 +106,15 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
         }
         return ch;
     }
-    
+
+    private void logError(Throwable cause) {
+        if (Exceptions.unwrap(cause) instanceof IllegalContainerStateException) {
+            log.warn("Caught exception on connection: {}", cause.toString());
+        } else {
+            log.error("Caught exception on connection: ", cause);
+        }
+    }
+
     @Override
     public String toString() {
         Channel c = channel.get();
