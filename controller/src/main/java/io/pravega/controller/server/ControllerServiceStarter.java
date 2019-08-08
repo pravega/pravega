@@ -410,8 +410,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 cluster.close();
             }
 
-            log.info("closing segment helper");
-            segmentHelper.close();
+            if (segmentHelper != null) {
+                log.info("closing segment helper");
+                segmentHelper.close();
+            }
 
             log.info("Closing connection factory");
             connectionFactory.close();
