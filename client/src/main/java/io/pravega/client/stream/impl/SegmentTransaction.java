@@ -20,7 +20,7 @@ public interface SegmentTransaction<Type> extends AutoCloseable {
     UUID getId();
 
     /**
-     * Writes the provided event to this transaction on this segment. This operation is asyncronus, the item is not
+     * Writes the provided event to this transaction on this segment. This operation is asynchronous, the item is not
      * Guaranteed to be stored until after {@link #flush()} has been called.
      *
      * @param event The event to write.
