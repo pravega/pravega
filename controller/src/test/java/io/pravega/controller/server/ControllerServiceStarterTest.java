@@ -42,9 +42,9 @@ import org.junit.Test;
 public abstract class ControllerServiceStarterTest {
     protected StoreClientConfig storeClientConfig;
     protected StoreClient storeClient;
+    protected final int grpcPort;
     protected ScheduledExecutorService executor;
     private final boolean disableControllerCluster;
-    private final int grpcPort;
     private final boolean enableAuth;
 
     ControllerServiceStarterTest(final boolean disableControllerCluster, boolean enableAuth) {

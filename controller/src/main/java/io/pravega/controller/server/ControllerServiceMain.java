@@ -120,8 +120,11 @@ public class ControllerServiceMain extends AbstractExecutionThreadService {
                 notifyServiceStateChange(ServiceState.STARTING);
                 starter.startAsync();
 
+                sessionExpiryFuture.whenComplete((r, e) -> {
+                     starter.notifySessionExpiration();
+                });
                 log.info("Awaiting controller services start");
-                CompletableFuture.anyOf(sessionExpiryFuture, CompletableFuture.runAsync(() -> starter.awaitRunning())).join();
+                starter.awaitRunning();
 
                 if (hasZkConnection) {
                     // At this point, wait until either of the two things happen

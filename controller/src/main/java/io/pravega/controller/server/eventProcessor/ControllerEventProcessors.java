@@ -101,7 +101,7 @@ public class ControllerEventProcessors extends AbstractIdleService implements Fa
                                      final StreamMetadataTasks streamMetadataTasks,
                                      final StreamTransactionMetadataTasks streamTransactionMetadataTasks,
                                      final ScheduledExecutorService executor) {
-        this(host, config, controller, checkpointStore, streamMetadataStore, bucketStore, connectionFactory,
+        this(host, config, controller, checkpointStore, streamMetadataStore, bucketStore, connectionFactory, 
                 streamMetadataTasks, streamTransactionMetadataTasks, null, executor);
     }
 

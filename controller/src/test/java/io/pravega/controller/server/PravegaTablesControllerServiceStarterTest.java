@@ -9,48 +9,30 @@
  */
 package io.pravega.controller.server;
 
-import io.pravega.controller.store.client.StoreClientFactory;
+import io.pravega.controller.mocks.SegmentHelperMock;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.store.client.StoreClient;
+import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.ZKClientConfig;
 import io.pravega.controller.store.client.impl.StoreClientConfigImpl;
-import io.pravega.controller.store.client.impl.ZKClientConfigImpl;
-import io.pravega.test.common.TestingServerStarter;
-import java.util.UUID;
-import java.util.concurrent.Executors;
+import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.StreamStoreFactory;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.Assert;
+import org.apache.curator.framework.CuratorFramework;
 
 /**
  * ControllerServiceStarter backed by ZK store tests.
  */
 @Slf4j
-public class PravegaTablesControllerServiceStarterTest extends ControllerServiceStarterTest {
-    private TestingServer zkServer;
-
-    public PravegaTablesControllerServiceStarterTest() {
-        super(true, false);
+public class PravegaTablesControllerServiceStarterTest extends ZKBackedControllerServiceStarterTest {
+    @Override
+    StoreClientConfig getStoreConfig(ZKClientConfig zkClientConfig) {
+        return StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
     }
 
     @Override
-    public void setup() throws Exception {
-        zkServer = new TestingServerStarter().start();
-
-        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkServer.getConnectString())
-                .initialSleepInterval(500)
-                .maxRetries(10)
-                .namespace("pravega/" + UUID.randomUUID())
-                .sessionTimeoutMs(10 * 1000)
-                .build();
-        storeClientConfig = StoreClientConfigImpl.withPravegaTablesClient(zkClientConfig);
-        storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
-        Assert.assertNotNull(storeClient);
-        executor = Executors.newScheduledThreadPool(5);
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        storeClient.close();
-        zkServer.close();
-        executor.shutdown();
+    StreamMetadataStore getStore(StoreClient storeClient) {
+        return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), 
+                AuthHelper.getDisabledAuthHelper(), (CuratorFramework) storeClient.getClient(), executor);
     }
 }
