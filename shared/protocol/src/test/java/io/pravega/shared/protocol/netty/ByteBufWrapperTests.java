@@ -16,6 +16,7 @@ import io.pravega.common.io.StreamHelpers;
 import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
@@ -113,11 +114,23 @@ public class ByteBufWrapperTests {
         val readerData = IOUtils.readFully(reader, wrap.getLength());
         Assert.assertArrayEquals("Unexpected result from getReader.", expectedData, copy);
 
-        // Copy To.
+        // Copy To OutputStream.
         @Cleanup
         val outputStream1 = new ByteArrayOutputStream();
         wrap.copyTo(outputStream1);
-        Assert.assertArrayEquals("Unexpected result from copyTo.", expectedData, outputStream1.toByteArray());
+        Assert.assertArrayEquals("Unexpected result from copyTo(OutputStream).", expectedData, outputStream1.toByteArray());
+
+        // Copy To ByteBuffer.
+        val array1 = new byte[expectedData.length];
+        wrap.copyTo(ByteBuffer.wrap(array1));
+        Assert.assertArrayEquals("Unexpected result from copyTo(ByteBuffer).", expectedData, array1);
+        val array2 = new byte[expectedData.length * 2];
+        wrap.copyTo(ByteBuffer.wrap(array2));
+        AssertExtensions.assertArrayEquals("Unexpected result from copyTo(ByteBuffer*2).",
+                expectedData, 0, array2, 0, expectedData.length);
+        for (int i = expectedData.length; i < array2.length; i++) {
+            Assert.assertEquals(0, array2[i]);
+        }
     }
 
     /**

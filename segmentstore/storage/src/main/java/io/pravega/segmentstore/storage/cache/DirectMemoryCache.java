@@ -174,7 +174,7 @@ public class DirectMemoryCache implements CacheStorage {
 
                 // Update our state, including the number of bytes written. In case of a subsequent error (and rollback),
                 // invoking delete() will undo this changes as well.
-                assert writeResult.getWrittenLength() > 0 && writeResult.getWrittenLength() <= remainingLength;
+                assert writeResult.getWrittenLength() >= 0 && writeResult.getWrittenLength() <= remainingLength : writeResult.getWrittenLength();
                 remainingLength -= writeResult.getWrittenLength();
                 this.storedBytes.addAndGet(writeResult.getWrittenLength());
                 lastBlockAddress = writeResult.getLastBlockAddress();

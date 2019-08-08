@@ -146,6 +146,11 @@ public class ByteArraySegment implements ArrayView {
         System.arraycopy(this.array, this.startOffset, target, targetOffset, length);
     }
 
+    @Override
+    public void copyTo(ByteBuffer target) {
+        target.put(this.array, this.startOffset, Math.min(this.length, target.remaining()));
+    }
+
     /**
      * Writes the entire contents of this ByteArraySegment to the given OutputStream. Only copies the contents of the
      * ByteArraySegment, and writes no other data (such as the length of the Segment or any other info).

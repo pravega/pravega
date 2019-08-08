@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import org.junit.Assert;
@@ -90,10 +91,10 @@ public class ByteArraySegmentTests {
     }
 
     /**
-     * Tests the functionality of copyTo.
+     * Tests the functionality of copyTo(array).
      */
     @Test
-    public void testCopyTo() {
+    public void testCopyToArray() {
         final byte[] sourceBuffer = createFormattedBuffer();
         final int targetOffset = 10;
         final byte[] targetBuffer = new byte[sourceBuffer.length + targetOffset];
@@ -103,6 +104,26 @@ public class ByteArraySegmentTests {
 
         // Copy second part.
         source.copyTo(targetBuffer, targetOffset, copyLength);
+        for (int i = 0; i < targetBuffer.length; i++) {
+            int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
+            Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
+        }
+    }
+
+    /**
+     * Tests the functionality of copyTo(array).
+     */
+    @Test
+    public void testCopyToByteBuffer() {
+        final byte[] sourceBuffer = createFormattedBuffer();
+        final int targetOffset = 10;
+        final byte[] targetBuffer = new byte[sourceBuffer.length + targetOffset];
+        final int copyLength = sourceBuffer.length - 7;
+
+        ByteArraySegment source = new ByteArraySegment(sourceBuffer);
+
+        // Copy second part.
+        source.copyTo(ByteBuffer.wrap(targetBuffer, targetOffset, copyLength));
         for (int i = 0; i < targetBuffer.length; i++) {
             int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
             Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
