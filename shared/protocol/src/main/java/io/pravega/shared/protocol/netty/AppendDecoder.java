@@ -96,6 +96,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
             break;
         case APPEND_BLOCK:
             currentBlock = (WireCommands.AppendBlock) command;
+            getSegment(currentBlock.getWriterId());
             result = null;
             break;
         case APPEND_BLOCK_END:
