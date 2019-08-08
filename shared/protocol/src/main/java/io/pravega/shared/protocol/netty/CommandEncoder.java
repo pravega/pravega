@@ -103,35 +103,45 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
 
         /**
-         * Check if session overflows for given data size or events.
-         *
-         * @return true if pending data size is more than MAX_DATA_SIZE or events are more than MAX EVENTS; false otherwise.
+         * Check if session is empty or not.
+         * @return true if there are any pending events; false otherwise.
          */
-        private boolean isFull(int size, int events) {
-            return (pendingBytes + size) > MAX_DATA_SIZE || (eventCount + events) > MAX_EVENTS;
+        private boolean isFree() {
+            return eventCount == 0;
         }
 
 
         /**
          * queue the Append data to Session' list.
          * @param data  data bytes.
+         * @param out   Network channel buffer.
          */
-        private void write(ByteBuf data) {
+        private void write(ByteBuf data, ByteBuf out) {
             pendingWrites.putIfAbsent(id, this);
             if (data.readableBytes() > 0) {
                 pendingBytes += data.readableBytes();
                 pendingList.add(data);
             }
+            conditionalFlush(out);
+        }
+
+        /**
+         * check the overflow condition and flush if required.
+         * @param out   Network channel buffer.
+         */
+        private void conditionalFlush(ByteBuf out) {
+            if ((pendingBytes > MAX_DATA_SIZE) || (eventCount > MAX_EVENTS)) {
+                breakCurrentAppend(out);
+                flush(out);
+            }
         }
 
        /**
         * Write/flush session's data to network channel.
-        * by enclosing the session buffer data into Append Block End.
-        *
         * @param out   Network channel buffer.
         */
        private void flush(ByteBuf out) {
-            if (eventCount > 0) {
+            if (!isFree()) {
                 pendingWrites.remove(id);
                 if (pendingBytes > 0) {
                     writeMessage(new AppendBlock(id), pendingBytes, out);
@@ -149,7 +159,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
          * Write/flush given data to network channel.
          * by writing the Append block End containing the given/input data and indicating the size of previous
          * append block data.
-         *
          * @param out   Network channel buffer.
          */
         private void flush(int sizOfWholeEvents, ByteBuf data, ByteBuf out) {
@@ -161,7 +170,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     /**
      * Write/flush Multi session's buffered data to network channel buffer
      * by iterating over all the pending sessions .
-     *
      * @param out   Network Channel Buffer.
      */
     private void flushAll(ByteBuf out) {
@@ -187,18 +195,21 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
             }
 
-            if (session.isFull(msgSize, append.getEventCount())) {
-                breakCurrentAppend(out);
-                session.flush(out);
-            }
-            session.record(append);
             if (isChannelFree()) {
-                if (startAppend(ctx, blockSizeSupplier, append, out)) {
-                    continueAppend(data, out);
+                if (session.isFree()) {
+                    session.record(append);
+                    if (startAppend(ctx, blockSizeSupplier, append, out)) {
+                        continueAppend(data, out);
+                    } else {
+                        completeAppend(data, out);
+                    }
                 } else {
-                    completeAppend(data, out);
+                    session.record(append);
+                    session.write(data, out);
+                    session.flush(out);
                 }
             } else {
+                session.record(append);
                 if (isChannelOwner(append.getWriterId(), append.getSegment())) {
                     if (bytesLeftInBlock > data.readableBytes()) {
                         continueAppend(data, out);
@@ -208,7 +219,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                         flushAll(out);
                     }
                 } else {
-                      session.write(data);
+                      session.write(data, out);
                 }
             }
         } else if (msg instanceof SetupAppend) {

@@ -594,13 +594,10 @@ public class AppendEncodeDecodeTest {
             commandEncoder.encode(ctx, new Append("segment2", writerId2, i, event, 10), fakeNetwork);
         }
         read(fakeNetwork, received);
-        assertEquals(5, received.size());
+        assertEquals(4, received.size());
         Append readAppend = (Append) received.get(3);
-        assertEquals((8192 + TYPE_PLUS_LENGTH_SIZE) * 127L, readAppend.data.readableBytes());
-        assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 127L, readAppend.data.readableBytes());
-        readAppend = (Append) received.get(4);
-        assertEquals(8192 + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
-        assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
+        assertEquals((8192 + TYPE_PLUS_LENGTH_SIZE) * 128L, readAppend.data.readableBytes());
+        assertEquals((content.length + TYPE_PLUS_LENGTH_SIZE) * 128L, readAppend.data.readableBytes());
     }
 
     @Test
