@@ -26,9 +26,10 @@ public interface EventStreamReader<T> extends AutoCloseable {
      * 
      * If no writers were providing timestamps at the current position in the stream `null` will be returned.
      *  
+     * @param stream the stream to obtain a time window for.
      * @return A TimeWindow which bounds the current location in the stream, or null if one cannot be established.
      */
-    TimeWindow getCurrentTimeWindow();
+    TimeWindow getCurrentTimeWindow(Stream stream);
     
     /**
      * Gets the next event in the stream. If there are no events currently available this will block up for

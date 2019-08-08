@@ -15,6 +15,7 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderNotInReaderGroupException;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.ReaderGroupState.AcquireSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.AddReader;
 import io.pravega.client.stream.impl.ReaderGroupState.CheckpointReader;
@@ -286,17 +287,18 @@ public class ReaderGroupStateManager {
         if (shouldAcquireSegment()) {
             return acquireSegment(timeLag, position);
         } else {
-            updateLagIfNeeded(timeLag, position);
             return Collections.emptyMap();
         }
     }
     
-    private void updateLagIfNeeded(long timeLag, Position position) {
+    boolean updateLagIfNeeded(long timeLag, Position position) {
         if (!lagUpdateTimer.hasRemaining()) {
             log.debug("Update lag for reader {}", readerId);
             resetLagUpdateTimer();
             sync.updateStateUnconditionally(new UpdateDistanceToTail(readerId, timeLag, position.asImpl().getOwnedSegmentRangesWithOffsets()));
+            return true;
         }
+        return false;
     }
 
     private void resetLagUpdateTimer() {
@@ -443,6 +445,14 @@ public class ReaderGroupStateManager {
 
     boolean isCheckpointSilent(String atCheckpoint) {
         return sync.getState().getCheckpointState().isCheckpointSilent(atCheckpoint);
+    }
+    
+    Set<Stream> getStreams() {
+        return Collections.unmodifiableSet(sync.getState().getConfig().getStartingStreamCuts().keySet());
+    }
+    
+    Map<SegmentWithRange, Long> getLastReadpositions(Stream stream) {
+        return sync.getState().getLastReadpositions(stream);
     }
 
     public String getOrRefreshDelegationTokenFor(Segment segmentId) {

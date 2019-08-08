@@ -11,6 +11,8 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
@@ -173,7 +175,12 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                 synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
-        return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config);
+        
+        Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
+        for (Stream stream : stateManager.getStreams()) {
+            watermarkReaders.put(stream, new WatermarkReaderImpl(stream, this, connectionFactory.getInternalExecutor()));
+        }
+        return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config, watermarkReaders.build());
     }
     
     @Override

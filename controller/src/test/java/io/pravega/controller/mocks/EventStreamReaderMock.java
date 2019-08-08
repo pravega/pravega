@@ -16,12 +16,12 @@ import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReinitializationRequiredException;
+import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.impl.EventReadImpl;
-import lombok.SneakyThrows;
-
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import lombok.SneakyThrows;
 
 /**
  * Mock EventStreamReader.
@@ -55,7 +55,7 @@ public class EventStreamReaderMock<T> implements EventStreamReader<T> {
     }
 
     @Override
-    public TimeWindow getCurrentTimeWindow() {
+    public TimeWindow getCurrentTimeWindow(Stream stream) {
         return null;
     }
 
