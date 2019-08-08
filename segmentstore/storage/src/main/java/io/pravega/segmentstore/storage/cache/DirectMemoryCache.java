@@ -19,8 +19,6 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.BufferView;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +29,6 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
-import lombok.SneakyThrows;
 import lombok.val;
 
 @ThreadSafe
@@ -154,22 +151,22 @@ public class DirectMemoryCache implements CacheStorage {
     }
 
     @Override
-    @SneakyThrows(IOException.class)
     public int insert(BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         Preconditions.checkArgument(data.getLength() < CacheLayout.MAX_ENTRY_SIZE);
 
-        int length = data.getLength();
-        int lastBlockAddress = CacheLayout.NO_BLOCK_ID;
-        try (InputStream s = data.getReader()) {
+        int lastBlockAddress = CacheLayout.NO_ADDRESS;
+        int remainingLength = data.getLength();
+        try {
             // As long as we still have data to copy, we try to reuse an existing, non-full buffer or allocate a new one,
             // and write the remaining data to it.
-            while (length > 0 || lastBlockAddress == CacheLayout.NO_BLOCK_ID) {
+            while (remainingLength > 0 || lastBlockAddress == CacheLayout.NO_ADDRESS) {
                 // Get a Buffer to write data to. If we are full, this will throw an appropriate exception.
                 DirectMemoryBuffer buffer = getNextAvailableBuffer();
 
                 // Write the data to the buffer.
-                DirectMemoryBuffer.WriteResult writeResult = buffer.write(s, length, lastBlockAddress);
+                BufferView slice = data.slice(data.getLength() - remainingLength, remainingLength);
+                DirectMemoryBuffer.WriteResult writeResult = buffer.write(slice, lastBlockAddress);
                 if (writeResult == null) {
                     // Someone else grabbed this buffer and wrote to it before we got a chance. Go back and find another one.
                     continue;
@@ -177,15 +174,13 @@ public class DirectMemoryCache implements CacheStorage {
 
                 // Update our state, including the number of bytes written. In case of a subsequent error (and rollback),
                 // invoking delete() will undo this changes as well.
-                int writtenBytes = length - writeResult.getRemainingLength();
-                assert writtenBytes > 0 && writtenBytes <= length;
-                length -= writtenBytes;
-                this.storedBytes.addAndGet(writtenBytes);
-
+                assert writeResult.getWrittenLength() > 0 && writeResult.getWrittenLength() <= remainingLength;
+                remainingLength -= writeResult.getWrittenLength();
+                this.storedBytes.addAndGet(writeResult.getWrittenLength());
                 lastBlockAddress = writeResult.getLastBlockAddress();
             }
         } catch (Throwable ex) {
-            if (!Exceptions.mustRethrow(ex) && lastBlockAddress != CacheLayout.NO_BLOCK_ID) {
+            if (!Exceptions.mustRethrow(ex) && lastBlockAddress != CacheLayout.NO_ADDRESS) {
                 // We wrote something, but got interrupted. We need to clean up whatever we wrote so we don't leave
                 // unreferenced data in the cache.
                 delete(lastBlockAddress);
@@ -216,7 +211,6 @@ public class DirectMemoryCache implements CacheStorage {
     }
 
     @Override
-    @SneakyThrows(IOException.class)
     public int append(int address, int expectedLength, BufferView data) {
         Exceptions.checkNotClosed(this.closed.get(), this);
 
@@ -229,10 +223,7 @@ public class DirectMemoryCache implements CacheStorage {
 
             int bufferId = this.layout.getBufferId(address);
             int blockId = this.layout.getBlockId(address);
-            DirectMemoryBuffer b = this.buffers[bufferId];
-            try (InputStream s = data.getReader()) {
-                appendedBytes = b.tryAppend(blockId, expectedLastBlockLength, s, data.getLength());
-            }
+            appendedBytes = this.buffers[bufferId].tryAppend(blockId, expectedLastBlockLength, data);
 
             this.storedBytes.addAndGet(appendedBytes);
             CacheMetrics.append(appendedBytes);

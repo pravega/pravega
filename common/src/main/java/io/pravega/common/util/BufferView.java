@@ -12,6 +12,7 @@ package io.pravega.common.util;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 /**
  * Defines a generic read-only view of a readable memory buffer with a known length.
@@ -68,12 +69,21 @@ public interface BufferView {
     byte[] getCopy();
 
     /**
-     * Copies the contents of this {@link BufferView} to the given {@link OutputStream} using a 4KB copy buffer.
+     * Copies the contents of this {@link BufferView} to the given {@link OutputStream}.
      *
      * @param target The {@link OutputStream} to write to.
      * @throws IOException If an exception occurred.
      */
     void copyTo(OutputStream target) throws IOException;
+
+    /**
+     * Copies the contents of this {@link BufferView} to the given {@link ByteBuffer}.
+     *
+     * @param byteBuffer The {@link ByteBuffer} to copy to. This buffer must have sufficient capacity to allow the entire
+     *                   contents of the {@link BufferView} to be written. If less needs to be copied, consider using
+     *                   {@link BufferView#slice} to select a sub-range of this {@link BufferView}.
+     */
+    void copyTo(ByteBuffer byteBuffer);
 
     /**
      * When implemented in a derived class, notifies any wrapped buffer that this {@link BufferView} has a need for it.

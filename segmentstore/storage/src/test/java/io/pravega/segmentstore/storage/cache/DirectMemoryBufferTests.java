@@ -18,9 +18,6 @@ import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayInputStream;
-import java.io.EOFException;
-import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -48,7 +45,7 @@ public class DirectMemoryBufferTests {
      * Tests the ability to allocate the backing buffer on demand and release it when invoking {@link DirectMemoryBuffer#close()} .
      */
     @Test
-    public void testAllocateClose() throws IOException {
+    public void testAllocateClose() {
         // Initial buffer.
         @Cleanup
         val b = newBuffer();
@@ -58,7 +55,7 @@ public class DirectMemoryBufferTests {
         Assert.assertEquals(1, b.getUsedBlockCount());
 
         // Allocate it, and write something.
-        val w1 = b.write(new ByteArrayInputStream(new byte[0]), 0, CacheLayout.NO_ADDRESS);
+        val w1 = b.write(new ByteArraySegment(new byte[0]), CacheLayout.NO_ADDRESS);
         checkAllocatedMemory(LAYOUT.bufferSize());
         Assert.assertTrue(b.isAllocated());
         Assert.assertTrue(b.hasCapacity());
@@ -79,7 +76,7 @@ public class DirectMemoryBufferTests {
      * Tests the ability to write.
      */
     @Test
-    public void testWrite() throws Exception {
+    public void testWrite() {
         final byte[] toWrite = new byte[LAYOUT.bufferSize() + 3 * LAYOUT.blockSize()];
         rnd.nextBytes(toWrite);
         final int sizeIncrement = 2 * LAYOUT.blockSize() + LAYOUT.blockSize() / 2;
@@ -91,11 +88,11 @@ public class DirectMemoryBufferTests {
         val b = newBuffer();
         for (int size1 = 0; size1 < toWrite.length; size1 += sizeIncrement) {
             Assert.assertEquals("Expected buffer to be clean.", 1, b.getUsedBlockCount());
-            val w1 = b.write(new ByteArrayInputStream(toWrite, 0, size1), size1, CacheLayout.NO_ADDRESS);
+            val w1 = b.write(new ByteArraySegment(toWrite, 0, size1), CacheLayout.NO_ADDRESS);
             Assert.assertEquals("Unexpected value for w1.firstBlockId.", 1, w1.getFirstBlockId());
-            int expectedRemaining1 = size1 > maxUsableSize ? size1 - maxUsableSize : 0;
-            Assert.assertEquals("Unexpected w1.remainingLength", expectedRemaining1, w1.getRemainingLength());
-            if (expectedRemaining1 > 0) {
+            int expectedWritten1 = Math.min(size1, maxUsableSize);
+            Assert.assertEquals("Unexpected w1.writtenLength", expectedWritten1, w1.getWrittenLength());
+            if (expectedWritten1 == maxUsableSize) {
                 Assert.assertFalse("Unexpected result from hasCapacity() when filling up.", b.hasCapacity());
             }
 
@@ -104,22 +101,22 @@ public class DirectMemoryBufferTests {
             int remainingCapacity = (LAYOUT.blocksPerBuffer() - b.getUsedBlockCount()) * LAYOUT.blockSize();
 
             int size2 = Math.max(0, size1 - secondWriteOffset);
-            val w2 = b.write(new ByteArrayInputStream(toWrite, secondWriteOffset, size2), size2, CacheLayout.NO_ADDRESS);
-            int expectedRemaining2 = 0;
-            if (expectedRemaining1 == 0 && hasCapacityBeforeSecondWrite) {
+            val w2 = b.write(new ByteArraySegment(toWrite, secondWriteOffset, size2), CacheLayout.NO_ADDRESS);
+            int expectedWritten2 = 0;
+            if (expectedWritten1 < maxUsableSize && hasCapacityBeforeSecondWrite) {
                 // We have nothing remaining and still have capacity to write more.
                 Assert.assertEquals("Unexpected value for w2.firstBlockId.",
                         LAYOUT.getBlockId(w1.getLastBlockAddress()) + 1, w2.getFirstBlockId());
-                expectedRemaining2 = size2 > remainingCapacity ? size2 - remainingCapacity : 0;
-                Assert.assertEquals("Unexpected w2.remainingLength", expectedRemaining2, w2.getRemainingLength());
+                expectedWritten2 = Math.min(size2, remainingCapacity);
+                Assert.assertEquals("Unexpected w2.writtenLength", expectedWritten2, w2.getWrittenLength());
             } else {
                 Assert.assertNull("Unexpected result when trying to write to a full buffer.", w2);
             }
 
             // Verify we can retrieve the data, then delete it. We will reuse the buffer in the next iteration.
-            checkData(b, LAYOUT.getBlockId(w1.getLastBlockAddress()), new ByteArraySegment(toWrite, 0, size1 - expectedRemaining1));
+            checkData(b, LAYOUT.getBlockId(w1.getLastBlockAddress()), new ByteArraySegment(toWrite, 0, expectedWritten1));
             if (w2 != null) {
-                checkData(b, LAYOUT.getBlockId(w2.getLastBlockAddress()), new ByteArraySegment(toWrite, secondWriteOffset, size2 - expectedRemaining2));
+                checkData(b, LAYOUT.getBlockId(w2.getLastBlockAddress()), new ByteArraySegment(toWrite, secondWriteOffset, expectedWritten2));
                 b.delete(LAYOUT.getBlockId(w2.getLastBlockAddress()));
             }
             b.delete(LAYOUT.getBlockId(w1.getLastBlockAddress()));
@@ -131,25 +128,24 @@ public class DirectMemoryBufferTests {
      * the private method {@link DirectMemoryBuffer#rollbackWrite}.
      */
     @Test
-    public void testWriteError() throws Exception {
+    public void testWriteError() {
         final byte[] toWrite = new byte[3 * LAYOUT.blockSize()];
         rnd.nextBytes(toWrite);
 
-        // We reuse the buffer multiple times. We want to also verify there is no leak between each run.
         @Cleanup
         val b = newBuffer();
         int initialUsedCount = b.getUsedBlockCount();
         AssertExtensions.assertThrows(
-                "Expecting EOFException.",
-                () -> b.write(new ByteArrayInputStream(toWrite), toWrite.length + 2, CacheLayout.NO_ADDRESS),
-                ex -> ex instanceof EOFException);
+                "Expecting ArrayIndexOutOfBoundsException.",
+                () -> b.write(new CorruptedByteArraySegment(toWrite, toWrite.length + 2), CacheLayout.NO_ADDRESS),
+                ex -> ex instanceof ArrayIndexOutOfBoundsException);
 
         // Verify the getUsedBlockCount is unaffected.
         Assert.assertEquals("Unexpected used block count after rollback.", initialUsedCount, b.getUsedBlockCount());
 
         // Verify the rollback has properly re-chained the free blocks.
         for (int i = 1; i < LAYOUT.blocksPerBuffer(); i++) {
-            val w = b.write(new ByteArrayInputStream(toWrite, 0, LAYOUT.blockSize()), LAYOUT.blockSize(), CacheLayout.NO_ADDRESS);
+            val w = b.write(new ByteArraySegment(toWrite, 0, LAYOUT.blockSize()), CacheLayout.NO_ADDRESS);
             Assert.assertEquals("Unexpected block to write (free block re-chaining).", i, w.getFirstBlockId());
             Assert.assertEquals("Expected to have written only 1 block.", w.getFirstBlockId(), LAYOUT.getBlockId(w.getLastBlockAddress()));
         }
@@ -159,7 +155,7 @@ public class DirectMemoryBufferTests {
      * Tests the ability to append.
      */
     @Test
-    public void testAppend() throws Exception {
+    public void testAppend() {
         final byte[] toWrite = new byte[LAYOUT.bufferSize()];
         rnd.nextBytes(toWrite);
         final int multiBlockLength = LAYOUT.blockSize() + 1;
@@ -168,28 +164,28 @@ public class DirectMemoryBufferTests {
         val b = newBuffer();
 
         // Test with an empty block (which is the result of an empty entry).
-        val emptyAddress = b.write(new ByteArrayInputStream(toWrite), 0, CacheLayout.NO_ADDRESS).getLastBlockAddress();
+        val emptyAddress = b.write(new ByteArraySegment(toWrite, 0, 0), CacheLayout.NO_ADDRESS).getLastBlockAddress();
         testAppend(b, LAYOUT.getBlockId(emptyAddress), 0, toWrite);
 
         // Test with a non-empty block (which is the result of a non-empty entry).
-        val multiBlockAddress = b.write(new ByteArrayInputStream(toWrite), multiBlockLength, CacheLayout.NO_ADDRESS).getLastBlockAddress();
+        val multiBlockAddress = b.write(new ByteArraySegment(toWrite, 0, multiBlockLength), CacheLayout.NO_ADDRESS).getLastBlockAddress();
         testAppend(b, LAYOUT.getBlockId(multiBlockAddress), multiBlockLength, toWrite);
 
         // Test length-conditional appends.
-        val conditionalAddress = b.write(new ByteArrayInputStream(toWrite), 1, CacheLayout.NO_ADDRESS).getLastBlockAddress();
+        val conditionalAddress = b.write(new ByteArraySegment(toWrite, 0, 1), CacheLayout.NO_ADDRESS).getLastBlockAddress();
         AssertExtensions.assertThrows(
                 "tryAppend() did not fail for expectedLastBlockLength mismatch.",
-                () -> b.tryAppend(LAYOUT.getBlockId(conditionalAddress), 2, new ByteArrayInputStream(toWrite), 1),
+                () -> b.tryAppend(LAYOUT.getBlockId(conditionalAddress), 2, new ByteArraySegment(toWrite, 0, 1)),
                 ex -> ex instanceof IncorrectCacheEntryLengthException);
     }
 
-    private void testAppend(DirectMemoryBuffer b, int lastBlockId, int entryLength, byte[] toWrite) throws Exception {
+    private void testAppend(DirectMemoryBuffer b, int lastBlockId, int entryLength, byte[] toWrite) {
         int blockLength = entryLength % LAYOUT.blockSize();
         int remainingLength = LAYOUT.blockSize() - blockLength;
         int lastBlockEntryOffset = entryLength - entryLength % LAYOUT.blockSize();
         int initialUsedBlockCount = b.getUsedBlockCount();
         while (remainingLength >= 0) {
-            val appendedLength = b.tryAppend(lastBlockId, blockLength, new ByteArrayInputStream(toWrite, lastBlockEntryOffset + blockLength, 1), 1);
+            val appendedLength = b.tryAppend(lastBlockId, blockLength, new ByteArraySegment(toWrite, lastBlockEntryOffset + blockLength, 1));
             Assert.assertEquals("Unexpected appendedLength.", Math.min(remainingLength, 1), appendedLength);
             remainingLength--;
             blockLength++;
@@ -204,7 +200,7 @@ public class DirectMemoryBufferTests {
      * Tests the ability to delete.
      */
     @Test
-    public void testDelete() throws Exception {
+    public void testDelete() {
         final byte[] toWrite = new byte[LAYOUT.bufferSize()];
         rnd.nextBytes(toWrite);
         final int multiBlockLength = LAYOUT.blockSize() + 1;
@@ -213,12 +209,12 @@ public class DirectMemoryBufferTests {
         val b = newBuffer();
         int expectedUsedBlockCount = 1;
 
-        val empty = b.write(new ByteArrayInputStream(toWrite), 0, CacheLayout.NO_ADDRESS);
+        val empty = b.write(new ByteArraySegment(toWrite, 0, 0), CacheLayout.NO_ADDRESS);
         expectedUsedBlockCount += 1;
-        val multiBlock = b.write(new ByteArrayInputStream(toWrite), multiBlockLength, CacheLayout.NO_ADDRESS);
+        val multiBlock = b.write(new ByteArraySegment(toWrite, 0, multiBlockLength), CacheLayout.NO_ADDRESS);
         expectedUsedBlockCount += 2;
         val predecessorAddress = LAYOUT.calculateAddress(BUFFER_ID + 1, 2);
-        val multiBuf = b.write(new ByteArrayInputStream(toWrite), 2 * LAYOUT.blockSize(), predecessorAddress);
+        val multiBuf = b.write(new ByteArraySegment(toWrite, 0, 2 * LAYOUT.blockSize()), predecessorAddress);
         expectedUsedBlockCount += 2;
 
         val emptyDelete = b.delete(LAYOUT.getBlockId(empty.getLastBlockAddress()));
@@ -245,7 +241,7 @@ public class DirectMemoryBufferTests {
      * "jump" over issues.
      */
     @Test
-    public void testRandomOperations() throws Exception {
+    public void testRandomOperations() {
         final byte[] toWrite = new byte[LAYOUT.bufferSize()];
         final int iterations = 100;
         @Cleanup
@@ -261,12 +257,12 @@ public class DirectMemoryBufferTests {
                 // Write a new entry of arbitrary length.
                 int offset = rnd.nextInt(toWrite.length - 1);
                 int length = rnd.nextInt(toWrite.length - offset);
-                val w = b.write(new ByteArrayInputStream(toWrite, offset, length), length, CacheLayout.NO_ADDRESS);
+                val w = b.write(new ByteArraySegment(toWrite, offset, length), CacheLayout.NO_ADDRESS);
                 usedBlocks = Math.min(LAYOUT.blocksPerBuffer(), usedBlocks + (length == 0 ? 1 : length / LAYOUT.blockSize() + 1));
                 Assert.assertEquals("Unexpected used blocks after write.", usedBlocks, b.getUsedBlockCount());
                 int blockId = LAYOUT.getBlockId(w.getLastBlockAddress());
                 blocks.add(blockId);
-                contents.put(blockId, new AbstractMap.SimpleImmutableEntry<>(offset, length - w.getRemainingLength()));
+                contents.put(blockId, new AbstractMap.SimpleImmutableEntry<>(offset, w.getWrittenLength()));
             } else {
                 // Pick an arbitrary entry and remove it.
                 int blockId = blocks.remove(rnd.nextInt(blocks.size()));
@@ -299,7 +295,7 @@ public class DirectMemoryBufferTests {
      * the buffer is used as expected and that we do not lose free blocks once we remove entries.
      */
     @Test
-    public void testFreeBlockManagement() throws Exception {
+    public void testFreeBlockManagement() {
         final int maxWriteBlockSize = LAYOUT.blocksPerBuffer() - 1; // Excluding metadata block.
         final byte[] data = new byte[maxWriteBlockSize * LAYOUT.blockSize()];
 
@@ -320,7 +316,7 @@ public class DirectMemoryBufferTests {
             // Fill up the buffer with writes of this size.
             while (!freeBlocks.isEmpty()) {
                 Assert.assertTrue("Expecting buffer to have capacity left.", b.hasCapacity());
-                val w = b.write(new ByteArrayInputStream(data, 0, writeLength), writeLength, CacheLayout.NO_ADDRESS);
+                val w = b.write(new ByteArraySegment(data, 0, writeLength), CacheLayout.NO_ADDRESS);
                 int firstBlockId = w.getFirstBlockId();
                 int lastBlockId = LAYOUT.getBlockId(w.getLastBlockAddress());
 
@@ -391,6 +387,7 @@ public class DirectMemoryBufferTests {
     }
 
     //region Helper Classes
+
     @RequiredArgsConstructor
     private static class WriteEntry {
         final ArrayList<Integer> blockIds;
@@ -412,6 +409,20 @@ public class DirectMemoryBufferTests {
         public String toString() {
             return String.format("%d-%d (Count=%d, Fragmentation=%.1f%%)", getFirstBlockId(), getLastBlockId(),
                     this.blockIds.size(), getFragmentation() * 100);
+        }
+    }
+
+    private static class CorruptedByteArraySegment extends ByteArraySegment {
+        private final int fakeLength;
+
+        CorruptedByteArraySegment(byte[] array, int fakeLength) {
+            super(array);
+            this.fakeLength = fakeLength;
+        }
+
+        @Override
+        public int getLength() {
+            return this.fakeLength;
         }
     }
 

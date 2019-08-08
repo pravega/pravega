@@ -16,6 +16,7 @@ import io.pravega.common.util.BufferView;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.NonNull;
 
@@ -106,6 +107,13 @@ public class ByteBufWrapper implements BufferView {
         Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
         ByteBuf buf = this.buf.duplicate();
         buf.readBytes(target, buf.readableBytes());
+    }
+
+    @Override
+    public void copyTo(ByteBuffer byteBuffer) {
+        Exceptions.checkNotClosed(this.buf.refCnt() == 0, this);
+        ByteBuf buf = this.buf.duplicate();
+        buf.readBytes(byteBuffer);
     }
 
     @Override

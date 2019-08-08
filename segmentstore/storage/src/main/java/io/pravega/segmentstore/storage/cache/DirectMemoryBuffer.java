@@ -14,9 +14,8 @@ import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.pravega.common.Exceptions;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
+import io.pravega.common.util.BufferView;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Stack;
 import javax.annotation.concurrent.GuardedBy;
@@ -127,39 +126,37 @@ class DirectMemoryBuffer implements AutoCloseable {
      * This will begin writing data to the first available block in the buffer, and filling blocks until either running
      * out of available blocks or all the data has been written.
      *
-     * @param data               An {@link InputStream} representing the data to add. This InputStream will not be closed
-     *                           or reset throughout the execution of this method, even in case of failure.
-     * @param remainingLength    The length of the data to add.
+     * @param data               An {@link BufferView} representing the data to add. The {@link BufferView#copyTo(ByteBuffer)}
+     *                           method will be used to transfer the data to the appropriate Buffer Block.
      * @param predecessorAddress The address of the Buffer-Block that precedes the write to this Buffer. If none, this
      *                           should be set to {@link  CacheLayout#NO_ADDRESS}.
      * @return A {@link WriteResult} representing the result of the write, or null if {@link #hasCapacity()} is false.
      * If all the data has been written, then  {@link WriteResult#getRemainingLength()} will be 0.
-     * @throws IOException If an {@link IOException} occurred while reading from `data`.
      */
-    synchronized WriteResult write(InputStream data, int remainingLength, int predecessorAddress) throws IOException {
+    synchronized WriteResult write(BufferView data, int predecessorAddress) {
         if (this.usedBlockCount >= this.layout.blocksPerBuffer()) {
             // Full
             return null;
         }
 
-        int lastBlockLength = remainingLength % this.layout.blockSize();
-        if (lastBlockLength == 0 && remainingLength > 0) {
-            lastBlockLength = this.layout.blockSize();
-        }
-
-        ByteBuf metadataBuf = getBlockBuffer(0);
+        ByteBuf metadataBuf = getMetadataBlock();
         long blockMetadata = metadataBuf.getLong(0);
         int blockId = this.layout.getNextFreeBlockId(blockMetadata);
         assert blockId != CacheLayout.NO_BLOCK_ID;
         final int firstBlockId = blockId;
+        int dataOffset = 0;
         try {
-            while (blockId != CacheLayout.NO_BLOCK_ID) {
+            // Use a do-while loop since we want to properly handle the (valid) case when data.getLength() == 0.
+            do {
                 int bufIndex = blockId * this.layout.blockMetadataSize();
                 blockMetadata = metadataBuf.getLong(bufIndex);
                 assert !this.layout.isUsedBlock(blockMetadata);
-                int blockLength = Math.min(remainingLength, this.layout.blockSize());
+
+                // Copy the data to the block.
+                int blockLength = Math.min(data.getLength() - dataOffset, this.layout.blockSize());
                 if (blockLength > 0) {
-                    blockLength = writeBlock(getBlockBuffer(blockId), 0, data, blockLength);
+                    data.slice(dataOffset, blockLength).copyTo(getWriteableBlock(blockId, 0));
+                    dataOffset += blockLength;
                 }
 
                 // Update block metadata.
@@ -170,13 +167,7 @@ class DirectMemoryBuffer implements AutoCloseable {
                 // Move on to the next block to write.
                 predecessorAddress = this.layout.calculateAddress(this.id, blockId);
                 blockId = this.layout.getNextFreeBlockId(blockMetadata);
-                remainingLength -= blockLength;
-
-                if (remainingLength <= 0) {
-                    // We are done.
-                    break;
-                }
-            }
+            } while (blockId != CacheLayout.NO_BLOCK_ID && dataOffset < data.getLength());
         } catch (Throwable ex) {
             if (!Exceptions.mustRethrow(ex)) {
                 // We wrote something, but got interrupted. We need to clean up whatever we wrote so we don't leave
@@ -192,7 +183,7 @@ class DirectMemoryBuffer implements AutoCloseable {
         blockMetadata = this.layout.setNextFreeBlockId(blockMetadata, blockId);
         metadataBuf.setLong(0, blockMetadata);
 
-        return new WriteResult(remainingLength, predecessorAddress, firstBlockId);
+        return new WriteResult(dataOffset, predecessorAddress, firstBlockId);
     }
 
     /**
@@ -201,37 +192,42 @@ class DirectMemoryBuffer implements AutoCloseable {
      * @param blockId        The id of the Buffer-Block to append that resides in this buffer.
      * @param expectedLength The expected length of the Buffer-Block to append to. If this value does not match what is
      *                       stored in that Buffer-Block metdata, the append will not execute.
-     * @param data           An {@link InputStream} representing the data to append. This InputStream will not be closed
-     *                       or reset throughout the execution of this method, even in case of failure.
-     * @param maxLength      The maximum length to append.
+     * @param data           A {@link BufferView} representing the data to append. The {@link BufferView#copyTo(ByteBuffer)}
+     *                       method will be used to transfer the data to the appropriate Buffer Block.
      * @return The number of bytes appended.
-     * @throws IOException                        If an {@link IOException} has occurred while reading from `data`.
      * @throws IncorrectCacheEntryLengthException If `expectedLastBlockLength` differs from the last block's length.
      */
-    synchronized int tryAppend(int blockId, int expectedLength, InputStream data, int maxLength) throws IOException {
+    synchronized int tryAppend(int blockId, int expectedLength, BufferView data) {
         validateBlockId(blockId, false);
 
-        ByteBuf metadataBuf = getBlockBuffer(0);
+        ByteBuf metadataBuf = getMetadataBlock();
         int bufIndex = blockId * this.layout.blockMetadataSize();
         long blockMetadata = metadataBuf.getLong(bufIndex);
         if (blockId == CacheLayout.NO_BLOCK_ID || !this.layout.isUsedBlock(blockMetadata)) {
             return 0;
         }
 
-        // Append to the block, but only if the given length matches the actual one.
+        // Validate that the given length matches the actual one.
         int blockLength = this.layout.getLength(blockMetadata);
         if (blockLength != expectedLength) {
             throw new IncorrectCacheEntryLengthException(String.format(
                     "Incorrect last block length. Expected %s, given %s.", blockLength, expectedLength));
         }
 
-        maxLength = Math.min(maxLength, this.layout.blockSize() - blockLength);
-        blockLength += writeBlock(getBlockBuffer(blockId), blockLength, data, maxLength);
+        // Adjust the length, if we were given more than we can fit.
+        int maxLength = this.layout.blockSize() - blockLength;
+        if (maxLength < data.getLength()) {
+            data = data.slice(0, maxLength);
+        }
+
+        // Copy the data.
+        data.copyTo(getWriteableBlock(blockId, blockLength));
+        blockLength += data.getLength();
 
         // Update metadata.
         blockMetadata = this.layout.setLength(blockMetadata, blockLength);
         metadataBuf.setLong(bufIndex, blockMetadata);
-        return blockLength - expectedLength;
+        return data.getLength();
     }
 
     /**
@@ -246,7 +242,7 @@ class DirectMemoryBuffer implements AutoCloseable {
      */
     synchronized int read(int blockId, List<ByteBuf> readBuffers) {
         validateBlockId(blockId, true);
-        ByteBuf metadataBuf = getBlockBuffer(0);
+        ByteBuf metadataBuf = getMetadataBlock();
         while (blockId != CacheLayout.NO_BLOCK_ID) {
             int bufIndex = blockId * this.layout.blockMetadataSize();
             long blockMetadata = metadataBuf.getLong(bufIndex);
@@ -258,7 +254,7 @@ class DirectMemoryBuffer implements AutoCloseable {
                 }
 
                 int predecessorAddress = this.layout.getPredecessorAddress(blockMetadata);
-                readBuffers.add(getBlockBuffer(blockId).slice(0, Math.min(blockLength, this.layout.blockSize())).asReadOnly());
+                readBuffers.add(getReadOnlyDataBlock(blockId, Math.min(blockLength, this.layout.blockSize())));
                 if (predecessorAddress == CacheLayout.NO_ADDRESS || this.layout.getBufferId(predecessorAddress) != this.id) {
                     // We are done.
                     return predecessorAddress;
@@ -285,7 +281,7 @@ class DirectMemoryBuffer implements AutoCloseable {
      */
     synchronized DeleteResult delete(int blockId) {
         validateBlockId(blockId, false);
-        ByteBuf metadataBuf = getBlockBuffer(0);
+        ByteBuf metadataBuf = getMetadataBlock();
         int deletedLength = 0;
         int predecessorAddress = CacheLayout.NO_ADDRESS;
         Stack<Integer> freedBlocks = new Stack<>(); // We're traversing backwards, but need these later in ascending order.
@@ -314,17 +310,17 @@ class DirectMemoryBuffer implements AutoCloseable {
     }
 
     /**
-     * Rolls back a partially executed call to {@link #write} that failed due to external causes (i.e., an InputStream
-     * read error). This walks back the chain of blocks that were written, marks them as free and re-chains them into
-     * the free block chain. This method is a simpler version of {@link #deallocateBlocks} that does not attempt to
-     * merge two sorted lists and does not require the root metadata to have been properly updated (since it likely wasn't).
+     * Rolls back a partially executed call to {@link #write} that failed while being written to the buffer. This walks
+     * back the chain of blocks that were written, marks them as free and re-chains them into the free block chain. This
+     * method is a simpler version of {@link #deallocateBlocks} that does not attempt to merge two sorted lists and does
+     * not require the root metadata to have been properly updated (since it likely wasn't).
      * @param lastWrittenBlockId The id of the last Block id that has been written and had its metadata updated.
      * @param nextFreeBlockId    The id of the next free Block id after `lastWrittenBlockId`. Usually this is the id of
      *                           the block for which the write failed but for which we couldn't update the metadata yet.
      */
     @GuardedBy("this")
     private void rollbackWrite(int lastWrittenBlockId, int nextFreeBlockId) {
-        ByteBuf metadataBuf = getBlockBuffer(0);
+        ByteBuf metadataBuf = getMetadataBlock();
         int blockId = lastWrittenBlockId;
         while (blockId != CacheLayout.NO_BLOCK_ID) {
             // Get block metadata and fetch the predecessor address, before we reset it.
@@ -393,32 +389,21 @@ class DirectMemoryBuffer implements AutoCloseable {
         }
     }
 
-    /**
-     * Writes the given data to the given buffer.
-     *
-     * @param blockBuffer A {@link ByteBuf} representing the Buffer-Block to write to.
-     * @param bufferIndex The index within `blockBuffer` to begin writing at.
-     * @param data        An {@link InputStream} representing the data to write.
-     * @param blockLength The length of the block.
-     * @return The number of bytes written.
-     * @throws IOException If an exception occurred.
-     */
-    private int writeBlock(ByteBuf blockBuffer, int bufferIndex, InputStream data, int blockLength) throws IOException {
-        blockBuffer.writerIndex(bufferIndex);
-        int count = 0;
-        while (count < blockLength) {
-            int n = blockBuffer.writeBytes(data, blockLength);
-            if (n < 0) {
-                throw new EOFException();
-            }
-            count += n;
-        }
-        return count;
+    @GuardedBy("this")
+    private ByteBuf getMetadataBlock() {
+        return getBuf().slice(0, this.layout.blockSize());
     }
 
     @GuardedBy("this")
-    private ByteBuf getBlockBuffer(int blockIndex) {
-        return getBuf().slice(blockIndex * this.layout.blockSize(), this.layout.blockSize());
+    private ByteBuffer getWriteableBlock(int blockIndex, int blockOffset) {
+        assert blockOffset >= 0 && blockOffset <= this.layout.blockSize();
+        return getBuf().nioBuffer(blockIndex * this.layout.blockSize() + blockOffset, this.layout.blockSize() - blockOffset);
+    }
+
+    @GuardedBy("this")
+    private ByteBuf getReadOnlyDataBlock(int blockIndex, int blockLength) {
+        assert blockLength <= this.layout.blockSize();
+        return getBuf().slice(blockIndex * this.layout.blockSize(), blockLength).asReadOnly();
     }
 
     @GuardedBy("this")
@@ -432,7 +417,7 @@ class DirectMemoryBuffer implements AutoCloseable {
             this.buf.setZero(0, this.buf.capacity()); // Clear out the buffer as Netty does not do it for us.
 
             // Format metadata.
-            ByteBuf metadataBuf = getBlockBuffer(0);
+            ByteBuf metadataBuf = getMetadataBlock();
             metadataBuf.writerIndex(0);
             for (int blockId = 0; blockId < this.layout.blocksPerBuffer(); blockId++) {
                 long m = this.layout.emptyBlockMetadata();
@@ -483,9 +468,9 @@ class DirectMemoryBuffer implements AutoCloseable {
     @Getter
     class WriteResult {
         /**
-         * The number of bytes remaining to be written after this Buffer.
+         * The number of bytes written in this Buffer.
          */
-        private final int remainingLength;
+        private final int writtenLength;
         /**
          * The address of the last Block written to in this Buffer.
          */
@@ -498,8 +483,8 @@ class DirectMemoryBuffer implements AutoCloseable {
 
         @Override
         public String toString() {
-            return String.format("FirstBlockId=%d, LastBlockId=%d, RemainingLength=%d",
-                    this.firstBlockId, layout.getBlockId(this.lastBlockAddress), this.remainingLength);
+            return String.format("FirstBlockId=%d, LastBlockId=%d, WrittenLength=%d",
+                    this.firstBlockId, layout.getBlockId(this.lastBlockAddress), this.writtenLength);
         }
     }
 
