@@ -58,6 +58,7 @@ import lombok.Cleanup;
 import lombok.Data;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static io.pravega.common.concurrent.Futures.allOfWithResults;
@@ -118,10 +119,14 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
             ReaderGroupConfig config = state.getConfig();
             CheckpointState checkpointState = state.getCheckpointState();
             int maxOutstandingCheckpointRequest = config.getMaxOutstandingCheckpointRequest();
-            int currentOutstandingCheckpointRequest = checkpointState.getOutstandingCheckpoints();
+            val outstandingCheckpoints = checkpointState.getOutstandingCheckpoints();
+            int currentOutstandingCheckpointRequest = outstandingCheckpoints.size();
             if (currentOutstandingCheckpointRequest >= maxOutstandingCheckpointRequest) {
-                log.warn("maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}",
-                        maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage, maxOutstandingCheckpointRequest);
+                log.warn("Current outstanding checkpoints are : {}, " +
+                                 "maxOutstandingCheckpointRequest: {}, currentOutstandingCheckpointRequest: {}, errorMessage: {} {}",
+                         outstandingCheckpoints, maxOutstandingCheckpointRequest, currentOutstandingCheckpointRequest, rejectMessage,
+                         maxOutstandingCheckpointRequest);
+
                 return false;
             } else {
                 updates.add(new CreateCheckpoint(checkpointName));
