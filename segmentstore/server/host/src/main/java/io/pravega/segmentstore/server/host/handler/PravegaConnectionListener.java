@@ -213,7 +213,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                 } else {
 
                     // For non symbolic links we'll depend on event-based watcher, which is more efficient than a
-                    // polling-based file change monitor.
+                    // polling-based monitor.
                     tlsCertFileChangeMonitor = new FileModificationEventWatcher(this.pathToTlsCertFile,
                             new TLSConfigChangeEventConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile));
                 }
@@ -221,7 +221,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                 tlsCertFileChangeMonitor.startMonitoring();
                 log.info("Started the FileModificationMonitor object successfully");
             } catch (FileNotFoundException e) {
-                log.warn("Failed to setup a monitoring for the file {}", this.pathToTlsCertFile, e);
+                log.error("Failed to setup monitoring for the file {}", this.pathToTlsCertFile, e);
                 throw new RuntimeException(e);
             }
         }
