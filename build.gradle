@@ -841,6 +841,9 @@ project('test:system') {
         // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
         systemProperty "tier2Config", System.getProperty("tier2Config")
 
+        //testPodImage , default is openjdk:8u181-jre-alpine
+        systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
+
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
@@ -1059,11 +1062,17 @@ task preparePravegaImage(type: Copy) {
 task buildPravegaImage(type: DockerBuildTask, dependsOn: preparePravegaImage) {
     baseTag = pravegaBaseTag
     dockerDir = preparePravegaImage.destinationDir.absolutePath
+    if (JavaVersion.current().isJava11Compatible()) {
+        dockerFile = "${dockerDir}/Dockerfile-java-11"
+    } else {
+        dockerFile = "${dockerDir}/Dockerfile"
+    }
 }
 
 task buildBookkeeperImage(type: DockerBuildTask) {
     baseTag = bookkeeperBaseTag
     dockerDir = "docker/bookkeeper"
+    dockerFile = "${dockerDir}/Dockerfile"
 }
 
 task docker(dependsOn: [buildPravegaImage, buildBookkeeperImage]) {
@@ -1090,12 +1099,14 @@ task distribution(dependsOn: [assembleDist, assembleClientDist, assembleJavadocD
     description = "Builds a distribution package"
 }
 
+
 /**
  * Task for building a docker image
  */
 class DockerBuildTask extends Exec {
     String baseTag
     String dockerDir
+    String dockerFile
 
     DockerBuildTask() {
         executable project.dockerExecutable
@@ -1103,6 +1114,7 @@ class DockerBuildTask extends Exec {
         args "--pull"
         args "-t", "${->baseTag}:${project.version}"
         args "-t", "${->baseTag}:latest"
+        args "-f", "${->dockerFile}"
         args "${->dockerDir}"
     }
 }

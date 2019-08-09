@@ -47,6 +47,11 @@ class ThrottlerCalculator {
      * the CacheManager (keep the Cache Utilization at or below target, so that we may not need to slow operations if
      * we don't need to).
      *
+     * The goal of this adjustment is to give the CacheManager enough breathing room so that it can do its job. It's an
+     * async task so it is possible that the cache utilization may slightly exceed the target until it can be reduced to
+     * an acceptable level. To avoid unnecessary wobbling in throttling, there is a need for a buffer (adjustment) between
+     * this target and when we begin throttling.
+     *
      * Example: If CachePolicy.getTargetUtilization()==0.85 and Adjustment==0.05, then throttling will begin to apply
      * at 0.85+0.05=0.90 (90%) of maximum cache capacity.
      */
