@@ -198,10 +198,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             if (isChannelFree()) {
                 if (session.isFree()) {
                     session.record(append);
-                    if (startAppend(ctx, blockSizeSupplier, append, out)) {
-                        continueAppend(data, out);
-                    } else {
-                        continueAppend(data, out);
+                    startAppend(ctx, blockSizeSupplier, append, out);
+                    continueAppend(data, out);
+                    if (bytesLeftInBlock == 0) {
                         completeAppend(null, out);
                     }
                 } else {
@@ -287,33 +286,33 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     /**
      * Start the Append.
      * if the Append batch size tracker decides the block size
-     * which is more than event message size then Append will be initiated.
+     * which is more than event message size then timeout will be initiated.
+     * Append block is written on channel.
      *
      * @param ctx               ChannelHandlerContext.
      * @param blockSizeSupplier Append batch size tracker.
      * @param append            Append data.
      * @param out               channel Buffer.
-     * @return true if the append is started and it can continue; false otherwise.
      */
-    private boolean startAppend(ChannelHandlerContext ctx, AppendBatchSizeTracker blockSizeSupplier, Append append, ByteBuf out) {
+    private void startAppend(ChannelHandlerContext ctx, AppendBatchSizeTracker blockSizeSupplier, Append append, ByteBuf out) {
         final int msgSize = append.getData().readableBytes();
-        currentBlockSize = msgSize;
+        int blkSize = 0;
         if (blockSizeSupplier != null) {
-            currentBlockSize = Math.max(currentBlockSize, blockSizeSupplier.getAppendBlockSize());
+            blkSize = blockSizeSupplier.getAppendBlockSize();
         }
-        bytesLeftInBlock = currentBlockSize;
         segmentBeingAppendedTo = append.segment;
         writerIdPerformingAppends = append.writerId;
-        if (ctx != null && currentBlockSize > msgSize) {
+        if (ctx != null && blkSize > msgSize) {
+            currentBlockSize = blkSize;
             writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize + TYPE_PLUS_LENGTH_SIZE, out);
             ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
                     blockSizeSupplier.getBatchTimeout(),
                     TimeUnit.MILLISECONDS);
-            return true;
         } else {
-            writeMessage(new AppendBlock(writerIdPerformingAppends), msgSize, out);
-            return false;
+            currentBlockSize = msgSize;
+            writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize, out);
         }
+        bytesLeftInBlock = currentBlockSize;
     }
 
     /**
@@ -336,9 +335,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private void completeAppend(ByteBuf pendingData, ByteBuf out) {
         Session session = setupSegments.get(new SimpleImmutableEntry<>(segmentBeingAppendedTo, writerIdPerformingAppends));
         session.flush(currentBlockSize - bytesLeftInBlock, pendingData, out);
+        tokenCounter.incrementAndGet();
         bytesLeftInBlock = 0;
         currentBlockSize = 0;
-        tokenCounter.incrementAndGet();
         segmentBeingAppendedTo = null;
         writerIdPerformingAppends = null;
     }
