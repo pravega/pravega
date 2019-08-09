@@ -31,6 +31,57 @@ import javax.annotation.concurrent.ThreadSafe;
 import lombok.NonNull;
 import lombok.val;
 
+/**
+ * Represents a block-based {@link CacheStorage} that uses direct memory buffers to store data.
+ *
+ * Data Organization (actual values based on {@link CacheLayout.DefaultLayout}).
+ * - The cache space is split into equal sized Buffers of length {@link CacheLayout#bufferSize()}.
+ * - Each Buffer is split into equal sized Blocks of length {@link CacheLayout#blockSize()}.
+ * - The first Block in a Buffer is reserved for metadata, the remaining Blocks are used to store Entry data.
+ * - Each Block metadata requires {@link CacheLayout#blockMetadataSize()} bytes and its format is defined by {@link CacheLayout};
+ * there are several methods in {@link CacheLayout} that allow manipulating it.
+ * - A Buffer is considered full when all its Blocks are used. Non-full Buffers are kept in a FIFO queue; they are addded
+ * at the end when they become non-full and taken from the beginning when we need to insert new Entries.
+ * - An Entry may be split across multiple Buffers. It is inserted in the first available Buffer and anything that doesn't
+ * fit in it is inserted into the next available buffer(s).
+ * - Entries
+ * -- Are split into equal sized Blocks ({@link CacheLayout#blockSize()}.
+ * -- The Blocks form a singly-linked list with every block pointing to the previous block in the chain.
+ * -- The address returned by {@link #insert} or {@link #replace} points to the last block in this chain.
+ * -- No two Entries may share the same block. If the entry's size is not a multiple of {@link CacheLayout#blockSize()},
+ * then the last block will not be fully used; it will still be {@link CacheLayout#blockSize()} in length but no other
+ * entry may be added there.
+ * - The last block can be filled with {@link #append} which is optimized to add data to only the last block in an entry
+ * until it is full. It cannot be used to add new blocks to an entry (use {@link #getAppendableLength} to determine how
+ * much can be appended).
+ * - Fragmentation:
+ * -- Entries that are larger than {@link CacheLayout#blockSize()} may not be stored in contiguous blocks. They may span
+ * multiple non-adjacent Blocks in the same buffer or multiple Blocks in different Buffers.
+ * -- The {@link DirectMemoryCache} performs no effort to consolidate or otherwise "defragment" the Buffers. Doing so would
+ * introduce costly performance penalties for little benefit (accessing a specific Block in a Buffer is an O(1) lookup).
+ *
+ * Memory usage:
+ * - This implementation makes use of {@link ByteBuf} with an {@link UnpooledByteBufAllocator} to allocate direct memory.
+ * - Each {@link DirectMemoryBuffer} that is part of this instance will wrap a {@link ByteBuf} and keep a pointer to it.
+ * - The {@link ByteBuf} instances are only allocated the first time their owning {@link DirectMemoryBuffer} instances
+ * are used (not when they are constructed).
+ * - The {@link ByteBuf} instances are only deallocated when {@link #close()} is invoked. They are not preemptively
+ * deallocated (i.e., when utilization is low) to prevent memory fragmentation and the high cost of reallocating memory
+ * when they are needed again. This {@link DirectMemoryCache} provides the best runtime performance when all buffers
+ * have already been allocated.
+ * - The {@link DirectMemoryCache} will make full use of the memory it is given to work with; consider reducing the value
+ * of `maxSizeBytes` argument if less memory consumption is desired.
+ * - It is important to note that the usable space will be less than `maxSizeBytes` due to internal fragmentation and
+ * reserved Blocks (for metadata). Using {@link CacheLayout.DefaultLayout}, which has 2MB buffers with 4KB Blocks, we have:
+ * -- 4KB reserved for each 2MB allocated (0.2%)
+ * -- An average of 2KB of excess padding per entry due to internal fragmentation (entries occupy whole blocks even if
+ * their length is not a multiple of {@link CacheLayout#blockSize()}). Consider using {@link #append} to make full use
+ * of the last block capacity.
+ * --- 2KB was estimated as an average of 0B and 4095B; 0KB excess is when an Entry's length is a multiple of
+ * {@link CacheLayout#blockSize()} and 4095 is when an entry's length exceeds a multiple of {@link CacheLayout#blockSize()}
+ * by 1 byte.
+ * -- Use {@link #getSnapshot()} to get insights into memory usage.
+ */
 @ThreadSafe
 public class DirectMemoryCache implements CacheStorage {
     //region Members
