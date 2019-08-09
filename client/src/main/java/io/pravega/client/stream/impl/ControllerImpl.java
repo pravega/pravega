@@ -233,21 +233,23 @@ public class ControllerImpl implements Controller {
     public AsyncIterator<Stream> listStreams(String scopeName) {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "listStreams", scopeName);
-
+        long requestId = requestIdGenerator.get();
         try {
             final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<Stream>>>> function =
                     token -> this.retryConfig.runAsync(() -> {
                         RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreams");
                         ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
-                        new ControllerClientTagger(client).withTag(traceId, "listStreams", scopeName)
+                        new ControllerClientTagger(client).withTag(requestId, "listStreams", scopeName)
                                                           .listStreamsInScope(StreamsInScopeRequest
                                                                   .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
                         return callback.getFuture()
                                        .thenApply(x -> {
                                            switch (x.getStatus()) {
                                                case SCOPE_NOT_FOUND:
+                                                   log.warn(requestId, "Scope not found: {}", scopeName);
                                                    throw new ScopeDoesNotExistException();
                                                case FAILURE:
+                                                   log.warn(requestId, "Internal Server Error while trying to list streams in scope: {}", scopeName);
                                                    throw new RuntimeException("Failure while trying to list streams");
                                                case SUCCESS: 
                                                default: // we will treat all other case as success for backward 
