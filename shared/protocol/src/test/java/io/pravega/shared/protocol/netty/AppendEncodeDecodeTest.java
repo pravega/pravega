@@ -12,35 +12,36 @@ package io.pravega.shared.protocol.netty;
 import com.google.common.collect.Lists;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
-import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.EventExecutorGroup;
-import io.netty.util.concurrent.Promise;
+import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ProgressivePromise;
+import io.netty.util.concurrent.Promise;
 import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.shared.protocol.netty.WireCommands.Event;
 import io.pravega.shared.protocol.netty.WireCommands.KeepAlive;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
-import java.util.Iterator;
-import java.util.Collection;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
-
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import lombok.RequiredArgsConstructor;
 import org.junit.After;
@@ -50,6 +51,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
+
 import static io.pravega.shared.protocol.netty.WireCommandType.EVENT;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static org.junit.Assert.assertEquals;
@@ -67,7 +69,7 @@ public class AppendEncodeDecodeTest {
     private final AppendDecoder appendDecoder = new AppendDecoder();
     private Level origionalLogLevel;
 
-    private EventExecutor executor =  new EventExecutor() {
+    private EventExecutor executor = new EventExecutor() {
         private final ScheduledExecutorService scheduler  = Executors.newSingleThreadScheduledExecutor();
         @Override
         public EventExecutor next() {
@@ -316,7 +318,7 @@ public class AppendEncodeDecodeTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testIlligalWireCommand() throws Exception {
+    public void testIllegalWireCommand() throws Exception {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         CommandEncoder commandEncoder = new CommandEncoder(null);
@@ -405,6 +407,7 @@ public class AppendEncodeDecodeTest {
         assertEquals(2, received.size());
 
         Append one = (Append) received.get(0);
+        verifyNoExcessData(one.getData());
         assertEquals(size + TYPE_PLUS_LENGTH_SIZE, one.getData().readableBytes());
         KeepAlive two = (KeepAlive) received.get(1);
         assertEquals(keepAlive, two);
@@ -433,7 +436,7 @@ public class AppendEncodeDecodeTest {
     }
 
     @Test
-    public void testblockTimeout() throws Exception {
+    public void testBlockTimeout() throws Exception {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
         byte[] content = new byte[100];
@@ -456,6 +459,7 @@ public class AppendEncodeDecodeTest {
         read(fakeNetwork, received);
         assertEquals(2, received.size());
         Append readAppend = (Append) received.get(1);
+        verifyNoExcessData(readAppend.getData());
         assertEquals(msg.data.readableBytes(), readAppend.data.readableBytes());
         assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
     }
@@ -612,6 +616,7 @@ public class AppendEncodeDecodeTest {
         assertEquals(3, received.size());
         assertEquals(setupAppend, received.get(0));
         assertEquals(new Append(streamName, writerId, 3, 3, Unpooled.EMPTY_BUFFER, null, 1), received.get(1));
+        verifyNoExcessData(((Append) received.get(1)).getData());
         assertEquals(new KeepAlive(), received.get(2));
     }
 
@@ -637,6 +642,8 @@ public class AppendEncodeDecodeTest {
 
         Append one = (Append) received.get(0);
         Append two = (Append) received.get(1);
+        verifyNoExcessData(one.getData());
+        verifyNoExcessData(two.getData());
         assertEquals(size + TYPE_PLUS_LENGTH_SIZE, one.getData().readableBytes());
         assertEquals(size / 2 + TYPE_PLUS_LENGTH_SIZE, two.getData().readableBytes());
         KeepAlive three = (KeepAlive) received.get(2);
@@ -663,7 +670,7 @@ public class AppendEncodeDecodeTest {
             throws Exception {
         byte[] content = new byte[length];
         Arrays.fill(content, (byte) messageNumber);
-        Event event = new Event(Unpooled.wrappedBuffer(content));
+        Event event = new Event(Unpooled.wrappedBuffer(content, 0, length));
         Append msg = new Append(segment, writerId, messageNumber, event, 1);
         assertEquals(length + WireCommands.TYPE_PLUS_LENGTH_SIZE, msg.data.readableBytes());
         encoder.encode(null, msg, out);
@@ -696,6 +703,7 @@ public class AppendEncodeDecodeTest {
         for (Object r : results) {
             Append append = (Append) r;
             assertEquals("Append split mid event", sizeOfEachValue, currentCount);
+            verifyNoExcessData(append.getData());
             while (append.getData().isReadable()) {
                 if (currentCount == sizeOfEachValue) {
                     assertEquals(EVENT.getCode(), append.getData().readInt());
@@ -713,6 +721,26 @@ public class AppendEncodeDecodeTest {
         }
         assertEquals(numValues - 1, currentValue);
         assertEquals(currentCount, sizeOfEachValue);
+    }
+
+    private void verifyNoExcessData(ByteBuf buf) {
+        int allocatedSize = getAllocatedSize(buf);
+        assertEquals("Append.getData() has excess memory allocated.", buf.readableBytes(), allocatedSize);
+    }
+
+    private int getAllocatedSize(ByteBuf buf) {
+        if (buf.hasArray()) {
+            // Array-backed buffer. The length of the array is the allocated size.
+            return buf.array().length;
+        } else if (buf instanceof CompositeByteBuf) {
+            // Composite ByteBuf. Sum up component allocated data.
+            AtomicInteger allocated = new AtomicInteger();
+            ((CompositeByteBuf) buf).iterator().forEachRemaining(b -> allocated.addAndGet(getAllocatedSize(b)));
+            return allocated.get();
+        } else {
+            // Other type of buffer (direct?). Our best guess is invoking capacity() which should return the right value.
+            return buf.capacity();
+        }
     }
 
 }
