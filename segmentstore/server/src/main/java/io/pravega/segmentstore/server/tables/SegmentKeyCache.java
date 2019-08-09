@@ -51,6 +51,7 @@ import lombok.val;
 @RequiredArgsConstructor
 class SegmentKeyCache {
     //region Members
+    private static final int HASH_GROUP_COUNT = 1024;
     private static final HashHelper HASH = HashHelper.seededWith(SegmentKeyCache.class.getName());
     private static final int VALUE_SERIALIZATION_LENGTH = Long.BYTES; // CacheBucketOffset serializes to a Long.
 
@@ -308,7 +309,7 @@ class SegmentKeyCache {
     }
 
     private short getHashGroup(UUID keyHash) {
-        return (short) HASH.hashToBucket(keyHash, Short.MAX_VALUE);
+        return (short) HASH.hashToBucket(keyHash, HASH_GROUP_COUNT);
     }
 
     //endregion
@@ -356,13 +357,13 @@ class SegmentKeyCache {
         @GuardedBy("this")
         private long highestOffset;
         @GuardedBy("this")
-        private int dataAddress;
+        private int cacheAddress;
 
         private CacheEntry(short hashGroup, int currentGeneration) {
             this.hashGroup = hashGroup;
             this.generation = currentGeneration;
             this.highestOffset = 0;
-            this.dataAddress = INITIAL_ADDRESS;
+            this.cacheAddress = INITIAL_ADDRESS;
         }
 
         /**
@@ -383,8 +384,8 @@ class SegmentKeyCache {
         /**
          * Gets a value representing the {@link CacheStorage} address for this Cache Entry's data.
          */
-        synchronized int getDataAddress() {
-            return this.dataAddress;
+        synchronized int getCacheAddress() {
+            return this.cacheAddress;
         }
 
         /**
@@ -460,8 +461,8 @@ class SegmentKeyCache {
          * @return True if there was anything evicted, false otherwise.
          */
         synchronized boolean evict() {
-            int address = this.dataAddress;
-            this.dataAddress = EVICTED_ADDRESS;
+            int address = this.cacheAddress;
+            this.cacheAddress = EVICTED_ADDRESS;
             if (address >= 0) {
                 SegmentKeyCache.this.cacheStorage.delete(address);
                 return true;
@@ -473,8 +474,8 @@ class SegmentKeyCache {
         @GuardedBy("this")
         private byte[] getFromCache() {
             BufferView data = null;
-            if (this.dataAddress >= 0) {
-                data = SegmentKeyCache.this.cacheStorage.get(this.dataAddress);
+            if (this.cacheAddress >= 0) {
+                data = SegmentKeyCache.this.cacheStorage.get(this.cacheAddress);
             }
             return data == null ? null : data.getCopy();
         }
@@ -482,14 +483,14 @@ class SegmentKeyCache {
         @GuardedBy("this")
         private void storeInCache(ByteArraySegment data) {
             int newAddress;
-            Preconditions.checkState(this.dataAddress != EVICTED_ADDRESS, "CacheEntry evicted; cannot store.");
-            if (this.dataAddress >= 0) {
-                newAddress = SegmentKeyCache.this.cacheStorage.replace(this.dataAddress, data);
+            Preconditions.checkState(this.cacheAddress != EVICTED_ADDRESS, "CacheEntry evicted; cannot store.");
+            if (this.cacheAddress >= 0) {
+                newAddress = SegmentKeyCache.this.cacheStorage.replace(this.cacheAddress, data);
             } else {
                 newAddress = SegmentKeyCache.this.cacheStorage.insert(data);
             }
 
-            this.dataAddress = newAddress;
+            this.cacheAddress = newAddress;
         }
 
         /**

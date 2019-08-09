@@ -38,7 +38,7 @@ class MergedIndexEntry extends CacheIndexEntry {
      * @throws IllegalArgumentException If sourceSegmentId is invalid.
      */
     MergedIndexEntry(long streamSegmentOffset, long sourceSegmentId, CacheIndexEntry sourceEntry) {
-        super(streamSegmentOffset, (int) sourceEntry.getLength(), sourceEntry.getDataAddress());
+        super(streamSegmentOffset, (int) sourceEntry.getLength(), sourceEntry.getCacheAddress());
         Preconditions.checkArgument(sourceSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "sourceSegmentId");
         Preconditions.checkArgument(sourceEntry.getStreamSegmentOffset() >= 0, "streamSegmentOffset must be a non-negative number.");
 

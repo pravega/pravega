@@ -50,7 +50,7 @@ class RedirectIndexEntry extends ReadIndexEntry {
     }
 
     @Override
-    int getDataAddress() {
+    int getCacheAddress() {
         throw new UnsupportedOperationException();
     }
 }

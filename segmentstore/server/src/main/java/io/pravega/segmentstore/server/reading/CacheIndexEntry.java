@@ -18,7 +18,7 @@ import lombok.Getter;
  */
 public class CacheIndexEntry extends ReadIndexEntry {
     @Getter
-    private final int dataAddress;
+    private final int cacheAddress;
     @GuardedBy("this")
     private int length;
 
@@ -27,15 +27,15 @@ public class CacheIndexEntry extends ReadIndexEntry {
      *
      * @param streamSegmentOffset The StreamSegment offset for this entry.
      * @param length              The Length of this entry.
-     * @param dataAddress         The address of this Index Entry in the Data Store.
+     * @param cacheAddress        The address of this Index Entry in the CacheStorage.
      * @throws IllegalArgumentException if the offset is a negative number.
      * @throws IllegalArgumentException if the length is a negative number.
      */
-    CacheIndexEntry(long streamSegmentOffset, int length, int dataAddress) {
+    CacheIndexEntry(long streamSegmentOffset, int length, int cacheAddress) {
         super(streamSegmentOffset);
         Preconditions.checkArgument(length >= 0, "length", "length must be a non-negative number.");
         this.length = length;
-        this.dataAddress = dataAddress;
+        this.cacheAddress = cacheAddress;
     }
 
     @Override
@@ -60,6 +60,6 @@ public class CacheIndexEntry extends ReadIndexEntry {
 
     @Override
     public synchronized String toString() {
-        return String.format("%s, Address = %d", super.toString(), this.dataAddress);
+        return String.format("%s, Address = %d", super.toString(), this.cacheAddress);
     }
 }

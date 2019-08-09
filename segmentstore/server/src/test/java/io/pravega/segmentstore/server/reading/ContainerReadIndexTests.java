@@ -1394,6 +1394,10 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
                 AssertExtensions.assertArrayEquals(testId + ": Unexpected data read from segment " + segmentId + " at offset " + expectedCurrentOffset, expectedData, (int) expectedCurrentOffset, actualData, 0, readEntryContents.getLength());
 
                 expectedCurrentOffset += readEntryContents.getLength();
+                if (readEntry.getType() == ReadResultEntryType.Storage) {
+                    AssertExtensions.assertLessThanOrEqual("Misaligned storage read.",
+                            context.maxExpectedStorageReadLength, readEntryContents.getLength());
+                }
             }
 
             Assert.assertTrue(testId + ": ReadResult was not closed post-full-consumption for segment" + segmentId, readResult.isClosed());
@@ -1506,6 +1510,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
         final TestCacheManager cacheManager;
         final TestCacheStorage cacheStorage;
         final Storage storage;
+        final int maxExpectedStorageReadLength;
 
         TestContext() {
             this(DEFAULT_CONFIG, CachePolicy.INFINITE);
@@ -1518,6 +1523,13 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             this.storage.initialize(1);
             this.cacheManager = new TestCacheManager(cachePolicy, this.cacheStorage, executorService());
             this.readIndex = new ContainerReadIndex(readIndexConfig, this.metadata, this.storage, this.cacheManager, executorService());
+            this.maxExpectedStorageReadLength = calculateMaxStorageReadLength();
+        }
+
+        private int calculateMaxStorageReadLength() {
+            int a = this.cacheManager.getCacheStorage().getBlockAlignment();
+            return DEFAULT_CONFIG.getStorageReadAlignment() +
+                    (DEFAULT_CONFIG.getStorageReadAlignment() % a == 0 ? 0 : a - DEFAULT_CONFIG.getStorageReadAlignment() % a);
         }
 
         @Override

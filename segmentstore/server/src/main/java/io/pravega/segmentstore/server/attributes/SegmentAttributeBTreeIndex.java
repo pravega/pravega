@@ -559,7 +559,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         synchronized (this.cacheEntries) {
             CacheEntry entry = this.cacheEntries.getOrDefault(offset, null);
             if (entry != null) {
-                BufferView data = this.cacheStorage.get(entry.getDataAddress());
+                BufferView data = this.cacheStorage.get(entry.getCacheAddress());
                 if (data != null && data.getLength() == length) {
                     // We only deem a cache entry valid if it exists and has the expected length; otherwise it's best
                     // if we treat it as a cache miss and re-read it from Storage.
@@ -614,12 +614,12 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
     private void storeInCache(CacheEntry entry, ByteArraySegment data) {
         int newAddress;
         if (entry.isStored()) {
-            newAddress = this.cacheStorage.replace(entry.getDataAddress(), data);
+            newAddress = this.cacheStorage.replace(entry.getCacheAddress(), data);
         } else {
             newAddress = this.cacheStorage.insert(data);
         }
 
-        entry.setDataAddress(newAddress);
+        entry.setCacheAddress(newAddress);
     }
 
     private void removeFromCache(Collection<CacheEntry> entries) {
@@ -630,7 +630,7 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
 
     @GuardedBy("cacheEntries")
     private void removeFromCache(CacheEntry e) {
-        this.cacheStorage.delete(e.getDataAddress());
+        this.cacheStorage.delete(e.getCacheAddress());
         this.cacheEntries.remove(e.getOffset());
     }
 
@@ -668,13 +668,13 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         @GuardedBy("this")
         private int generation;
         @GuardedBy("this")
-        private int dataAddress;
+        private int cacheAddress;
 
         CacheEntry(long offset, int size, int currentGeneration) {
             this.offset = offset;
             this.size = size;
             this.generation = currentGeneration;
-            this.dataAddress = -1;
+            this.cacheAddress = -1;
         }
 
         /**
@@ -687,22 +687,22 @@ public class SegmentAttributeBTreeIndex implements AttributeIndex, CacheManager.
         /**
          * Gets a value representing the {@link CacheStorage} address for this Cache Entry's data.
          */
-        synchronized int getDataAddress() {
-            return this.dataAddress;
+        synchronized int getCacheAddress() {
+            return this.cacheAddress;
         }
 
         /**
          * Updates the {@link CacheStorage} address for this Cache Entry's data.
          */
-        synchronized void setDataAddress(int newAddress) {
-            this.dataAddress = newAddress;
+        synchronized void setCacheAddress(int newAddress) {
+            this.cacheAddress = newAddress;
         }
 
         /**
          * Gets a value representing whether this Cache Entry does have any data stored in the {@link CacheStorage}.
          */
         synchronized boolean isStored() {
-            return this.dataAddress >= 0;
+            return this.cacheAddress >= 0;
         }
 
         /**

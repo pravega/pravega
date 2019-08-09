@@ -77,6 +77,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
     private boolean closed;
     private boolean merged;
     private final Object lock = new Object();
+    private final int storageReadAlignment;
 
     //endregion
 
@@ -113,6 +114,16 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         this.storageReadManager = new StorageReadManager(metadata, storage, executor);
         this.executor = executor;
         this.summary = new ReadIndexSummary();
+        this.storageReadAlignment = alignToCacheBlockSize(this.config.getStorageReadAlignment());
+    }
+
+    private int alignToCacheBlockSize(int value) {
+        int r = value % this.cacheStorage.getBlockAlignment();
+        if (r != 0) {
+            value += this.cacheStorage.getBlockAlignment() - r;
+        }
+
+        return value;
     }
 
     //endregion
@@ -372,7 +383,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             }
 
             // Add append data to the Data Store.
-            int appendLength = this.cacheStorage.append(lastEntry.getDataAddress(), (int) lastEntry.getLength(), toAppend);
+            int appendLength = this.cacheStorage.append(lastEntry.getCacheAddress(), (int) lastEntry.getLength(), toAppend);
             assert appendLength <= appendableLength;
             ((CacheIndexEntry) lastEntry).increaseLength(appendLength);
             this.lastAppendedOffset.addAndGet(appendLength);
@@ -691,7 +702,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                     return null;
                 }
 
-                entryData = this.cacheStorage.get(indexEntry.getDataAddress());
+                entryData = this.cacheStorage.get(indexEntry.getCacheAddress());
             }
 
             if (entryData == null) {
@@ -997,7 +1008,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
         int length = (int) Math.min(maxLength, entry.getLength() - entryOffset);
         assert length > 0 : String.format("length{%d} <= 0. streamSegmentOffset = %d, maxLength = %d, entry.offset = %d, entry.length = %d", length, streamSegmentOffset, maxLength, entry.getStreamSegmentOffset(), entry.getLength());
-        BufferView data = this.cacheStorage.get(entry.getDataAddress());
+        BufferView data = this.cacheStorage.get(entry.getCacheAddress());
         assert data != null : String.format("No Cache Entry could be retrieved for entry %s", entry);
 
         if (updateStats) {
@@ -1066,11 +1077,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
      */
     private int getReadAlignedLength(long offset, int readLength) {
         // Calculate how many bytes over the last alignment marker the offset is.
-        int lengthSinceLastMultiple = (int) (offset % this.config.getStorageReadAlignment());
+        int lengthSinceLastMultiple = (int) (offset % this.storageReadAlignment);
 
         // Even though we were asked to read a number of bytes, in some cases we will return fewer bytes than requested
         // in order to read-align the reads.
-        return Math.min(readLength, this.config.getStorageReadAlignment() - lengthSinceLastMultiple);
+        return Math.min(readLength, this.storageReadAlignment - lengthSinceLastMultiple);
     }
 
     /**
@@ -1109,7 +1120,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     private void deleteData(ReadIndexEntry entry) {
         if (entry.isDataEntry()) {
-            this.cacheStorage.delete(entry.getDataAddress());
+            this.cacheStorage.delete(entry.getCacheAddress());
         }
     }
 

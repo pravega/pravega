@@ -91,7 +91,7 @@ abstract class ReadIndexEntry implements SortedIndex.IndexEntry {
      *
      * @return The CacheStorage address.
      */
-    abstract int getDataAddress();
+    abstract int getCacheAddress();
 
     @Override
     public synchronized String toString() {

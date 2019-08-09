@@ -322,7 +322,7 @@ public class ContainerKeyCacheTests {
     @Test
     public void testCacheEviction() {
         // We need one segment for each type of rules we are verifying (refer to this test's Javadoc for details).
-        final int keyCount = 100;
+        final int keyCount = 25;
         final int segmentCount = 3;
         final long segmentIdNoEviction = 0L; // We do not set the Last Index Offset on this one.
         final long segmentIdByGenerations = 1L; // We set the Last Index Offset to Long.MAX_VALUE on this one.
