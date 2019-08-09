@@ -60,10 +60,10 @@ import org.mockito.Mockito;
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -345,10 +345,7 @@ public class AppendProcessorTest {
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         setupGetAttributes(streamSegmentName, clientId, store);
 
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        result.completeExceptionally(new RuntimeException("Fake exception for testing"));
-        when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
-                .thenReturn(result);
+        interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), Futures.failedFuture(new IntentionalException()));
 
         @Cleanup
         EmbeddedChannel channel = createChannel(store);
@@ -374,12 +371,10 @@ public class AppendProcessorTest {
         // Setup mocks.
         StreamSegmentStore store = mock(StreamSegmentStore.class);
         setupGetAttributes(streamSegmentName, clientId, store);
-        CompletableFuture<Void> result = new CompletableFuture<>();
-        result.completeExceptionally(new BadAttributeUpdateException(streamSegmentName,
-                                                                     new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.ReplaceIfEquals, 100, 101),
-                                                                     false, "error"));
-        when(store.append(streamSegmentName, data, updateEventNumber(clientId, data.length), AppendProcessor.TIMEOUT))
-                .thenReturn(result);
+        val ex = new BadAttributeUpdateException(streamSegmentName,
+                new AttributeUpdate(UUID.randomUUID(), AttributeUpdateType.ReplaceIfEquals, 100, 101),
+                false, "error");
+        interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), Futures.failedFuture(ex));
 
         @Cleanup
         EmbeddedChannel channel = createChannel(store);
