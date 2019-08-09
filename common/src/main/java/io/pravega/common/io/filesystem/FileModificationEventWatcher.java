@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.io;
+package io.pravega.common.io.filesystem;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -28,8 +28,10 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Watches for modifications to the specified file and perform a specified action (in the form of a callback) upon
- * modification detection. It uses event-based Java WatchService to watch any changes to the specified file..
+ * Watches for modifications to the specified file and performs the specified action (in the form of a callback) upon
+ * modification detection.
+ *
+ * This implementation uses NIO and event-based Java WatchService to watch for any modifications to the specified file..
  *
  * Note that:
  * - The specified actions may trigger slightly later than when the file is actually modified.
@@ -185,18 +187,22 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
         }
     }
 
+    /*@VisibleForTesting
+    void join(long seconds) {
+        this.join(seconds);
+    }*/
+
     @Override
     public void startMonitoring() {
         this.setDaemon(true);
         this.start();
-        log.info("Done setting up TLS reload, which in turn will be based on changes in file: {}",
-                this.pathOfFileToWatch);
+        log.info("Completed setting up monitor for watching modifications to file: {}", this.pathOfFileToWatch);
     }
 
     @Override
     public void stopMonitoring() {
-        log.info("Interrupting the file change watcher task for file {}", this.pathOfFileToWatch);
         this.interrupt();
+        log.info("Stopped the monitor that was watching modifications to file {}", this.pathOfFileToWatch);
     }
 
     private void logException(Throwable e) {

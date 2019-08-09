@@ -30,16 +30,16 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.common.Exceptions;
-import io.pravega.common.io.FileModificationEventWatcher;
-import io.pravega.common.io.FileModificationMonitor;
-import io.pravega.common.io.FileModificationPollingMonitor;
+import io.pravega.common.io.filesystem.FileModificationEventWatcher;
+import io.pravega.common.io.filesystem.FileModificationMonitor;
+import io.pravega.common.io.filesystem.FileModificationPollingMonitor;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
-import io.pravega.segmentstore.server.security.TLSConfigChangeConsumer;
+import io.pravega.segmentstore.server.security.TLSConfigChangeFileConsumer;
 import io.pravega.segmentstore.server.security.TLSConfigChangeEventConsumer;
 import io.pravega.segmentstore.server.security.TLSHelper;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -50,7 +50,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -200,27 +199,33 @@ public final class PravegaConnectionListener implements AutoCloseable {
          });
 
         if (enableTls && enableTlsReload) {
-            log.debug("TLS reload is enabled, so setting up a file change monitor object to watch changes in file: {}",
+            log.info("TLS reload is enabled, so setting up a FileModificationMonitor object to monitor/watch changes in file: [{}]",
                     this.pathToTlsCertFile);
             try {
                 if (Files.isSymbolicLink(Paths.get(pathToTlsCertFile))) {
+                    log.info("The path to certificate file [{}] was found to be pointing to a symbolic link, " +
+                                    " so, using an instance of [{}] t monitor for certificate changes",
+                            pathToTlsCertFile, FileModificationPollingMonitor.class.getSimpleName());
+
                     tlsCertFileChangeMonitor = new FileModificationPollingMonitor(
                             this.pathToTlsCertFile,
-                            new TLSConfigChangeConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile)
-                    );
+                            new TLSConfigChangeFileConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile));
                 } else {
+
                     // For non symbolic links we'll depend on event-based watcher, which is more efficient than a
                     // polling-based file change monitor.
-                    tlsCertFileChangeMonitor = new FileModificationEventWatcher(
-                            this.pathToTlsCertFile,
+                    tlsCertFileChangeMonitor = new FileModificationEventWatcher(this.pathToTlsCertFile,
                             new TLSConfigChangeEventConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile));
                 }
+
                 tlsCertFileChangeMonitor.startMonitoring();
+                log.info("Started the FileModificationMonitor object successfully");
             } catch (FileNotFoundException e) {
                 log.warn("Failed to setup a monitoring for the file {}", this.pathToTlsCertFile, e);
                 throw new RuntimeException(e);
             }
         }
+
         // Start the server.
         serverChannel = b.bind(host, port).awaitUninterruptibly().channel();
     }

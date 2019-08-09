@@ -1,6 +1,14 @@
+/**
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ */
 package io.pravega.segmentstore.server.security;
 
-import com.google.common.annotations.VisibleForTesting;
 import io.netty.handler.ssl.SslContext;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -17,19 +25,18 @@ public class TLSConfigChangeHandler {
      * A counter representing the number of times this object has been asked to
      * consume an event.
      */
-    protected final AtomicInteger numOfConfigChangesSinceStart = new AtomicInteger(0);
+    private final AtomicInteger numOfConfigChangesSinceStart = new AtomicInteger(0);
 
-    protected @NonNull final AtomicReference<SslContext> sslContext;
-    protected @NonNull final String pathToCertificateFile;
-    protected @NonNull final String pathToKeyFile;
+    private @NonNull final AtomicReference<SslContext> sslContext;
+    private @NonNull final String pathToCertificateFile;
+    private @NonNull final String pathToKeyFile;
 
     public void handleTlsConfigChange() {
         log.info("Current reload count = {}", numOfConfigChangesSinceStart.incrementAndGet());
         sslContext.set(TLSHelper.newServerSslContext(pathToCertificateFile, pathToKeyFile));
     }
 
-    @VisibleForTesting
-    int getNumOfConfigChangesSinceStart() {
-        return numOfConfigChangesSinceStart.get();
+    AtomicInteger getNumOfConfigChangesSinceStart() {
+        return this.numOfConfigChangesSinceStart;
     }
 }

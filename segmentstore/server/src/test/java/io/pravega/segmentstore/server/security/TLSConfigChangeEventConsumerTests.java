@@ -38,5 +38,3 @@ public class TLSConfigChangeEventConsumerTests {
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
     }
 }
-
-

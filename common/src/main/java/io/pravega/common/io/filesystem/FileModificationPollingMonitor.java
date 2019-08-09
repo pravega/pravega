@@ -7,8 +7,9 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.common.io;
+package io.pravega.common.io.filesystem;
 
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.monitor.FileAlterationListener;
 import org.apache.commons.io.monitor.FileAlterationListenerAdaptor;
@@ -23,10 +24,21 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.function.Consumer;
 
+/**
+ * Monitors for modifications to the specified file using a polling-based mechanism and performs the
+ * specified action (in the form of a callback) upon detection of a file modification.
+ *
+ * Unlike {@link FileModificationEventWatcher}, which doesn't work for monitoring modifications to a file which is
+ * a symbolic link to another file, an object of this class works for such files as well. However, since this object
+ * uses a polling-based mechanism - unlike the event-based mechanism used by {@link FileModificationEventWatcher}, lists
+ * files on each iteration and compares the output, this object is highly likely to be less efficient than an object of
+ * {@link FileModificationEventWatcher} - CPU cycles-wise.
+ *
+ */
 @Slf4j
 public class FileModificationPollingMonitor implements FileModificationMonitor {
 
-    private final static int DEFAULT_POLL_INTERVAL = 10 * 1000; // milliseconds
+    private final static int DEFAULT_POLL_INTERVAL = 10 * 1000; // 10 seconds
 
     /**
      * The path of file to watch.
@@ -34,7 +46,7 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
     private final Path pathOfFileToWatch;
 
     /**
-     * The action to perform when the specified file changes.
+     * The action to perform when the a modification is detected for the specified file {@code pathOfFileToWatch}.
      */
     private final Consumer<File> callback;
 
@@ -45,12 +57,13 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
      *
      * @param fileToWatch the file to watch
      * @param callback    the callback to invoke when a modification to the {@code fileToWatch} is detected
+     *
      * @throws NullPointerException if either {@code fileToWatch} or {@code callback} is null
      * @throws InvalidPathException if {@code fileToWatch} is invalid
      * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
      * @throws NullPointerException if either {@code fileToWatch}  or {@code callback} is null
      */
-    public FileModificationPollingMonitor(String fileToWatch, Consumer<File> callback)
+    public FileModificationPollingMonitor(@NonNull String fileToWatch, @NonNull Consumer<File> callback)
             throws FileNotFoundException {
         this.pathOfFileToWatch = Paths.get(fileToWatch);
         this.validateInput(this.pathOfFileToWatch, callback);
@@ -59,15 +72,31 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
 
     @Override
     public void startMonitoring() {
+        if (pathOfFileToWatch == null) {
+            throw new IllegalStateException("pathOfFileToWatch is 'null'");
+        }
+
+        Path fileName = pathOfFileToWatch.getFileName();
+        log.debug("fileName obtained from pathOfFileToWatch is [{}]", fileName);
+        if (fileName == null) {
+            throw new IllegalStateException("fileName is 'null'");
+        }
+
         Path dirPath = pathOfFileToWatch.getParent();
+        log.debug("dirPath is [{}]", dirPath);
+        if (dirPath == null) {
+            throw new IllegalStateException("The directory containing the file turned out to be 'null`");
+        }
 
         FileAlterationObserver observer = new FileAlterationObserver(dirPath.toString(), new FileFilter() {
             @Override
             public boolean accept(File file) {
-                return file.getName().equalsIgnoreCase(pathOfFileToWatch.getFileName().toString());
+                if (file == null || file.getName() == null) {
+                    return false;
+                }
+                return file.getName().equals(fileName.toString());
             }
         });
-        log.debug("Directory being watched is {}", dirPath);
 
         monitor = new FileAlterationMonitor(DEFAULT_POLL_INTERVAL);
 
@@ -83,7 +112,7 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
         monitor.addObserver(observer);
         try {
             monitor.start();
-            log.info("Done setting up file change monitor for file [{}]", this.pathOfFileToWatch.toString());
+            log.info("Done setting up file modification monitor for file [{}]", this.pathOfFileToWatch);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

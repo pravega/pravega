@@ -9,36 +9,29 @@
  */
 package io.pravega.segmentstore.server.security;
 
-import java.nio.file.WatchEvent;
+import com.google.common.annotations.VisibleForTesting;
+import io.netty.handler.ssl.SslContext;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import java.io.File;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import com.google.common.annotations.VisibleForTesting;
-import io.netty.handler.ssl.SslContext;
-import lombok.extern.slf4j.Slf4j;
-
-/**
- * A {@link Consumer} that acts upon modification of Segment Store SSL/TLS certificate.
- *
- * It creates a new {@link SslContext} and sets it in the constructor injected {@code sslContext}.
- */
+@RequiredArgsConstructor
 @Slf4j
-public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
+public class TLSConfigChangeFileConsumer implements Consumer<File> {
 
     private final TLSConfigChangeHandler handler;
 
-    public TLSConfigChangeEventConsumer(AtomicReference<SslContext> sslContext, String pathToCertificateFile,
-                                 String pathToKeyFile) {
+    public TLSConfigChangeFileConsumer(AtomicReference<SslContext> sslContext, String pathToCertificateFile,
+                                       String pathToKeyFile) {
         handler = new TLSConfigChangeHandler(sslContext, pathToCertificateFile, pathToKeyFile);
     }
 
     @Override
-    public void accept(WatchEvent<?> watchEvent) {
-        if (watchEvent != null) {
-            log.info("Invoked for [{}]", watchEvent.context());
-        } else {
-            log.warn("Invoked for null watchEvent");
-        }
+    public void accept(File file) {
+        log.debug("Invoked for file [{}] ", file.getPath());
         handler.handleTlsConfigChange();
     }
 
