@@ -19,11 +19,12 @@ import io.netty.channel.ChannelPromise;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.UUID;
@@ -66,8 +67,6 @@ public class FlowHandlerTest {
     private FlowHandler flowHandler;
     @Mock
     private ReplyProcessor processor;
-    @Mock
-    private AppendBatchSizeTracker tracker;
     @Mock
     private Append appendCmd;
     @Mock
@@ -320,5 +319,26 @@ public class FlowHandlerTest {
         flowHandler.channelUnregistered(ctx);
         verify(processor).connectionDropped();
         verify(errorProcessor).connectionDropped();
+    }
+
+    @Test
+    public void keepAliveFailureTest() throws Exception {
+        ReplyProcessor replyProcessor = mock(ReplyProcessor.class);
+        @Cleanup
+        ClientConnection connection1 = flowHandler.createFlow(flow, processor);
+        @Cleanup
+        ClientConnection connection2 = flowHandler.createFlow(new Flow(11, 0), replyProcessor);
+        flowHandler.channelRegistered(ctx);
+
+        // simulate a KeepAlive connection failure.
+        flowHandler.close();
+
+        // ensure all the reply processors are informed immediately of the channel being closed due to KeepAlive Failure.
+        verify(processor).processingFailure(any(ConnectionFailedException.class));
+        verify(replyProcessor).processingFailure(any(ConnectionFailedException.class));
+
+        // verify any attempt to send msg over the connection will throw a ConnectionFailedException.
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class))  );
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class))  );
     }
 }
