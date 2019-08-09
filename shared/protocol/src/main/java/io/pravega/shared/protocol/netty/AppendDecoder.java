@@ -159,7 +159,9 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         // padding around each append. Since this Append ByteBuf is expected to live for as long as the Segment Store
         // needs to process it, we need to compact this so that we don't use an excessive amount of heap memory which could
         // lead to out-of-memory situations.
-        return appendDataBuf.copy();
+        ByteBuf result = appendDataBuf.copy();
+        appendDataBuf.release();
+        return result;
     }
 
     private Segment getSegment(UUID writerId) {
