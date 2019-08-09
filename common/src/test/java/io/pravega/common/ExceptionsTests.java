@@ -95,6 +95,19 @@ public class ExceptionsTests {
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
     }
 
+    @Test
+    public void testHandleInterrupted() {
+        Runnable runnable = () -> {
+            Exceptions.handleInterrupted(() -> {
+                while (true) {
+                }
+            });
+        };
+        Thread t = new Thread(runnable);
+        t.start();
+        t.interrupt();
+    }
+
     /**
      * Tests the checkNotClosed method.
      */
