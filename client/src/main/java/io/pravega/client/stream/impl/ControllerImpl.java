@@ -25,7 +25,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
-import io.pravega.client.stream.ScopeDoesNotExistException;
+import io.pravega.client.stream.NoSuchScopeException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -237,7 +237,7 @@ public class ControllerImpl implements Controller {
         try {
             final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<Stream>>>> function =
                     token -> this.retryConfig.runAsync(() -> {
-                        RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(traceId, "listStreams");
+                        RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(requestId, "listStreams");
                         ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
                         new ControllerClientTagger(client).withTag(requestId, "listStreams", scopeName)
                                                           .listStreamsInScope(StreamsInScopeRequest
@@ -247,13 +247,14 @@ public class ControllerImpl implements Controller {
                                            switch (x.getStatus()) {
                                                case SCOPE_NOT_FOUND:
                                                    log.warn(requestId, "Scope not found: {}", scopeName);
-                                                   throw new ScopeDoesNotExistException();
+                                                   throw new NoSuchScopeException();
                                                case FAILURE:
                                                    log.warn(requestId, "Internal Server Error while trying to list streams in scope: {}", scopeName);
                                                    throw new RuntimeException("Failure while trying to list streams");
-                                               case SUCCESS: 
-                                               default: // we will treat all other case as success for backward 
-                                                   // compatibility reasons
+                                               case SUCCESS:
+                                               // we will treat all other case as success for backward 
+                                               // compatibility reasons
+                                               default: 
                                                    List<Stream> result = x.getStreamsList().stream()
                                                                           .map(y -> new StreamImpl(y.getScope(), y.getStream())).collect(Collectors.toList());
                                                    return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);

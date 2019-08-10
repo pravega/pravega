@@ -20,7 +20,7 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.ScalingPolicy;
-import io.pravega.client.stream.ScopeDoesNotExistException;
+import io.pravega.client.stream.NoSuchScopeException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -1261,7 +1261,7 @@ public class ControllerImplTest {
 
         AssertExtensions.assertFutureThrows("Non existent scope",
                 controllerClient.listStreams(NON_EXISTENT).getNext(),
-                e -> Exceptions.unwrap(e) instanceof ScopeDoesNotExistException);
+                e -> Exceptions.unwrap(e) instanceof NoSuchScopeException);
 
         AssertExtensions.assertFutureThrows("failing request",
                 controllerClient.listStreams(FAILING).getNext(),
