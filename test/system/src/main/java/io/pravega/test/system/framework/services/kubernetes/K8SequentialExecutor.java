@@ -45,6 +45,7 @@ public class K8SequentialExecutor implements TestExecutor {
 
     private static final String NAMESPACE = "default"; // KUBERNETES namespace where the tests run.
     private static final String SERVICE_ACCOUNT = "test-framework"; //Service Account used by the test pod.
+    private static final String TEST_POD_IMAGE = System.getProperty("testPodImage", "openjdk:8u181-jre-alpine");
 
     @Override
     public CompletableFuture<Void> startTestExecution(Method testMethod) {
@@ -116,7 +117,7 @@ public class K8SequentialExecutor implements TestExecutor {
                                                   .build())
                 .addNewContainer()
                 .withName(podName) // container name is same as that of the pod.
-                .withImage("openjdk:8u181-jre-alpine")
+                .withImage(TEST_POD_IMAGE)
                 .withImagePullPolicy("IfNotPresent")
                 .withCommand("/bin/sh")
                 .withArgs("-c", "java -DexecType=KUBERNETES -DsecurityEnabled=" + Utils.AUTH_ENABLED + " -cp /data/test-collection.jar io.pravega.test.system.SingleJUnitTestRunner "
