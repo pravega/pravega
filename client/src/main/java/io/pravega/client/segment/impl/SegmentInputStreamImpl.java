@@ -10,7 +10,6 @@
 package io.pravega.client.segment.impl;
 
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.Runnables;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CircularBuffer;
@@ -204,7 +203,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @Override
     @Synchronized
-    public CompletableFuture<Void> fillBuffer() {
+    public CompletableFuture<SegmentRead> fillBuffer() {
         log.trace("Filling buffer {}", this);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         try {      
@@ -216,7 +215,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
             log.warn("Encountered exception filling buffer", e);
             return CompletableFuture.completedFuture(null);
         }
-        return outstandingRequest == null ? CompletableFuture.completedFuture(null) : outstandingRequest.thenRun(Runnables.doNothing());
+        return outstandingRequest == null ? CompletableFuture.completedFuture(null) : outstandingRequest;
     }
     
     @Override
