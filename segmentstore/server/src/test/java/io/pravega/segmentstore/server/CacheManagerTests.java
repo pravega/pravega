@@ -108,7 +108,10 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
     public void testIncrementOldestGeneration() {
         final int cycleCount = 12345;
         final int defaultOldestGeneration = 0;
-        final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(10 * cycleCount), Duration.ofHours(1));
+        final int maxSize = 2048;
+        final double targetUtilization = 0.5;
+        final double maxUtilization = 0.95;
+        final CachePolicy policy = new CachePolicy(maxSize, targetUtilization, maxUtilization, Duration.ofHours(10 * cycleCount), Duration.ofHours(1));
         final long excess = policy.getMaxSize(); // This is the excess size when we want to test Oldest Generation increases.
         @Cleanup
         TestCacheManager cm = new TestCacheManager(policy, executorService());
@@ -135,7 +138,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
             AtomicInteger callCount = new AtomicInteger();
             if (exceeds) {
                 // If the total size does exceed the policy limit, repeated calls to 'update' should be made until either the cache is within limits or no change can be made.
-                client.setCacheStatus(policy.getMaxSize() + excess, currentOldestGeneration.get(), currentGeneration.get());
+                client.setCacheStatus(policy.getEvictionThreshold() + excess, currentOldestGeneration.get(), currentGeneration.get());
                 client.setUpdateGenerationsImpl((current, oldest) -> {
                     AssertExtensions.assertGreaterThan("Expected an increase in oldestGeneration.", currentOldestGeneration.get(), oldest);
                     currentOldestGeneration.set(oldest);
@@ -148,7 +151,7 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
                 });
             } else {
                 // If the total size does not exceed the policy limit, nothing should change
-                client.setCacheStatus(policy.getMaxSize() - 1, defaultOldestGeneration, currentGeneration.get());
+                client.setCacheStatus(policy.getEvictionThreshold() - 1, defaultOldestGeneration, currentGeneration.get());
                 client.setUpdateGenerationsImpl((current, oldest) -> {
                     Assert.assertEquals("Not expecting a change for oldestGeneration", currentOldestGeneration.get(), (int) oldest);
                     return 0L;
