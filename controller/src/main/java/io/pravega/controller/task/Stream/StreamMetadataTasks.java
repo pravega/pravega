@@ -152,6 +152,7 @@ public class StreamMetadataTasks extends TaskBase {
      * @param stream          stream name.
      * @param config          stream configuration.
      * @param createTimestamp creation timestamp.
+     * @param numOfRetries    number of retries for LockFailedException
      * @return CompletableFuture which when completed will have creation status for the stream.
      */
     public CompletableFuture<CreateStreamStatus.Status> createStreamRetryOnLockFailure(String scope, String stream, StreamConfiguration config,
