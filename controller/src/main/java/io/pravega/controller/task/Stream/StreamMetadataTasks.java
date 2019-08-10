@@ -646,7 +646,8 @@ public class StreamMetadataTasks extends TaskBase {
                                        return Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
                                                Exceptions.unwrap(e) instanceof StoreException.WriteConflictException;
                                    }, null))
-                           .thenCompose(t -> RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event), e -> { }, executor)
+                           .thenCompose(t -> RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event),
+                                   e -> log.warn("writing event failed with {}", e.getMessage()), executor)
                                                         .thenCompose(v -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
                                                         .thenApply(v -> {
                                                             if (toThrow.get() != null) {
