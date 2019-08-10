@@ -124,10 +124,10 @@ public class ControllerService {
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
                       .thenCompose(state -> {
                           if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
-                              return streamMetadataTasks.createStreamWithReries(scope,
+                              return streamMetadataTasks.createStreamRetryOnLockFailure(scope,
                                       stream,
                                       streamConfig,
-                                      createTimestamp).thenApplyAsync(status -> {
+                                      createTimestamp, 10).thenApplyAsync(status -> {
                                   reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
                                           timer.getElapsed());
                                   return CreateStreamStatus.newBuilder().setStatus(status).build();

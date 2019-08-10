@@ -1308,14 +1308,17 @@ public abstract class StreamMetadataTasksTest {
             return x.callRealMethod();
         }).when(streamStorePartialMock).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
         
-        CompletableFuture<Controller.CreateStreamStatus.Status> createStreamFuture1 = metadataTask.createStreamWithReries(
-                SCOPE, stream, config, System.currentTimeMillis());
+        CompletableFuture<Controller.CreateStreamStatus.Status> createStreamFuture1 = metadataTask.createStreamRetryOnLockFailure(
+                SCOPE, stream, config, System.currentTimeMillis(), 10);
 
         // wait until create stream is called. let create stream be blocked on `wait` future. 
         createStreamCalled.join();
-        
-        CompletableFuture<Controller.CreateStreamStatus.Status> createStreamFuture2 = 
-                metadataTask.createStreamWithReries(SCOPE, stream, config, System.currentTimeMillis());
+
+        // start a new create stream with 1 retries. this should throw lock failed exception
+        // second request should fail with LockFailedException as we have not asked for a retry. 
+        AssertExtensions.assertFutureThrows("Lock Failed Exception should be thrown", 
+                metadataTask.createStreamRetryOnLockFailure(SCOPE, stream, config, System.currentTimeMillis(), 1), 
+                e -> Exceptions.unwrap(e) instanceof LockFailedException);
 
         CompletableFuture<Void> signalLockFailed = new CompletableFuture<>();
         CompletableFuture<Void> waitOnLockFailed = new CompletableFuture<>();
@@ -1337,9 +1340,13 @@ public abstract class StreamMetadataTasksTest {
             });
         }).when(taskMetadataStore).lock(any(), any(), anyString(), anyString(), any(), any());
 
+        // start a new create stream with retries. 
+        CompletableFuture<Controller.CreateStreamStatus.Status> createStreamFuture2 =
+                metadataTask.createStreamRetryOnLockFailure(SCOPE, stream, config, System.currentTimeMillis(), 10);
+
         // wait until lock failed exception is thrown
         signalLockFailed.join();
-
+        
         // now complete first createStream request
         waitOnCreateStream.complete(null);
 

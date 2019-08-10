@@ -154,14 +154,16 @@ public class StreamMetadataTasks extends TaskBase {
      * @param createTimestamp creation timestamp.
      * @return CompletableFuture which when completed will have creation status for the stream.
      */
-    public CompletableFuture<CreateStreamStatus.Status> createStreamWithReries(String scope, String stream, StreamConfiguration config, long createTimestamp) {
+    public CompletableFuture<CreateStreamStatus.Status> createStreamRetryOnLockFailure(String scope, String stream, StreamConfiguration config,
+                                                                                       long createTimestamp, int numOfRetries) {
         return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp), 
-                e -> Exceptions.unwrap(e) instanceof LockFailedException, 10, executor)
+                e -> Exceptions.unwrap(e) instanceof LockFailedException, numOfRetries, executor)
                 .exceptionally(e -> {
-                    if (e instanceof RetriesExhaustedException) {
-                        throw new CompletionException(Exceptions.unwrap(e));
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    if (unwrap instanceof RetriesExhaustedException) {
+                        throw new CompletionException(unwrap.getCause());
                     } else {
-                        throw new CompletionException(e);
+                        throw new CompletionException(unwrap);
                     }
                 });
     }
