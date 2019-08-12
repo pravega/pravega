@@ -32,7 +32,6 @@ import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
-import io.pravega.controller.store.task.TaskStoreFactoryForTests.InMemoryTaskMetadataStoreForTests;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import java.util.Collections;
@@ -99,10 +98,4 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         }
         streamStore.close();
     }
-
-    @Override
-    void blockCriticalSection() {
-        ((InMemoryTaskMetadataStoreForTests) taskMetadataStore).blockCriticalSection();
-    }
-
 }
