@@ -13,7 +13,6 @@ import com.google.common.collect.ImmutableList.Builder;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -43,7 +42,7 @@ public class OrdererTest {
         }
 
         @Override
-        public CompletableFuture<SegmentRead> fillBuffer() {
+        public CompletableFuture<?> fillBuffer() {
             return CompletableFuture.completedFuture(null);
         }
 

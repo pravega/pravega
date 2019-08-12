@@ -24,7 +24,6 @@ import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -180,7 +179,7 @@ public class MockSegmentIoStreams implements SegmentOutputStream, SegmentInputSt
     }
 
     @Override
-    public CompletableFuture<SegmentRead> fillBuffer() {
+    public CompletableFuture<?> fillBuffer() {
         return CompletableFuture.completedFuture(null);
     }
 
