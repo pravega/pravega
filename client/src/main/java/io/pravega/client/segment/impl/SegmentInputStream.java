@@ -9,7 +9,6 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
@@ -63,7 +62,7 @@ public interface SegmentInputStream extends AutoCloseable {
      * 
      * @return A future that will be completed when there is data available to read.
      */
-    public abstract CompletableFuture<SegmentRead> fillBuffer();
+    public abstract CompletableFuture<?> fillBuffer();
     
     /**
      * Closes this InputStream. No further methods may be called after close.
