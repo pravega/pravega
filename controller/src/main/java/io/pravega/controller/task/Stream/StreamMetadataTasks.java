@@ -24,6 +24,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
@@ -45,6 +46,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -143,6 +145,30 @@ public class StreamMetadataTasks extends TaskBase {
         writerInitFuture.complete(null);
     }
 
+    /**
+     * Method to create stream with retries for lock failed exception.
+     *
+     * @param scope           scope.
+     * @param stream          stream name.
+     * @param config          stream configuration.
+     * @param createTimestamp creation timestamp.
+     * @param numOfRetries    number of retries for LockFailedException
+     * @return CompletableFuture which when completed will have creation status for the stream.
+     */
+    public CompletableFuture<CreateStreamStatus.Status> createStreamRetryOnLockFailure(String scope, String stream, StreamConfiguration config,
+                                                                                       long createTimestamp, int numOfRetries) {
+        return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp), 
+                e -> Exceptions.unwrap(e) instanceof LockFailedException, numOfRetries, executor)
+                .exceptionally(e -> {
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    if (unwrap instanceof RetriesExhaustedException) {
+                        throw new CompletionException(unwrap.getCause());
+                    } else {
+                        throw new CompletionException(unwrap);
+                    }
+                });
+    }
+    
     /**
      * Create stream.
      *
