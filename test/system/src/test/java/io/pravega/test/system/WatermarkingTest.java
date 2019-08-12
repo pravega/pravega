@@ -164,7 +164,8 @@ public class WatermarkingTest extends AbstractSystemTest {
                 ReaderConfig.builder().build());
         List<Watermark> watermarks = new LinkedList<>();
 
-        while (watermarks.size() < 2) {
+        // wait until we have generated 3 watermarks.
+        while (watermarks.size() < 3) {
             EventRead<Watermark> eventRead = markReader.readNextEvent(30000L);
             if (eventRead.getEvent() != null) {
                 watermarks.add(eventRead.getEvent());
@@ -172,19 +173,32 @@ public class WatermarkingTest extends AbstractSystemTest {
         }
         stopFlag.set(true);
 
+        assertTrue(watermarks.get(0).getLowerTimeBound() < watermarks.get(0).getUpperTimeBound());
+        assertTrue(watermarks.get(1).getLowerTimeBound() < watermarks.get(1).getUpperTimeBound());
+        assertTrue(watermarks.get(2).getLowerTimeBound() < watermarks.get(2).getUpperTimeBound());
+
+        // verify that watermarks are increasing in time.
+        assertTrue(watermarks.get(0).getLowerTimeBound() < watermarks.get(1).getLowerTimeBound());
+        assertTrue(watermarks.get(1).getLowerTimeBound() < watermarks.get(2).getLowerTimeBound());
+        
+        // use watermark as lower and upper bounds.
         long timeLow = watermarks.get(0).getLowerTimeBound();
         Map<Segment, Long> positionMap0 = watermarks.get(0).getStreamCut()
-                                                    .entrySet().stream().collect(Collectors.toMap(x -> new Segment(SCOPE, STREAM, x.getKey().getSegmentId()),
-                        Map.Entry::getValue));
+                                                    .entrySet().stream()
+                                                    .collect(Collectors.toMap(x ->
+                                                                    new Segment(SCOPE, STREAM, x.getKey().getSegmentId()),
+                                                            Map.Entry::getValue));
 
         StreamCut streamCutStart = new StreamCutImpl(streamObj, positionMap0);
         Map<Stream, StreamCut> start = Collections.singletonMap(streamObj, streamCutStart);
 
-        Map<Segment, Long> positionMap1 = watermarks.get(1).getStreamCut()
-                                                    .entrySet().stream().collect(Collectors.toMap(x -> new Segment(SCOPE, STREAM, x.getKey().getSegmentId()),
-                        Map.Entry::getValue));
+        Map<Segment, Long> positionMap2 = watermarks.get(2).getStreamCut()
+                                                    .entrySet().stream()
+                                                    .collect(Collectors.toMap(x ->
+                                                                    new Segment(SCOPE, STREAM, x.getKey().getSegmentId()),
+                                                            Map.Entry::getValue));
 
-        StreamCut streamCutEnd = new StreamCutImpl(streamObj, positionMap0);
+        StreamCut streamCutEnd = new StreamCutImpl(streamObj, positionMap2);
         Map<Stream, StreamCut> end = Collections.singletonMap(streamObj, streamCutEnd);
 
         @Cleanup
