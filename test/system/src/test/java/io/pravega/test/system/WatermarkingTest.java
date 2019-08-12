@@ -75,17 +75,16 @@ public class WatermarkingTest extends AbstractSystemTest {
 
     private static final String STREAM = "testWatermarkingStream";
     private static final String SCOPE = "testWatermarkingScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
-    private static final String READER_GROUP = "testWatermarkingReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
 
     @Rule
     public Timeout globalTimeout = Timeout.seconds(10 * 60);
 
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(5);
     private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+    private Service controllerInstance;
     private URI controllerURI;
     private StreamManager streamManager;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
-    Service controllerInstance;
 
     /**
      * This is used to setup the various services required by the system test framework.
