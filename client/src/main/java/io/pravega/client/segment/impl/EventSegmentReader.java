@@ -10,6 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.stream.EventStreamWriter;
+import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 
@@ -76,7 +77,7 @@ public interface EventSegmentReader extends AutoCloseable {
      * 
      * @return A future that completes when the request to fill the buffer has returned.
      */
-    public abstract CompletableFuture<Void> fillBuffer();
+    public abstract CompletableFuture<SegmentRead> fillBuffer();
     
     /**
      * Closes this reader. No further methods may be called after close.
