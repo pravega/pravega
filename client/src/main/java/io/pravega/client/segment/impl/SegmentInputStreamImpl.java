@@ -203,7 +203,7 @@ class SegmentInputStreamImpl implements SegmentInputStream {
 
     @Override
     @Synchronized
-    public CompletableFuture<SegmentRead> fillBuffer() {
+    public CompletableFuture<?> fillBuffer() {
         log.trace("Filling buffer {}", this);
         Exceptions.checkNotClosed(asyncInput.isClosed(), this);
         try {      

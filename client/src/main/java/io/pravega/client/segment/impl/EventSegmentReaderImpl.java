@@ -14,7 +14,6 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.shared.protocol.netty.InvalidMessageException;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.shared.protocol.netty.WireCommands;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
 import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import javax.annotation.concurrent.GuardedBy;
@@ -100,7 +99,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     @Override
     @Synchronized
-    public CompletableFuture<SegmentRead> fillBuffer() {
+    public CompletableFuture<?> fillBuffer() {
         return in.fillBuffer();
     }
     
