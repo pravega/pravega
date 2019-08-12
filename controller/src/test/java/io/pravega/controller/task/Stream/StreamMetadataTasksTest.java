@@ -56,6 +56,7 @@ import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.stream.records.StreamConfigurationRecord;
 import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -1314,6 +1315,79 @@ public abstract class StreamMetadataTasksTest {
         assertTrue(requestEventWriter.eventQueue.isEmpty());
     }
     
+    @Test(timeout = 30000)
+    public void concurrentCreateStreamTest() {
+        TaskMetadataStore taskMetadataStore = spy(TaskStoreFactory.createZKStore(zkClient, executor));
+
+        StreamMetadataTasks metadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, 
+                SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
+                new AuthHelper(authEnabled, "key", 300), requestTracker);
+
+        final ScalingPolicy policy = ScalingPolicy.fixed(2);
+
+        String stream = "concurrent";
+        final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(policy).build();
+        
+        CompletableFuture<Void> createStreamCalled = new CompletableFuture<>();
+        CompletableFuture<Void> waitOnCreateStream = new CompletableFuture<>();
+        
+        doAnswer(x -> {
+            createStreamCalled.complete(null);
+            waitOnCreateStream.join();
+            return x.callRealMethod();
+        }).when(streamStorePartialMock).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
+        
+        CompletableFuture<Controller.CreateStreamStatus.Status> createStreamFuture1 = metadataTask.createStreamRetryOnLockFailure(
+                SCOPE, stream, config, System.currentTimeMillis(), 10);
+
+        // wait until create stream is called. let create stream be blocked on `wait` future. 
+        createStreamCalled.join();
+
+        // start a new create stream with 1 retries. this should throw lock failed exception
+        // second request should fail with LockFailedException as we have not asked for a retry. 
+        AssertExtensions.assertFutureThrows("Lock Failed Exception should be thrown", 
+                metadataTask.createStreamRetryOnLockFailure(SCOPE, stream, config, System.currentTimeMillis(), 1), 
+                e -> Exceptions.unwrap(e) instanceof LockFailedException);
+
+        CompletableFuture<Void> signalLockFailed = new CompletableFuture<>();
+        CompletableFuture<Void> waitOnLockFailed = new CompletableFuture<>();
+
+        // first time lock failed exception is thrown, we will complete `signalLockFailed` to indicate lock failed exception is 
+        // being thrown.
+        // For all subsequent times we will wait on waitOnLockFailed future.  
+        doAnswer(x -> {
+            CompletableFuture<Void> future = (CompletableFuture<Void>) x.callRealMethod();
+            return future.exceptionally(e -> {
+                if (Exceptions.unwrap(e) instanceof LockFailedException) {
+                    if (!signalLockFailed.isDone()) {
+                        signalLockFailed.complete(null);
+                    } else {
+                        waitOnLockFailed.join();
+                    }
+                }
+                throw new CompletionException(e);
+            });
+        }).when(taskMetadataStore).lock(any(), any(), anyString(), anyString(), any(), any());
+
+        // start a new create stream with retries. 
+        CompletableFuture<Controller.CreateStreamStatus.Status> createStreamFuture2 =
+                metadataTask.createStreamRetryOnLockFailure(SCOPE, stream, config, System.currentTimeMillis(), 10);
+
+        // wait until lock failed exception is thrown
+        signalLockFailed.join();
+        
+        // now complete first createStream request
+        waitOnCreateStream.complete(null);
+
+        assertEquals(createStreamFuture1.join(), Controller.CreateStreamStatus.Status.SUCCESS);
+        
+        // now let the lock failed exception be thrown for second request for subsequent retries
+        waitOnLockFailed.complete(null);
+
+        // second request should also succeed now but with stream exists
+        assertEquals(createStreamFuture2.join(), Controller.CreateStreamStatus.Status.STREAM_EXISTS);
+    }
+
     private CompletableFuture<Void> processEvent(WriterMock requestEventWriter) throws InterruptedException {
         return Retry.withExpBackoff(100, 10, 5, 1000)
                 .retryingOn(TaskExceptions.StartException.class)
