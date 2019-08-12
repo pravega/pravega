@@ -298,13 +298,13 @@ public class ZKScope implements Scope {
             private void read00(RevisionDataInput revisionDataInput, Token.TokenBuilder builder) throws IOException {
                 builder.msb(revisionDataInput.readCompactInt())
                        .middle(revisionDataInput.readCompactInt())
-                       .lsb(revisionDataInput.readInt());
+                       .lsb((int) revisionDataInput.readCompactSignedLong());
             }
 
             private void write00(Token token, RevisionDataOutput revisionDataOutput) throws IOException {
                 revisionDataOutput.writeCompactInt(token.msb);
                 revisionDataOutput.writeCompactInt(token.middle);
-                revisionDataOutput.writeInt(token.lsb);
+                revisionDataOutput.writeCompactSignedLong(token.lsb);
             }
 
             @Override
