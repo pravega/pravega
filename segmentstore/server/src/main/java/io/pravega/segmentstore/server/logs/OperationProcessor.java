@@ -98,10 +98,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, OperationSerializer.DEFAULT, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
         this.throttlerCalculator = ThrottlerCalculator.builder()
-                                                      .cacheThrottler(stateUpdater::getCacheUtilization)
-                                                      .commitBacklogThrottler(this.commitQueue::size)
-                                                      .batchingThrottler(durableDataLog::getQueueStatistics)
-                                                      .build();
+                .cacheThrottler(stateUpdater::getCacheUtilization, stateUpdater.getCacheTargetUtilization(), stateUpdater.getCacheMaxUtilization())
+                .commitBacklogThrottler(this.commitQueue::size)
+                .batchingThrottler(durableDataLog::getQueueStatistics)
+                .build();
     }
 
     //endregion
@@ -233,23 +233,30 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val delay = new AtomicReference<ThrottlerCalculator.DelayResult>(this.throttlerCalculator.getThrottlingDelay());
         if (!delay.get().isMaximum()) {
             // We are not delaying the maximum amount. We only need to do this once.
-            return throttleOnce(delay.get().getDurationMillis(), delay.get().isMaximum());
+            return throttleOnce(delay.get());
         } else {
             // The initial delay calculation indicated that we need to throttle to the maximum, which means there's
             // significant pressure. In order to protect downstream components, we need to run in a loop and delay as much
             // as needed until the pressure is relieved.
             return Futures.loop(
                     () -> !delay.get().isMaximum(),
-                    () -> throttleOnce(delay.get().getDurationMillis(), delay.get().isMaximum())
+                    () -> throttleOnce(delay.get())
                             .thenRun(() -> delay.set(this.throttlerCalculator.getThrottlingDelay())),
                     this.executor);
         }
     }
 
-    private CompletableFuture<Void> throttleOnce(int millis, boolean max) {
-        this.metrics.processingDelay(millis);
-        log.debug("{}: Processing delay = {}ms (max={}).", this.traceObjectId, millis, max);
-        return Futures.delayedFuture(Duration.ofMillis(millis), this.executor);
+    private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
+        this.metrics.processingDelay(delay.getDurationMillis());
+        if (delay.isMaximum() || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog) {
+            // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
+            // processing of operations) or if this is due to the Commit Processor not being able to keep up.
+            log.warn("{}: Processing delay = {}.", this.traceObjectId, delay);
+        } else {
+            log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
+        }
+
+        return Futures.delayedFuture(Duration.ofMillis(delay.getDurationMillis()), this.executor);
     }
 
     /**
@@ -414,7 +421,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private void processCommits(Collection<List<CompletableOperation>> items) {
         try {
             do {
+                Timer memoryCommitTimer = new Timer();
                 this.stateUpdater.process(items.stream().flatMap(List::stream).map(CompletableOperation::getOperation).iterator());
+                this.metrics.memoryCommit(items.size(), memoryCommitTimer.getElapsed());
                 items = this.commitQueue.poll(MAX_COMMIT_QUEUE_SIZE);
             } while (!items.isEmpty());
         } catch (Throwable ex) {
@@ -535,17 +544,15 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     }
 
                     // Collect operations to commit.
-                    Timer memoryCommitTimer = new Timer();
                     toAck = collectCompletionCandidates(commitArgs);
 
                     // Commit metadata updates.
-                    int updateTxnCommitCount = OperationProcessor.this.metadataUpdater.commit(commitArgs.getMetadataTransactionId());
+                    OperationProcessor.this.metadataUpdater.commit(commitArgs.getMetadataTransactionId());
 
-                    // Commit operations to memory. Note that this will block synchronously if the Commit Queue is full (until it clears up).
+                    // Queue operations for memory commit, which will be done asynchronously.
                     toAck.forEach(OperationProcessor.this.commitQueue::add);
 
                     this.highestCommittedDataFrame = addressSequence;
-                    metrics.memoryCommit(updateTxnCommitCount, memoryCommitTimer.getElapsed());
                 }
             } finally {
                 if (toAck != null) {

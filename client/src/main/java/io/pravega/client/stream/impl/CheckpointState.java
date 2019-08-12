@@ -148,13 +148,13 @@ public class CheckpointState {
     }
 
     /**
-     * Get the number of outstanding Checkpoints. It should not take silent Checkpoints into account.
-     * @return the number of outstanding Checkpoints.
+     * Get the outstanding Checkpoints. It should not take silent Checkpoints into account.
+     * @return the List of outstanding Checkpoints.
      */
-    int getOutstandingCheckpoints() {
-        return (int) checkpoints.stream()
-                                .filter(checkpoint -> !(isCheckpointSilent(checkpoint) || isCheckpointComplete(checkpoint)))
-                                .count();
+    List<String> getOutstandingCheckpoints() {
+        return checkpoints.stream()
+                          .filter(checkpoint -> !(isCheckpointSilent(checkpoint) || isCheckpointComplete(checkpoint)))
+                          .collect(Collectors.toList());
     }
     
     void clearCheckpointsBefore(String checkpointId) {

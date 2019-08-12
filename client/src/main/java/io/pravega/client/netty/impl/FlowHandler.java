@@ -15,6 +15,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.concurrent.ScheduledFuture;
+import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableFutureLatch;
@@ -98,6 +99,10 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         log.info("Closing Flow {} for endpoint {}", flow, clientConnectionImpl.getConnectionName());
         flowIdReplyProcessorMap.remove(flow);
         flowIDBatchSizeTrackerMap.remove(flow);
+        if (flow == FLOW_DISABLED) {
+            // close the channel immediately since this netty channel will not be reused by other flows.
+            close();
+        }
     }
 
     /**
@@ -175,7 +180,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         super.channelRegistered(ctx);
         Channel ch = ctx.channel();
         channel.set(ch);
-        log.info("Connection established with endpoint {} on ChannelId {}", connectionName, ch);
+        log.info("Connection established with endpoint {} on channel {}", connectionName, ch);
         ch.write(new WireCommands.Hello(WireCommands.WIRE_VERSION, WireCommands.OLDEST_COMPATIBLE_VERSION), ch.voidPromise());
         registeredFutureLatch.release(null); //release all futures waiting for channel registration to complete.
         // WireCommands.KeepAlive messages are sent for every network connection to a SegmentStore.
@@ -199,6 +204,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             future.cancel(false);
         }
         channel.set(null);
+        log.info("Connection drop observed with endpoint {}", connectionName);
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
             try {
                 log.debug("Connection dropped for flow id {}", flowId);
@@ -248,6 +254,10 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        invokeProcessingFailureForAllFlows(cause);
+    }
+
+    private void invokeProcessingFailureForAllFlows(Throwable cause) {
         flowIdReplyProcessorMap.forEach((flowId, rp) -> {
             try {
                 log.debug("Exception observed for flow id {} due to {}", flowId, cause.getMessage());
@@ -262,12 +272,14 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            Channel ch = channel.get();
+            Channel ch = channel.getAndSet(null);
             if (ch != null) {
-                log.debug("Closing channel {} ", ch);
+                log.info("Closing connection with endpoint {} on channel {}", connectionName, ch);
                 final int openFlowCount = flowIdReplyProcessorMap.size();
                 if (openFlowCount != 0) {
-                    log.warn("{} flows are not closed", openFlowCount);
+                    log.debug("{} flows are not closed", openFlowCount);
+                    // ensure all the ReplyProcessors are informed immediately about the channel being closed.
+                    invokeProcessingFailureForAllFlows(new ConnectionClosedException());
                 }
                 final int appendTrackerCount = flowIDBatchSizeTrackerMap.size();
                 if (appendTrackerCount != 0) {
