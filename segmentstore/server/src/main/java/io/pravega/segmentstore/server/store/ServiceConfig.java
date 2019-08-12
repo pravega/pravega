@@ -46,6 +46,8 @@ public class ServiceConfig {
     public static final Property<StorageType> STORAGE_IMPLEMENTATION = Property.named("storageImplementation", StorageType.HDFS);
     public static final Property<Boolean> READONLY_SEGMENT_STORE = Property.named("readOnlySegmentStore", false);
     public static final Property<Long> CACHE_POLICY_MAX_SIZE = Property.named("cacheMaxSize", 16L * 1024 * 1024 * 1024);
+    public static final Property<Integer> CACHE_POLICY_TARGET_UTILIZATION = Property.named("cacheTargetUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_TARGET_UTILIZATION));
+    public static final Property<Integer> CACHE_POLICY_MAX_UTILIZATION = Property.named("cacheMaxUtilizationPercent", (int) (100 * CachePolicy.DEFAULT_MAX_UTILIZATION));
     public static final Property<Integer> CACHE_POLICY_MAX_TIME = Property.named("cacheMaxTimeSeconds", 30 * 60);
     public static final Property<Integer> CACHE_POLICY_GENERATION_TIME = Property.named("cacheGenerationTimeSeconds", 5);
     public static final Property<Boolean> REPLY_WITH_STACK_TRACE_ON_ERROR = Property.named("replyWithStackTraceOnError", false);
@@ -316,9 +318,12 @@ public class ServiceConfig {
         this.certFile = properties.get(CERT_FILE);
         this.enableTlsReload = properties.getBoolean(ENABLE_TLS_RELOAD);
         long cachePolicyMaxSize = properties.getLong(CACHE_POLICY_MAX_SIZE);
+        double cachePolicyTargetUtilization = properties.getInt(CACHE_POLICY_TARGET_UTILIZATION) / 100.0;
+        double cachePolicyMaxUtilization = properties.getInt(CACHE_POLICY_MAX_UTILIZATION) / 100.0;
         int cachePolicyMaxTime = properties.getInt(CACHE_POLICY_MAX_TIME);
         int cachePolicyGenerationTime = properties.getInt(CACHE_POLICY_GENERATION_TIME);
-        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
+        this.cachePolicy = new CachePolicy(cachePolicyMaxSize, cachePolicyTargetUtilization, cachePolicyMaxUtilization,
+                Duration.ofSeconds(cachePolicyMaxTime), Duration.ofSeconds(cachePolicyGenerationTime));
         this.replyWithStackTraceOnError = properties.getBoolean(REPLY_WITH_STACK_TRACE_ON_ERROR);
         this.instanceId = properties.get(INSTANCE_ID);
     }
