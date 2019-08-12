@@ -59,6 +59,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -84,6 +85,7 @@ public class WatermarkingTest extends AbstractSystemTest {
     private URI controllerURI;
     private StreamManager streamManager;
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
+    Service controllerInstance;
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -91,17 +93,17 @@ public class WatermarkingTest extends AbstractSystemTest {
      * @throws MarathonException    when error in setup
      */
     @Environment
-    public static void initialize() throws MarathonException {
+    public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = ensureControllerRunning(zkUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 2);
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before
     public void setup() {
-        Service conService = Utils.createPravegaControllerService(null);
-        List<URI> ctlURIs = conService.getServiceDetails();
+        controllerInstance = Utils.createPravegaControllerService(null);
+        List<URI> ctlURIs = controllerInstance.getServiceDetails();
         controllerURI = ctlURIs.get(0);
         streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
@@ -158,21 +160,35 @@ public class WatermarkingTest extends AbstractSystemTest {
         List<Watermark> watermarks = new LinkedList<>();
 
         // wait until we have generated 3 watermarks.
-        while (watermarks.size() < 3) {
+        while (watermarks.size() < 2) {
             EventRead<Watermark> eventRead = markReader.readNextEvent(30000L);
             if (eventRead.getEvent() != null) {
                 watermarks.add(eventRead.getEvent());
             }
         }
+
+        // scale down one controller instance. 
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
+
+        // wait until at least 2 more watermarks are emitted
+        while (watermarks.size() < 4) {
+            EventRead<Watermark> eventRead = markReader.readNextEvent(30000L);
+            if (eventRead.getEvent() != null) {
+                watermarks.add(eventRead.getEvent());
+            }
+        }
+
         stopFlag.set(true);
 
         assertTrue(watermarks.get(0).getLowerTimeBound() < watermarks.get(0).getUpperTimeBound());
         assertTrue(watermarks.get(1).getLowerTimeBound() < watermarks.get(1).getUpperTimeBound());
         assertTrue(watermarks.get(2).getLowerTimeBound() < watermarks.get(2).getUpperTimeBound());
+        assertTrue(watermarks.get(3).getLowerTimeBound() < watermarks.get(3).getUpperTimeBound());
 
         // verify that watermarks are increasing in time.
         assertTrue(watermarks.get(0).getLowerTimeBound() < watermarks.get(1).getLowerTimeBound());
         assertTrue(watermarks.get(1).getLowerTimeBound() < watermarks.get(2).getLowerTimeBound());
+        assertTrue(watermarks.get(2).getLowerTimeBound() < watermarks.get(3).getLowerTimeBound());
         
         // use watermark as lower and upper bounds.
         long timeLow = watermarks.get(0).getLowerTimeBound();
