@@ -127,7 +127,7 @@ public class ReaderGroupStateManagerTest {
         state3.fetchUpdates();
         assertEquals(state3.getState().getPositions(), state1.getState().getPositions());
         assertEquals(state3.getState().getPositions(), state2.getState().getPositions());
-        assertEquals(segments, state3.getState().getLastReadpositions(Stream.of(scope, stream)));
+        assertEquals(segments, state3.getState().getLastReadPositions(Stream.of(scope, stream)));
     }
 
     private StateSynchronizer<ReaderGroupState> createState(String stream, SynchronizerClientFactory clientFactory,
@@ -690,7 +690,7 @@ public class ReaderGroupStateManagerTest {
         expected.put(s5, 15L);
         
         assertEquals(expected,
-                     stateSynchronizer.getState().getLastReadpositions(Stream.of(scope, stream)));
+                     stateSynchronizer.getState().getLastReadPositions(Stream.of(scope, stream)));
     }
 
     @Test(timeout = 10000)

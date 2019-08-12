@@ -46,7 +46,7 @@ public class WatermarkReaderImpl {
         private Iterator<Entry<Revision, Watermark>> iter = null;
 
         /**
-         * This returns the next mark in the stream. It holds onto iterator between calls as this will safe a metadata check on the length.
+         * This returns the next mark in the stream. It holds onto iterator between calls as this will save a metadata check on the length.
          */
         @Synchronized
         private Watermark fetchNextMark() {

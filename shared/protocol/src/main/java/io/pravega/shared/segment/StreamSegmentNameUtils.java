@@ -373,4 +373,5 @@ public final class StreamSegmentNameUtils {
     public static String getMarkForStream(String stream) {
         return NameUtils.getMarkStreamForStream(stream);
     }
+    // endregion
 }

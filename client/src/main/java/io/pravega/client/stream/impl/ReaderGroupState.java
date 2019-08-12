@@ -203,7 +203,7 @@ public class ReaderGroupState implements Revisioned {
     }
     
     @Synchronized
-    Map<SegmentWithRange, Long> getLastReadpositions(Stream stream) {
+    Map<SegmentWithRange, Long> getLastReadPositions(Stream stream) {
         Map<SegmentWithRange, Long> result = new HashMap<>();
         for (Entry<SegmentWithRange, Long> entry : lastReadPosition.entrySet()) {
             Segment segment = entry.getKey().getSegment();

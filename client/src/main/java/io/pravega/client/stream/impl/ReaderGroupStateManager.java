@@ -452,7 +452,7 @@ public class ReaderGroupStateManager {
     }
     
     Map<SegmentWithRange, Long> getLastReadpositions(Stream stream) {
-        return sync.getState().getLastReadpositions(stream);
+        return sync.getState().getLastReadPositions(stream);
     }
 
     public String getOrRefreshDelegationTokenFor(Segment segmentId) {
