@@ -17,7 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.lang.Int96;
 import io.pravega.common.util.BitConverter;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.index.ZKHostIndex;
 import io.pravega.controller.util.Config;
 import io.pravega.shared.NameUtils;
@@ -63,12 +63,12 @@ public class PravegaTablesStreamMetadataStore extends AbstractStreamMetadataStor
 
     private final ScheduledExecutorService executor;
     @VisibleForTesting
-    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor, AuthHelper authHelper) {
+    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework client, ScheduledExecutorService executor, GrpcAuthHelper authHelper) {
         this(segmentHelper, client, executor, Duration.ofHours(Config.COMPLETED_TRANSACTION_TTL_IN_HOURS), authHelper);
     }
 
     @VisibleForTesting
-    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod, AuthHelper authHelper) {
+    PravegaTablesStreamMetadataStore(SegmentHelper segmentHelper, CuratorFramework curatorClient, ScheduledExecutorService executor, Duration gcPeriod, GrpcAuthHelper authHelper) {
         super(new ZKHostIndex(curatorClient, "/hostTxnIndex", executor), new ZKHostIndex(curatorClient, "/hostRequestIndex", executor));
         ZKStoreHelper zkStoreHelper = new ZKStoreHelper(curatorClient, executor);
         this.orderer = new ZkOrderedStore("txnCommitOrderer", zkStoreHelper, executor);

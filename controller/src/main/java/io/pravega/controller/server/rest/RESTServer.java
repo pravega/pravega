@@ -17,7 +17,7 @@ import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.resources.PingImpl;
 import io.pravega.controller.server.rest.resources.StreamMetadataResourceImpl;
-import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
@@ -46,7 +46,7 @@ public class RESTServer extends AbstractIdleService {
     private final ResourceConfig resourceConfig;
     private HttpServer httpServer;
 
-    public RESTServer(LocalController localController, ControllerService controllerService, PravegaAuthManager pravegaAuthManager, RESTServerConfig restServerConfig, ConnectionFactory connectionFactory) {
+    public RESTServer(LocalController localController, ControllerService controllerService, AuthHandlerManager pravegaAuthManager, RESTServerConfig restServerConfig, ConnectionFactory connectionFactory) {
         this.objectId = "RESTServer";
         this.restServerConfig = restServerConfig;
         final String serverURI = "http://" + restServerConfig.getHost() + "/";
