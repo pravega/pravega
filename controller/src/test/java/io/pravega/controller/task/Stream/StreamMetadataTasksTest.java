@@ -1292,7 +1292,7 @@ public abstract class StreamMetadataTasksTest {
 
         StreamMetadataTasks metadataTask = new StreamMetadataTasks(streamStorePartialMock, bucketStore, taskMetadataStore, 
                 SegmentHelperMock.getSegmentHelperMock(), executor, "host", 
-                new AuthHelper(authEnabled, "key", 300), requestTracker);
+                new GrpcAuthHelper(authEnabled, "key", 300), requestTracker);
 
         final ScalingPolicy policy = ScalingPolicy.fixed(2);
 
