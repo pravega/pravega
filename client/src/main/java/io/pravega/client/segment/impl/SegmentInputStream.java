@@ -62,7 +62,7 @@ public interface SegmentInputStream extends AutoCloseable {
      * 
      * @return A future that will be completed when there is data available to read.
      */
-    public abstract CompletableFuture<Void> fillBuffer();
+    public abstract CompletableFuture<?> fillBuffer();
     
     /**
      * Closes this InputStream. No further methods may be called after close.
