@@ -109,21 +109,23 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 throw new InvalidMessageException("Invalid number of events in block. numEvents : " + blockEnd.numEvents);
             }
             if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
-                throw new InvalidMessageException("Last event number went backwards." +
-                        " Segment last Event number : " + segment.lastEventNumber +
-                        " Append block End Event number : " + blockEnd.getLastEventNumber() +
-                        " for Writer Id : " + writerId +
-                        " and Segment Name : " + segment.name);
+                throw new InvalidMessageException(
+                        String.format("Last event number went backwards, " +
+                                "Segment last Event number : %d , Append block End Event number : %d," +
+                                "for writer ID: %s and Segment Name: %s", segment.lastEventNumber,
+                                blockEnd.getLastEventNumber(), writerId, segment.name));
             }
             if (currentBlock != null) {
                if (!currentBlock.getWriterId().equals(writerId)) {
-                   throw new InvalidMessageException("Writer ID mismatch between Append Block and Append block End." +
-                           " Append block Writer Id : " + currentBlock.getWriterId() +
-                           " Append block End Writer Id: " + writerId);
+                   throw new InvalidMessageException(
+                           String.format("Writer ID mismatch between Append Block and Append block End, " +
+                                   "Append block Writer ID : %s, Append block End Writer ID: %s",
+                                   currentBlock.getWriterId(), writerId));
                }
                if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
-                    throw new InvalidMessageException("Invalid SizeOfWholeEvents in block : " + sizeOfWholeEventsInBlock +
-                            "Append block data bytes : " + currentBlock.getData().readableBytes());
+                    throw new InvalidMessageException(
+                            String.format("nvalid SizeOfWholeEvents in block : %d, Append block data bytes : %d",
+                                    sizeOfWholeEventsInBlock, currentBlock.getData().readableBytes()));
                }
                appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
             } else {

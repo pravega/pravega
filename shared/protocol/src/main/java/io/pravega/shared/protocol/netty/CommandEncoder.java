@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -62,12 +61,14 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
  * need to be parsed out of individual messages. Notably this includes the event number of the last
  * event in the block, so that it can be acknowledged.
  *
- * if the channel is not free, then each append is enqueued to the session's pending List.
- * This session pending list gets flushed under following conditions
- *      if the session buffer exceed the threshold (MAX_DATA_SIZE)
- *      if the total number of events exceeds the threshold (MAX_EVENTS)
- *      if the block timeout is triggered.
- *
+ * If the channel is not free, then each append is enqueued to the session's pending List.
+ * This session pending list gets flushed if any of the following conditions is triggered.
+ *      If the session buffer exceed the threshold (MAX_DATA_SIZE)
+ *      If the total number of events per session exceeds the threshold (MAX_EVENTS)
+ *      If the block timeout is triggered.
+ *              Whenever the block Timeout is triggered, the assigned token to block timeout timer
+ *              and current value of the token counter are compared; if they are same ,
+ *              then all pending session events are flushed.
  */
 @NotThreadSafe
 @RequiredArgsConstructor
@@ -110,9 +111,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             return eventCount == 0;
         }
 
-
         /**
-         * queue the Append data to Session' list.
+         * Queue the Append data to Session' list.
+         *
          * @param data  data bytes.
          * @param out   Network channel buffer.
          */
@@ -126,7 +127,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
 
         /**
-         * check the overflow condition and flush if required.
+         * Check the overflow condition and flush if required.
+         *
          * @param out   Network channel buffer.
          */
         private void conditionalFlush(ByteBuf out) {
@@ -138,17 +140,16 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
        /**
         * Write/flush session's data to network channel.
+        *
         * @param out   Network channel buffer.
         */
        private void flush(ByteBuf out) {
             if (!isFree()) {
                 pendingWrites.remove(id);
+                writeMessage(new AppendBlock(id), pendingBytes, out);
                 if (pendingBytes > 0) {
-                    writeMessage(new AppendBlock(id), pendingBytes, out);
-                    for (Iterator<ByteBuf> iterator = pendingList.iterator(); iterator.hasNext(); ) {
-                        out.writeBytes(iterator.next());
-                        iterator.remove();
-                    }
+                    pendingList.forEach(out::writeBytes);
+                    pendingList.clear();
                 }
                 flush(pendingBytes, null, out);
                 pendingBytes = 0;
@@ -156,20 +157,21 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         }
 
         /**
-         * Write/flush given data to network channel.
-         * by writing the Append block End containing the given/input data and indicating the size of previous
-         * append block data.
-         * @param out   Network channel buffer.
+         * Write/flush given data to network channel by writing the Append block End containing the given/input data
+         * and indicating the size of previous append block data.
+         *
+         * @param sizeOfWholeEvents Size of data followed by this append block end.
+         * @param data              Remaining data
+         * @param out               Network channel buffer.
          */
-        private void flush(int sizOfWholeEvents, ByteBuf data, ByteBuf out) {
-            writeMessage(new AppendBlockEnd(id, sizOfWholeEvents, data, eventCount, lastEventNumber, requestId), out);
+        private void flush(int sizeOfWholeEvents, ByteBuf data, ByteBuf out) {
+            writeMessage(new AppendBlockEnd(id, sizeOfWholeEvents, data, eventCount, lastEventNumber, requestId), out);
             eventCount = 0;
         }
     }
 
     /**
-     * Write/flush Multi session's buffered data to network channel buffer
-     * by iterating over all the pending sessions .
+     * Write/flush Multi session's buffered data to network channel buffer by iterating over all the pending sessions .
      * @param out   Network Channel Buffer.
      */
     private void flushAll(ByteBuf out) {
@@ -187,12 +189,11 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
             validateAppend(append, session);
             final ByteBuf data = append.getData().slice();
-            final int msgSize = data.readableBytes();
             final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
                     appendTracker.apply(append.getFlowId());
 
             if (blockSizeSupplier != null) {
-                blockSizeSupplier.recordAppend(append.getEventNumber(), msgSize);
+                blockSizeSupplier.recordAppend(append.getEventNumber(), data.readableBytes());
             }
 
             if (isChannelFree()) {
@@ -275,7 +276,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
      * Check/Confirm the Network channel Ownership.
      * The Network channel ownership is associated with Writer ID and segment to which writes are performed.
      *
-     * @param writerID  Writers UUID.
+     * @param writerID  Writer's UUID.
      * @param segment   Segment.
      * @return true if channel is used by the given WriterId and Segment; false otherwise.
      */
@@ -285,9 +286,9 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     /**
      * Start the Append.
-     * if the Append batch size tracker decides the block size
-     * which is more than event message size then timeout will be initiated.
-     * Append block is written on channel.
+     * Append block is written on channel
+     * If the Append batch size tracker decides the block size which is more than event message size then
+     * the block timeout will be initiated with a token.
      *
      * @param ctx               ChannelHandlerContext.
      * @param blockSizeSupplier Append batch size tracker.
@@ -296,14 +297,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
      */
     private void startAppend(ChannelHandlerContext ctx, AppendBatchSizeTracker blockSizeSupplier, Append append, ByteBuf out) {
         final int msgSize = append.getData().readableBytes();
-        int blkSize = 0;
+        int blockSize = 0;
         if (blockSizeSupplier != null) {
-            blkSize = blockSizeSupplier.getAppendBlockSize();
+            blockSize = blockSizeSupplier.getAppendBlockSize();
         }
         segmentBeingAppendedTo = append.segment;
         writerIdPerformingAppends = append.writerId;
-        if (ctx != null && blkSize > msgSize) {
-            currentBlockSize = blkSize;
+        if (ctx != null && blockSize > msgSize) {
+            currentBlockSize = blockSize;
             writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize + TYPE_PLUS_LENGTH_SIZE, out);
             ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
                     blockSizeSupplier.getBatchTimeout(),
@@ -328,6 +329,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     /**
      * Complete the ongoing append by writing the pending data as Append Block End to channel buffer.
+     * Increment the Token Counter value so the block timeout need not invoke the flush again.
      *
      * @param pendingData   data to write.
      * @param out           channel Buffer.
@@ -370,7 +372,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     @SneakyThrows(IOException.class)
-    private void writeMessage(AppendBlock block, int blkSize, ByteBuf out) {
+    private void writeMessage(AppendBlock block, int blockSize, ByteBuf out) {
         int startIdx = out.writerIndex();
         ByteBufOutputStream bout = new ByteBufOutputStream(out);
         bout.writeInt(block.getType().getCode());
@@ -380,7 +382,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         bout.close();
         int endIdx = out.writerIndex();
         int fieldsSize = endIdx - startIdx - TYPE_PLUS_LENGTH_SIZE;
-        out.setInt(startIdx + TYPE_SIZE, fieldsSize + blkSize);
+        out.setInt(startIdx + TYPE_SIZE, fieldsSize + blockSize);
     }
 
     @SneakyThrows(IOException.class)
@@ -408,6 +410,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         private final Channel channel;
         private final long token;
 
+        /**
+         * Check if the current token is still valid.
+         * If its still valid, then block Timeout message is sent to netty Encoder.
+         */
         @Override
         public void run() {
             if (tokenCounter.get() == token) {
