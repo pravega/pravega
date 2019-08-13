@@ -17,7 +17,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.shared.protocol.netty.WireCommandType;
 import io.pravega.test.common.AssertExtensions;
 import org.junit.After;
@@ -43,14 +43,14 @@ import static org.mockito.Mockito.spy;
 public class PravegaTablesStoreHelperTest {
     private ScheduledExecutorService executor;
     private SegmentHelper segmentHelper;
-    private AuthHelper authHelper;
+    private GrpcAuthHelper authHelper;
     private PravegaTablesStoreHelper storeHelper;
 
     @Before
     public void setup() throws Exception {
         executor = Executors.newScheduledThreadPool(5);
         segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executor);
-        authHelper = AuthHelper.getDisabledAuthHelper();
+        authHelper = GrpcAuthHelper.getDisabledAuthHelper();
         storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor);
     }
     
@@ -159,7 +159,7 @@ public class PravegaTablesStoreHelperTest {
     @Test
     public void testRetriesExhausted() {
         SegmentHelper segmentHelper = spy(SegmentHelperMock.getSegmentHelperMockForTables(executor));
-        AuthHelper authHelper = AuthHelper.getDisabledAuthHelper();
+        GrpcAuthHelper authHelper = GrpcAuthHelper.getDisabledAuthHelper();
         PravegaTablesStoreHelper storeHelper = new PravegaTablesStoreHelper(segmentHelper, authHelper, executor, 2);
 
         CompletableFuture<Void> connectionDropped = Futures.failedFuture(
