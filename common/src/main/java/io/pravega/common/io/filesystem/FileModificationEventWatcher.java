@@ -187,11 +187,6 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
         }
     }
 
-    /*@VisibleForTesting
-    void join(long seconds) {
-        this.join(seconds);
-    }*/
-
     @Override
     public void startMonitoring() {
         this.setDaemon(true);
