@@ -18,11 +18,11 @@ import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.DataCorruptionException;
 import io.pravega.segmentstore.server.MetadataBuilder;
 import io.pravega.segmentstore.server.ReadIndex;
+import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation;
 import io.pravega.segmentstore.server.logs.operations.StreamSegmentMapOperation;
@@ -266,7 +266,17 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
 
         @Override
         public double getCacheUtilization() {
-            throw new IllegalStateException("Not Implemented");
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public double getCacheTargetUtilization() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public double getCacheMaxUtilization() {
+            throw new UnsupportedOperationException();
         }
 
         private void invoke(MethodInvocation methodInvocation) {
