@@ -19,7 +19,7 @@ import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -132,7 +132,7 @@ public class ControllerClusterListenerTest {
         StreamMetadataStore streamStore = StreamStoreFactory.createInMemoryStore(executor);
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
-                segmentHelper, executor, host.getHostId(), AuthHelper.getDisabledAuthHelper());
+                segmentHelper, executor, host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper());
         txnTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
         TxnSweeper txnSweeper = new TxnSweeper(streamStore, txnTasks, 100, executor);
 
@@ -206,7 +206,7 @@ public class ControllerClusterListenerTest {
         // create streamtransactionmetadatatasks but dont initialize it with writers. this will not be
         // ready until writers are supplied.
         StreamTransactionMetadataTasks txnTasks = new StreamTransactionMetadataTasks(streamStore, 
-                segmentHelper, executor, host.getHostId(), AuthHelper.getDisabledAuthHelper());
+                segmentHelper, executor, host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper());
 
         TxnSweeper txnSweeper = spy(new TxnSweeper(streamStore, txnTasks, 100, executor));
         // any attempt to sweep txnHost should have been ignored
@@ -231,7 +231,7 @@ public class ControllerClusterListenerTest {
 
         // Create request sweeper.
         StreamMetadataTasks streamMetadataTasks = new StreamMetadataTasks(streamStore, mock(BucketStore.class), taskStore, segmentHelper, executor,
-                host.getHostId(), AuthHelper.getDisabledAuthHelper(), new RequestTracker(true));
+                host.getHostId(), GrpcAuthHelper.getDisabledAuthHelper(), new RequestTracker(true));
 
         RequestSweeper requestSweeper = spy(new RequestSweeper(streamStore, executor, streamMetadataTasks));
         // any attempt to sweep requests should have been ignored
