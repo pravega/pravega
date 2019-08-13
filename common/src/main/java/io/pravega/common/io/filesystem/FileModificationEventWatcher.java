@@ -82,7 +82,6 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
      *                          is useful for testing only.
      * @throws InvalidPathException if {@code fileToWatch} is invalid
      * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
-     * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
      * @throws NullPointerException if either {@code fileToWatch}  or {@code callback} is null
      */
     @VisibleForTesting

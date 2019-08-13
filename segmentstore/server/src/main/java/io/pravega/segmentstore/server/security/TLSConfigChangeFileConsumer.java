@@ -11,14 +11,12 @@ package io.pravega.segmentstore.server.security;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.handler.ssl.SslContext;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-@RequiredArgsConstructor
 @Slf4j
 public class TLSConfigChangeFileConsumer implements Consumer<File> {
 
@@ -31,11 +29,6 @@ public class TLSConfigChangeFileConsumer implements Consumer<File> {
 
     @Override
     public void accept(File file) {
-        if (file != null) {
-            log.debug("Invoked for file [{}] ", file.getPath());
-        } else {
-            log.warn("Invoked for null file");
-        }
         handler.handleTlsConfigChange();
     }
 
