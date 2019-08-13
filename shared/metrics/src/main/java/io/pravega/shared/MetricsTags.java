@@ -16,6 +16,8 @@ import java.net.UnknownHostException;
 
 public final class MetricsTags {
 
+    public static final String HOSTNAME_PROPERTY_NAME = "HOSTNAME";
+
     // Metric Tag Names
     public static final String TAG_CONTAINER = "container";
     public static final String TAG_HOST = "host";
@@ -139,6 +141,13 @@ public final class MetricsTags {
      */
     public static String[] createHostTag() {
         String[] hostTag = {MetricsTags.TAG_HOST, null};
+
+        //Always take property "HOSTNAME" if it's defined.
+        hostTag[1] = System.getProperty(HOSTNAME_PROPERTY_NAME);
+        if (hostTag[1] != null) {
+            return hostTag;
+        }
+
         try {
             hostTag[1] = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
