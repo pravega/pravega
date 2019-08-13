@@ -10,7 +10,7 @@
 package io.pravega.controller.server;
 
 import io.pravega.controller.mocks.SegmentHelperMock;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientConfig;
 import io.pravega.controller.store.client.ZKClientConfig;
@@ -33,6 +33,6 @@ public class PravegaTablesControllerServiceStarterTest extends ZKBackedControlle
     @Override
     StreamMetadataStore getStore(StoreClient storeClient) {
         return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), 
-                AuthHelper.getDisabledAuthHelper(), (CuratorFramework) storeClient.getClient(), executor);
+                GrpcAuthHelper.getDisabledAuthHelper().getDisabledAuthHelper(), (CuratorFramework) storeClient.getClient(), executor);
     }
 }
