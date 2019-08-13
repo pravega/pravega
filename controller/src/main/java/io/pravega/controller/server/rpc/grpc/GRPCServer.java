@@ -17,8 +17,8 @@ import io.grpc.ServerInterceptors;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
-import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import java.io.File;
@@ -34,8 +34,9 @@ public class GRPCServer extends AbstractIdleService {
     private final String objectId;
     private final Server server;
     private final GRPCServerConfig config;
+
     @Getter
-    private final PravegaAuthManager pravegaAuthManager;
+    private final AuthHandlerManager authHandlerManager;
 
     /**
      * Create gRPC server on the specified port.
@@ -47,7 +48,7 @@ public class GRPCServer extends AbstractIdleService {
     public GRPCServer(ControllerService controllerService, GRPCServerConfig serverConfig, RequestTracker requestTracker) {
         this.objectId = "gRPCServer";
         this.config = serverConfig;
-        AuthHelper authHelper = new AuthHelper(serverConfig.isAuthorizationEnabled(),
+        GrpcAuthHelper authHelper = new GrpcAuthHelper(serverConfig.isAuthorizationEnabled(),
                 serverConfig.getTokenSigningKey(), serverConfig.getAccessTokenTTLInSeconds());
         ServerBuilder<?> builder = ServerBuilder
                 .forPort(serverConfig.getPort())
@@ -55,10 +56,10 @@ public class GRPCServer extends AbstractIdleService {
                                 serverConfig.isReplyWithStackTraceOnError()),
                         RPCTracingHelpers.getServerInterceptor(requestTracker)));
         if (serverConfig.isAuthorizationEnabled()) {
-            this.pravegaAuthManager = new PravegaAuthManager(serverConfig);
-            this.pravegaAuthManager.registerInterceptors(builder);
+            this.authHandlerManager = new AuthHandlerManager(serverConfig);
+            this.authHandlerManager.registerInterceptors(builder);
         } else {
-            this.pravegaAuthManager = null;
+            this.authHandlerManager = null;
         }
 
         if (serverConfig.isTlsEnabled() && !Strings.isNullOrEmpty(serverConfig.getTlsCertFile())) {

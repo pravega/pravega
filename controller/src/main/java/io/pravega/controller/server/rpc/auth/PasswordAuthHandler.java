@@ -45,6 +45,8 @@ public class PasswordAuthHandler implements AuthHandler {
     }
 
     private void loadPasswordFile(String userPasswordFile) {
+        log.debug("Loading {}", userPasswordFile);
+
         try (FileReader reader = new FileReader(userPasswordFile);
              BufferedReader lineReader = new BufferedReader(reader)) {
             String line;
