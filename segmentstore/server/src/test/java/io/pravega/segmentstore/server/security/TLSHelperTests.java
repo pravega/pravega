@@ -9,15 +9,31 @@
  */
 package io.pravega.segmentstore.server.security;
 
+import io.netty.handler.ssl.SslContext;
+import io.pravega.test.common.SecurityConfigDefaults;
 import org.junit.Test;
 
+import java.io.File;
+
 import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.assertNotNull;
 
 public class TLSHelperTests {
 
     private final static String PATH_EMPTY = "";
     private final static String PATH_NONEMPTY = "non-empty";
     private final static String PATH_NONEXISTENT = System.currentTimeMillis() + ".file";
+
+    @Test
+    public void testNewServerSslContextSucceedsWhenInputIsValid() {
+        String pathToCertificateFile = "../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
+        String pathToKeyFile = "../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+
+        SslContext sslCtx = TLSHelper.newServerSslContext(new File(pathToCertificateFile),
+                new File(pathToKeyFile));
+
+        assertNotNull(sslCtx);
+    }
 
     @Test
     public void testNewServerSslContextFailsWhenInputIsNull() {

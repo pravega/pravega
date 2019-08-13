@@ -31,7 +31,11 @@ public class TLSConfigChangeFileConsumer implements Consumer<File> {
 
     @Override
     public void accept(File file) {
-        log.debug("Invoked for file [{}] ", file.getPath());
+        if (file != null) {
+            log.debug("Invoked for file [{}] ", file.getPath());
+        } else {
+            log.warn("Invoked for null file");
+        }
         handler.handleTlsConfigChange();
     }
 

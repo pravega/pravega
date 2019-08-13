@@ -12,30 +12,34 @@ package io.pravega.segmentstore.server.security;
 import io.netty.handler.ssl.SslContext;
 import io.pravega.test.common.SecurityConfigDefaults;
 import org.junit.Test;
+
 import java.io.File;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
 
-public class TLSConfigChangeEventConsumerTests {
+public class TLSConfigChangeFileConsumerTests {
 
-    @Test (expected = NullPointerException.class)
+    @Test(expected = NullPointerException.class)
     public void testNullCtorArgumentsAreRejected() {
-        new TLSConfigChangeEventConsumer(new AtomicReference<>(null), null, null);
+        new TLSConfigChangeFileConsumer(new AtomicReference<>(null), null, null);
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToCertificateFileIsRejected() {
-        TLSConfigChangeEventConsumer subjectUnderTest = new TLSConfigChangeEventConsumer(new AtomicReference<>(null),
-                "", "non-existent");
+        TLSConfigChangeFileConsumer subjectUnderTest = new TLSConfigChangeFileConsumer(new AtomicReference<>(null),
+                    "", "non-existent");
         subjectUnderTest.accept(null);
+
+        assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
     }
 
     @Test (expected = IllegalArgumentException.class)
     public void testEmptyPathToKeyFileIsRejected() {
-        TLSConfigChangeEventConsumer subjectUnderTest = new TLSConfigChangeEventConsumer(new AtomicReference<>(null),
+        TLSConfigChangeFileConsumer subjectUnderTest = new TLSConfigChangeFileConsumer(new AtomicReference<>(null),
                 "non-existent", "");
         subjectUnderTest.accept(null);
+        assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
     }
 
     @Test
@@ -46,7 +50,7 @@ public class TLSConfigChangeEventConsumerTests {
         AtomicReference<SslContext> sslCtx = new AtomicReference<>(TLSHelper.newServerSslContext(
                 new File(pathToCertificateFile), new File(pathToKeyFile)));
 
-        TLSConfigChangeEventConsumer subjectUnderTest = new TLSConfigChangeEventConsumer(sslCtx, pathToCertificateFile,
+        TLSConfigChangeFileConsumer subjectUnderTest = new TLSConfigChangeFileConsumer(sslCtx, pathToCertificateFile,
                 pathToKeyFile);
         subjectUnderTest.accept(null);
 

@@ -9,6 +9,7 @@
  */
 package io.pravega.common.io.filesystem;
 
+import com.google.common.annotations.VisibleForTesting;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.monitor.FileAlterationListener;
@@ -52,6 +53,8 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
 
     private FileAlterationMonitor monitor;
 
+    private int pollingInterval;
+
     /**
      * Creates a new instance.
      *
@@ -65,9 +68,16 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
      */
     public FileModificationPollingMonitor(@NonNull String fileToWatch, @NonNull Consumer<File> callback)
             throws FileNotFoundException {
+        this(fileToWatch, callback, DEFAULT_POLL_INTERVAL);
+    }
+
+    @VisibleForTesting
+    FileModificationPollingMonitor(@NonNull String fileToWatch, @NonNull Consumer<File> callback, int pollingInterval)
+            throws FileNotFoundException {
         this.pathOfFileToWatch = Paths.get(fileToWatch);
         this.validateInput(this.pathOfFileToWatch, callback);
         this.callback = callback;
+        this.pollingInterval = pollingInterval;
     }
 
     @Override
@@ -98,7 +108,7 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
             }
         });
 
-        monitor = new FileAlterationMonitor(DEFAULT_POLL_INTERVAL);
+        monitor = new FileAlterationMonitor(this.pollingInterval);
 
         FileAlterationListener listener = new FileAlterationListenerAdaptor() {
             @Override
