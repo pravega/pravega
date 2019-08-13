@@ -146,7 +146,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
     }
 
     private ByteBuf getAppendDataBuf(WireCommands.AppendBlockEnd blockEnd, int sizeOfWholeEventsInBlock) throws IOException {
-        final ByteBuf appendDataBuf = currentBlock.getData().slice(0, sizeOfWholeEventsInBlock);
+        ByteBuf appendDataBuf = currentBlock.getData().slice(0, sizeOfWholeEventsInBlock);
         final int remaining = currentBlock.getData().readableBytes() - sizeOfWholeEventsInBlock;
         if (remaining > 0) {
             ByteBuf dataRemainingInBlock = currentBlock.getData().slice(sizeOfWholeEventsInBlock, remaining);
