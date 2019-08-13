@@ -24,7 +24,7 @@ import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.WireCommandFailedException;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostStoreException;
 import io.pravega.controller.util.RetryHelper;
 import lombok.EqualsAndHashCode;
@@ -61,7 +61,7 @@ public class PravegaTablesStoreHelper {
     private final ScheduledExecutorService executor;
     private final Cache cache;
     private final AtomicReference<String> authToken;
-    private final AuthHelper authHelper;
+    private final GrpcAuthHelper authHelper;
     
     @lombok.Data
     @EqualsAndHashCode(exclude = {"fromBytesFunc"})
@@ -72,7 +72,7 @@ public class PravegaTablesStoreHelper {
         private final Function<byte[], T> fromBytesFunc;
     }
 
-    public PravegaTablesStoreHelper(SegmentHelper segmentHelper, AuthHelper authHelper, ScheduledExecutorService executor) {
+    public PravegaTablesStoreHelper(SegmentHelper segmentHelper, GrpcAuthHelper authHelper, ScheduledExecutorService executor) {
         this.segmentHelper = segmentHelper;
         this.executor = executor;
 

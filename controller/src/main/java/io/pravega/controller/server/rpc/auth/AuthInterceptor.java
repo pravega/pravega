@@ -21,25 +21,36 @@ import io.grpc.Status;
 import io.pravega.auth.AuthConstants;
 import io.pravega.auth.AuthException;
 import io.pravega.auth.AuthHandler;
-import io.pravega.shared.security.token.JsonWebToken;
 import java.security.Principal;
-import java.util.HashMap;
-import java.util.Map;
 
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.auth.AuthHandler.Permissions.READ_UPDATE;
-
+/**
+ * Intercepts gRPC requests and sets up Auth context.
+ */
 @Slf4j
-public class PravegaInterceptor implements ServerInterceptor {
-    private static final String AUTH_CONTEXT = "PravegaContext";
-    private static final String INTERCEPTOR_CONTEXT = "InterceptorContext";
-    private static final Context.Key<Principal> AUTH_CONTEXT_TOKEN = Context.key(AUTH_CONTEXT);
-    public static final Context.Key<PravegaInterceptor> INTERCEPTOR_OBJECT = Context.key(INTERCEPTOR_CONTEXT);
+public class AuthInterceptor implements ServerInterceptor {
 
+    private static final String PRINCIPAL_KEY_NAME = "PravegaContext";
+    private static final String INTERCEPTOR_KEY_NAME = "InterceptorContext";
+
+    /**
+     * Represents the key used for indexing the {@link java.security.Principal} object stored in the current
+     * {@link io.grpc.Context}.
+     */
+    static final Context.Key<Principal> PRINCIPAL_OBJECT_KEY = Context.key(PRINCIPAL_KEY_NAME);
+
+    /**
+     * Represents the key used for indexing an object instance of this class stored in the current
+     * {@link io.grpc.Context}.
+     */
+    static final Context.Key<AuthInterceptor> AUTH_INTERCEPTOR_OBJECT_KEY = Context.key(INTERCEPTOR_KEY_NAME);
+
+    @Getter
     private final AuthHandler handler;
 
-    PravegaInterceptor(AuthHandler handler) {
+    AuthInterceptor(AuthHandler handler) {
         Preconditions.checkNotNull(handler, "handler can not be null");
         this.handler = handler;
     }
@@ -49,7 +60,10 @@ public class PravegaInterceptor implements ServerInterceptor {
 
         Context context = Context.current();
 
+        // The authorization header has the credentials (e.g., username and password for Basic Authentication).
+        // The form of the header is: <Method> <Token> (CustomMethod static-token, or Basic XYZ...., for example)
         String credentials = headers.get(Metadata.Key.of(AuthConstants.AUTHORIZATION, Metadata.ASCII_STRING_MARSHALLER));
+
         if (!Strings.isNullOrEmpty(credentials)) {
             String[] parts = credentials.split("\\s+", 2);
             if (parts.length == 2) {
@@ -57,41 +71,30 @@ public class PravegaInterceptor implements ServerInterceptor {
                 String token = parts[1];
                 if (!Strings.isNullOrEmpty(method)) {
                     if (method.equals(handler.getHandlerName())) {
+                        log.debug("Handler [{}] successfully matched auth method [{}]", handler, method);
                         Principal principal;
                         try {
                             if ((principal = handler.authenticate(token)) == null) {
+                                log.warn("Handler for method [{}] returned a null Principal upon authentication for the"
+                                        + "given token", method);
                                 call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
                                 return null;
                             }
                         } catch (AuthException e) {
+                            log.warn("Authentication failed", e);
                             call.close(Status.fromCode(Status.Code.UNAUTHENTICATED), headers);
                             return null;
                         }
-                        context = context.withValue(AUTH_CONTEXT_TOKEN, principal);
-                        context = context.withValue(INTERCEPTOR_OBJECT, this);
+                        // Creates a new Context with the given key/value pairs.
+                        context = context.withValues(PRINCIPAL_OBJECT_KEY, principal, AUTH_INTERCEPTOR_OBJECT_KEY, this);
                     }
+                } else {
+                    log.debug("Credentials are present, but method [{}] is null or empty", method);
                 }
             }
         }
 
         // reaching this point means that the handler wasn't applicable to this request.
         return Contexts.interceptCall(context, call, headers, next);
-    }
-
-    public AuthHandler.Permissions authorize(String resource) {
-        return this.handler.authorize(resource, AUTH_CONTEXT_TOKEN.get());
-    }
-
-    /**
-     * Retrieves a master token for internal controller to segmentstore communication.
-     * @param tokenSigningKey Signing key for the JWT token.
-     * @return A new master token which has highest privileges.
-     */
-    public static String retrieveMasterToken(String tokenSigningKey) {
-        Map<String, Object> customClaims = new HashMap<>();
-        customClaims.put("*", String.valueOf(READ_UPDATE));
-
-        return new JsonWebToken("segmentstoreresource", "segmentstore", tokenSigningKey.getBytes(),
-                null, customClaims).toCompactString();
     }
 }
