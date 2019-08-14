@@ -9,6 +9,7 @@
  */
 package io.pravega.shared;
 
+import io.micrometer.core.instrument.util.StringUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
@@ -19,6 +20,7 @@ import static io.pravega.shared.MetricsTags.hostTag;
 import static io.pravega.shared.MetricsTags.segmentTags;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.shared.MetricsTags.transactionTags;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -42,6 +44,10 @@ public class MetricsTagsTest {
     public void testCreateHostTag() {
         System.setProperty(HOSTNAME_PROPERTY_NAME, "testHostName");
         assertEquals("testHostName", createHostTag()[1]);
+        System.setProperty(HOSTNAME_PROPERTY_NAME, "");
+        assertTrue(StringUtils.isNotBlank(createHostTag()[1]));
+        System.clearProperty(HOSTNAME_PROPERTY_NAME);
+        assertTrue(StringUtils.isNotBlank(createHostTag()[1]));
     }
 
     @Test

@@ -10,6 +10,7 @@
 package io.pravega.shared;
 
 import com.google.common.base.Preconditions;
+import io.micrometer.core.instrument.util.StringUtils;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -144,7 +145,7 @@ public final class MetricsTags {
 
         //Always take property "HOSTNAME" if it's defined.
         hostTag[1] = System.getProperty(HOSTNAME_PROPERTY_NAME);
-        if (hostTag[1] != null) {
+        if (StringUtils.isNotBlank(hostTag[1])) {
             return hostTag;
         }
 
