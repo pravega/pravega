@@ -212,12 +212,11 @@ public class WatermarkingTest {
         }
     }
 
-    private void scale(Controller controller, Stream streamObj, StreamConfiguration configuration) throws InterruptedException {
+    private void scale(Controller controller, Stream streamObj, StreamConfiguration configuration) {
         // perform several scales
         int numOfSegments = configuration.getScalingPolicy().getMinNumSegments();
         double delta = 1.0 / numOfSegments;
         for (long segmentNumber = 0; segmentNumber < numOfSegments - 1; segmentNumber++) {
-            Thread.sleep(5000L);
             double rangeLow = segmentNumber * delta;
             double rangeHigh = (segmentNumber + 1) * delta;
             double rangeMid = (rangeHigh + rangeLow) / 2;
