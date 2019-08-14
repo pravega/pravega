@@ -154,7 +154,13 @@ message ContinuationToken {
  message StreamsInScopeResponse {
     repeated StreamInfo streams = 1;
     ContinuationToken continuationToken = 2;
-}
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+    }
+    Status status = 3;
+ }
 
 message StreamInfo {
     string scope = 1;
