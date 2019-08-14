@@ -177,13 +177,17 @@ public class ZKStoreHelper {
     }
 
     CompletableFuture<List<String>> getChildren(final String path) {
+        return getChildren(path, true);
+    }
+
+    CompletableFuture<List<String>> getChildren(final String path, boolean ignoreDataNotFound) {
         final CompletableFuture<List<String>> result = new CompletableFuture<>();
 
         try {
             client.getChildren().inBackground(
                     callback(event -> result.complete(event.getChildren()),
                             e -> {
-                                if (e instanceof StoreException.DataNotFoundException) {
+                                if (ignoreDataNotFound && e instanceof StoreException.DataNotFoundException) {
                                     result.complete(Collections.emptyList());
                                 } else {
                                     result.completeExceptionally(e);

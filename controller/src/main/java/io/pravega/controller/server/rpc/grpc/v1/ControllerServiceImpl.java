@@ -23,6 +23,7 @@ import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthContext;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -59,6 +60,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -425,33 +427,38 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             AuthResourceRepresentation.ofScope(scopeName), result);
                         return result;
                 },
-                delegationToken -> controllerService.listStreams(scopeName, request.getContinuationToken().getToken(),
-                        listStreamsInScopeLimit)
-                        .thenApply(response -> {
-                             log.debug("response: {}", response);
-                             List<StreamInfo> streams = response.getKey().stream()
-                                     .filter(streamName -> {
-                                         String streamAuthResource =
-                                                 AuthResourceRepresentation.ofStreamInScope(scopeName, streamName);
+                delegationToken -> controllerService
+                        .listStreams(scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                        .handle((response, ex) -> {
+                            if (ex != null) {
+                                if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                                    return Controller.StreamsInScopeResponse.newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND).build();
+                                } else {
+                                    throw new CompletionException(ex);
+                                }
+                            } else {
+                                log.debug("All streams in scope with continuation token: {}", response);
+                                List<StreamInfo> streams = response
+                                        .getKey().stream()
+                                        .filter(streamName -> {
+                                            String streamAuthResource =
+                                                    AuthResourceRepresentation.ofStreamInScope(scopeName, streamName);
 
-                                         boolean isAuthorized = grpcAuthHelper.isAuthorized(streamAuthResource,
-                                                 AuthHandler.Permissions.READ, ctx);
-                                         log.debug("Authorization for [{}] for READ permission was [{}]",
-                                                 streamAuthResource, isAuthorized);
-                                         return isAuthorized;
-                                     })
-                                     .map(m -> StreamInfo.newBuilder().setScope(scopeName).setStream(m).build())
-                                     .collect(Collectors.toList());
-                             return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(streams)
-                                     .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(
-                                             response.getValue()).build()).build();
-                        })
-                        .exceptionally(e -> {
-                            log.error("Encountered error", e);
-                            return null;
-                        }),
-                responseObserver,
-                requestTag);
+                                            boolean isAuthorized = grpcAuthHelper.isAuthorized(streamAuthResource,
+                                                    AuthHandler.Permissions.READ, ctx);
+                                            log.debug("Authorization for [{}] for READ permission was [{}]",
+                                                    streamAuthResource, isAuthorized);
+                                            return isAuthorized;
+                                        })
+                                        .map(m -> StreamInfo.newBuilder().setScope(scopeName).setStream(m).build())
+                                        .collect(Collectors.toList());
+                                return Controller.StreamsInScopeResponse
+                                        .newBuilder().addAllStreams(streams)
+                                        .setContinuationToken(Controller.ContinuationToken.newBuilder()
+                                                                                          .setToken(response.getValue()).build())
+                                        .setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).build();
+                            }
+                        }), responseObserver, requestTag);
     }
 
     @Override
