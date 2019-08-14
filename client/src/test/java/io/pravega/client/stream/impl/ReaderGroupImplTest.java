@@ -25,6 +25,8 @@ import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.impl.ReaderGroupState.ClearCheckpointsBefore;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.InlineExecutor;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -33,12 +35,14 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import lombok.Cleanup;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 import static io.pravega.test.common.AssertExtensions.assertSuppliedFutureThrows;
@@ -47,6 +51,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -80,6 +85,7 @@ public class ReaderGroupImplTest {
     public void setUp() throws Exception {
         when(clientFactory.createStateSynchronizer(anyString(), any(Serializer.class), any(Serializer.class),
                                                    any(SynchronizerConfig.class))).thenReturn(synchronizer);
+        when(synchronizer.getState()).thenReturn(state);
         readerGroup = new ReaderGroupImpl(SCOPE, GROUP_NAME, synchronizerConfig, initSerializer,
                 updateSerializer, clientFactory, controller, connectionFactory);
     }
@@ -227,5 +233,22 @@ public class ReaderGroupImplTest {
         });
 
         return new StreamCutImpl(Stream.of(SCOPE, streamName), builder.build());
+    }
+    
+    @Test
+    public void testFutureCancelation() throws Exception {
+        AtomicBoolean completed = new AtomicBoolean(false);
+        when(synchronizer.updateState(any(StateSynchronizer.UpdateGeneratorFunction.class))).thenReturn(true);
+        when(state.isCheckpointComplete("test")).thenReturn(false).thenReturn(true);
+        Mockito.doAnswer(invocation -> {
+            completed.set(true);
+            return null;
+        }).when(synchronizer).updateStateUnconditionally(eq(new ClearCheckpointsBefore("test")));
+        @Cleanup("shutdown")
+        InlineExecutor executor = new InlineExecutor();
+        CompletableFuture<Checkpoint> result = readerGroup.initiateCheckpoint("test", executor);
+        assertFalse(result.isDone());
+        result.cancel(false);
+        AssertExtensions.assertEventuallyEquals(true, completed::get, 5000);
     }
 }
