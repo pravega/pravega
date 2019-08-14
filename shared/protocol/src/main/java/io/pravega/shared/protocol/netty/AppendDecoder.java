@@ -124,7 +124,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                }
                if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
                     throw new InvalidMessageException(
-                            String.format("nvalid SizeOfWholeEvents in block : %d, Append block data bytes : %d",
+                            String.format("Invalid SizeOfWholeEvents in block : %d, Append block data bytes : %d",
                                     sizeOfWholeEventsInBlock, currentBlock.getData().readableBytes()));
                }
                appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
@@ -179,7 +179,6 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
         appendDataBuf.release();
         return result;
     }
-
 
     private Segment getSegment(UUID writerId) {
         Segment segment = appendingSegments.get(writerId);
