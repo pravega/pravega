@@ -82,10 +82,6 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
 
     @Override
     public void startMonitoring() {
-        if (pathOfFileToWatch == null) {
-            throw new IllegalStateException("pathOfFileToWatch is 'null'");
-        }
-
         Path fileName = pathOfFileToWatch.getFileName();
         log.debug("fileName obtained from pathOfFileToWatch is [{}]", fileName);
         if (fileName == null) {

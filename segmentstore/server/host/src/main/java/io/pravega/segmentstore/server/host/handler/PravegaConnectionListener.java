@@ -46,6 +46,7 @@ import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ExceptionLoggingHandler;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.FileNotFoundException;
@@ -77,7 +78,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
     // TLS related params
     private final boolean enableTls; // whether to enable TLS
+
+    @VisibleForTesting
+    @Getter
     private final boolean enableTlsReload; // whether to reload TLS certificate when the certificate changes
+
     private final String pathToTlsCertFile;
     private final String pathToTlsKeyFile;
 
@@ -121,7 +126,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
                                      SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
                                      DelegationTokenVerifier tokenVerifier, String certFile, String keyFile, boolean replyWithStackTraceOnError) {
         this.enableTls = enableTls;
-        this.enableTlsReload = enableTlsReload;
+        if (this.enableTls) {
+            this.enableTlsReload = enableTlsReload;
+        } else {
+            this.enableTlsReload = false;
+        }
         this.host = Exceptions.checkNotNullOrEmpty(host, "host");
         this.port = port;
         this.store = Preconditions.checkNotNull(streamSegmentStore, "streamSegmentStore");
@@ -145,8 +154,6 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
         final AtomicReference<SslContext> sslCtx;
         if (this.enableTls) {
-            // Note that if 'enableTlsReload' is true and the certificate changes, the underlying SslContext object
-            // is recreated (the logic is visible in code below).
             sslCtx = new AtomicReference<>(TLSHelper.newServerSslContext(pathToTlsCertFile, pathToTlsKeyFile));
         } else {
             sslCtx = null;
@@ -204,14 +211,12 @@ public final class PravegaConnectionListener implements AutoCloseable {
             try {
                 if (Files.isSymbolicLink(Paths.get(pathToTlsCertFile))) {
                     log.info("The path to certificate file [{}] was found to be pointing to a symbolic link, " +
-                                    " so, using an instance of [{}] t monitor for certificate changes",
+                                    " so, using an instance of [{}] to monitor for certificate changes",
                             pathToTlsCertFile, FileModificationPollingMonitor.class.getSimpleName());
 
-                    tlsCertFileChangeMonitor = new FileModificationPollingMonitor(
-                            this.pathToTlsCertFile,
+                    tlsCertFileChangeMonitor = new FileModificationPollingMonitor(this.pathToTlsCertFile,
                             new TLSConfigChangeFileConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile));
                 } else {
-
                     // For non symbolic links we'll depend on event-based watcher, which is more efficient than a
                     // polling-based monitor.
                     tlsCertFileChangeMonitor = new FileModificationEventWatcher(this.pathToTlsCertFile,
@@ -234,12 +239,18 @@ public final class PravegaConnectionListener implements AutoCloseable {
     public void close() {
         // Wait until the server socket is closed.
         Exceptions.handleInterrupted(() -> {
-            serverChannel.close();
-            serverChannel.closeFuture().sync();
+            if (serverChannel != null) {
+                serverChannel.close();
+                serverChannel.closeFuture().sync();
+            }
         });
         // Shut down all event loops to terminate all threads.
-        bossGroup.shutdownGracefully();
-        workerGroup.shutdownGracefully();
+        if (bossGroup != null) {
+            bossGroup.shutdownGracefully();
+        }
+        if (workerGroup != null) {
+            workerGroup.shutdownGracefully();
+        }
 
         if (tlsCertFileChangeMonitor != null) {
             tlsCertFileChangeMonitor.stopMonitoring();
