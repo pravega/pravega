@@ -237,6 +237,7 @@ public class ZookeeperK8sService extends AbstractService {
                 .put("kind", CUSTOM_RESOURCE_KIND)
                 .put("metadata", ImmutableMap.of("name", deploymentName))
                 .put("spec", ImmutableMap.of("size", clusterSize))
+                .put("spec", ImmutableMap.of("image", "pravega/zookeeper:0.2.2"))
                 .build();
     }
 }
