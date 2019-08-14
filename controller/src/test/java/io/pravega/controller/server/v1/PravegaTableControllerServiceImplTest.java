@@ -10,7 +10,9 @@
 package io.pravega.controller.server.v1;
 
 import io.pravega.common.cluster.Cluster;
+import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
@@ -27,6 +29,8 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStrea
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
+import io.pravega.controller.store.client.StoreClient;
+import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
@@ -34,36 +38,50 @@ import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
-import java.util.Collections;
+import io.pravega.test.common.TestingServerStarter;
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.test.TestingServer;
+
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 /**
- * InMemory stream store configuration.
+ * Zookeeper stream store configuration.
  */
-public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest {
+public class PravegaTableControllerServiceImplTest extends ControllerServiceImplTest {
 
-    private TaskMetadataStore taskMetadataStore;
+    private TestingServer zkServer;
+    private CuratorFramework zkClient;
+    private StoreClient storeClient;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamRequestHandler streamRequestHandler;
+    private TaskMetadataStore taskMetadataStore;
 
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
+    private Cluster cluster;
     private StreamMetadataStore streamStore;
-    private SegmentHelper segmentHelper;
-    private RequestTracker requestTracker;
-    
+
     @Override
     public void setup() throws Exception {
-        executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
-        taskMetadataStore = TaskStoreFactoryForTests.createInMemoryStore(executorService);
-        streamStore = StreamStoreFactory.createInMemoryStore(executorService);
-        BucketStore bucketStore = StreamStoreFactory.createInMemoryBucketStore();
-        requestTracker = new RequestTracker(true);
+        final RequestTracker requestTracker = new RequestTracker(true);
 
-        segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        zkServer = new TestingServerStarter().start();
+        zkServer.start();
+        zkClient = CuratorFrameworkFactory.newClient(zkServer.getConnectString(),
+                new ExponentialBackoffRetry(200, 10, 5000));
+        zkClient.start();
+
+        storeClient = StoreClientFactory.createZKStoreClient(zkClient);
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
+        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
+        taskMetadataStore = TaskStoreFactoryForTests.createStore(storeClient, executorService);
+        streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
+                zkClient, executorService);
+        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
+
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
@@ -78,18 +96,25 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
                 executorService);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
+
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
-        Cluster mockCluster = mock(Cluster.class);
-        when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
-        controllerService = new ControllerServiceImpl(
-                new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster), GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+        cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
+        final CountDownLatch latch = new CountDownLatch(1);
+        cluster.addListener((type, host) -> latch.countDown());
+        cluster.registerHost(new Host("localhost", 9090, null));
+        latch.await();
+
+        ControllerService controller = new ControllerService(streamStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
+        controllerService = new ControllerServiceImpl(controller, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
     @Override
     public void tearDown() throws Exception {
-        ExecutorServiceHelpers.shutdown(executorService);
+        if (executorService != null) {
+            ExecutorServiceHelpers.shutdown(executorService);
+        }
         if (streamMetadataTasks != null) {
             streamMetadataTasks.close();
         }
@@ -97,5 +122,11 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
             streamTransactionMetadataTasks.close();
         }
         streamStore.close();
+        if (cluster != null) {
+            cluster.close();
+        }
+        storeClient.close();
+        zkClient.close();
+        zkServer.close();
     }
 }
