@@ -241,6 +241,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 long eventNumber = last.getEventNumber();
                 outstandingAppend = new Append(segment, writer, eventNumber, eventCount, data, null, last.getRequestId());
             }
+            pendingBytes = Math.max(pendingBytes, 0);
             return outstandingAppend;
         }
     }
@@ -306,6 +307,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     if (!conditionalFailed) {
                         pendingBytes -= waitingAppends.removeAll(append.getWriterId())
                                 .stream().mapToInt(a -> a.getData().readableBytes()).sum();
+                        pendingBytes = Math.max(pendingBytes, 0);
                         latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
                     }
                 }
