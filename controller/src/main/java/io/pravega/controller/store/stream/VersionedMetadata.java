@@ -11,10 +11,10 @@ package io.pravega.controller.store.stream;
 
 import lombok.Data;
 
-@Data
 /**
- * Wrapper data class that wraps a generic object with a version. 
+ * Wrapper data class that wraps a generic object with a version.
  */
+@Data
 public class VersionedMetadata<OBJECT> {
     private final OBJECT object;
     private final Version version;
