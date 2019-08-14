@@ -140,12 +140,12 @@ public class WatermarkingTest {
         ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerUri).build();
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope, clientConfig);
-        JavaSerializer<String> javaSerializer = new JavaSerializer<>();
+        JavaSerializer<Long> javaSerializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer1 = clientFactory.createEventWriter(stream, javaSerializer,
+        EventStreamWriter<Long> writer1 = clientFactory.createEventWriter(stream, javaSerializer,
                 EventWriterConfig.builder().build());
         @Cleanup
-        EventStreamWriter<String> writer2 = clientFactory.createEventWriter(stream, javaSerializer,
+        EventStreamWriter<Long> writer2 = clientFactory.createEventWriter(stream, javaSerializer,
                 EventWriterConfig.builder().build());
 
         AtomicBoolean stopFlag = new AtomicBoolean(false);
@@ -197,16 +197,16 @@ public class WatermarkingTest {
 
         // create reader on the stream
         @Cleanup
-        final EventStreamReader<String> reader = clientFactory.createReader("myreader",
+        final EventStreamReader<Long> reader = clientFactory.createReader("myreader",
                 readerGroup,
                 javaSerializer,
                 ReaderConfig.builder().build());
         
         // read events from the reader. 
         // verify that events read belong to the bound
-        EventRead<String> event = reader.readNextEvent(10000L);
+        EventRead<Long> event = reader.readNextEvent(10000L);
         while (event.getEvent() != null) {
-            Long time = Long.parseLong(event.getEvent());
+            Long time = event.getEvent();
             assertTrue(time >= timeLow);
             event = reader.readNextEvent(10000L);
         }
@@ -228,12 +228,12 @@ public class WatermarkingTest {
         }
     }
 
-    private CompletableFuture<Void> writeEvents(EventStreamWriter<String> writer, AtomicBoolean stopFlag) {
+    private CompletableFuture<Void> writeEvents(EventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
         AtomicInteger count = new AtomicInteger(0);
         AtomicLong currentTime = new AtomicLong();
         return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
             currentTime.set(System.currentTimeMillis());
-            return writer.writeEvent(count.toString(), Long.toString(currentTime.get()))
+            return writer.writeEvent(count.toString(), currentTime.get())
                          .thenAccept(v -> {
                              if (count.incrementAndGet() % 10 == 0) {
                                  writer.noteTime(currentTime.get());
