@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.common.util;
 
@@ -69,6 +69,7 @@ public interface BufferView {
     byte[] getCopy();
 
     /**
+     * Copies the contents of this {@link BufferView} to the given {@link OutputStream} using a 4KB copy buffer.
      * Copies the contents of this {@link BufferView} to the given {@link OutputStream}.
      *
      * @param target The {@link OutputStream} to write to.

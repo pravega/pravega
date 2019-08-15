@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -454,7 +455,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Generate some test data.
         val segmentId = createStreamSegmentsInMetadata(1, context.metadata).stream().findFirst().orElse(-1L);
-        List<Operation> operations = Collections.singletonList(new StreamSegmentAppendOperation(segmentId, new byte[1], null));
+        List<Operation> operations = Collections.singletonList(new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[1]), null));
 
         CompletableFuture<LogAddress> appendCallback = new CompletableFuture<>();
 

@@ -34,6 +34,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
 import io.pravega.shared.metrics.StatsProvider;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.storage.filesystem.FileSystemStorageConfig;
 import io.pravega.storage.filesystem.FileSystemStorageFactory;
@@ -41,7 +42,6 @@ import io.pravega.test.integration.selftest.Event;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.time.Duration;
 import java.util.AbstractMap;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -181,9 +181,7 @@ class SegmentStoreAdapter extends StoreAdapter {
     @Override
     public CompletableFuture<Void> append(String streamName, Event event, Duration timeout) {
         ensureRunning();
-        ArrayView s = event.getSerialization();
-        byte[] payload = s.arrayOffset() == 0 ? s.array() : Arrays.copyOfRange(s.array(), s.arrayOffset(), s.getLength());
-        return this.streamSegmentStore.append(streamName, payload, null, timeout)
+        return this.streamSegmentStore.append(streamName, new ByteBufWrapper(event.getWriteBuffer()), null, timeout)
                                       .exceptionally(ex -> attemptReconcile(ex, streamName, timeout));
     }
 

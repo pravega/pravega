@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.shared.protocol.netty;
 
@@ -41,7 +41,8 @@ public class ByteBufWrapper implements BufferView {
      *
      * @param buf The {@link ByteBuf} to wrap. A read-only duplicate will be made of this buffer; any changes made to the
      *            {@link ByteBuf#readerIndex()} or {@link ByteBuf#writerIndex()} to this object will not be reflected
-     *            in this {@link ByteBufWrapper} instance.
+     *            in this {@link ByteBufWrapper} instance. This {@link ByteBuf} reference count will be incremented by 1
+     *            to reflect the new reference added by this wrapper. Invoke {@link #close()} to release that reference.
      */
     public ByteBufWrapper(@NonNull ByteBuf buf) {
         this.buf = buf.asReadOnly();
