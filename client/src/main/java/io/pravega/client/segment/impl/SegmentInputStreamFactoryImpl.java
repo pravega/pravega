@@ -45,13 +45,13 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
                                                                 RuntimeException::new);
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
         async.getConnection();
+        bufferSize = MathHelpers.minMax(bufferSize, 1024, 10 * 1024 * 1024); //Sanity enforcement
         return getEventSegmentReader(async, 0, endOffset, bufferSize);
     }
 
     @VisibleForTesting
     static EventSegmentReaderImpl getEventSegmentReader(AsyncSegmentInputStream async, long startOffset,
                                                                   long endOffset, int bufferSize) {
-        bufferSize = MathHelpers.minMax(bufferSize, 1024, 10 * 1024 * 1024); //Sanity enforcement
         return new EventSegmentReaderImpl(new SegmentInputStreamImpl(async, startOffset, endOffset, bufferSize));
     }
 

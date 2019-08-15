@@ -676,7 +676,7 @@ public class ReaderGroupStateManagerTest {
 
         clock.addAndGet(ReaderGroupStateManager.UPDATE_WINDOW.toNanos());
 
-        assertTrue(reader3.acquireNewSegmentsIfNeeded(0, new PositionImpl(ImmutableMap.of(s0, Long.valueOf(20), s3, Long.valueOf(23)))).isEmpty());
+        reader3.updateLagIfNeeded(0, new PositionImpl(ImmutableMap.of(s0, Long.valueOf(20), s3, Long.valueOf(23))));
         assertNull(reader1.findSegmentToReleaseIfRequired());
         assertNull(reader2.findSegmentToReleaseIfRequired());
         assertNull(reader3.findSegmentToReleaseIfRequired());
