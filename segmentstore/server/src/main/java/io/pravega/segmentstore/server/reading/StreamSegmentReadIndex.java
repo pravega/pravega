@@ -132,8 +132,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
 
     @Override
     public void close() {
-        // Quick close (no cache cleanup) this should be used only in case of container shutdown, when the cache will
-        // be erased anyway.
+        // Cleanup the cache storage since we won't be needing this data anymore.
         close(true);
     }
 

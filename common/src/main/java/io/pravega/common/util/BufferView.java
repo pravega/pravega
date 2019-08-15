@@ -69,7 +69,6 @@ public interface BufferView {
     byte[] getCopy();
 
     /**
-     * Copies the contents of this {@link BufferView} to the given {@link OutputStream} using a 4KB copy buffer.
      * Copies the contents of this {@link BufferView} to the given {@link OutputStream}.
      *
      * @param target The {@link OutputStream} to write to.

@@ -852,7 +852,7 @@ public class ContainerReadIndexTests extends ThreadPooledTestSuite {
             sm.setLength(offset + data.length);
             try {
                 context.cacheStorage.insertCallback = address -> cacheMappings.put(address, new SegmentOffset(segmentId, offset));
-                context.readIndex.append(segmentId, offset, data);
+                context.readIndex.append(segmentId, offset, new ByteArraySegment(data));
             } catch (StreamSegmentNotExistsException ex) {
                 throw new CompletionException(ex);
             }

@@ -11,7 +11,6 @@ package io.pravega.segmentstore.server.logs;
 
 import com.google.common.base.Preconditions;
 import io.pravega.common.function.Callbacks;
-import io.pravega.common.util.BufferView;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.server.CacheManager;
 import io.pravega.segmentstore.server.CachePolicy;

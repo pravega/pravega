@@ -40,16 +40,6 @@ public interface ArrayView extends BufferView {
     int arrayOffset();
 
     /**
-     * Creates an InputStream that can be used to read the contents of this ArrayView. The InputStream returned
-     * spans the given section of the ArrayView.
-     *
-     * @param offset The starting offset of the section to read.
-     * @param length The length of the section to read.
-     * @return The InputStream.
-     */
-    InputStream getReader(int offset, int length);
-
-    /**
      * Copies a specified number of bytes from this ArrayView into the given target array.
      *
      * @param target       The target array.
