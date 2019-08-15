@@ -17,8 +17,6 @@ import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import io.pravega.test.common.AssertExtensions;
-import java.io.ByteArrayOutputStream;
 import java.util.Random;
 import lombok.Cleanup;
 import lombok.val;
