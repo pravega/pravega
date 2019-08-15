@@ -14,7 +14,7 @@ import java.io.InputStream;
 /**
  * Defines a generic read-only view of an index-based, array-like structure.
  */
-public interface ArrayView {
+public interface ArrayView extends BufferView {
     /**
      * Gets the value at the specified index.
      *
@@ -23,13 +23,6 @@ public interface ArrayView {
      * @return Byte indicating the value at the given index.
      */
     byte get(int index);
-
-    /**
-     * Gets a value representing the length of this ArrayView.
-     *
-     * @return The length.
-     */
-    int getLength();
 
     /**
      * Gets a reference to the backing array for this ArrayView. This should be used in conjunction with arrayOffset()
@@ -50,14 +43,6 @@ public interface ArrayView {
 
     /**
      * Creates an InputStream that can be used to read the contents of this ArrayView. The InputStream returned
-     * spans the entire ArrayView.
-     *
-     * @return The InputStream.
-     */
-    InputStream getReader();
-
-    /**
-     * Creates an InputStream that can be used to read the contents of this ArrayView. The InputStream returned
      * spans the given section of the ArrayView.
      *
      * @param offset The starting offset of the section to read.
@@ -75,11 +60,4 @@ public interface ArrayView {
      * @throws ArrayIndexOutOfBoundsException If targetOffset or length are invalid.
      */
     void copyTo(byte[] target, int targetOffset, int length);
-
-    /**
-     * Returns a copy of the contents of this ArrayView.
-     *
-     * @return A byte array with the same length as this ArrayView, containing a copy of the data within it.
-     */
-    byte[] getCopy();
 }

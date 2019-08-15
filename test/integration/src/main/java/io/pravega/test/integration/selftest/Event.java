@@ -11,6 +11,8 @@
 package io.pravega.test.integration.selftest;
 
 import com.google.common.base.Preconditions;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.common.io.StreamHelpers;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.BitConverter;
@@ -73,6 +75,9 @@ public class Event implements ProducerUpdate {
     @Getter
     private final ArrayView serialization;
 
+    @Getter
+    private final ByteBuf writeBuffer;
+
     //endregion
 
     //region Constructor
@@ -93,6 +98,7 @@ public class Event implements ProducerUpdate {
         this.startTime = startTime;
         this.serialization = new ByteArraySegment(serialize(length));
         this.contentLength = this.serialization.getLength() - PREFIX_LENGTH;
+        this.writeBuffer = Unpooled.wrappedBuffer(this.serialization.array(), this.serialization.arrayOffset(), this.serialization.getLength());
     }
 
     /**
@@ -136,11 +142,17 @@ public class Event implements ProducerUpdate {
         } else {
             this.serialization = source;
         }
+        this.writeBuffer = Unpooled.wrappedBuffer(this.serialization.array(), this.serialization.arrayOffset(), this.serialization.getLength());
     }
 
     //endregion
 
     //region Properties
+
+    @Override
+    public void release() {
+        this.writeBuffer.release();
+    }
 
     /**
      * Gets a value indicating the total length of the append, including the Header and its Contents.
