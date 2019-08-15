@@ -214,7 +214,7 @@ public class RevisionDataOutputStreamTests {
         impl.writeLong(l);
         impl.writeUTF(s);
         impl.write(array);
-        impl.writeArray(new ByteArraySegment(array));
+        impl.writeBuffer(new ByteArraySegment(array));
 
         // Need to close so we flush any remaining stuff to the underlying stream.
         impl.close();

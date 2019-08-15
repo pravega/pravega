@@ -16,6 +16,7 @@ import io.pravega.common.util.ArrayView;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.SequenceInputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayDeque;
@@ -129,6 +130,11 @@ public class TruncateableArray implements ArrayView {
     }
 
     @Override
+    public void copyTo(OutputStream target) throws IOException {
+        throw new UnsupportedOperationException("copyTo() not supported.");
+    }
+
+    @Override
     public void copyTo(byte[] target, int targetOffset, int length) {
         throw new UnsupportedOperationException("copyTo() not supported.");
     }
@@ -137,6 +143,7 @@ public class TruncateableArray implements ArrayView {
     public byte[] getCopy() {
         throw new UnsupportedOperationException("getCopy() not supported.");
     }
+
 
     //endregion
 
