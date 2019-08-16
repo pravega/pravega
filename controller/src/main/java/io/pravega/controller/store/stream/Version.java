@@ -21,13 +21,13 @@ import lombok.SneakyThrows;
 import java.io.IOException;
 
 /**
- * Interface to capture version of a metadata object. 
- * This version is exposed to processors over the stream metadata store interface 
- * and they should use it if they want to perform compare and swap ability over metadata record updates. 
+ * Interface to capture version of a metadata object.
+ * This version is exposed to processors over the stream metadata store interface
+ * and they should use it if they want to perform compare and swap ability over metadata record updates.
  */
 public interface Version {
     IntVersion asIntVersion();
-    
+
     LongVersion asLongVersion();
 
     byte[] toBytes();
@@ -37,7 +37,7 @@ public interface Version {
         public IntVersion asIntVersion() {
             throw new UnsupportedOperationException();
         }
-        
+
         @Override
         public LongVersion asLongVersion() {
             throw new UnsupportedOperationException();
@@ -48,18 +48,18 @@ public interface Version {
         }
 
     }
-    
+
+    /**
+     * A version implementation that uses integer values.
+     */
     @Data
     @Builder
     @EqualsAndHashCode(callSuper = false)
-    /**
-     * A version implementation that uses integer values. 
-     */
     class IntVersion extends UnsupportedVersion {
         public static final IntVersion EMPTY = IntVersion.builder().intValue(Integer.MIN_VALUE).build();
         static final IntVersionSerializer SERIALIZER = new IntVersionSerializer();
         private final int intValue;
-        
+
         public static class IntVersionBuilder implements ObjectBuilder<IntVersion> {
 
         }
@@ -107,18 +107,18 @@ public interface Version {
             return IntVersion.builder();
         }
     }
-    
+
+    /**
+     * A version implementation that uses integer values.
+     */
     @Data
     @Builder
     @EqualsAndHashCode(callSuper = false)
-    /**
-     * A version implementation that uses integer values. 
-     */
     class LongVersion extends UnsupportedVersion {
         public static final LongVersion EMPTY = LongVersion.builder().longValue(KeyVersionImpl.NOT_EXISTS.getSegmentVersion()).build();
         static final LongVersionSerializer SERIALIZER = new LongVersionSerializer();
         private final long longValue;
-        
+
         public static class LongVersionBuilder implements ObjectBuilder<LongVersion> {
 
         }

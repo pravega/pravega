@@ -20,4 +20,3 @@ coverage:
     - "**/generated/**"
     - "standalone"
     - "test"
-    - "**/host/admin"
