@@ -179,6 +179,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (!pendingWrites.isEmpty()) {
             ArrayList<Session> sessions = new ArrayList<>(pendingWrites.values());
             sessions.forEach(session -> session.flush(out));
+            tokenCounter.incrementAndGet();
         }
     }
 
@@ -187,7 +188,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         log.trace("Encoding message to send over the wire {}", msg);
         if (msg instanceof Append) {
             Append append = (Append) msg;
-            Session session = setupSegments.get(new SimpleImmutableEntry<>(append.segment, append.getWriterId()));
+            Session session = setupSegments.get(new SimpleImmutableEntry<>(append.getSegment(), append.getWriterId()));
             validateAppend(append, session);
             final ByteBuf data = append.getData().slice();
             final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
@@ -239,8 +240,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             }
         } else if (msg instanceof Flush) {
             Flush flush = (Flush) msg;
-            if (flush.getSegment().equals(segmentBeingAppendedTo) && flush.getWriterId().equals(writerIdPerformingAppends)) {
-                breakFromAppend(null, null, out);
+            Session session = setupSegments.get(new SimpleImmutableEntry<>(flush.getSegment(), flush.getWriterId()));
+            if (!session.isFree()) {
+                breakCurrentAppend(out);
+                session.flush(out);
             }
         } else if (msg instanceof WireCommand) {
             breakCurrentAppend(out);
@@ -343,7 +346,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private void completeAppend(ByteBuf pendingData, ByteBuf out) {
         Session session = setupSegments.get(new SimpleImmutableEntry<>(segmentBeingAppendedTo, writerIdPerformingAppends));
         session.flush(currentBlockSize - bytesLeftInBlock, pendingData, out);
-        tokenCounter.incrementAndGet();
         bytesLeftInBlock = 0;
         currentBlockSize = 0;
         segmentBeingAppendedTo = null;
