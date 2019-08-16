@@ -479,18 +479,31 @@ public class AppendEncodeDecodeTest {
     private void testFlush(int size) throws Exception {
         @Cleanup("release")
         ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
-        ArrayList<Object> received = setupAppend(streamName, writerId, fakeNetwork);
-
-        append(streamName, writerId, size, 0, size, fakeNetwork);
-
+        byte[] content = new byte[size];
+        Arrays.fill(content, (byte) 1);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
+        Append msg = new Append(streamName, writerId, 1, event, 1);
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        SetupAppend setupAppend = new SetupAppend(1, writerId, streamName, "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        ArrayList<Object> received = new ArrayList<>();
+        Mockito.when(ch.writeAndFlush(Mockito.any())).thenAnswer(i -> {
+            commandEncoder.encode(ctx, i.getArgument(0), fakeNetwork);
+            return null;
+        });
+        commandEncoder.encode(ctx, msg, fakeNetwork);
         Flush flush = new Flush(writerId, streamName);
-        encoder.encode(null, flush, fakeNetwork);
-        read(fakeNetwork, received);
-        assertEquals(1, received.size());
+        commandEncoder.encode(ctx, flush, fakeNetwork);
 
-        Append one = (Append) received.get(0);
-        verifyNoExcessData(one.getData());
-        assertEquals(size + TYPE_PLUS_LENGTH_SIZE, one.getData().readableBytes());
+        read(fakeNetwork, received);
+        assertEquals(2, received.size());
+        Append readAppend = (Append) received.get(1);
+        verifyNoExcessData(readAppend.getData());
+        assertEquals(msg.data.readableBytes(), readAppend.data.readableBytes());
+        assertEquals(content.length + TYPE_PLUS_LENGTH_SIZE, readAppend.data.readableBytes());
     }
 
 
