@@ -179,8 +179,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (!pendingWrites.isEmpty()) {
             ArrayList<Session> sessions = new ArrayList<>(pendingWrites.values());
             sessions.forEach(session -> session.flush(out));
-            tokenCounter.incrementAndGet();
         }
+        tokenCounter.incrementAndGet();
     }
 
     @Override
@@ -315,7 +315,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (ctx != null && blockSize > msgSize) {
             currentBlockSize = blockSize;
             writeMessage(new AppendBlock(writerIdPerformingAppends), currentBlockSize + TYPE_PLUS_LENGTH_SIZE, out);
-            ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.incrementAndGet()),
+            ctx.executor().schedule(new BlockTimeouter(ctx.channel(), tokenCounter.get()),
                     blockSizeSupplier.getBatchTimeout(),
                     TimeUnit.MILLISECONDS);
         } else {
