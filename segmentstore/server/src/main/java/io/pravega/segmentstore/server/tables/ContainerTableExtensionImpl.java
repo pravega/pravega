@@ -18,6 +18,7 @@ import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.IllegalDataFormatException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
@@ -328,7 +329,7 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
         assert serializationLength <= MAX_BATCH_SIZE;
         byte[] s = new byte[serializationLength];
         serializer.accept(toCommit, s);
-        return segment.append(s, null, timeout);
+        return segment.append(new ByteArraySegment(s), null, timeout);
     }
 
     private <T> CompletableFuture<AsyncIterator<IteratorItem<T>>> newIterator(@NonNull String segmentName, byte[] serializedState,

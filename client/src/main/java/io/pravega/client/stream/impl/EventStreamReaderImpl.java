@@ -173,6 +173,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private String updateGroupStateIfNeeded() throws ReaderNotInReaderGroupException {
         if (atCheckpoint != null) {
             groupState.checkpoint(atCheckpoint, getPosition());
+            log.info("Reader {} completed checkpoint {}", groupState.getReaderId(), atCheckpoint);
             releaseSegmentsIfNeeded();
         }
         String checkpoint = groupState.getCheckpoint();

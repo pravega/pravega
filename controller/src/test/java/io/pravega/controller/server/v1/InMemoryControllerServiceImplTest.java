@@ -25,14 +25,13 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactoryForTests;
-import io.pravega.controller.store.task.TaskStoreFactoryForTests.InMemoryTaskMetadataStoreForTests;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import java.util.Collections;
@@ -66,9 +65,9 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
 
         segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executorService, "host", AuthHelper.getDisabledAuthHelper(), requestTracker);
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
-                executorService, "host", AuthHelper.getDisabledAuthHelper());
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
                 new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
@@ -85,7 +84,7 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         when(mockCluster.getClusterMembers()).thenReturn(Collections.singleton(new Host("localhost", 9090, null)));
         controllerService = new ControllerServiceImpl(
                 new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks,
-                                      SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster), AuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
+                                      SegmentHelperMock.getSegmentHelperMock(), executorService, mockCluster), GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
     @Override
@@ -99,10 +98,4 @@ public class InMemoryControllerServiceImplTest extends ControllerServiceImplTest
         }
         streamStore.close();
     }
-
-    @Override
-    void blockCriticalSection() {
-        ((InMemoryTaskMetadataStoreForTests) taskMetadataStore).blockCriticalSection();
-    }
-
 }

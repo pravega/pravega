@@ -99,7 +99,7 @@ class EventSegmentReaderImpl implements EventSegmentReader {
 
     @Override
     @Synchronized
-    public CompletableFuture<Void> fillBuffer() {
+    public CompletableFuture<?> fillBuffer() {
         return in.fillBuffer();
     }
     

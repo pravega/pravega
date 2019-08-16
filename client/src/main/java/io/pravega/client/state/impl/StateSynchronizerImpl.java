@@ -220,16 +220,18 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             Revision revision = state.getRevision();
             UpdateOrInit<StateT> toWrite = generator.apply(state);
             if (toWrite == null) {
+                log.debug("Conditional write to segment {} completed as there is nothing to update after revision {}", segment, revision);
                 break;
             }
             Revision newRevision = client.writeConditionally(revision, toWrite);
-            log.trace("Conditionally write returned {} ", newRevision);
+            log.trace("Conditional write returned {} ", newRevision);
             if (newRevision == null) {
                 fetchUpdates();
             } else {
                 if (!toWrite.isInit()) {
                     applyUpdates(newRevision, toWrite.getUpdates());
                 }
+                log.debug("Conditional write to segment {} completed with revision {}", segment, newRevision);
                 break;
             }
         }
@@ -253,6 +255,4 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
         log.info("Closing stateSynchronizer {}", this);
         client.close();
     }
-
-
 }
