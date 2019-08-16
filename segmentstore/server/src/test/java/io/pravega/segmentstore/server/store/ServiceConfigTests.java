@@ -14,6 +14,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+
 /**
  * Tests for the ServiceConfig class
  */
@@ -52,6 +55,18 @@ public class ServiceConfigTests {
         Assert.assertTrue("When specified publishing IP and port should differ from listening IP and port",
                 !cfg3.getListeningIPAddress().equals(cfg3.getPublishedIPAddress())
                         && cfg3.getListeningPort() != cfg3.getPublishedPort());
+    }
+
+    @Test
+    public void testDefaultSecurityConfigValues() {
+        ServiceConfig config = ServiceConfig.builder()
+                .with(ServiceConfig.CONTAINER_COUNT, 1)
+                .build();
+
+        assertFalse(config.isEnableTls());
+        assertFalse(config.isEnableTlsReload());
+        assertEquals("", config.getCertFile());
+        assertEquals("", config.getKeyFile());
     }
 
     // region Tests that verify the toString() method.

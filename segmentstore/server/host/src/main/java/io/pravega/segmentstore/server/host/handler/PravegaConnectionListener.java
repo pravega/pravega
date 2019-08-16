@@ -86,7 +86,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
     private final String pathToTlsCertFile;
     private final String pathToTlsKeyFile;
 
-    private FileModificationMonitor tlsCertFileChangeMonitor; // used only if tls reload is enabled
+    private FileModificationMonitor tlsCertFileModificationMonitor; // used only if tls reload is enabled
 
     //endregion
 
@@ -208,31 +208,49 @@ public final class PravegaConnectionListener implements AutoCloseable {
         if (enableTls && enableTlsReload) {
             log.info("TLS reload is enabled, so setting up a FileModificationMonitor object to monitor/watch changes in file: [{}]",
                     this.pathToTlsCertFile);
-            try {
-                if (Files.isSymbolicLink(Paths.get(pathToTlsCertFile))) {
-                    log.info("The path to certificate file [{}] was found to be pointing to a symbolic link, " +
-                                    " so, using an instance of [{}] to monitor for certificate changes",
-                            pathToTlsCertFile, FileModificationPollingMonitor.class.getSimpleName());
 
-                    tlsCertFileChangeMonitor = new FileModificationPollingMonitor(this.pathToTlsCertFile,
-                            new TLSConfigChangeFileConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile));
-                } else {
-                    // For non symbolic links we'll depend on event-based watcher, which is more efficient than a
-                    // polling-based monitor.
-                    tlsCertFileChangeMonitor = new FileModificationEventWatcher(this.pathToTlsCertFile,
-                            new TLSConfigChangeEventConsumer(sslCtx, this.pathToTlsCertFile, this.pathToTlsKeyFile));
-                }
-
-                tlsCertFileChangeMonitor.startMonitoring();
-                log.info("Started the FileModificationMonitor object successfully");
-            } catch (FileNotFoundException e) {
-                log.error("Failed to setup monitoring for the file {}", this.pathToTlsCertFile, e);
-                throw new RuntimeException(e);
-            }
+            tlsCertFileModificationMonitor = prepareCertificateMonitor(this.pathToTlsCertFile, this.pathToTlsKeyFile,
+                    sslCtx);
+            tlsCertFileModificationMonitor.startMonitoring();
+            log.info("Started the FileModificationMonitor object successfully");
         }
 
         // Start the server.
         serverChannel = b.bind(host, port).awaitUninterruptibly().channel();
+    }
+
+    @VisibleForTesting
+    FileModificationMonitor prepareCertificateMonitor(String tlsCertificatePath, String tlsKeyPath,
+                                                      AtomicReference<SslContext> sslCtx) {
+        return prepareCertificateMonitor(Files.isSymbolicLink(Paths.get(tlsCertificatePath)),
+                tlsCertificatePath, tlsKeyPath, sslCtx);
+
+    }
+
+    @VisibleForTesting
+    FileModificationMonitor prepareCertificateMonitor(boolean isTLSCertPathSymLink, String tlsCertificatePath,
+                                                      String tlsKeyPath,
+                                                      AtomicReference<SslContext> sslCtx) {
+        FileModificationMonitor result;
+        try {
+            if (isTLSCertPathSymLink) {
+                log.info("The path to certificate file [{}] was found to be pointing to a symbolic link, " +
+                                " so, using an instance of [{}] to monitor for certificate changes",
+                        tlsCertificatePath, FileModificationPollingMonitor.class.getSimpleName());
+
+                result = new FileModificationPollingMonitor(tlsCertificatePath,
+                        new TLSConfigChangeFileConsumer(sslCtx, tlsCertificatePath, tlsKeyPath));
+            } else {
+                // For non symbolic links we'll depend on event-based watcher, which is more efficient than a
+                // polling-based monitor.
+                result = new FileModificationEventWatcher(tlsCertificatePath,
+                        new TLSConfigChangeEventConsumer(sslCtx, tlsCertificatePath, tlsKeyPath));
+            }
+            return result;
+        } catch (FileNotFoundException e) {
+            log.error("Failed to prepare a monitor for the certificate at path [{}]", tlsCertificatePath, e);
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -252,8 +270,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
             workerGroup.shutdownGracefully();
         }
 
-        if (tlsCertFileChangeMonitor != null) {
-            tlsCertFileChangeMonitor.stopMonitoring();
+        if (tlsCertFileModificationMonitor != null) {
+            tlsCertFileModificationMonitor.stopMonitoring();
         }
     }
 }
