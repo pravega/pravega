@@ -36,7 +36,8 @@ public class TLSConfigChangeHandler {
         sslContext.set(TLSHelper.newServerSslContext(pathToCertificateFile, pathToKeyFile));
     }
 
-    AtomicInteger getNumOfConfigChangesSinceStart() {
-        return this.numOfConfigChangesSinceStart;
+    int getNumOfConfigChangesSinceStart() {
+
+        return this.numOfConfigChangesSinceStart.get();
     }
 }

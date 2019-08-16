@@ -206,13 +206,11 @@ public final class PravegaConnectionListener implements AutoCloseable {
          });
 
         if (enableTls && enableTlsReload) {
-            log.info("TLS reload is enabled, so setting up a FileModificationMonitor object to monitor/watch changes in file: [{}]",
-                    this.pathToTlsCertFile);
-
             tlsCertFileModificationMonitor = prepareCertificateMonitor(this.pathToTlsCertFile, this.pathToTlsKeyFile,
                     sslCtx);
             tlsCertFileModificationMonitor.startMonitoring();
-            log.info("Started the FileModificationMonitor object successfully");
+            log.info("Successfully started file modification monitoring for TLS certificate: [{}]",
+                    this.pathToTlsCertFile);
         }
 
         // Start the server.
@@ -224,7 +222,6 @@ public final class PravegaConnectionListener implements AutoCloseable {
                                                       AtomicReference<SslContext> sslCtx) {
         return prepareCertificateMonitor(Files.isSymbolicLink(Paths.get(tlsCertificatePath)),
                 tlsCertificatePath, tlsKeyPath, sslCtx);
-
     }
 
     @VisibleForTesting
@@ -234,8 +231,8 @@ public final class PravegaConnectionListener implements AutoCloseable {
         FileModificationMonitor result;
         try {
             if (isTLSCertPathSymLink) {
-                log.info("The path to certificate file [{}] was found to be pointing to a symbolic link, " +
-                                " so, using an instance of [{}] to monitor for certificate changes",
+                log.info("The path to certificate file [{}] was found to be a symbolic link, " +
+                                " so using [{}] to monitor for certificate changes",
                         tlsCertificatePath, FileModificationPollingMonitor.class.getSimpleName());
 
                 result = new FileModificationPollingMonitor(tlsCertificatePath,

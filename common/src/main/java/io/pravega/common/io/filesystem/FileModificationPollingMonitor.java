@@ -51,9 +51,9 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
      */
     private final Consumer<File> callback;
 
-    private FileAlterationMonitor monitor;
+    private final FileAlterationMonitor monitor;
 
-    private int pollingInterval;
+    private final int pollingInterval;
 
     /**
      * Creates a new instance.
@@ -61,7 +61,6 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
      * @param fileToWatch the file to watch
      * @param callback    the callback to invoke when a modification to the {@code fileToWatch} is detected
      *
-     * @throws NullPointerException if either {@code fileToWatch} or {@code callback} is null
      * @throws InvalidPathException if {@code fileToWatch} is invalid
      * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
      * @throws NullPointerException if either {@code fileToWatch}  or {@code callback} is null
@@ -75,15 +74,18 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
     FileModificationPollingMonitor(@NonNull String fileToWatch, @NonNull Consumer<File> callback, int pollingInterval)
             throws FileNotFoundException {
         this.pathOfFileToWatch = Paths.get(fileToWatch);
-        this.validateInput(this.pathOfFileToWatch, callback);
+        if (!pathOfFileToWatch.toFile().exists()) {
+            throw new FileNotFoundException(String.format("File [%s] does not exist.", fileToWatch));
+        }
         this.callback = callback;
         this.pollingInterval = pollingInterval;
+        monitor = new FileAlterationMonitor(this.pollingInterval);
     }
 
     @Override
     public void startMonitoring() {
         Path fileName = pathOfFileToWatch.getFileName();
-        log.debug("fileName obtained from pathOfFileToWatch is [{}]", fileName);
+        log.debug("File name obtained from pathOfFileToWatch is [{}]", fileName);
         if (fileName == null) {
             throw new IllegalStateException("fileName is 'null'");
         }
@@ -103,8 +105,6 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
                 return file.getName().equals(fileName.toString());
             }
         });
-
-        monitor = new FileAlterationMonitor(this.pollingInterval);
 
         FileAlterationListener listener = new FileAlterationListenerAdaptor() {
             @Override

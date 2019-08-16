@@ -34,6 +34,6 @@ public class TLSConfigChangeFileConsumer implements Consumer<File> {
 
     @VisibleForTesting
     int getNumOfConfigChangesSinceStart() {
-        return handler.getNumOfConfigChangesSinceStart().get();
+        return handler.getNumOfConfigChangesSinceStart();
     }
 }

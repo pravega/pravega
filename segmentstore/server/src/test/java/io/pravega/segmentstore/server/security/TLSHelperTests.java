@@ -61,10 +61,10 @@ public class TLSHelperTests {
     public void testNewServerSslContextFailsWhenInputFilesDontExist() {
         assertThrows("Non-existent pathToCertificateFile wasn't rejected.",
                 () -> TLSHelper.newServerSslContext(PATH_NONEXISTENT, PATH_NONEMPTY),
-                e -> e instanceof IllegalStateException);
+                e -> e instanceof IllegalArgumentException);
 
         assertThrows("Non-existent pathToServerKeyFile argument wasn't rejected.",
                 () -> TLSHelper.newServerSslContext(PATH_NONEMPTY, PATH_NONEXISTENT),
-                e -> e instanceof IllegalStateException);
+                e -> e instanceof IllegalArgumentException);
     }
 }

@@ -13,7 +13,6 @@ import com.google.common.base.Preconditions;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.common.Exceptions;
-import io.pravega.common.util.Retry;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
@@ -56,17 +55,10 @@ public class TLSHelper {
     public static SslContext newServerSslContext(File certificateFile, File serverKeyFile) {
         Preconditions.checkNotNull(certificateFile);
         Preconditions.checkNotNull(serverKeyFile);
-
-        Retry.RetryAndThrowExceptionally<IllegalStateException, Exception> retryConfig =
-                Retry.withExpBackoff(1, 10, 3, 20000)
-                        .retryingOn(IllegalStateException.class)
-                        .throwingOn(Exception.class);
-
         ensureExistAndAreReadable(certificateFile, serverKeyFile);
 
         try {
-            SslContext result = null;
-            result = SslContextBuilder.forServer(certificateFile, serverKeyFile).build();
+            SslContext result = SslContextBuilder.forServer(certificateFile, serverKeyFile).build();
             log.debug("Done creating a new SSL Context for the server.");
             return result;
         } catch (SSLException e) {
@@ -75,22 +67,16 @@ public class TLSHelper {
     }
 
     private static void ensureExistAndAreReadable(File certificateFile, File serverKeyFile) {
-        if (!certificateFile.exists()) {
-            throw new IllegalStateException(String.format("Certificate file %s doesn't exist",
-                    certificateFile.getAbsolutePath()));
-        }
-        if (!certificateFile.canRead()) {
-            throw new IllegalStateException(String.format("Certificate file %s can't be read",
-                    certificateFile.getAbsolutePath()));
-        }
+        Preconditions.checkArgument(certificateFile.exists(), String.format("Certificate file %s doesn't exist",
+                certificateFile.getAbsolutePath()));
 
-        if (!serverKeyFile.exists()) {
-            throw new IllegalStateException(String.format("Key file %s doesn't exist",
-                    serverKeyFile.getAbsolutePath()));
-        }
-        if (!serverKeyFile.canRead()) {
-            throw new IllegalStateException(String.format("Key file %s can't be read",
-                    serverKeyFile.getAbsolutePath()));
-        }
+        Preconditions.checkArgument(certificateFile.canRead(), "Certificate file %s can't be read",
+                certificateFile.getAbsolutePath());
+
+        Preconditions.checkArgument(serverKeyFile.exists(), String.format("Key file %s doesn't exist",
+                serverKeyFile.getAbsolutePath()));
+
+        Preconditions.checkArgument(serverKeyFile.canRead(), String.format("Key file %s can't be read",
+                serverKeyFile.getAbsolutePath()));
     }
 }

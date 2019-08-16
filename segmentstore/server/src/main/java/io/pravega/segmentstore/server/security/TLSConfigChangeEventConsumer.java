@@ -44,6 +44,6 @@ public class TLSConfigChangeEventConsumer implements Consumer<WatchEvent<?>> {
 
     @VisibleForTesting
     int getNumOfConfigChangesSinceStart() {
-        return handler.getNumOfConfigChangesSinceStart().get();
+        return handler.getNumOfConfigChangesSinceStart();
     }
 }

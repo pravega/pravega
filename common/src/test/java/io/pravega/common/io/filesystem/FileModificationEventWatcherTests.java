@@ -46,7 +46,7 @@ public class FileModificationEventWatcherTests extends FileModificationMonitorTe
 
         // Modify the watched file.
         FileUtils.writeStringToFile(file, "hello", StandardCharsets.UTF_8, true);
-        watcher.join(5 * 1000); // Wait for max 5 seconds for the thread to die.
+        watcher.join(15 * 1000); // Wait for max 5 seconds for the thread to die.
 
         assertTrue(isCallbackInvoked.get());
 

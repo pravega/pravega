@@ -58,7 +58,7 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
     /**
      * The path of file to watch.
      */
-    private final Path pathOfFileToWatch;
+    private final Path watchedFilePath;
 
     /**
      * The action to perform when the specified file changes.
@@ -67,7 +67,7 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
 
     private final UncaughtExceptionHandler uncaughtExceptionalHandler = (t, e) -> logException(e);
 
-    private boolean loopContinuously;
+    private final boolean loopContinuously;
 
     /**
      * Creates a new instance.
@@ -88,20 +88,23 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
      *
      * @param fileToWatch path of the file to watch
      * @param callback          the callback to invoke when a modification to the {@code fileToWatch} is detected
-     * @param loopContinuously  whether to keep the thread look for file modification after one iteration. This option
+     * @param loopContinuously  whether to keep continue to look for file modification after one iteration. This option
      *                          is useful for testing only.
      * @throws InvalidPathException if {@code fileToWatch} is invalid
      * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
-     * @throws NullPointerException if either {@code fileToWatch}  or {@code callback} is null
+     * @throws NullPointerException if either {@code fileToWatch} or {@code callback} is null
      */
     @VisibleForTesting
-    FileModificationEventWatcher(Path fileToWatch, Consumer<WatchEvent<?>> callback,
+    FileModificationEventWatcher(@NonNull Path fileToWatch, @NonNull Consumer<WatchEvent<?>> callback,
                                  boolean loopContinuously)
             throws FileNotFoundException {
         super();
-        this.validateInput(fileToWatch, callback);
 
-        this.pathOfFileToWatch = fileToWatch;
+        if (!fileToWatch.toFile().exists()) {
+            throw new FileNotFoundException(String.format("File [%s] does not exist.", fileToWatch));
+        }
+
+        this.watchedFilePath = fileToWatch;
         this.callback = callback;
         setUncaughtExceptionHandler(uncaughtExceptionalHandler);
 
@@ -111,19 +114,18 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
     }
 
     @VisibleForTesting
-    String nameOfFileToWatch() {
-        Path fileName = this.pathOfFileToWatch.getFileName();
+    String getWatchedFileName() {
+        Path fileName = this.watchedFilePath.getFileName();
         if (fileName != null) {
             return fileName.toString();
         } else {
-            throw new RuntimeException("File name is null");
+            throw new NullPointerException("File name is null");
         }
     }
 
     @VisibleForTesting
-    Path directoryOfFileToWatch() {
-        assert this.pathOfFileToWatch != null;
-        return this.pathOfFileToWatch.getParent();
+    Path getWatchedDirectory() {
+        return this.watchedFilePath.getParent();
     }
 
     @Override
@@ -133,20 +135,20 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
         WatchService watchService = null;
         try {
             watchService = FileSystems.getDefault().newWatchService();
-            log.debug("Done creating watch service for watching file at path: {}", this.pathOfFileToWatch);
+            log.debug("Done creating watch service for watching file at path: {}", this.watchedFilePath);
 
-            String fileName = nameOfFileToWatch();
-            Path directoryPath = directoryOfFileToWatch();
+            String fileName = getWatchedFileName();
+            Path directoryPath = getWatchedDirectory();
             log.debug("Directory being watched is {}", directoryPath);
 
             assert directoryPath != null;
             directoryPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY,
                     StandardWatchEventKinds.ENTRY_CREATE);
-            log.debug("Done setting up watch for modify entries for file at path: {}", this.pathOfFileToWatch);
+            log.debug("Done setting up watch for modify entries for file at path: {}", this.watchedFilePath);
 
             while (true) {
                 watchKey = watchService.take();
-                log.info("Retrieved and removed watch key for watching file at path: {}", this.pathOfFileToWatch);
+                log.info("Retrieved and removed watch key for watching file at path: {}", this.watchedFilePath);
 
                 // Each file modification/create usually results in the WatcherService reporting the WatchEvent twice,
                 // as the file is updated twice: once for the content and once for the file modification time.
@@ -167,21 +169,21 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
                             .stream()
                             .filter( // we only care about changes to the specified file.
                                     event -> event.context().toString().contains(fileName))
-                            .findAny(); // we only care to know whether the
+                            .findAny();
 
                     if (modificationDetectionEvent.isPresent()) {
-                        log.info("Detected that the file [{}] has modified", this.pathOfFileToWatch);
+                        log.info("Detected that the file [{}] has modified", this.watchedFilePath);
                         callback.accept(modificationDetectionEvent.get());
                     }
 
                     boolean isKeyValid = watchKey.reset();
-                    log.debug("Done resetting watch key, so that it can receive further event notifications.");
+                    log.debug("Done resetting watch key.");
                     if (!isKeyValid) {
-                        log.info("No longer watching file [{}]", this.pathOfFileToWatch);
+                        log.info("No longer watching file [{}]", this.watchedFilePath);
                         break;
                     }
                 } else {
-                    log.debug("watchKey for file at path {} was null", this.pathOfFileToWatch);
+                    log.debug("watchKey for file at path {} was null", this.watchedFilePath);
                 }
                 if (!loopContinuously) {
                     break;
@@ -201,7 +203,7 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
                     log.warn("Error closing watch service", e);
                 }
             }
-            log.info("Thread [{}], watching for modifications in file [{}] exiting,", getName(), this.pathOfFileToWatch);
+            log.info("Thread [{}], watching for modifications in file [{}] exiting,", getName(), this.watchedFilePath);
         }
     }
 
@@ -209,17 +211,17 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
     public void startMonitoring() {
         this.setDaemon(true);
         this.start();
-        log.info("Completed setting up monitor for watching modifications to file: {}", this.pathOfFileToWatch);
+        log.info("Completed setting up monitor for watching modifications to file: {}", this.watchedFilePath);
     }
 
     @Override
     public void stopMonitoring() {
         this.interrupt();
-        log.info("Stopped the monitor that was watching modifications to file {}", this.pathOfFileToWatch);
+        log.info("Stopped the monitor that was watching modifications to file {}", this.watchedFilePath);
     }
 
     private void logException(Throwable e) {
         log.warn("Thread [{}], watching for modifications in file [{}], encountered exception with cause [{}]",
-                this.getName(), this.pathOfFileToWatch, e.getMessage());
+                this.getName(), this.watchedFilePath, e.getMessage());
     }
 }
