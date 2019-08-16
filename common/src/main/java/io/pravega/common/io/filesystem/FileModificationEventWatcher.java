@@ -148,10 +148,6 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
                 watchKey = watchService.take();
                 log.info("Retrieved and removed watch key for watching file at path: {}", this.pathOfFileToWatch);
 
-                // Looks odd, right? Using the logic or de-duplicating file change events, as suggested by some here:
-                // https://stackoverflow.com/questions/16777869/java-7-watchservice-ignoring-multiple-occurrences-of-
-                // the-same-event
-
                 // Each file modification/create usually results in the WatcherService reporting the WatchEvent twice,
                 // as the file is updated twice: once for the content and once for the file modification time.
                 // These events occur in quick succession. We wait for 200 ms., here so that the events get
