@@ -24,11 +24,12 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTag;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.RetriesExhaustedException;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.server.SegmentHelper;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.CreateStreamResponse;
 import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
@@ -45,6 +46,7 @@ import io.pravega.controller.store.stream.records.StreamCutRecord;
 import io.pravega.controller.store.stream.records.StreamCutReferenceRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.StreamTruncationRecord;
+import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.store.task.Resource;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
@@ -109,13 +111,13 @@ public class StreamMetadataTasks extends TaskBase {
 
     private final CompletableFuture<Void> writerInitFuture = new CompletableFuture<>();
     private final AtomicReference<EventStreamWriter<ControllerEvent>> requestEventWriterRef = new AtomicReference<>();
-    private final AuthHelper authHelper;
+    private final GrpcAuthHelper authHelper;
     private final RequestTracker requestTracker;
 
     public StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final String hostId,
-                               AuthHelper authHelper, RequestTracker requestTracker) {
+                               GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         this(streamMetadataStore, bucketStore, taskMetadataStore, segmentHelper, executor, new Context(hostId),
                 authHelper, requestTracker);
     }
@@ -123,7 +125,7 @@ public class StreamMetadataTasks extends TaskBase {
     private StreamMetadataTasks(final StreamMetadataStore streamMetadataStore,
                                 BucketStore bucketStore, final TaskMetadataStore taskMetadataStore,
                                 final SegmentHelper segmentHelper, final ScheduledExecutorService executor, final Context context,
-                                AuthHelper authHelper, RequestTracker requestTracker) {
+                                GrpcAuthHelper authHelper, RequestTracker requestTracker) {
         super(taskMetadataStore, executor, context);
         this.streamMetadataStore = streamMetadataStore;
         this.bucketStore = bucketStore;
@@ -143,6 +145,30 @@ public class StreamMetadataTasks extends TaskBase {
         writerInitFuture.complete(null);
     }
 
+    /**
+     * Method to create stream with retries for lock failed exception.
+     *
+     * @param scope           scope.
+     * @param stream          stream name.
+     * @param config          stream configuration.
+     * @param createTimestamp creation timestamp.
+     * @param numOfRetries    number of retries for LockFailedException
+     * @return CompletableFuture which when completed will have creation status for the stream.
+     */
+    public CompletableFuture<CreateStreamStatus.Status> createStreamRetryOnLockFailure(String scope, String stream, StreamConfiguration config,
+                                                                                       long createTimestamp, int numOfRetries) {
+        return RetryHelper.withRetriesAsync(() ->  createStream(scope, stream, config, createTimestamp), 
+                e -> Exceptions.unwrap(e) instanceof LockFailedException, numOfRetries, executor)
+                .exceptionally(e -> {
+                    Throwable unwrap = Exceptions.unwrap(e);
+                    if (unwrap instanceof RetriesExhaustedException) {
+                        throw new CompletionException(unwrap.getCause());
+                    } else {
+                        throw new CompletionException(unwrap);
+                    }
+                });
+    }
+    
     /**
      * Create stream.
      *
