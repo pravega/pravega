@@ -31,13 +31,23 @@ import lombok.extern.slf4j.Slf4j;
  * Watches for modifications to the specified file and performs the specified action (in the form of a callback) upon
  * modification detection.
  *
- * This implementation uses NIO and event-based Java WatchService to watch for any modifications to the specified file..
+ * This implementation uses NIO and event-based Java WatchService to watch for any modifications to the specified file.
  *
  * Note that:
+ *
  * - The specified actions may trigger slightly later than when the file is actually modified.
+ *
  * - If there are multiple file modifications in quick succession, only the last one may trigger the specified action.
+ *
+ * - The callback twice under rare circumstances when a file is modified. The Java {@link WatchService} raises two
+ *   events per modification: one for the content and second for the modification time. While there is a de-duplication
+ *   logic in this class to ensure that only a single event is handled and notified to the callback, it may not work
+ *   at times. If the calling code needs to be notified exactly once at all times, it should consider using
+ *   {@link FileModificationPollingMonitor} instead.
+ *
  * - This class won't work for files that is under a symbolic link (pointing to a directory). This is because the
- *   Java WatchService does not raise events for changes to such files.
+ *   Java {@link WatchService} does not raise events for modifications of such files. Consider using
+ *   {@link FileModificationPollingMonitor} instead.
  *
  */
 @Slf4j
@@ -141,6 +151,19 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
                 // Looks odd, right? Using the logic or de-duplicating file change events, as suggested by some here:
                 // https://stackoverflow.com/questions/16777869/java-7-watchservice-ignoring-multiple-occurrences-of-
                 // the-same-event
+
+                // Each file modification/create usually results in the WatcherService reporting the WatchEvent twice,
+                // as the file is updated twice: once for the content and once for the file modification time.
+                // These events occur in quick succession. We wait for 200 ms., here so that the events get
+                // de-duplicated - in other words only single event is processed.
+                //
+                // See https://stackoverflow.com/questions/16777869/java-7-watchservice-ignoring-multiple-occurrences-
+                // of-the-same-event for a discussion on this topic.
+                //
+                // If the two events are not raised within this duration, the callback will be invoked twice, which we
+                // assume is not a problem for applications of this object. In case the applications do care about
+                // being notified only once for each modification, they should use the FileModificationPollingMonitor
+                // instead.
                 Thread.sleep(200);
 
                 if (watchKey != null) {

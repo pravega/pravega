@@ -130,7 +130,7 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
             try {
                 monitor.stop(5 * 1000);
             } catch (Exception e) {
-                log.warn("Failed in closing the monitor", e);
+                log.warn("Failed to close the monitor", e);
                 // ignore
             }
         }
