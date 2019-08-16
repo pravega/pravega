@@ -130,7 +130,7 @@ public class ServiceConfig {
     @Getter
     private final String listeningIPAddress;
 
-    /**
+    /*
      * Pravega segment store allows a configuration in which it connects to an IP address:port pair on the node and a
      * different IP address:port pair is advertised to the clients through controller.
      * In this configuration: publishedIPAddress and publishedPort configs are defined and this pair is registered to
