@@ -309,7 +309,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
                 val key = TableKey.unversioned(keyData.key);
                 val serialization = new byte[context.serializer.getRemovalLength(key)];
                 context.serializer.serializeRemoval(Collections.singleton(key), serialization);
-                val offset = context.segment.append(serialization, null, TIMEOUT).join();
+                val offset = context.segment.append(new ByteArraySegment(serialization), null, TIMEOUT).join();
 
                 // Index it.
                 val previousOffset = keyData.values.isEmpty() ? -1 : (long) keyData.values.lastKey();
@@ -333,7 +333,7 @@ public class TableCompactorTests extends ThreadPooledTestSuite {
                 val entry = TableEntry.unversioned(keyData.key, value);
                 val serialization = new byte[context.serializer.getUpdateLength(entry)];
                 context.serializer.serializeUpdate(Collections.singleton(entry), serialization);
-                val offset = context.segment.append(serialization, null, TIMEOUT).join();
+                val offset = context.segment.append(new ByteArraySegment(serialization), null, TIMEOUT).join();
 
                 // Index it.
                 val previousOffset = keyData.values.isEmpty() ? -1 : (long) keyData.values.lastKey();

@@ -70,7 +70,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
     private static final long SHORT_TIMEOUT_MILLIS = TIMEOUT.toMillis() / 3;
     private static final KeyHasher HASHER = KeyHashers.DEFAULT_HASHER;
     private static final int TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH = 128 * 1024;
-    private static final Duration SHORT_RECOVERY_TIMEOUT = Duration.ofSeconds(1);
+    private static final Duration SHORT_RECOVERY_TIMEOUT = Duration.ofSeconds(2);
     @Rule
     public Timeout globalTimeout = new Timeout(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
@@ -206,7 +206,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         s.serializeUpdate(Collections.singleton(toUpdate), toWrite);
         context.index.update(context.segment,
                 toUpdateBatch(toUpdate.getKey()),
-                () -> context.segment.append(toWrite, null, TIMEOUT),
+                () -> context.segment.append(new ByteArraySegment(toWrite), null, TIMEOUT),
                 context.timer).join();
 
         // Key exists, but we conditioned on it not existing.
@@ -245,7 +245,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
             s.serializeUpdate(Collections.singleton(toUpdate), toWrite);
             val r = context.index.update(context.segment,
                     toUpdateBatch(hasher, Collections.singletonList(toUpdate.getKey())),
-                    () -> context.segment.append(toWrite, null, TIMEOUT),
+                    () -> context.segment.append(new ByteArraySegment(toWrite), null, TIMEOUT),
                     context.timer).join();
             versions.put(key.getKey(), r.get(0));
         }
@@ -437,7 +437,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         val update1 = new byte[(int) offset.get()];
         s.serializeUpdate(entries1, update1);
         val update1Attributes = Collections.singleton(new AttributeUpdate(TableAttributes.UNINDEXED_ENTRY_COUNT, AttributeUpdateType.Replace, entries1.size()));
-        context.segment.append(update1, update1Attributes, TIMEOUT).join();
+        context.segment.append(new ByteArraySegment(update1), update1Attributes, TIMEOUT).join();
 
         // 2. Initiate a recovery and verify pre-caching is triggered and requests are auto-unblocked.
         val get1 = context.index.getBucketOffsets(context.segment, hashes, context.timer);
@@ -457,7 +457,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
                                                         })
                                                         .collect(Collectors.toList());
         iw.updateBuckets(context.segment, bucketUpdates, 0L, offset.get(), keysWithOffsets.size(), TIMEOUT).join();
-        context.segment.append(new byte[TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1], null, TIMEOUT).join();
+        context.segment.append(new ByteArraySegment(new byte[TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1]), null, TIMEOUT).join();
 
         // 4. Verify pre-caching is disabled and that the requests are blocked.
         context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), -1, 0); // Force-evict it so we start clean.
@@ -569,7 +569,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
 
         // Write some garbage data to the segment, but make it longer than the threshold to trigger pre-caching; we don't
         // want to deal with that now since we can't control its runtime.
-        context.segment.append(new byte[TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1], null, TIMEOUT).join();
+        context.segment.append(new ByteArraySegment(new byte[TEST_MAX_TAIL_CACHE_PRE_INDEX_LENGTH + 1]), null, TIMEOUT).join();
 
         // Update the index, but keep the LastIndexedOffset at 0.
         val buckets = iw.locateBuckets(context.segment, keysWithOffsets.keySet(), context.timer).join();
@@ -592,7 +592,7 @@ public class ContainerKeyIndexTests extends ThreadPooledTestSuite {
         // Verify that a new operation will be unblocked if we notify that the recovery completed successfully.
         val get1 = context.index.getBucketOffsets(context.segment, hashes, context.timer);
         context.index.notifyIndexOffsetChanged(context.segment.getSegmentId(), context.segment.getInfo().getLength(), 0);
-        val result1 = get1.get(SHORT_RECOVERY_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val result1 = get1.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         val expected1 = new HashMap<UUID, Long>();
         keysWithOffsets.forEach((k, o) -> expected1.put(k, o.offset));
         AssertExtensions.assertMapEquals("Unexpected result from getBucketOffsets() after a retry.", expected1, result1);

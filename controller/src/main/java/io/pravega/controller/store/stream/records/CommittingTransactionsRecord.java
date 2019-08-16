@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.UUID;
 
-@Data
 /**
  * This class is the metadata to capture the currently processing transaction commit work. This captures the list of
  * transactions that current round of processing will attempt to commit. If the processing fails and retries, it will
@@ -34,6 +33,7 @@ import java.util.UUID;
  * This also includes optional "active epoch" field which is set if the commits have to be rolled over because they are
  * over an older epoch.
  */
+@Data
 public class CommittingTransactionsRecord {
     public static final CommitTransactionsRecordSerializer SERIALIZER = new CommitTransactionsRecordSerializer();
     public static final CommittingTransactionsRecord EMPTY = CommittingTransactionsRecord.builder().epoch(Integer.MIN_VALUE).transactionsToCommit(ImmutableList.of()).activeEpoch(Optional.empty()).build();
@@ -89,12 +89,12 @@ public class CommittingTransactionsRecord {
     public boolean isRollingTxnRecord() {
         return activeEpoch.isPresent();
     }
-    
+
     public int getCurrentEpoch() {
         Preconditions.checkState(activeEpoch.isPresent());
         return activeEpoch.get();
     }
-    
+
     public int getNewTxnEpoch() {
         Preconditions.checkState(activeEpoch.isPresent());
         return activeEpoch.get() + 1;
@@ -104,7 +104,7 @@ public class CommittingTransactionsRecord {
         Preconditions.checkState(activeEpoch.isPresent());
         return activeEpoch.get() + 2;
     }
-    
+
     private static class CommitTransactionsRecordSerializer
             extends VersionedSerializer.WithBuilder<CommittingTransactionsRecord, CommittingTransactionsRecordBuilder> {
         @Override
@@ -119,7 +119,7 @@ public class CommittingTransactionsRecord {
 
         private void read00(RevisionDataInput revisionDataInput, CommittingTransactionsRecordBuilder builder)
                 throws IOException {
-            ImmutableList.Builder<UUID> listBuilder = ImmutableList.builder(); 
+            ImmutableList.Builder<UUID> listBuilder = ImmutableList.builder();
             builder.epoch(revisionDataInput.readInt());
 
             revisionDataInput.readCollection(RevisionDataInput::readUUID, listBuilder);

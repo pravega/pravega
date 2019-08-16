@@ -512,7 +512,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                             this.length, operation.getStreamSegmentOffset()));
         }
 
-        this.length += operation.getData().length;
+        this.length += operation.getData().getLength();
         acceptAttributes(operation.getAttributeUpdates());
         this.isChanged = true;
     }
