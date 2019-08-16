@@ -412,9 +412,9 @@ class DirectMemoryBuffer implements AutoCloseable {
             Exceptions.checkNotClosed(this.usedBlockCount < 0, this);
             assert this.usedBlockCount == 1;
 
-            // TODO: this can also be changed to wrap a ByteBuffer or use ByteBuffer altogether.
+            // There is no need to zero out the buffer (Netty does not do it). We are formatting the metadata next, which
+            // is the only thing that we need to do.
             this.buf = this.allocator.directBuffer(this.layout.bufferSize(), this.layout.bufferSize());
-            this.buf.setZero(0, this.buf.capacity()); // Clear out the buffer as Netty does not do it for us.
 
             // Format metadata.
             ByteBuf metadataBuf = getMetadataBlock();
