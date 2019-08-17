@@ -34,23 +34,23 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-@Slf4j
 /**
- * Connection Manager class that maintains a cache of connection pools to connection to different segment stores. 
- * Users of connection manager class can request for a connection pool and then request connections on the pool and return 
- * the connections when done. 
+ * Connection Manager class that maintains a cache of connection pools to connection to different segment stores.
+ * Users of connection manager class can request for a connection pool and then request connections on the pool and return
+ * the connections when done.
  * This maintains a cache of connection pools to segment stores. Any segmentstore for which no new connection request
- * comes for a while, its pool is evicted from the cache which triggers a shutdown on the pool. 
- * If newer requests are received for the said segmentstore, a new pool gets created. However, any callers using the existing 
+ * comes for a while, its pool is evicted from the cache which triggers a shutdown on the pool.
+ * If newer requests are received for the said segmentstore, a new pool gets created. However, any callers using the existing
  * pool can continue to do so. The pool in shutdown mode simply drains all available connections. And when it has no references left
- * it can be garbage collected. 
+ * it can be garbage collected.
  */
+@Slf4j
 class SegmentStoreConnectionManager implements AutoCloseable {
     private static final int MAX_CONCURRENT_CONNECTIONS = 500;
     private static final int MAX_IDLE_CONNECTIONS = 100;
     // cache of connection manager for segment store nodes.
-    // Pravega Connection Manager maintains a pool of connection for a segment store and returns a connection from 
-    // the pool on the need basis. 
+    // Pravega Connection Manager maintains a pool of connection for a segment store and returns a connection from
+    // the pool on the need basis.
     private final LoadingCache<PravegaNodeUri, SegmentStoreConnectionPool> cache;
 
     SegmentStoreConnectionManager(final ConnectionFactory clientCF) {
@@ -59,7 +59,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
                             // if a host is not accessed for 5 minutes, remove it from the cache
                             .expireAfterAccess(5, TimeUnit.MINUTES)
                             .removalListener((RemovalListener<PravegaNodeUri, SegmentStoreConnectionPool>) removalNotification -> {
-                                // Whenever a connection manager is evicted from the cache call shutdown on it. 
+                                // Whenever a connection manager is evicted from the cache call shutdown on it.
                                 removalNotification.getValue().shutdown();
                             })
                             .build(new CacheLoader<PravegaNodeUri, SegmentStoreConnectionPool>() {
@@ -72,7 +72,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
 
     }
 
-    
+
     CompletableFuture<ConnectionWrapper> getConnection(PravegaNodeUri uri, ReplyProcessor replyProcessor) {
         return cache.getUnchecked(uri).getConnection(replyProcessor);
     }
@@ -84,30 +84,30 @@ class SegmentStoreConnectionManager implements AutoCloseable {
     }
 
     /**
-     * This is a connection manager class to manage connection to a given segmentStore node identified by PravegaNodeUri. 
-     * It uses {@link ResourcePool} to create pool of available connections and specify a maximum number of concurrent connections. 
-     * Users can request for connection from this class and it will opportunistically use existing connections or create new 
+     * This is a connection manager class to manage connection to a given segmentStore node identified by PravegaNodeUri.
+     * It uses {@link ResourcePool} to create pool of available connections and specify a maximum number of concurrent connections.
+     * Users can request for connection from this class and it will opportunistically use existing connections or create new
      * connections to a given segment store server and return the connection.
      * It ensures that there are only a limited number of concurrent connections created. If more users request for connection
-     * it would add them to wait queue and as connections become available (when existing connections are returned),  
-     * this class opportunistically tries to reuse the returned connection to fulfil waiting requests. If there are no 
-     * waiting requests, this class tries to maintain an available connection pool of predetermined size. If more number of 
-     * connections than max available size is returned to it, the classes closes those connections to free up resources.  
+     * it would add them to wait queue and as connections become available (when existing connections are returned),
+     * this class opportunistically tries to reuse the returned connection to fulfil waiting requests. If there are no
+     * waiting requests, this class tries to maintain an available connection pool of predetermined size. If more number of
+     * connections than max available size is returned to it, the classes closes those connections to free up resources.
      *
-     * It is important to note that the intent is not to multiplex multiple requests over a single connection concurrently. 
-     * It simply reuses already created connections to send additional commands over it. 
-     * As users finish their processing, they should return the connection back to this class. 
+     * It is important to note that the intent is not to multiplex multiple requests over a single connection concurrently.
+     * It simply reuses already created connections to send additional commands over it.
+     * As users finish their processing, they should return the connection back to this class.
      *
-     * The connectionManager can be shutdown as well. However, the shutdown trigger does not prevent callers to attempt 
-     * to create new connections and new connections will be served. Shutdown ensures that it drains all available connections 
-     * and as connections are returned, they are not reused. 
+     * The connectionManager can be shutdown as well. However, the shutdown trigger does not prevent callers to attempt
+     * to create new connections and new connections will be served. Shutdown ensures that it drains all available connections
+     * and as connections are returned, they are not reused.
      */
     static class SegmentStoreConnectionPool extends ResourcePool<ConnectionObject> {
         @VisibleForTesting
         SegmentStoreConnectionPool(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF) {
             this(pravegaNodeUri, clientCF, MAX_CONCURRENT_CONNECTIONS, MAX_IDLE_CONNECTIONS);
         }
-        
+
         @VisibleForTesting
         SegmentStoreConnectionPool(PravegaNodeUri pravegaNodeUri, ConnectionFactory clientCF, int maxConcurrent, int maxIdle) {
             super(() -> {
@@ -126,7 +126,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
                     });
         }
     }
-    
+
     static class ConnectionWrapper implements AutoCloseable {
         private final ResourcePool.CloseableResource<ConnectionObject> resource;
         private AtomicBoolean isClosed;
@@ -172,7 +172,7 @@ class SegmentStoreConnectionManager implements AutoCloseable {
             }
         }
     }
-    
+
     private static class ConnectionObject {
         private final ClientConnection connection;
         private final ReusableReplyProcessor reusableReplyProcessor;
@@ -185,9 +185,9 @@ class SegmentStoreConnectionManager implements AutoCloseable {
         }
 
         private void failConnection() {
-            state.set(ConnectionState.DISCONNECTED);    
+            state.set(ConnectionState.DISCONNECTED);
         }
-        
+
         private <T> void sendAsync(WireCommand request, CompletableFuture<T> resultFuture) {
             connection.sendAsync(request, cfe -> {
                 if (cfe != null) {
@@ -203,15 +203,15 @@ class SegmentStoreConnectionManager implements AutoCloseable {
                 }
             });
         }
-        
+
         private enum ConnectionState {
             CONNECTED,
             DISCONNECTED
         }
     }
-    
+
     /**
-     *  A reusable reply processor class which can be initialized and uninitialized with new ReplyProcessor. 
+     *  A reusable reply processor class which can be initialized and uninitialized with new ReplyProcessor.
      *  This same replyProcessor can be reused with the same connection for handling different replies from servers for
      *  different calls.
      */
