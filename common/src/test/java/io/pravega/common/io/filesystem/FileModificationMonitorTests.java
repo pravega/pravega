@@ -34,9 +34,9 @@ public abstract class FileModificationMonitorTests {
     final static Path PATH_VALID_NONEXISTENT = Paths.get(File.pathSeparator +
             System.currentTimeMillis() + File.pathSeparator + System.currentTimeMillis());
 
-    private final static java.nio.file.Path PATH_EMPTY = Paths.get("");
-    private final static java.nio.file.Path PATH_NONEMPTY = Paths.get("non-empty");
-    private final static java.nio.file.Path PATH_NONEXISTENT = Paths.get(System.currentTimeMillis() + ".file");
+    private final static Path PATH_EMPTY = Paths.get("");
+    private final static Path PATH_NONEMPTY = Paths.get("non-empty");
+    private final static Path PATH_NONEXISTENT = Paths.get(System.currentTimeMillis() + ".file");
 
     static {
         try {

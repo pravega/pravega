@@ -17,9 +17,12 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class FileModificationPollingMonitorTests extends FileModificationMonitorTests {
@@ -56,5 +59,27 @@ public class FileModificationPollingMonitorTests extends FileModificationMonitor
         monitor.stopMonitoring();
 
         cleanupTempFile(tempFile);
+    }
+
+    @Test
+    public void testStartMonitoringChecksForState() throws FileNotFoundException {
+        FileModificationMonitor monitor = new FileModificationPollingMonitor(Paths.get(File.pathSeparator),
+                NOOP_CONSUMER, FileModificationPollingMonitor.DEFAULT_POLL_INTERVAL, false);
+
+        assertThrows("A null file name didn't result in expected IllegalStateException",
+                () -> monitor.startMonitoring(),
+                e -> e instanceof IllegalStateException);
+    }
+
+    @Test
+    public void testPollingInterval() throws FileNotFoundException {
+        FileModificationPollingMonitor monitor = new FileModificationPollingMonitor(
+                FileModificationMonitorTests.PATH_VALID_NONEXISTENT, NOOP_CONSUMER,
+                100, false);
+
+        assertEquals(100, monitor.getPollingInterval());
+
+        monitor = new FileModificationPollingMonitor(FileModificationMonitorTests.SHARED_FILE.toPath(), NOOP_CONSUMER);
+        assertEquals(FileModificationPollingMonitor.DEFAULT_POLL_INTERVAL, monitor.getPollingInterval());
     }
 }
