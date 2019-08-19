@@ -10,6 +10,7 @@
 package io.pravega.common.io.filesystem;
 
 import org.apache.commons.io.FileUtils;
+import org.junit.AfterClass;
 import org.junit.Test;
 
 import java.io.File;
@@ -26,7 +27,30 @@ import static org.junit.Assert.assertTrue;
 
 public class  FileModificationEventWatcherTests extends FileModificationMonitorTests {
 
+    /**
+     * Holds a file created for shared use of tests. The lifecycle of this file is managed in this class. No tests
+     * should write to this file or delete this file.
+     */
+    private final static File SHARED_FILE;
+
     private final static Consumer<WatchEvent<?>> NOOP_CONSUMER = c -> { };
+
+    static {
+        try {
+            SHARED_FILE = createTempFile();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        try {
+            cleanupTempFile(SHARED_FILE);
+        } catch (IOException e) {
+            // ignore
+        }
+    }
 
     @Override
     FileModificationMonitor prepareObjectUnderTest(Path path) throws FileNotFoundException {

@@ -18,18 +18,11 @@ import java.nio.file.Paths;
 
 import com.google.common.base.Preconditions;
 import org.apache.commons.io.FileUtils;
-import org.junit.AfterClass;
 import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 public abstract class FileModificationMonitorTests {
-
-    /**
-     * Holds a file created for shared use of tests. The lifecycle of this file is managed in this class. No tests
-     * should write to this file or delete this file.
-     */
-    final static File SHARED_FILE;
 
     final static Path PATH_VALID_NONEXISTENT = Paths.get(File.pathSeparator +
             System.currentTimeMillis() + File.pathSeparator + System.currentTimeMillis());
@@ -38,27 +31,10 @@ public abstract class FileModificationMonitorTests {
     private final static Path PATH_NONEMPTY = Paths.get("non-empty");
     private final static Path PATH_NONEXISTENT = Paths.get(System.currentTimeMillis() + ".file");
 
-    static {
-        try {
-            SHARED_FILE = createTempFile();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     abstract FileModificationMonitor prepareObjectUnderTest(Path path) throws FileNotFoundException;
 
     abstract FileModificationMonitor prepareObjectUnderTest(Path path, boolean checkForFileExistence)
             throws FileNotFoundException;
-
-    @AfterClass
-    public static void cleanup() {
-        try {
-            cleanupTempFile(SHARED_FILE);
-        } catch (IOException e) {
-            // ignore
-        }
-    }
 
     @Test
     public void testCtorRejectsNullInput() {
