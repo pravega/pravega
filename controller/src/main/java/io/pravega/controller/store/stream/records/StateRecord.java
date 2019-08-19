@@ -22,13 +22,13 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 
+/**
+ * A serializable class that encapsulates a Stream's State.
+ */
 @Data
 @Builder
 @Slf4j
 @AllArgsConstructor
-/**
- * A serializable class that encapsulates a Stream's State. 
- */
 public class StateRecord {
     public static final StateRecordSerializer SERIALIZER = new StateRecordSerializer();
 
@@ -47,7 +47,7 @@ public class StateRecord {
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
-    
+
     private static class StateRecordSerializer extends VersionedSerializer.WithBuilder<StateRecord, StateRecord.StateRecordBuilder> {
         @Override
         protected byte getWriteVersion() {

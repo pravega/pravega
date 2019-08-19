@@ -9,14 +9,18 @@
  */
 package io.pravega.shared;
 
+import com.google.common.base.Strings;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsTags.HOSTNAME_PROPERTY_NAME;
 import static io.pravega.shared.MetricsTags.containerTag;
+import static io.pravega.shared.MetricsTags.createHostTag;
 import static io.pravega.shared.MetricsTags.hostTag;
 import static io.pravega.shared.MetricsTags.segmentTags;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.shared.MetricsTags.transactionTags;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -34,6 +38,16 @@ public class MetricsTagsTest {
         String[] tag = hostTag("localhost");
         assertEquals(MetricsTags.TAG_HOST, tag[0]);
         assertEquals("localhost", tag[1]);
+    }
+
+    @Test
+    public void testCreateHostTag() {
+        System.setProperty(HOSTNAME_PROPERTY_NAME, "testHostName");
+        assertEquals("testHostName", createHostTag()[1]);
+        System.setProperty(HOSTNAME_PROPERTY_NAME, "");
+        assertFalse(Strings.isNullOrEmpty(createHostTag()[1]));
+        System.clearProperty(HOSTNAME_PROPERTY_NAME);
+        assertFalse(Strings.isNullOrEmpty(createHostTag()[1]));
     }
 
     @Test

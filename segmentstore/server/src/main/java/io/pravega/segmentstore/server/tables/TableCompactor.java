@@ -311,7 +311,7 @@ class TableCompactor {
             toWrite.sort(Comparator.comparingLong(c -> c.getKey().getVersion()));
             byte[] appendData = new byte[totalLength];
             this.connector.getSerializer().serializeUpdateWithExplicitVersion(toWrite, appendData);
-            result = segment.append(appendData, attributes, timer.getRemaining());
+            result = segment.append(new ByteArraySegment(appendData), attributes, timer.getRemaining());
             log.debug("TableCompactor[{}]: Compacting {}, CopyCount={}, CopyLength={}.", segment.getSegmentId(), args, toWrite, totalLength);
         }
 

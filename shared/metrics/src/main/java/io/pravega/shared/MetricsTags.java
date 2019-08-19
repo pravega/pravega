@@ -10,11 +10,14 @@
 package io.pravega.shared;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 public final class MetricsTags {
+
+    public static final String HOSTNAME_PROPERTY_NAME = "HOSTNAME";
 
     // Metric Tag Names
     public static final String TAG_CONTAINER = "container";
@@ -139,6 +142,13 @@ public final class MetricsTags {
      */
     public static String[] createHostTag() {
         String[] hostTag = {MetricsTags.TAG_HOST, null};
+
+        //Always take property "HOSTNAME" if it's defined.
+        hostTag[1] = System.getProperty(HOSTNAME_PROPERTY_NAME);
+        if (!Strings.isNullOrEmpty(hostTag[1])) {
+            return hostTag;
+        }
+
         try {
             hostTag[1] = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {
