@@ -386,10 +386,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * If there is room for more data, we resume consuming from the socket.
      */
     private void pauseOrResumeReading() {
-        long bytesWaiting;
-        synchronized (lock) {
-            bytesWaiting = pendingBytes;
-        }
+        long bytesWaiting = getPendingBytes();
 
         if (bytesWaiting > HIGH_WATER_MARK) {
             log.debug("Pausing writing from connection {}", connection);
@@ -399,6 +396,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.trace("Resuming writing from connection {}", connection);
             connection.resumeReading();
         }
+    }
+
+    /**
+     * return the remaining bytes to be consumed.
+     */
+    private long getPendingBytes() {
+        long retVal;
+        synchronized (lock) {
+            retVal = pendingBytes;
+        }
+        return retVal;
     }
 
     /**
