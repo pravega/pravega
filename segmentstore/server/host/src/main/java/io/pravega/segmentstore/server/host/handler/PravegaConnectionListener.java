@@ -231,16 +231,17 @@ public final class PravegaConnectionListener implements AutoCloseable {
         FileModificationMonitor result;
         try {
             if (isTLSCertPathSymLink) {
+                // For symbolic links, the event-based watcher doesn't work, so we use a polling monitor.
                 log.info("The path to certificate file [{}] was found to be a symbolic link, " +
                                 " so using [{}] to monitor for certificate changes",
                         tlsCertificatePath, FileModificationPollingMonitor.class.getSimpleName());
 
-                result = new FileModificationPollingMonitor(tlsCertificatePath,
+                result = new FileModificationPollingMonitor(Paths.get(tlsCertificatePath),
                         new TLSConfigChangeFileConsumer(sslCtx, tlsCertificatePath, tlsKeyPath));
             } else {
-                // For non symbolic links we'll depend on event-based watcher, which is more efficient than a
-                // polling-based monitor.
-                result = new FileModificationEventWatcher(tlsCertificatePath,
+                // For non symbolic links we'll use the event-based watcher, which is more efficient than a
+                // polling-based monitor. 
+                result = new FileModificationEventWatcher(Paths.get(tlsCertificatePath),
                         new TLSConfigChangeEventConsumer(sslCtx, tlsCertificatePath, tlsKeyPath));
             }
             return result;

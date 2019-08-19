@@ -13,9 +13,11 @@ import io.netty.handler.ssl.SslContext;
 import io.pravega.test.common.SecurityConfigDefaults;
 import org.junit.Test;
 import java.io.File;
+import java.nio.file.WatchEvent;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 public class TLSConfigChangeEventConsumerTests {
 
@@ -52,7 +54,7 @@ public class TLSConfigChangeEventConsumerTests {
 
         assertEquals(1, subjectUnderTest.getNumOfConfigChangesSinceStart());
 
-        subjectUnderTest.accept(null);
+        subjectUnderTest.accept(mock(WatchEvent.class));
         assertEquals(2, subjectUnderTest.getNumOfConfigChangesSinceStart());
     }
 }

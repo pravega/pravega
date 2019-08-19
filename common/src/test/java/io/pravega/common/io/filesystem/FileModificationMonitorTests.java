@@ -14,6 +14,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import com.google.common.base.Preconditions;
 import org.apache.commons.io.FileUtils;
@@ -28,28 +29,32 @@ public abstract class FileModificationMonitorTests {
      * Holds a file created for shared use of tests. The lifecycle of this file is managed in this class. No tests
      * should write to this file or delete this file.
      */
-    final static File DUMMY_FILE_TO_MONITOR;
+    final static File SHARED_FILE;
 
-    private final static String PATH_NULL = null;
-    private final static String PATH_EMPTY = "";
-    private final static String PATH_NONEMPTY = "non-empty";
-    private final static String PATH_NONEXISTENT = System.currentTimeMillis() + ".file";
+    final static Path PATH_VALID_NONEXISTENT = Paths.get(File.pathSeparator +
+            System.currentTimeMillis() + File.pathSeparator + System.currentTimeMillis());
+
+    private final static java.nio.file.Path PATH_EMPTY = Paths.get("");
+    private final static java.nio.file.Path PATH_NONEMPTY = Paths.get("non-empty");
+    private final static java.nio.file.Path PATH_NONEXISTENT = Paths.get(System.currentTimeMillis() + ".file");
 
     static {
         try {
-            DUMMY_FILE_TO_MONITOR = createTempFile();
+            SHARED_FILE = createTempFile();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    abstract FileModificationMonitor prepareObjectUnderTest(String path) throws FileNotFoundException;
+    abstract FileModificationMonitor prepareObjectUnderTest(Path path) throws FileNotFoundException;
+
+    abstract FileModificationMonitor prepareObjectUnderTest(Path path, boolean checkForFileExistence)
+            throws FileNotFoundException;
 
     @AfterClass
     public static void cleanup() {
         try {
-            System.out.println("Cleaned up");
-            cleanupTempFile(DUMMY_FILE_TO_MONITOR);
+            cleanupTempFile(SHARED_FILE);
         } catch (IOException e) {
             // ignore
         }
@@ -58,7 +63,7 @@ public abstract class FileModificationMonitorTests {
     @Test
     public void testCtorRejectsNullInput() {
         assertThrows("Null fileToWatch argument wasn't rejected.",
-                () -> prepareObjectUnderTest(PATH_NULL),
+                () -> prepareObjectUnderTest(null),
                 e -> e instanceof NullPointerException);
 
         assertThrows("Null callback argument wasn't rejected.",
@@ -70,19 +75,19 @@ public abstract class FileModificationMonitorTests {
     public void testCtorRejectsEmptyFileArgument() {
         assertThrows("Empty fileToWatch argument wasn't rejected.",
                 () -> prepareObjectUnderTest(PATH_EMPTY),
-                e -> e instanceof FileNotFoundException);
+                e -> e instanceof IllegalArgumentException);
     }
 
     @Test
     public void testCtorRejectsNonExistentFileArgument() {
         assertThrows("Empty fileToWatch argument wasn't rejected.",
-                () -> prepareObjectUnderTest(PATH_NONEXISTENT),
+                () -> prepareObjectUnderTest(PATH_NONEXISTENT, true),
                 e -> e instanceof FileNotFoundException);
     }
 
     @Test
     public void testStopWithNoStartCompletesGracefully() throws IOException {
-        FileModificationMonitor monitor = prepareObjectUnderTest(DUMMY_FILE_TO_MONITOR.toPath().toString());
+        FileModificationMonitor monitor = prepareObjectUnderTest(PATH_VALID_NONEXISTENT, false);
         monitor.stopMonitoring();
     }
 

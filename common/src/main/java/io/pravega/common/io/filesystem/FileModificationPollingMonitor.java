@@ -10,6 +10,7 @@
 package io.pravega.common.io.filesystem;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.Exceptions;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +24,6 @@ import java.io.FileFilter;
 import java.io.FileNotFoundException;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.function.Consumer;
 
 /**
@@ -40,7 +40,8 @@ import java.util.function.Consumer;
 @Slf4j
 public class FileModificationPollingMonitor implements FileModificationMonitor {
 
-    private final static int DEFAULT_POLL_INTERVAL = 10 * 1000; // 10 seconds
+    @VisibleForTesting
+    final static int DEFAULT_POLL_INTERVAL = 10 * 1000; // 10 seconds
 
     /**
      * The path of file to watch.
@@ -68,18 +69,21 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
      * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
      * @throws NullPointerException if either {@code fileToWatch}  or {@code callback} is null
      */
-    public FileModificationPollingMonitor(@NonNull String fileToWatch, @NonNull Consumer<File> callback)
+    public FileModificationPollingMonitor(@NonNull Path fileToWatch, @NonNull Consumer<File> callback)
             throws FileNotFoundException {
-        this(fileToWatch, callback, DEFAULT_POLL_INTERVAL);
+        this(fileToWatch, callback, DEFAULT_POLL_INTERVAL, true);
     }
 
     @VisibleForTesting
-    FileModificationPollingMonitor(@NonNull String fileToWatch, @NonNull Consumer<File> callback, int pollingInterval)
-            throws FileNotFoundException {
-        this.pathOfFileToWatch = Paths.get(fileToWatch);
-        if (!pathOfFileToWatch.toFile().exists()) {
+    FileModificationPollingMonitor(@NonNull Path fileToWatch, @NonNull Consumer<File> callback, int pollingInterval,
+                                   boolean checkForFileExistence) throws FileNotFoundException {
+
+        Exceptions.checkNotNullOrEmpty(fileToWatch.toString(), "fileToWatch");
+        if (checkForFileExistence && !fileToWatch.toFile().exists()) {
             throw new FileNotFoundException(String.format("File [%s] does not exist.", fileToWatch));
         }
+
+        this.pathOfFileToWatch = fileToWatch;
         this.callback = callback;
         this.pollingInterval = pollingInterval;
         monitor = new FileAlterationMonitor(this.pollingInterval);

@@ -16,6 +16,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -26,8 +27,14 @@ public class FileModificationPollingMonitorTests extends FileModificationMonitor
     private final static Consumer<File> NOOP_CONSUMER = c -> { };
 
     @Override
-    FileModificationMonitor prepareObjectUnderTest(String path) throws FileNotFoundException {
-        return new FileModificationPollingMonitor(path, NOOP_CONSUMER);
+    FileModificationMonitor prepareObjectUnderTest(Path path) throws FileNotFoundException {
+        return prepareObjectUnderTest(path, true);
+    }
+
+    @Override
+    FileModificationMonitor prepareObjectUnderTest(Path path, boolean checkForFileExistence) throws FileNotFoundException {
+        return new FileModificationPollingMonitor(path, NOOP_CONSUMER,
+                FileModificationPollingMonitor.DEFAULT_POLL_INTERVAL, checkForFileExistence);
     }
 
     @Test(timeout = 2000)
@@ -35,8 +42,8 @@ public class FileModificationPollingMonitorTests extends FileModificationMonitor
         File tempFile = createTempFile();
 
         AtomicBoolean isCallbackInvoked = new AtomicBoolean(false);
-        FileModificationMonitor monitor = new FileModificationPollingMonitor(tempFile.toPath().toString(),
-                c -> isCallbackInvoked.set(true), 100);
+        FileModificationMonitor monitor = new FileModificationPollingMonitor(tempFile.toPath(),
+                c -> isCallbackInvoked.set(true), 100, true);
         monitor.startMonitoring();
 
         // Modify the watched file.

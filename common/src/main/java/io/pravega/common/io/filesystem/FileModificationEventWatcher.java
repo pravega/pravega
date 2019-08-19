@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
@@ -24,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.common.Exceptions;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -69,6 +69,8 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
 
     private final boolean loopContinuously;
 
+    private boolean isWatchRegistered = false;
+
     /**
      * Creates a new instance.
      *
@@ -78,9 +80,9 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
      * @throws InvalidPathException if {@code fileToWatch} is invalid
      * @throws FileNotFoundException when a file at specified path {@code fileToWatch} does not exist
      */
-    public FileModificationEventWatcher(@NonNull String fileToWatch, @NonNull Consumer<WatchEvent<?>> callback)
+    public FileModificationEventWatcher(@NonNull Path fileToWatch, @NonNull Consumer<WatchEvent<?>> callback)
             throws FileNotFoundException {
-        this(Paths.get(fileToWatch), callback, true);
+        this(fileToWatch, callback, true, true);
     }
 
     /**
@@ -96,11 +98,11 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
      */
     @VisibleForTesting
     FileModificationEventWatcher(@NonNull Path fileToWatch, @NonNull Consumer<WatchEvent<?>> callback,
-                                 boolean loopContinuously)
+                                 boolean loopContinuously, boolean checkForFileExistence)
             throws FileNotFoundException {
-        super();
 
-        if (!fileToWatch.toFile().exists()) {
+        Exceptions.checkNotNullOrEmpty(fileToWatch.toString(), "fileToWatch");
+        if (checkForFileExistence && !fileToWatch.toFile().exists()) {
             throw new FileNotFoundException(String.format("File [%s] does not exist.", fileToWatch));
         }
 
@@ -119,7 +121,9 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
         if (fileName != null) {
             return fileName.toString();
         } else {
-            throw new NullPointerException("File name is null");
+            // It should never happen that file name is null, but we have to perform this defensive null check to
+            // satisfy SpotBugs.
+            throw new IllegalStateException("File name is null");
         }
     }
 
@@ -145,6 +149,8 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
             directoryPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY,
                     StandardWatchEventKinds.ENTRY_CREATE);
             log.debug("Done setting up watch for modify entries for file at path: {}", this.watchedFilePath);
+
+            isWatchRegistered = true;
 
             while (true) {
                 watchKey = watchService.take();
@@ -212,6 +218,11 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
         this.setDaemon(true);
         this.start();
         log.info("Completed setting up monitor for watching modifications to file: {}", this.watchedFilePath);
+    }
+
+    @VisibleForTesting
+    boolean isWatchRegistered() {
+        return isWatchRegistered;
     }
 
     @Override
