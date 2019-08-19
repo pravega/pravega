@@ -10,6 +10,7 @@
 package io.pravega.common.io.filesystem;
 
 import com.google.common.annotations.VisibleForTesting;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.monitor.FileAlterationListener;
@@ -53,6 +54,8 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
 
     private final FileAlterationMonitor monitor;
 
+    @VisibleForTesting
+    @Getter
     private final int pollingInterval;
 
     /**
@@ -128,7 +131,7 @@ public class FileModificationPollingMonitor implements FileModificationMonitor {
     public void stopMonitoring() {
         if (monitor != null) {
             try {
-                monitor.stop(5 * 1000);
+                monitor.stop(1);
             } catch (Exception e) {
                 log.warn("Failed to close the monitor", e);
                 // ignore

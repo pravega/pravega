@@ -9,20 +9,51 @@
  */
 package io.pravega.common.io.filesystem;
 
-import org.junit.Test;
-
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import com.google.common.base.Preconditions;
+import org.apache.commons.io.FileUtils;
+import org.junit.AfterClass;
+import org.junit.Test;
 
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 
 public abstract class FileModificationMonitorTests {
+
+    /**
+     * Holds a file created for shared use of tests. The lifecycle of this file is managed in this class. No tests
+     * should write to this file or delete this file.
+     */
+    final static File DUMMY_FILE_TO_MONITOR;
 
     private final static String PATH_NULL = null;
     private final static String PATH_EMPTY = "";
     private final static String PATH_NONEMPTY = "non-empty";
     private final static String PATH_NONEXISTENT = System.currentTimeMillis() + ".file";
 
+    static {
+        try {
+            DUMMY_FILE_TO_MONITOR = createTempFile();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     abstract FileModificationMonitor prepareObjectUnderTest(String path) throws FileNotFoundException;
+
+    @AfterClass
+    public static void cleanup() {
+        try {
+            System.out.println("Cleaned up");
+            cleanupTempFile(DUMMY_FILE_TO_MONITOR);
+        } catch (IOException e) {
+            // ignore
+        }
+    }
 
     @Test
     public void testCtorRejectsNullInput() {
@@ -47,5 +78,31 @@ public abstract class FileModificationMonitorTests {
         assertThrows("Empty fileToWatch argument wasn't rejected.",
                 () -> prepareObjectUnderTest(PATH_NONEXISTENT),
                 e -> e instanceof FileNotFoundException);
+    }
+
+    @Test
+    public void testStopWithNoStartCompletesGracefully() throws IOException {
+        FileModificationMonitor monitor = prepareObjectUnderTest(DUMMY_FILE_TO_MONITOR.toPath().toString());
+        monitor.stopMonitoring();
+    }
+
+    static File createTempFile() throws IOException {
+        Path dir = Files.createTempDirectory("fw-");
+        return File.createTempFile("tf-", ".temp", dir.toFile());
+    }
+
+    static void cleanupTempFile(File file) throws IOException {
+        Preconditions.checkNotNull(file);
+        if (file.toPath() == null) {
+            return;
+        }
+        Path dirPath = file.toPath().getParent();
+
+        if (file.exists()) {
+            file.delete();
+        }
+        if (dirPath != null) {
+            FileUtils.deleteDirectory(dirPath.toFile());
+        }
     }
 }

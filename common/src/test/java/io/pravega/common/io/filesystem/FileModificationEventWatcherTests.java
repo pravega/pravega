@@ -16,12 +16,11 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.WatchEvent;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class FileModificationEventWatcherTests extends FileModificationMonitorTests {
@@ -35,24 +34,29 @@ public class FileModificationEventWatcherTests extends FileModificationMonitorTe
 
     @Test(timeout = 6000)
     public void testInvokesCallBackForFileModification() throws IOException, InterruptedException {
-        Path dir = Files.createTempDirectory("fw-");
-        File file = File.createTempFile("tf-", ".temp", dir.toFile());
-        Path filePath = file.toPath();
+        File tempFile = this.createTempFile();
 
         AtomicBoolean isCallbackInvoked = new AtomicBoolean(false);
-        FileModificationEventWatcher watcher = new FileModificationEventWatcher(filePath,
+        FileModificationEventWatcher watcher = new FileModificationEventWatcher(tempFile.toPath(),
                 c -> isCallbackInvoked.set(true), false);
         watcher.startMonitoring();
 
         // Modify the watched file.
-        FileUtils.writeStringToFile(file, "hello", StandardCharsets.UTF_8, true);
+        FileUtils.writeStringToFile(tempFile, "hello", StandardCharsets.UTF_8, true);
         watcher.join(15 * 1000); // Wait for max 5 seconds for the thread to die.
 
         assertTrue(isCallbackInvoked.get());
 
-        if (file.exists()) {
-            file.delete();
-        }
         watcher.stopMonitoring();
+        this.cleanupTempFile(tempFile);
+    }
+
+    @Test
+    public void testSetsUpWatchDirAndFileNamesCorrectly() throws IOException {
+        FileModificationEventWatcher watcher = new FileModificationEventWatcher(
+                DUMMY_FILE_TO_MONITOR.toPath().toString(), NOOP_CONSUMER);
+
+        assertEquals(DUMMY_FILE_TO_MONITOR.toPath().getParent(), watcher.getWatchedDirectory());
+        assertEquals(DUMMY_FILE_TO_MONITOR.getName(), watcher.getWatchedFileName());
     }
 }

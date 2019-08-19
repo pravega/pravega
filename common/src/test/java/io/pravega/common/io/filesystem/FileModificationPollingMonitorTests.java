@@ -16,8 +16,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -34,25 +32,22 @@ public class FileModificationPollingMonitorTests extends FileModificationMonitor
 
     @Test(timeout = 2000)
     public void testInvokesCallBackForFileModification() throws IOException, InterruptedException {
-        Path dir = Files.createTempDirectory("fw-");
-        File file = File.createTempFile("tf-", ".temp", dir.toFile());
+        File tempFile = createTempFile();
 
         AtomicBoolean isCallbackInvoked = new AtomicBoolean(false);
-        FileModificationMonitor watcher = new FileModificationPollingMonitor(file.toPath().toString(),
+        FileModificationMonitor monitor = new FileModificationPollingMonitor(tempFile.toPath().toString(),
                 c -> isCallbackInvoked.set(true), 100);
-        watcher.startMonitoring();
+        monitor.startMonitoring();
 
         // Modify the watched file.
-        FileUtils.writeStringToFile(file, "hello", StandardCharsets.UTF_8, true);
+        FileUtils.writeStringToFile(tempFile, "hello", StandardCharsets.UTF_8, true);
 
         // Wait for some time
         Thread.sleep(500);
 
         assertTrue(isCallbackInvoked.get());
+        monitor.stopMonitoring();
 
-        if (file.exists()) {
-            file.delete();
-        }
-        watcher.stopMonitoring();
+        cleanupTempFile(tempFile);
     }
 }
