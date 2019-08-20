@@ -25,7 +25,7 @@ import java.util.function.Consumer;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class  FileModificationEventWatcherTests extends FileModificationMonitorTests {
+public class FileModificationEventWatcherTests extends FileModificationMonitorTests {
 
     /**
      * Holds a file created for shared use of tests. The lifecycle of this file is managed in this class. No tests
@@ -109,6 +109,15 @@ public class  FileModificationEventWatcherTests extends FileModificationMonitorT
         FileModificationEventWatcher watcher = new FileModificationEventWatcher(
                 PATH_VALID_NONEXISTENT, NOOP_CONSUMER, true, false);
         assertTrue(watcher.getName().startsWith("pravega-file-watcher-"));
+    }
+
+    @Test(expected = IllegalStateException.class)
+    public void testGetWatchedFileNameThrowsExceptionForNulLFileName() throws FileNotFoundException {
+        Path path = this.prepareRootDirPath();
+
+        FileModificationEventWatcher watcher = new FileModificationEventWatcher(path, NOOP_CONSUMER,
+                true, false);
+        watcher.getWatchedFileName();
     }
 
     private void waitForWatcherToStart(FileModificationEventWatcher watcher) throws InterruptedException {

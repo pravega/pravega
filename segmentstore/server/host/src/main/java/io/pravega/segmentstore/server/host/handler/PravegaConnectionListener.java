@@ -206,11 +206,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
          });
 
         if (enableTls && enableTlsReload) {
-            tlsCertFileModificationMonitor = prepareCertificateMonitor(this.pathToTlsCertFile, this.pathToTlsKeyFile,
-                    sslCtx);
-            tlsCertFileModificationMonitor.startMonitoring();
-            log.info("Successfully started file modification monitoring for TLS certificate: [{}]",
-                    this.pathToTlsCertFile);
+            enableTlsContextReload(sslCtx);
         }
 
         // Start the server.
@@ -218,8 +214,17 @@ public final class PravegaConnectionListener implements AutoCloseable {
     }
 
     @VisibleForTesting
+    void enableTlsContextReload(AtomicReference<SslContext> sslCtx) {
+        tlsCertFileModificationMonitor = prepareCertificateMonitor(this.pathToTlsCertFile, this.pathToTlsKeyFile,
+                sslCtx);
+        tlsCertFileModificationMonitor.startMonitoring();
+        log.info("Successfully started file modification monitoring for TLS certificate: [{}]",
+                this.pathToTlsCertFile);
+    }
+
+    @VisibleForTesting
     FileModificationMonitor prepareCertificateMonitor(String tlsCertificatePath, String tlsKeyPath,
-                                                      AtomicReference<SslContext> sslCtx) {
+                                               AtomicReference<SslContext> sslCtx) {
         return prepareCertificateMonitor(Files.isSymbolicLink(Paths.get(tlsCertificatePath)),
                 tlsCertificatePath, tlsKeyPath, sslCtx);
     }
@@ -240,7 +245,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
                         new TLSConfigChangeFileConsumer(sslCtx, tlsCertificatePath, tlsKeyPath));
             } else {
                 // For non symbolic links we'll use the event-based watcher, which is more efficient than a
-                // polling-based monitor. 
+                // polling-based monitor.
                 result = new FileModificationEventWatcher(Paths.get(tlsCertificatePath),
                         new TLSConfigChangeEventConsumer(sslCtx, tlsCertificatePath, tlsKeyPath));
             }

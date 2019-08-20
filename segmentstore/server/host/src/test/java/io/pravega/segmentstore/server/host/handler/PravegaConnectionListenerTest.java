@@ -24,7 +24,6 @@ import java.io.FileNotFoundException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -106,9 +105,31 @@ public class PravegaConnectionListenerTest {
                 "dummy-tls-certificate-path", "dummy-tls-key-path", true);
         AtomicReference<SslContext> dummySslCtx = new AtomicReference<>(null);
 
-        assertThrows("Did not throw FileNotFoundException",
-                () -> listener.prepareCertificateMonitor(false, pathToCertificateFile, pathToKeyFile,
-                        dummySslCtx),
-                e -> e instanceof RuntimeException && e.getCause() instanceof FileNotFoundException);
+        try {
+            listener.prepareCertificateMonitor(false, pathToCertificateFile, pathToKeyFile,
+                    dummySslCtx);
+        } catch (RuntimeException e) {
+            if (e.getCause() instanceof FileNotFoundException) {
+                // test succeeded
+            } else {
+                // test fails
+                throw e;
+            }
+        }
+    }
+
+    @Test
+    public void testEnableTlsContextReloadWhenStateIsValid() {
+        String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
+        String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+
+        PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
+                "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
+                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
+                pathToCertificateFile, pathToKeyFile, true);
+
+        AtomicReference<SslContext> dummySslCtx = new AtomicReference<>(null);
+        listener.enableTlsContextReload(dummySslCtx);
+        // No exception indicates success.
     }
 }

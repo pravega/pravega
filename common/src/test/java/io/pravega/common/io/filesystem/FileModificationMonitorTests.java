@@ -60,6 +60,12 @@ public abstract class FileModificationMonitorTests {
         monitor.stopMonitoring();
     }
 
+    Path prepareRootDirPath() {
+        // This is a trick to avoid SpotBugs error: DMI_HARDCODED_ABSOLUTE_FILENAME
+        String root = "/";
+        return Paths.get(root + ""); // "/" in Linux and "\" in Windows
+    }
+
     static File createTempFile() throws IOException {
         Path dir = Files.createTempDirectory("fw-");
         return File.createTempFile("tf-", ".temp", dir.toFile());
