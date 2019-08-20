@@ -102,4 +102,11 @@ public class FileModificationPollingMonitorTests extends FileModificationMonitor
         monitor = new FileModificationPollingMonitor(SHARED_FILE.toPath(), NOOP_CONSUMER);
         assertEquals(FileModificationPollingMonitor.DEFAULT_POLL_INTERVAL, monitor.getPollingInterval());
     }
+
+    @Test (expected = IllegalStateException.class)
+    public void testStartMonitoringThrowsExceptionWhenFileNameIsNull() throws FileNotFoundException {
+        Path path = this.prepareRootDirPath();
+        FileModificationPollingMonitor monitor = new FileModificationPollingMonitor(path, NOOP_CONSUMER, 100, false);
+        monitor.startMonitoring();
+    }
 }

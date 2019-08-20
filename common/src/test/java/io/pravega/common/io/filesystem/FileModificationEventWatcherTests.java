@@ -112,7 +112,7 @@ public class FileModificationEventWatcherTests extends FileModificationMonitorTe
     }
 
     @Test(expected = IllegalStateException.class)
-    public void testGetWatchedFileNameThrowsExceptionForNulLFileName() throws FileNotFoundException {
+    public void testGetWatchedFileNameThrowsExceptionForNullFileName() throws FileNotFoundException {
         Path path = this.prepareRootDirPath();
 
         FileModificationEventWatcher watcher = new FileModificationEventWatcher(path, NOOP_CONSUMER,
