@@ -20,6 +20,7 @@ import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.Flush;
+import io.pravega.shared.protocol.netty.WireCommands.CloseAppend;
 import java.io.IOException;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.UUID;
@@ -232,6 +233,14 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             SetupAppend setup = (SetupAppend) msg;
             setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
                               new Session(setup.getWriterId(), setup.getRequestId()));
+        } else if (msg instanceof CloseAppend) {
+            CloseAppend closeSetup = (CloseAppend) msg;
+            Map.Entry sessionKey = new SimpleImmutableEntry<>(closeSetup.getSegment(), closeSetup.getWriterId());
+            Session session = setupSegments.get(sessionKey);
+            breakCurrentAppend(out);
+            session.flush(out);
+            writeMessage(closeSetup, out);
+            setupSegments.remove(sessionKey);
         } else if (msg instanceof BlockTimeout) {
             BlockTimeout timeoutMsg = (BlockTimeout) msg;
             if (tokenCounter.get() == timeoutMsg.token) {
