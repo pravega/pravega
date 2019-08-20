@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.base.Preconditions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.segmentstore.storage.DataLogInitializationException;
@@ -17,11 +18,18 @@ import io.pravega.segmentstore.storage.DurableDataLogException;
 import io.pravega.segmentstore.storage.LogAddress;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.val;
 import org.apache.bookkeeper.client.BookKeeper;
 import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.curator.framework.CuratorFramework;
@@ -82,7 +90,7 @@ public class DebugLogWrapper implements AutoCloseable {
      * @throws DataLogInitializationException If an exception occurred fetching metadata from ZooKeeper.
      */
     public DurableDataLog asReadOnly() throws DataLogInitializationException {
-        return new ReadOnlyBooKeeperLog(this.log.loadMetadata());
+        return new ReadOnlyBooKeeperLog(this.log.getLogId(), this.log.loadMetadata());
     }
 
     /**
@@ -126,6 +134,98 @@ public class DebugLogWrapper implements AutoCloseable {
         this.log.disable();
     }
 
+    /**
+     * Performs a {@link BookKeeperLog}-{@link LedgerHandle} reconciliation for this {@link BookKeeperLog} subject to the
+     * following rules:
+     * - Any {@link LedgerHandle}s that list this {@link BookKeeperLog} as their owner will be added to this {@link BookKeeperLog}'s
+     * list of ledgers (if they're non-empty and haven't been truncated out).
+     * - Any {@link LedgerMetadata} instances in this {@link BookKeeperLog} that point to inexistent {@link LedgerHandle}s
+     * will be removed.
+     *
+     * @param candidateLedgers A List of {@link LedgerHandle}s that contain all the Ledgers that this {@link BookKeeperLog}
+     *                         should contain. This could be the list of all BookKeeper Ledgers or a subset, as long as
+     *                         it contains all Ledgers that list this {@link BookKeeperLog} as their owner.
+     * @throws IllegalStateException   If this BookKeeperLog is not disabled.
+     * @throws DurableDataLogException If an exception occurred while updating the metadata.
+     */
+    public void reconcileLedgers(List<LedgerHandle> candidateLedgers) throws DurableDataLogException {
+        // Load metadata and verify if disabled (metadata may be null if it doesn't exist).
+        LogMetadata metadata = this.log.loadMetadata();
+        final long highestLedgerId;
+        final long epoch;
+        if (metadata != null) {
+            Preconditions.checkState(!metadata.isEnabled(), "BookKeeperLog is enabled; cannot reconcile ledgers.");
+            epoch = metadata.getEpoch();
+            int ledgerCount = metadata.getLedgers().size();
+            if (ledgerCount > 0) {
+                // Get the highest Ledger id from the list of ledgers.
+                highestLedgerId = metadata.getLedgers().get(ledgerCount - 1).getLedgerId();
+            } else if (metadata.getTruncationAddress() != null) {
+                // All Ledgers have been truncated out. Get it from the Truncation Address.
+                highestLedgerId = metadata.getTruncationAddress().getLedgerId();
+            } else {
+                // No information.
+                highestLedgerId = Ledgers.NO_LEDGER_ID;
+            }
+        } else {
+            // No metadata.
+            highestLedgerId = Ledgers.NO_LEDGER_ID;
+            epoch = 0;
+        }
+
+        // First, we filter out any Ledger that does not reference this Log as their owner or that are empty.
+        candidateLedgers = candidateLedgers
+                .stream()
+                .filter(lh -> Ledgers.getBookKeeperLogId(lh) == this.log.getLogId()
+                        && lh.getLength() > 0)
+                .collect(Collectors.toList());
+
+        // Begin reconstructing the Ledger List by eliminating references to inexistent ledgers.
+        val newLedgerList = new ArrayList<LedgerMetadata>();
+        if (metadata != null) {
+            val candidateLedgerIds = candidateLedgers.stream().map(LedgerHandle::getId).collect(Collectors.toSet());
+            metadata.getLedgers().stream()
+                    .filter(lm -> !candidateLedgerIds.contains(lm.getLedgerId()))
+                    .forEach(newLedgerList::add);
+        }
+
+        // Find ledgers that should be in the log but are not referenced. Only select ledgers which have their Id greater
+        // than the Id of the last ledger used in this Log (Id are assigned monotonically increasing, and we don't want
+        // to add already truncated out ledgers).
+        val seq = new AtomicInteger(newLedgerList.isEmpty() ? 0 : newLedgerList.get(newLedgerList.size() - 1).getSequence());
+        candidateLedgers
+                .stream()
+                .filter(lh -> lh.getId() > highestLedgerId)
+                .forEach(lh -> newLedgerList.add(new LedgerMetadata(lh.getId(), seq.incrementAndGet())));
+
+        // Make sure the ledgers are properly sorted.
+        newLedgerList.sort(Comparator.comparingLong(LedgerMetadata::getLedgerId));
+
+        // Determine if anything changed.
+        boolean changed = metadata == null || metadata.getLedgers().size() != newLedgerList.size();
+        if (!changed) {
+            for (int i = 0; i < newLedgerList.size(); i++) {
+                if (metadata.getLedgers().get(i).getLedgerId() != newLedgerList.get(i).getLedgerId()) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+
+        // Update metadata in ZooKeeper, but only if it has changed.
+        if (changed) {
+            val newMetadata = LogMetadata
+                    .builder()
+                    .enabled(false)
+                    .epoch(getOrDefault(metadata, LogMetadata::getEpoch, LogMetadata.INITIAL_EPOCH) + 1)
+                    .truncationAddress(getOrDefault(metadata, LogMetadata::getTruncationAddress, LogMetadata.INITIAL_TRUNCATION_ADDRESS))
+                    .updateVersion(getOrDefault(metadata, LogMetadata::getUpdateVersion, LogMetadata.INITIAL_VERSION))
+                    .ledgers(newLedgerList)
+                    .build();
+            this.log.overWriteMetadata(newMetadata);
+        }
+    }
+
     private void initialize() throws DurableDataLogException {
         if (this.initialized.compareAndSet(false, true)) {
             try {
@@ -137,12 +237,17 @@ public class DebugLogWrapper implements AutoCloseable {
         }
     }
 
+    private <T> T getOrDefault(LogMetadata metadata, Function<LogMetadata, T> getter, T defaultValue) {
+        return metadata == null ? defaultValue : getter.apply(metadata);
+    }
+
     //endregion
 
     //region ReadOnlyBookKeeperLog
 
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     private class ReadOnlyBooKeeperLog implements DurableDataLog {
+        private final int logId;
         private final LogMetadata logMetadata;
 
         @Override
@@ -152,7 +257,7 @@ public class DebugLogWrapper implements AutoCloseable {
 
         @Override
         public CloseableIterator<ReadItem, DurableDataLogException> getReader() throws DurableDataLogException {
-            return new LogReader(this.logMetadata, DebugLogWrapper.this.bkClient, DebugLogWrapper.this.config);
+            return new LogReader(this.logId, this.logMetadata, DebugLogWrapper.this.bkClient, DebugLogWrapper.this.config);
         }
 
         @Override

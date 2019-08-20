@@ -10,8 +10,10 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import io.pravega.common.Exceptions;
+import io.pravega.common.util.BitConverter;
 import io.pravega.segmentstore.storage.DataLogNotAvailableException;
 import io.pravega.segmentstore.storage.DurableDataLogException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +28,9 @@ import org.apache.bookkeeper.client.LedgerHandle;
  */
 @Slf4j
 final class Ledgers {
+    static final String PROPERTY_LOG_ID = "BookKeeperLogId";
+    static final int NO_LOG_ID = -1;
+    static final long NO_LEDGER_ID = LedgerHandle.INVALID_LEDGER_ID;
     static final long NO_ENTRY_ID = LedgerHandle.INVALID_ENTRY_ID;
     /**
      * How many ledgers to fence out (from the end of the list) when acquiring lock.
@@ -35,6 +40,11 @@ final class Ledgers {
 
     /**
      * Creates a new Ledger in BookKeeper.
+     * @param bookKeeper A {@link BookKeeper} client to use.
+     * @param config     The {@link BookKeeperConfig} to use.
+     * @param logId      The Id of the {@link BookKeeperLog} that owns this ledgers. This will be codified in the new
+     *                   ledger's metadata so that it may be recovered in case we need to reconstruct the {@link BookKeeperLog}
+     *                   in the future.
      *
      * @return A LedgerHandle for the new ledger.
      * @throws DataLogNotAvailableException If BookKeeper is unavailable or the ledger could not be created because an
@@ -42,7 +52,7 @@ final class Ledgers {
      *                                      inside it.
      * @throws DurableDataLogException      If another exception occurred. The causing exception is wrapped inside it.
      */
-    static LedgerHandle create(BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
+    static LedgerHandle create(BookKeeper bookKeeper, BookKeeperConfig config, int logId) throws DurableDataLogException {
         try {
             return Exceptions.handleInterruptedCall(() ->
                     bookKeeper.createLedger(
@@ -50,7 +60,8 @@ final class Ledgers {
                             config.getBkWriteQuorumSize(),
                             config.getBkAckQuorumSize(),
                             LEDGER_DIGEST_TYPE,
-                            config.getBKPassword()));
+                            config.getBKPassword(),
+                            createLedgerCustomMetadata(logId)));
         } catch (BKException.BKNotEnoughBookiesException bkEx) {
             throw new DataLogNotAvailableException("Unable to create new BookKeeper Ledger.", bkEx);
         } catch (BKException bkEx) {
@@ -186,5 +197,29 @@ final class Ledgers {
         }
 
         return result;
+    }
+
+    /**
+     * Gets the {@link #PROPERTY_LOG_ID} value from the given {@link LedgerHandle}, as stored in its custom metadata.
+     *
+     * @param handle The {@link LedgerHandle} to query.
+     * @return The Log Id stored in {@link #PROPERTY_LOG_ID}, or {@link #NO_LOG_ID} if not defined (i.e., due to an upgrade
+     * from a version that did not store this information).
+     */
+    static int getBookKeeperLogId(LedgerHandle handle) {
+        byte[] logIdSerialized = handle.getCustomMetadata().getOrDefault(PROPERTY_LOG_ID, null);
+        return logIdSerialized == null || logIdSerialized.length < Integer.BYTES ? NO_LOG_ID : BitConverter.readInt(logIdSerialized, 0);
+    }
+
+    /**
+     * Creates a new {@link Map} that can be set as a Ledger's Custom Metadata.
+     *
+     * @param logId The {@link BookKeeperLog} Id to encode.
+     * @return An immutable {@link Map} containing the encoded Ledger's Custom Metadata.
+     */
+    private static Map<String, byte[]> createLedgerCustomMetadata(int logId) {
+        byte[] logIdSerialized = new byte[Integer.BYTES];
+        BitConverter.writeInt(logIdSerialized, 0, logId);
+        return Collections.singletonMap(PROPERTY_LOG_ID, logIdSerialized);
     }
 }
