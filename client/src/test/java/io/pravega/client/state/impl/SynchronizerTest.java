@@ -20,7 +20,10 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.state.examples.SetSynchronizer;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ByteArraySerializer;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
@@ -45,6 +48,10 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class SynchronizerTest {
+
+    private final StreamConfiguration config = StreamConfiguration.builder()
+                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                  .build();
 
     @Data
     private static class RevisionedImpl implements Revisioned {
@@ -214,6 +221,8 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
@@ -259,6 +268,11 @@ public class SynchronizerTest {
         assertEquals(0, sync.bytesWrittenSinceCompaction());
     }
 
+    public void createScopeAndStream(String streamName, String scope, Controller controller) {
+        controller.createScope(scope).join();
+        controller.createStream(scope, streamName, config);
+    }
+
     @Test(timeout = 20000)
     public void testConsistency() {
         String streamName = "streamName";
@@ -267,6 +281,7 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
         @Cleanup
         StateSynchronizer<RevisionedImpl> syncA = clientFactory.createStateSynchronizer(streamName,
                                                                                         new JavaSerializer<>(),
@@ -311,6 +326,8 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
@@ -363,6 +380,8 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         SetSynchronizer<String> set = SetSynchronizer.createNewSet(streamName, clientFactory);
         RevisionedStreamClient<byte[]> rsc = clientFactory.createRevisionedStreamClient(streamName, new ByteArraySerializer(),
                                                                                    SynchronizerConfig.builder().build());
@@ -389,6 +408,8 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         SetSynchronizer<String> set = SetSynchronizer.createNewSet(streamName, clientFactory);
         SetSynchronizer<String> set2 = SetSynchronizer.createNewSet(streamName, clientFactory);
         assertEquals(0, set.getCurrentSize());
@@ -419,8 +440,10 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactoryA = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactoryA.getController());
         @Cleanup
         MockClientFactory clientFactoryB = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactoryB.getController());
 
         StateSynchronizer<RevisionedImpl> syncA = clientFactoryA.createStateSynchronizer(streamName,
                 new JavaSerializer<>(),

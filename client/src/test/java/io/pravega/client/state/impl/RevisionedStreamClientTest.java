@@ -13,6 +13,8 @@ import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.JavaSerializer;
@@ -34,6 +36,9 @@ import static org.junit.Assert.assertTrue;
 
 public class RevisionedStreamClientTest {
     private static final int SERVICE_PORT = 12345;
+    private final StreamConfiguration config = StreamConfiguration.builder()
+                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                  .build();
     
     @Test
     public void testWriteWhileReading() {
@@ -44,6 +49,8 @@ public class RevisionedStreamClientTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
@@ -74,7 +81,7 @@ public class RevisionedStreamClientTest {
         assertEquals("d", iter.next().getValue());
         assertFalse(iter.hasNext());
     }
-    
+
     @Test
     public void testConditionalWrite() {
         String scope = "scope";
@@ -84,6 +91,8 @@ public class RevisionedStreamClientTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
@@ -119,6 +128,8 @@ public class RevisionedStreamClientTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
@@ -155,6 +166,7 @@ public class RevisionedStreamClientTest {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
         MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
         MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
@@ -193,5 +205,9 @@ public class RevisionedStreamClientTest {
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> iterB.next());
         
     }
-    
+
+    private void createScopeAndStream(String scope, String stream, MockController controller) {
+        controller.createScope(scope).join();
+        controller.createStream(scope, stream, config).join();
+    }
 }
