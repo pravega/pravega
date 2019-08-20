@@ -20,8 +20,6 @@ import com.google.common.base.Preconditions;
 import org.apache.commons.io.FileUtils;
 import org.junit.Test;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
-
 public abstract class FileModificationMonitorTests {
 
     final static Path PATH_VALID_NONEXISTENT = Paths.get(File.pathSeparator +
@@ -36,29 +34,24 @@ public abstract class FileModificationMonitorTests {
     abstract FileModificationMonitor prepareObjectUnderTest(Path path, boolean checkForFileExistence)
             throws FileNotFoundException;
 
-    @Test
-    public void testCtorRejectsNullInput() {
-        assertThrows("Null fileToWatch argument wasn't rejected.",
-                () -> prepareObjectUnderTest(null),
-                e -> e instanceof NullPointerException);
-
-        assertThrows("Null callback argument wasn't rejected.",
-                () -> new FileModificationEventWatcher(PATH_NONEMPTY, null),
-                e -> e instanceof NullPointerException);
+    @Test(expected = NullPointerException.class)
+    public void testCtorRejectsNullFilePathInput() throws FileNotFoundException {
+        prepareObjectUnderTest(null);
     }
 
-    @Test
-    public void testCtorRejectsEmptyFileArgument() {
-        assertThrows("Empty fileToWatch argument wasn't rejected.",
-                () -> prepareObjectUnderTest(PATH_EMPTY),
-                e -> e instanceof IllegalArgumentException);
+    @Test(expected = NullPointerException.class)
+    public void testCtorRejectsNullConsumer() throws FileNotFoundException {
+        new FileModificationEventWatcher(PATH_NONEMPTY, null);
     }
 
-    @Test
-    public void testCtorRejectsNonExistentFileArgument() {
-        assertThrows("Empty fileToWatch argument wasn't rejected.",
-                () -> prepareObjectUnderTest(PATH_NONEXISTENT, true),
-                e -> e instanceof FileNotFoundException);
+    @Test(expected = IllegalArgumentException.class)
+    public void testCtorRejectsEmptyFileArgument() throws FileNotFoundException {
+        prepareObjectUnderTest(PATH_EMPTY);
+    }
+
+    @Test(expected = FileNotFoundException.class)
+    public void testCtorRejectsNonExistentFileArgument() throws FileNotFoundException {
+        prepareObjectUnderTest(PATH_NONEXISTENT, true);
     }
 
     @Test

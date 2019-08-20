@@ -72,16 +72,7 @@ public class  FileModificationEventWatcherTests extends FileModificationMonitorT
         watcher.startMonitoring();
 
         // The watcher might not get fully started when we modify the watched file, so ensuring that it is.
-        for (int i = 0; i < 3; i++) {
-            if (watcher.isWatchRegistered()) {
-                break;
-            } else {
-                Thread.sleep(1000);
-            }
-        }
-        if (!watcher.isWatchRegistered()) {
-            throw new RuntimeException("Failed to start the watcher");
-        }
+        this.waitForWatcherToStart(watcher);
 
         // Modify the watched file.
         FileUtils.writeStringToFile(tempFile, "hello", StandardCharsets.UTF_8, true);
@@ -94,10 +85,14 @@ public class  FileModificationEventWatcherTests extends FileModificationMonitorT
     }
 
     @Test
-    public void testStartAndStopInSequence() throws IOException {
-        FileModificationMonitor monitor = this.prepareObjectUnderTest(PATH_VALID_NONEXISTENT, false);
-        monitor.startMonitoring();
-        monitor.stopMonitoring();
+    public void testStartAndStopInSequence() throws IOException, InterruptedException {
+        FileModificationEventWatcher watcher = (FileModificationEventWatcher) this.prepareObjectUnderTest(
+                SHARED_FILE.toPath());
+        watcher.startMonitoring();
+
+        waitForWatcherToStart(watcher);
+
+        watcher.stopMonitoring();
     }
 
     @Test
@@ -107,5 +102,26 @@ public class  FileModificationEventWatcherTests extends FileModificationMonitorT
 
         assertEquals(SHARED_FILE.toPath().getParent(), watcher.getWatchedDirectory());
         assertEquals(SHARED_FILE.getName(), watcher.getWatchedFileName());
+    }
+
+    @Test
+    public void testWatcherThreadNameIsCustom() throws FileNotFoundException {
+        FileModificationEventWatcher watcher = new FileModificationEventWatcher(
+                PATH_VALID_NONEXISTENT, NOOP_CONSUMER, true, false);
+        assertTrue(watcher.getName().startsWith("pravega-file-watcher-"));
+    }
+
+    private void waitForWatcherToStart(FileModificationEventWatcher watcher) throws InterruptedException {
+        // Ensure the watch is registered.
+        for (int i = 0; i < 10; i++) {
+            if (watcher.isWatchRegistered()) {
+                break;
+            } else {
+                Thread.sleep(100);
+            }
+        }
+        if (!watcher.isWatchRegistered()) {
+            throw new RuntimeException("Failed to start the watcher");
+        }
     }
 }

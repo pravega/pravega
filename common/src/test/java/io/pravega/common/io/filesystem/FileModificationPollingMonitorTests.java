@@ -22,7 +22,6 @@ import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
-import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -85,14 +84,11 @@ public class FileModificationPollingMonitorTests extends FileModificationMonitor
         cleanupTempFile(tempFile);
     }
 
-    @Test
+    @Test (expected = IllegalStateException.class)
     public void testStartMonitoringChecksForState() throws FileNotFoundException {
         FileModificationMonitor monitor = new FileModificationPollingMonitor(Paths.get(File.pathSeparator),
                 NOOP_CONSUMER, FileModificationPollingMonitor.DEFAULT_POLL_INTERVAL, false);
-
-        assertThrows("A null file name didn't result in expected IllegalStateException",
-                () -> monitor.startMonitoring(),
-                e -> e instanceof IllegalStateException);
+        monitor.startMonitoring();
     }
 
     @Test

@@ -101,6 +101,8 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
                                  boolean loopContinuously, boolean checkForFileExistence)
             throws FileNotFoundException {
 
+        // Set the name for this object/thread for identification purposes.
+        super("pravega-file-watcher-" + THREAD_NUM.incrementAndGet());
         Exceptions.checkNotNullOrEmpty(fileToWatch.toString(), "fileToWatch");
         if (checkForFileExistence && !fileToWatch.toFile().exists()) {
             throw new FileNotFoundException(String.format("File [%s] does not exist.", fileToWatch));
@@ -108,11 +110,8 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
 
         this.watchedFilePath = fileToWatch;
         this.callback = callback;
-        setUncaughtExceptionHandler(uncaughtExceptionalHandler);
-
-        // Set the name for this object/thread for identification purposes.
-        this.setName("file-update-watcher-" + THREAD_NUM.incrementAndGet());
         this.loopContinuously = loopContinuously;
+        setUncaughtExceptionHandler(uncaughtExceptionalHandler);
     }
 
     @VisibleForTesting
@@ -122,7 +121,7 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
             return fileName.toString();
         } else {
             // It should never happen that file name is null, but we have to perform this defensive null check to
-            // satisfy SpotBugs.
+            // satisfy SpotBugs. File name will be null for a path like "/".
             throw new IllegalStateException("File name is null");
         }
     }
@@ -152,23 +151,14 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
 
             isWatchRegistered = true;
 
-            while (true) {
-                watchKey = watchService.take();
-                log.info("Retrieved and removed watch key for watching file at path: {}", this.watchedFilePath);
-
-                // Each file modification/create usually results in the WatcherService reporting the WatchEvent twice,
-                // as the file is updated twice: once for the content and once for the file modification time.
-                // These events occur in quick succession. We wait for 200 ms., here so that the events get
-                // de-duplicated - in other words only single event is processed.
-                //
-                // See https://stackoverflow.com/questions/16777869/java-7-watchservice-ignoring-multiple-occurrences-
-                // of-the-same-event for a discussion on this topic.
-                //
-                // If the two events are not raised within this duration, the callback will be invoked twice, which we
-                // assume is not a problem for applications of this object. In case the applications do care about
-                // being notified only once for each modification, they should use the FileModificationPollingMonitor
-                // instead.
-                Thread.sleep(200);
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    watchKey = retrieveWatchKeyFrom(watchService);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logException(e);
+                    // Allow thread to exit.
+                }
 
                 if (watchKey != null) {
                     Optional<WatchEvent<?>> modificationDetectionEvent = watchKey.pollEvents()
@@ -195,7 +185,7 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
                     break;
                 }
             }
-        } catch (InterruptedException | IOException e) {
+        } catch (IOException e) {
             logException(e);
             throw new RuntimeException(e);
         } finally {
@@ -209,8 +199,29 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
                     log.warn("Error closing watch service", e);
                 }
             }
-            log.info("Thread [{}], watching for modifications in file [{}] exiting,", getName(), this.watchedFilePath);
         }
+        log.info("Thread [{}], watching for modifications in file [{}] exiting,", getName(), this.watchedFilePath);
+    }
+
+    private WatchKey retrieveWatchKeyFrom(WatchService watchService) throws InterruptedException {
+        WatchKey result = watchService.take();
+        log.info("Retrieved and removed watch key for watching file at path: {}", this.watchedFilePath);
+
+        // Each file modification/create usually results in the WatcherService reporting the WatchEvent twice,
+        // as the file is updated twice: once for the content and once for the file modification time.
+        // These events occur in quick succession. We wait for 200 ms., here so that the events get
+        // de-duplicated - in other words only single event is processed.
+        //
+        // See https://stackoverflow.com/questions/16777869/java-7-watchservice-ignoring-multiple-occurrences-
+        // of-the-same-event for a discussion on this topic.
+        //
+        // If the two events are not raised within this duration, the callback will be invoked twice, which we
+        // assume is not a problem for applications of this object. In case the applications do care about
+        // being notified only once for each modification, they should use the FileModificationPollingMonitor
+        // instead.
+        Thread.sleep(200);
+
+        return result;
     }
 
     @Override

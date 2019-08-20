@@ -19,9 +19,12 @@ import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.test.common.SecurityConfigDefaults;
+
+import java.io.FileNotFoundException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -90,5 +93,22 @@ public class PravegaConnectionListenerTest {
                 pathToCertificateFile, pathToKeyFile, dummySslCtx);
 
         assertTrue("Unexpected type of FileModificationMonitor", monitor instanceof FileModificationPollingMonitor);
+    }
+
+    @Test
+    public void testPrepareCertificateMonitorThrowsExceptionWithNonExistentFile() {
+        String pathToCertificateFile = SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
+        String pathToKeyFile = SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+
+        PravegaConnectionListener listener = new PravegaConnectionListener(true, true,
+                "whatever", -1, mock(StreamSegmentStore.class), mock(TableStore.class),
+                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(),
+                "dummy-tls-certificate-path", "dummy-tls-key-path", true);
+        AtomicReference<SslContext> dummySslCtx = new AtomicReference<>(null);
+
+        assertThrows("Did not throw FileNotFoundException",
+                () -> listener.prepareCertificateMonitor(false, pathToCertificateFile, pathToKeyFile,
+                        dummySslCtx),
+                e -> e instanceof RuntimeException && e.getCause() instanceof FileNotFoundException);
     }
 }
