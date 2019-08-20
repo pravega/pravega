@@ -13,26 +13,36 @@ import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import lombok.Cleanup;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.when;
 
 public class RevisionedStreamClientTest {
     private static final int SERVICE_PORT = 12345;
@@ -204,6 +214,35 @@ public class RevisionedStreamClientTest {
         assertTrue(iterB.hasNext());
         AssertExtensions.assertThrows(TruncatedDataException.class, () -> iterB.next());
         
+    }
+
+    @Test
+    public void testCreateRevisionedStreamClientError() {
+        String scope = "scope";
+        String stream = "stream";
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        Controller controller = Mockito.mock(Controller.class);
+
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory, streamFactory, streamFactory, streamFactory, streamFactory);
+
+        SynchronizerConfig config = SynchronizerConfig.builder().build();
+
+        // Simulate sealed stream.
+        CompletableFuture<StreamSegments> result = new CompletableFuture<>();
+        result.complete(new StreamSegments(new TreeMap<>(), ""));
+        when(controller.getCurrentSegments(scope, stream)).thenReturn(result);
+
+        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config));
+
+        // Simulate invalid stream.
+        result = new CompletableFuture<>();
+        result.completeExceptionally(new RuntimeException());
+        when(controller.getCurrentSegments(scope, stream)).thenReturn(result);
+
+        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config));
     }
 
     private void createScopeAndStream(String scope, String stream, MockController controller) {
