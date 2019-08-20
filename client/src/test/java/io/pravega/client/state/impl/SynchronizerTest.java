@@ -44,7 +44,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
 import lombok.Data;
 import org.apache.commons.lang3.NotImplementedException;
-import org.junit.Assert;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
