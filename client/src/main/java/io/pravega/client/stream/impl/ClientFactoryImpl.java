@@ -172,7 +172,13 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
-        Segment segment = new Segment(scope, streamName, 0);
+
+        // This validates if the stream exists and returns zero segments if the stream is sealed.
+        StreamSegments currentSegments = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, streamName), InvalidStreamException::new);
+        if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
+            throw new InvalidStreamException("Stream does not exist: " + streamName);
+        }
+        Segment segment = currentSegments.getSegmentForKey(0.0);
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment);
         // Segment sealed is not expected for Revisioned Stream Client.
         Consumer<Segment> segmentSealedCallBack = s -> {
@@ -195,12 +201,14 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                                 Serializer<InitT> initialSerializer,
                                 SynchronizerConfig config) {
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
-        Segment segment = new Segment(scope, streamName, 0);
-        if (!Futures.getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
-            throw new InvalidStreamException("Segment does not exist: " + segment);
+
+        // This validates if the stream exists and returns zero segments if the stream is sealed.
+        StreamSegments currentSegments = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, streamName), InvalidStreamException::new);
+        if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
+            throw new InvalidStreamException("Stream does not exist: " + streamName);
         }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
-        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(streamName, serializer, config));
+        return new StateSynchronizerImpl<StateT>(currentSegments.getSegmentForKey(0.0), createRevisionedStreamClient(streamName, serializer, config));
     }
     
     /**
