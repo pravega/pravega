@@ -81,7 +81,7 @@ public class BookkeeperDockerService extends DockerBasedService {
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
                         .labels(labels)
-                        .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
+                        .image(IMAGE_PATH + IMAGE_PREFIX + "/bookkeeper:" + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
                         .env(stringList).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())

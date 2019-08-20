@@ -915,6 +915,8 @@ project('test:system') {
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
         systemProperty "awsExec", System.getProperty("awsExec")
+        systemProperty "zookeeperVersion", System.getProperty("zookeeperVersion", "latest") // zookeeper image version
+        systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "DOCKER"
