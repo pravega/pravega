@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
@@ -63,6 +64,21 @@ public class DebugLogWrapper implements AutoCloseable {
      */
     DebugLogWrapper(int logId, CuratorFramework zkClient, BookKeeper bookKeeper, BookKeeperConfig config, ScheduledExecutorService executor) {
         this.log = new BookKeeperLog(logId, zkClient, bookKeeper, config, executor);
+        this.bkClient = bookKeeper;
+        this.config = config;
+        this.initialized = new AtomicBoolean();
+    }
+
+    /**
+     * Creates a new instance of the DebugLogWrapper class.
+     *
+     * @param log        The {@link BookKeeperLog} to wrap. This log will be closed when {@link #close} is invoked.
+     * @param bookKeeper A pointer to the BookKeeper client to use.
+     * @param config     BookKeeperConfig to use.
+     */
+    @VisibleForTesting
+    DebugLogWrapper(BookKeeperLog log, BookKeeper bookKeeper, BookKeeperConfig config) {
+        this.log = log;
         this.bkClient = bookKeeper;
         this.config = config;
         this.initialized = new AtomicBoolean();
@@ -145,10 +161,11 @@ public class DebugLogWrapper implements AutoCloseable {
      * @param candidateLedgers A List of {@link LedgerHandle}s that contain all the Ledgers that this {@link BookKeeperLog}
      *                         should contain. This could be the list of all BookKeeper Ledgers or a subset, as long as
      *                         it contains all Ledgers that list this {@link BookKeeperLog} as their owner.
+     * @return True if something changed (and the metadata is updated), false otherwise.
      * @throws IllegalStateException   If this BookKeeperLog is not disabled.
      * @throws DurableDataLogException If an exception occurred while updating the metadata.
      */
-    public void reconcileLedgers(List<LedgerHandle> candidateLedgers) throws DurableDataLogException {
+    public boolean reconcileLedgers(List<LedgerHandle> candidateLedgers) throws DurableDataLogException {
         // Load metadata and verify if disabled (metadata may be null if it doesn't exist).
         LogMetadata metadata = this.log.loadMetadata();
         final long highestLedgerId;
@@ -185,7 +202,7 @@ public class DebugLogWrapper implements AutoCloseable {
         if (metadata != null) {
             val candidateLedgerIds = candidateLedgers.stream().map(LedgerHandle::getId).collect(Collectors.toSet());
             metadata.getLedgers().stream()
-                    .filter(lm -> !candidateLedgerIds.contains(lm.getLedgerId()))
+                    .filter(lm -> candidateLedgerIds.contains(lm.getLedgerId()))
                     .forEach(newLedgerList::add);
         }
 
@@ -224,6 +241,8 @@ public class DebugLogWrapper implements AutoCloseable {
                     .build();
             this.log.overWriteMetadata(newMetadata);
         }
+
+        return changed;
     }
 
     private void initialize() throws DurableDataLogException {

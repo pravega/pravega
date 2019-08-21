@@ -23,6 +23,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,8 @@ import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
 import org.apache.bookkeeper.client.BKException;
+import org.apache.bookkeeper.client.BookKeeper;
+import org.apache.bookkeeper.client.LedgerHandle;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -362,6 +365,77 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         }
     }
 
+    @Test
+    public void testReconcileLedgers() throws Exception {
+        final int initialLedgerCount = 5;
+        final int midPoint = initialLedgerCount / 2;
+        final BookKeeper bk = this.factory.get().getBookKeeperClient();
+        long sameLogSmallIdLedger = -1; // BK Ledger that belongs to this log, but has small id.
+
+        // Create a Log and add a few ledgers.
+        for (int i = 0; i < initialLedgerCount; i++) {
+            try (BookKeeperLog log = (BookKeeperLog) createDurableDataLog()) {
+                log.initialize(TIMEOUT);
+
+                val currentMetadata = log.loadMetadata();
+                log.append(new ByteArraySegment(getWriteData()), TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            }
+
+            if (i == midPoint) {
+                // We need to create this ledger now. We have no control over the assigned Ledger Id, but we are guaranteed
+                // for them to be generated monotonically increasing.
+                sameLogSmallIdLedger = createAndCloseLedger(CONTAINER_ID, false);
+            }
+        }
+
+        // Verify we cannot do this while the log is enabled. This also helps us with getting the final list of ledgers
+        // before reconciliation.
+        val log = (BookKeeperLog) createDurableDataLog();
+        val wrapper = new DebugLogWrapper(log, bk, this.config.get());
+        AssertExtensions.assertThrows(
+                "reconcileLedgers worked with non-disabled log.",
+                () -> wrapper.reconcileLedgers(Collections.emptyList()),
+                ex -> ex instanceof IllegalStateException);
+
+        wrapper.disable();
+        val expectedLedgers = new ArrayList<LedgerMetadata>(wrapper.fetchMetadata().getLedgers());
+
+        // Simulate the deletion of one of those ledgers.
+        final LedgerMetadata deletedLedger = expectedLedgers.get(midPoint);
+        expectedLedgers.remove(deletedLedger);
+
+        // Add remaining (valid) ledgers to candidate list.
+        val candidateLedgers = new ArrayList<LedgerHandle>();
+        for (val lm : expectedLedgers) {
+            candidateLedgers.add(Ledgers.openFence(lm.getLedgerId(), bk, this.config.get()));
+        }
+
+        candidateLedgers.add(Ledgers.openFence(sameLogSmallIdLedger, bk, this.config.get()));
+
+        // Create a ledger that has a high id, but belongs to a different log.
+        long differentLogLedger = createAndCloseLedger(CONTAINER_ID + 1, false);
+        candidateLedgers.add(Ledgers.openFence(differentLogLedger, bk, this.config.get()));
+
+        // Create a BK ledger that belongs to this log, with high id, but empty.
+        long sameLogHighIdEmptyLedger = createAndCloseLedger(CONTAINER_ID, true);
+        candidateLedgers.add(Ledgers.openFence(sameLogHighIdEmptyLedger, bk, this.config.get()));
+
+        // Create a BK ledger that belongs to this log, with high id, and not empty. This is the only one expected to be
+        // added.
+        long sameLogHighIdNonEmptyLedger = createAndCloseLedger(CONTAINER_ID, false);
+        expectedLedgers.add(new LedgerMetadata(sameLogHighIdNonEmptyLedger, expectedLedgers.get(expectedLedgers.size() - 1).getSequence() + 1));
+        candidateLedgers.add(Ledgers.openFence(sameLogHighIdNonEmptyLedger, bk, this.config.get()));
+
+        // Perform reconciliation.
+        boolean isChanged = wrapper.reconcileLedgers(candidateLedgers);
+        Assert.assertTrue("Expected first reconcileLedgers to have changed something.", isChanged);
+
+        isChanged = wrapper.reconcileLedgers(candidateLedgers);
+        Assert.assertFalse("No expecting second reconcileLedgers to have changed anything.", isChanged);
+
+        // TODO: validate new metadata. Reload it. Verify that the log can perform reading after re-enabling.
+    }
+
     @Override
     protected int getThreadPoolSize() {
         return THREAD_POOL_SIZE;
@@ -378,6 +452,15 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
     private static boolean isLedgerClosedException(Throwable ex) {
         return ex instanceof WriteFailureException && ex.getCause() instanceof BKException.BKLedgerClosedException;
+    }
+
+    private long createAndCloseLedger(int logId, boolean empty) throws Exception {
+        @Cleanup
+        val handle = Ledgers.create(this.factory.get().getBookKeeperClient(), this.config.get(), logId);
+        if (!empty) {
+            handle.addEntry(new byte[100]);
+        }
+        return handle.getId();
     }
 
     //endregion
