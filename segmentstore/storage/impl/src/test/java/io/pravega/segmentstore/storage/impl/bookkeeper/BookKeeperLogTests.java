@@ -398,7 +398,11 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                 ex -> ex instanceof IllegalStateException);
 
         wrapper.disable();
-        val expectedLedgers = new ArrayList<LedgerMetadata>(wrapper.fetchMetadata().getLedgers());
+        val initialMetadata = wrapper.fetchMetadata();
+        val expectedLedgers = new ArrayList<>(initialMetadata.getLedgers());
+
+        // The last ledger has been created as part of our last log creation. It will be empty and thus will be removed.
+        expectedLedgers.remove(expectedLedgers.size() - 1);
 
         // Simulate the deletion of one of those ledgers.
         final LedgerMetadata deletedLedger = expectedLedgers.get(midPoint);
@@ -433,7 +437,29 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         isChanged = wrapper.reconcileLedgers(candidateLedgers);
         Assert.assertFalse("No expecting second reconcileLedgers to have changed anything.", isChanged);
 
-        // TODO: validate new metadata. Reload it. Verify that the log can perform reading after re-enabling.
+        // Validate new metadata.
+        val newMetadata = wrapper.fetchMetadata();
+        Assert.assertFalse("Expected metadata to still be disabled..", newMetadata.isEnabled());
+        Assert.assertEquals("Expected epoch to increase.", initialMetadata.getEpoch() + 1, newMetadata.getEpoch());
+        Assert.assertEquals("Expected update version to increase.", initialMetadata.getUpdateVersion() + 1, newMetadata.getUpdateVersion());
+        Assert.assertEquals("Not expected truncation address to change.", initialMetadata.getTruncationAddress(), newMetadata.getTruncationAddress());
+        AssertExtensions.assertListEquals("Unexpected ledger list.", expectedLedgers, newMetadata.getLedgers(),
+                (e, a) -> e.getLedgerId() == a.getLedgerId() && e.getSequence() == a.getSequence());
+
+        // Enable the new log and read from it.
+        val newLog = (BookKeeperLog) createDurableDataLog();
+        newLog.enable();
+        newLog.initialize(TIMEOUT);
+        @Cleanup
+        val reader = newLog.getReader();
+        DurableDataLog.ReadItem ri;
+        int readCount = 0;
+        while ((ri = reader.getNext()) != null) {
+            AssertExtensions.assertGreaterThan("Not expecting empty read.", 0, ri.getLength());
+            readCount++;
+        }
+
+        Assert.assertEquals("Unexpected number of entries/ledgers read.", expectedLedgers.size(), readCount);
     }
 
     @Override
