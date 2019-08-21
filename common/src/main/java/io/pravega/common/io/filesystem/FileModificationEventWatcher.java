@@ -39,7 +39,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * - If there are multiple file modifications in quick succession, only the last one may trigger the specified action.
  *
- * - Under rare circumstances, the callback is invoked twice upon a file is modified. The Java {@link WatchService}
+ * - Under rare circumstances, the callback is invoked twice upon file modification. The Java {@link WatchService}
  *   raises two events per modification: one for the content and second for the modification time. While there is a
  *   de-duplication logic in this class to ensure that only a single event is handled and notified to the callback,
  *   it may not work at times. If the calling code needs to be notified exactly once at all times, it should consider
