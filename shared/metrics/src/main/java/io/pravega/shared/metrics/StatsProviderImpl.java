@@ -27,6 +27,7 @@ import lombok.Getter;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
 import static io.pravega.shared.MetricsTags.createHostTag;
 
 @Slf4j
@@ -66,7 +67,7 @@ class StatsProviderImpl implements StatsProvider {
         if (conf.isEnableInfluxDBReporter()) {
             metrics.add(new InfluxMeterRegistry(RegistryConfigUtil.createInfluxConfig(conf), Clock.SYSTEM));
         }
-        metrics.config().commonTags(createHostTag());
+        metrics.config().commonTags(createHostTag(DEFAULT_HOSTNAME_KEY));
         Preconditions.checkArgument(metrics.getRegistries().size() != 0,
                 "No meter register bound hence no storage for metrics!");
     }
@@ -78,7 +79,7 @@ class StatsProviderImpl implements StatsProvider {
             metrics.remove(registry);
         }
         Metrics.addRegistry(new SimpleMeterRegistry());
-        metrics.config().commonTags(createHostTag());
+        metrics.config().commonTags(createHostTag(DEFAULT_HOSTNAME_KEY));
     }
 
     @Synchronized
