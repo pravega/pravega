@@ -128,7 +128,7 @@ public class PasswordAuthHandler implements AuthHandler {
     private Permissions authorizeForUser(PravegaACls pravegaACls, String resource) {
         Permissions result = Permissions.NONE;
 
-        /**
+        /*
          *  `*` Means a wildcard.
          *  If It is a direct match, return the ACLs.
          *  If it is a partial match, the target has to end with a `/`

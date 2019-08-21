@@ -21,17 +21,18 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 
-/**
+/*
  * This is data class for storing stream cut with time when the cut was computed.
  * And the size of data being cut.
+ */
+
+/**
+ * Data Class representing individual retention set records where recording time and recording sizes are stored.
  */
 @Data
 @Builder
 @AllArgsConstructor
 @Slf4j
-/**
- * Data Class representing individual retention set records where recording time and recording sizes are stored.
- */
 public class StreamCutReferenceRecord {
     public static final StreamCutReferenceRecordSerializer SERIALIZER = new StreamCutReferenceRecordSerializer();
 
@@ -57,7 +58,7 @@ public class StreamCutReferenceRecord {
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
-    
+
     static class StreamCutReferenceRecordSerializer
             extends VersionedSerializer.WithBuilder<StreamCutReferenceRecord, StreamCutReferenceRecordBuilder> {
         @Override
