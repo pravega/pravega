@@ -85,7 +85,7 @@ import static org.mockito.Mockito.when;
 public class AppendProcessorTest {
     private final long requestId = 1L;
 
-    private class AppendProcessorExt extends AppendProcessor {
+    private static class AppendProcessorExt extends AppendProcessor {
         final List<Long> pendingList;
 
         public AppendProcessorExt(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
