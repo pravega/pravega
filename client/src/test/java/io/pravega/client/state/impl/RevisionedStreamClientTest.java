@@ -26,6 +26,7 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.test.common.AssertExtensions;
+import java.io.Serializable;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.TreeMap;
@@ -217,6 +218,7 @@ public class RevisionedStreamClientTest {
     public void testCreateRevisionedStreamClientError() {
         String scope = "scope";
         String stream = "stream";
+        JavaSerializer<Serializable> serializer = new JavaSerializer<>();
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         Controller controller = Mockito.mock(Controller.class);
@@ -232,14 +234,22 @@ public class RevisionedStreamClientTest {
         result.complete(new StreamSegments(new TreeMap<>(), ""));
         when(controller.getCurrentSegments(scope, stream)).thenReturn(result);
 
-        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config));
+        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
 
         // Simulate invalid stream.
         result = new CompletableFuture<>();
         result.completeExceptionally(new RuntimeException());
         when(controller.getCurrentSegments(scope, stream)).thenReturn(result);
 
-        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(), config));
+        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
+
+        // Simulate null result from Controller.
+        result = new CompletableFuture<>();
+        result.complete(null);
+        when(controller.getCurrentSegments(scope, stream)).thenReturn(result);
+
+        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
+
     }
 
     private void createScopeAndStream(String scope, String stream, MockController controller) {

@@ -56,7 +56,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -172,22 +171,15 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
+        return createRevisionedStreamClient(getSegmentForRevisionedClient(streamName), serializer, config);
+    }
 
-        // This validates if the stream exists and returns zero segments if the stream is sealed.
-        StreamSegments currentSegments = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, streamName), InvalidStreamException::new);
-        if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
-            throw new InvalidStreamException("Stream does not exist: " + streamName);
-        }
-        Segment segment = currentSegments.getSegmentForKey(0.0);
+    private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
+                                                                       SynchronizerConfig config) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment);
-        // Segment sealed is not expected for Revisioned Stream Client.
-        Consumer<Segment> segmentSealedCallBack = s -> {
-            throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
-        };
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                segment.getStreamName()), RuntimeException::new);
-        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack,
-                config.getEventWriterConfig(), delegationToken);
+                                                                                                          segment.getStreamName()), RuntimeException::new);
+        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, config.getEventWriterConfig(), delegationToken);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationToken);
         return new RevisionedStreamClientImpl<>(segment, in, out, cond, meta, serializer);
@@ -201,16 +193,20 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                                 Serializer<InitT> initialSerializer,
                                 SynchronizerConfig config) {
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
+        val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
+        val segment = getSegmentForRevisionedClient(streamName);
+        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config));
+    }
 
+    private Segment getSegmentForRevisionedClient(String streamName) {
         // This validates if the stream exists and returns zero segments if the stream is sealed.
         StreamSegments currentSegments = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, streamName), InvalidStreamException::new);
         if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
             throw new InvalidStreamException("Stream does not exist: " + streamName);
         }
-        val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
-        return new StateSynchronizerImpl<StateT>(currentSegments.getSegmentForKey(0.0), createRevisionedStreamClient(streamName, serializer, config));
+        return currentSegments.getSegmentForKey(0.0);
     }
-    
+
     /**
      * Create a new batch client. A batch client can be used to perform bulk unordered reads without
      * the need to create a reader group.

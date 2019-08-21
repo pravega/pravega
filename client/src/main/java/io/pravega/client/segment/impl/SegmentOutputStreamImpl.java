@@ -81,6 +81,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final RetryWithBackoff retrySchedule;
     private final Object writeOrderLock = new Object();
     private final String delegationToken;
+
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
@@ -420,6 +421,24 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             failConnection(new TokenException(authTokenCheckFailed.toString()));
         }
+    }
+
+    public SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller,
+                            ConnectionFactory connectionFactory, UUID writerId, RetryWithBackoff retrySchedule,
+                            String delegationToken) {
+        this.segmentName = segmentName;
+        this.useConnectionPooling = useConnectionPooling;
+        this.controller = controller;
+        this.connectionFactory = connectionFactory;
+        this.writerId = writerId;
+        this.resendToSuccessorsCallback = segment -> {
+            List<PendingEvent> r = this.getUnackedEventsOnSeal();
+            r.stream()
+             .filter(pendingEvent -> pendingEvent.getAckFuture() != null)
+             .forEach(pendingEvent -> pendingEvent.getAckFuture().completeExceptionally(new SegmentSealedException(segment.toString())));
+        };
+        this.retrySchedule = retrySchedule;
+        this.delegationToken = delegationToken;
     }
 
     /**

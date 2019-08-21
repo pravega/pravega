@@ -1080,4 +1080,61 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         sendAndVerifyEvent(cid, connection, output, getBuffer("test"), 1);
         verifyNoMoreInteractions(connection);
     }
+
+    @Test(timeout = 10000)
+    public void testDefaultCallbackWithSealBeforeFlush() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, RETRY_SCHEDULE, "");
+        output.reconnect();
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        CompletableFuture<Void> ack = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, data, ack));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
+        assertFalse(ack.isDone());
+        cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
+        // Verify that the write future completed exceptionally.
+        assertThrows(SegmentSealedException.class, ack::get);
+        AssertExtensions.assertThrows(SegmentSealedException.class, output::flush);
+    }
+
+    @Test(timeout = 10000)
+    public void testDefaultCallbackWithSealAfterFlush() throws Exception {
+        UUID cid = UUID.randomUUID();
+        PravegaNodeUri uri = new PravegaNodeUri("endpoint", SERVICE_PORT);
+        MockConnectionFactoryImpl cf = new MockConnectionFactoryImpl();
+        cf.setExecutor(executorService());
+        MockController controller = new MockController(uri.getEndpoint(), uri.getPort(), cf, true);
+        ClientConnection connection = mock(ClientConnection.class);
+        cf.provideConnection(uri, connection);
+        InOrder order = Mockito.inOrder(connection);
+        SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(SEGMENT, true, controller, cf, cid, RETRY_SCHEDULE, "");
+        output.reconnect();
+        order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, SEGMENT, ""));
+        cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), SEGMENT, cid, 0));
+        ByteBuffer data = getBuffer("test");
+
+        CompletableFuture<Void> ack = new CompletableFuture<>();
+        output.write(PendingEvent.withoutHeader(null, data, ack));
+        order.verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
+        assertFalse(ack.isDone());
+        AssertExtensions.assertBlocks(() -> {
+            AssertExtensions.assertThrows(SegmentSealedException.class, output::flush);
+        }, () -> {
+            cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
+        });
+        AssertExtensions.assertThrows(SegmentSealedException.class, output::flush);
+        // Verify that the write future is completed exceptionally.
+        assertTrue(ack.isCompletedExceptionally());
+        assertThrows(SegmentSealedException.class, ack::get);
+    }
 }
