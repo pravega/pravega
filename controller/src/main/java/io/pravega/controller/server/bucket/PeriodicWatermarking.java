@@ -117,6 +117,10 @@ public class PeriodicWatermarking {
         String streamName = stream.getStreamName();
         OperationContext context = streamMetadataStore.createContext(scope, streamName);
 
+        if (scope.equals(NameUtils.INTERNAL_SCOPE_NAME)) {
+            return CompletableFuture.completedFuture(null); 
+        }
+        
         log.debug("Periodic background processing for watermarking called for stream {}/{}",
                 scope, streamName);
 

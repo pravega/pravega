@@ -118,7 +118,7 @@ public class ReaderGroupState implements Revisioned {
         long maxDistance = Long.MIN_VALUE;
         Map<String, Double> result = new HashMap<>();
         for (Entry<String, Long> entry : distanceToTail.entrySet()) {
-            Set<SegmentWithRange> segments = assignedSegments.get(entry.getKey()).keySet();
+            Map<SegmentWithRange, Long> segments = assignedSegments.get(entry.getKey());
             if (segments != null && !segments.isEmpty()) {
                 maxDistance = Math.max(Math.max(ASSUMED_LAG_MILLIS, entry.getValue()), maxDistance);
             }

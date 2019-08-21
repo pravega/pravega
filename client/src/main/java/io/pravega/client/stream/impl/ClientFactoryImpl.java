@@ -175,10 +175,11 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                 synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
-        
         Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
-        for (Stream stream : stateManager.getStreams()) {
-            watermarkReaders.put(stream, new WatermarkReaderImpl(stream, this, connectionFactory.getInternalExecutor()));
+        if (!config.isDisableTimeWindows()) {
+            for (Stream stream : stateManager.getStreams()) {
+                watermarkReaders.put(stream, new WatermarkReaderImpl(stream, this, connectionFactory.getInternalExecutor()));
+            }
         }
         return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config, watermarkReaders.build());
     }

@@ -36,7 +36,7 @@ public class LatestItemSequentialProcessor<ItemType> {
     /**
      * Updates the item and triggers it to be processed. 
      * 
-     * @param item The item to be processed. (Cannot be null)
+     * @param newItem The item to be processed. (Cannot be null)
      */
     public void updateItem(ItemType newItem) {
         Preconditions.checkNotNull(newItem);

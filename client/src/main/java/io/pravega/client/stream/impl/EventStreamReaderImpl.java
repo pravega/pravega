@@ -360,11 +360,15 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     @Override
     public TimeWindow getCurrentTimeWindow(Stream stream) {
+        if (getConfig().isDisableTimeWindows()) {
+            return new TimeWindow(null, null);
+        }
         WatermarkReaderImpl tracker = waterMarkReaders.get(stream);
         if (tracker == null) {
             throw new IllegalArgumentException("Reader is not subscribed to stream: " + stream);
+        } else {
+            return tracker.getTimeWindow();
         }
-        return tracker.getTimeWindow();
     }
     
 }
