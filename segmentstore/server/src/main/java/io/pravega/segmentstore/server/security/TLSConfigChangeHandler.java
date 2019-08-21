@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 @RequiredArgsConstructor
 @Slf4j
-public class TLSConfigChangeHandler {
+class TLSConfigChangeHandler {
 
     /**
      * A counter representing the number of times this object has been asked to
@@ -37,7 +37,6 @@ public class TLSConfigChangeHandler {
     }
 
     int getNumOfConfigChangesSinceStart() {
-
         return this.numOfConfigChangesSinceStart.get();
     }
 }

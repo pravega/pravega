@@ -39,15 +39,15 @@ import lombok.extern.slf4j.Slf4j;
  *
  * - If there are multiple file modifications in quick succession, only the last one may trigger the specified action.
  *
- * - The callback twice under rare circumstances when a file is modified. The Java {@link WatchService} raises two
- *   events per modification: one for the content and second for the modification time. While there is a de-duplication
- *   logic in this class to ensure that only a single event is handled and notified to the callback, it may not work
- *   at times. If the calling code needs to be notified exactly once at all times, it should consider using
- *   {@link FileModificationPollingMonitor} instead.
+ * - Under rare circumstances, the callback is invoked twice upon a file is modified. The Java {@link WatchService}
+ *   raises two events per modification: one for the content and second for the modification time. While there is a
+ *   de-duplication logic in this class to ensure that only a single event is handled and notified to the callback,
+ *   it may not work at times. If the calling code needs to be notified exactly once at all times, it should consider
+ *   using {@link FileModificationPollingMonitor} instead.
  *
- * - This class won't work for files that is under a symbolic link (pointing to a directory). This is because the
- *   Java {@link WatchService} does not raise events for modifications of such files. Consider using
- *   {@link FileModificationPollingMonitor} instead.
+ * - This class won't work for a symbolic link file. This is because the Java {@link WatchService} does not raise
+ *   events for modifications of such files. Consider using {@link FileModificationPollingMonitor} instead, when
+ *   monitoring modifications to such files.
  *
  */
 @Slf4j
@@ -147,7 +147,7 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
             assert directoryPath != null;
             directoryPath.register(watchService, StandardWatchEventKinds.ENTRY_MODIFY,
                     StandardWatchEventKinds.ENTRY_CREATE);
-            log.debug("Done setting up watch for modify entries for file at path: {}", this.watchedFilePath);
+            log.debug("Registered the watch for the file: {}", this.watchedFilePath);
 
             isWatchRegistered = true;
 
@@ -178,8 +178,6 @@ public class FileModificationEventWatcher extends Thread implements FileModifica
                         log.info("No longer watching file [{}]", this.watchedFilePath);
                         break;
                     }
-                } else {
-                    log.debug("watchKey for file at path {} was null", this.watchedFilePath);
                 }
                 if (!loopContinuously) {
                     break;
