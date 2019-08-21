@@ -44,18 +44,24 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
         SegmentOutputStreamImpl result =
                 new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(), segmentSealedCallback,
                                             getRetryFromConfig(config), delegationToken);
+        establishConnection(result);
+        return result;
+    }
+
+    @Override
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
+        SegmentOutputStreamImpl result = new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(),
+                                                                     getRetryFromConfig(config), delegationToken);
+        establishConnection(result);
+        return result;
+    }
+
+    private void establishConnection(SegmentOutputStreamImpl result) {
         try {
             result.getConnection();
         } catch (RetriesExhaustedException | SegmentSealedException | NoSuchSegmentException e) {
             log.warn("Initial connection attempt failure. Suppressing.", e);
         }
-        return result;
-    }
-    
-    @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
-        return new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(),
-                                           getRetryFromConfig(config), delegationToken);
     }
 
     private RetryWithBackoff getRetryFromConfig(EventWriterConfig config) {
