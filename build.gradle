@@ -94,14 +94,18 @@ allprojects {
     configurations.all {
         resolutionStrategy {
             //failOnVersionConflict()
-            force "org.slf4j:slf4j-api:" + slf4jApiVersion
-            force "org.apache.commons:commons-lang3:" + commonsLang3Version
-            force "org.apache.curator:curator-framework:" + apacheCuratorVersion
+            force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
             force "io.grpc:grpc-context:" + grpcVersion
-            force "com.google.guava:guava:" + guavaVersion
+            force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
+            force "org.apache.commons:commons-compress:" + apacheCommonsCompressVersion
+            force "org.apache.commons:commons-lang3:" + commonsLang3Version
+            force "org.apache.curator:curator-framework:" + apacheCuratorVersion
+            force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
+            force "org.slf4j:slf4j-api:" + slf4jApiVersion
+
             dependencySubstitution {
                 substitute module("javax.ws.rs:jsr311-api") with module("javax.ws.rs:javax.ws.rs-api:" + javaxwsrsApiVersion)
             }
@@ -564,6 +568,12 @@ project('shared:controller-api') {
 }
 
 project('controller') {
+    
+    //TODO: Work around deprication warning in generated code caused by https://github.com/FasterXML/jackson-databind/issues/1786
+    compileJava {
+        options.compilerArgs.remove("-Werror")
+    }
+
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
         test.resources.srcDirs += "$rootDir/config"
