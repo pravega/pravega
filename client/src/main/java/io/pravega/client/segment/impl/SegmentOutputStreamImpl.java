@@ -423,6 +423,18 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
     }
 
+    /**
+     * Constructor with the default implementation for resendToSuccessorCallback. This callback is invoked when the {@link Segment} being
+     * written to is sealed or deleted. The default implementation of the callback changes the state of the writer to Sealed and
+     * ensures all the write futures are completed exceptionally with {@link SegmentSealedException}.
+     * @param segmentName The Segment name.
+     * @param useConnectionPooling Flag used to enable or disable connection pooling.
+     * @param controller Controller to be used.
+     * @param connectionFactory ConnectionFactory to be used.
+     * @param writerId Writer id.
+     * @param retrySchedule Retry schedule
+     * @param delegationToken The delegation used to connect to the server.
+     */
     public SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller,
                             ConnectionFactory connectionFactory, UUID writerId, RetryWithBackoff retrySchedule,
                             String delegationToken) {
