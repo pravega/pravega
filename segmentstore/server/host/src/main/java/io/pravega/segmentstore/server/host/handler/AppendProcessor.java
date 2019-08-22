@@ -79,7 +79,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore store;
     private final ServerConnection connection;
-    private AtomicLong pendingBytes = new AtomicLong(0);
+    private final AtomicLong pendingBytes = new AtomicLong(0);
 
     @Getter
     private final RequestProcessor nextRequestProcessor;
