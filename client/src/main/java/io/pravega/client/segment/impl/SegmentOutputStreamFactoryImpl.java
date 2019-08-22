@@ -55,8 +55,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
-        return new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(),
-                                           Callbacks::doNothing, getRetryFromConfig(config), delegationToken);
+        return createOutputStreamForSegment(segment, Callbacks::doNothing, config, delegationToken);
     }
     
     private RetryWithBackoff getRetryFromConfig(EventWriterConfig config) {
