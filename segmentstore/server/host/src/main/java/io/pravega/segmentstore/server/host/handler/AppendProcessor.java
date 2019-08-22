@@ -407,7 +407,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * set the remaining bytes to be consumed.
      * Make sure that negative value is not set.
      *
-     * @param val  New value to set
+     * @param val  New value to set.
      */
     protected void setPendingBytes(long val) {
         pendingBytes.set(Math.max(val, 0));

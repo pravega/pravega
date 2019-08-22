@@ -161,7 +161,6 @@ public class AppendProcessorTest {
         assertEquals((long) processor.pendingList.get(1), 0);
     }
 
-
     @Test
     public void testTransactionAppend() throws Exception {
         String streamSegmentName = "scope/stream/transactionSegment#transaction.01234567890123456789012345678901";
