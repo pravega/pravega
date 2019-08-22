@@ -477,10 +477,18 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> CompletableFuture.completedFuture(Controller.DelegationToken
-                        .newBuilder()
-                        .setDelegationToken(delegationToken)
-                        .build()),
+                delegationToken -> {
+                    if (isAuthEnabled()) {
+                        if (delegationToken == null || delegationToken.equals("")) {
+                            log.warn("Delegation token for request with scope [{}] and stream [{}] is [{}]",
+                                    request.getScope(), request.getStream(), delegationToken);
+                        }
+                    }
+                    return CompletableFuture.completedFuture(DelegationToken
+                            .newBuilder()
+                            .setDelegationToken(delegationToken)
+                            .build());
+                },
                 responseObserver);
     }
 
@@ -490,6 +498,11 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         try {
             String delegationToken;
             delegationToken = authenticator.get();
+            if (this.isAuthEnabled()) {
+                if (delegationToken == null || delegationToken.equals("")) {
+                    log.warn("Delegation token is [{}]", delegationToken);
+                }
+            }
             CompletableFuture<T> result = call.apply(delegationToken);
             result.whenComplete(
                     (value, ex) -> {
@@ -537,5 +550,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         } else {
             log.error("Controller API call with tag {} failed with error: ", tag, cause);
         }
+    }
+
+    private boolean isAuthEnabled() {
+        return this.grpcAuthHelper.isAuthEnabled();
     }
 }
