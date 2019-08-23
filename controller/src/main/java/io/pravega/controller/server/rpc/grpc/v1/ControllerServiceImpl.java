@@ -196,19 +196,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
-                        request.getStreamInfo().getStream())
-                                       .thenApply(segments -> {
-                                           SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder()
-                                                                                          .setDelegationToken(delegationToken);
-                                           for (Entry<SegmentId, Long> entry : segments.entrySet()) {
-                                               builder.addSegments(SegmentLocation.newBuilder()
-                                                                                  .setSegmentId(entry.getKey())
-                                                                                  .setOffset(entry.getValue())
-                                                                                  .build());
-                                           }
-                                           return builder.build();
-                                       }),
+                delegationToken -> {
+                    logIfEmpty("getSegments", request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream(), delegationToken);
+                    return controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream())
+                            .thenApply(segments -> {
+                                SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder()
+                                        .setDelegationToken(delegationToken);
+                                for (Entry<SegmentId, Long> entry : segments.entrySet()) {
+                                    builder.addSegments(SegmentLocation.newBuilder()
+                                            .setSegmentId(entry.getKey())
+                                            .setOffset(entry.getValue())
+                                            .build());
+                                }
+                                return builder.build();
+                            });
+                },
                 responseObserver);
     }
 
@@ -241,10 +245,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String stream = request.getStreamInfo().getStream();
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.getSegmentsBetweenStreamCuts(request)
-                        .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
-                                segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
-                                        .collect(Collectors.toList()), delegationToken)),
+                delegationToken -> {
+                    logIfEmpty("getSegmentsBetween", request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream(), delegationToken);
+                    return controllerService.getSegmentsBetweenStreamCuts(request)
+                            .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
+                                    segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
+                                            .collect(Collectors.toList()), delegationToken));
+                },
                 responseObserver);
     }
 
@@ -478,12 +486,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> {
-                    if (isAuthEnabled()) {
-                        if (delegationToken == null || delegationToken.equals("")) {
-                            log.warn("Delegation token for request with scope [{}] and stream [{}] is [{}]",
-                                    request.getScope(), request.getStream(), delegationToken);
-                        }
-                    }
+                    logIfEmpty("getDelegationToken", request.getScope(), request.getStream(), delegationToken);
                     return CompletableFuture.completedFuture(DelegationToken
                             .newBuilder()
                             .setDelegationToken(delegationToken)
@@ -492,17 +495,28 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
+    private void logIfEmpty(String delegationToken, String requestName, String scopeName,
+                            String streamName) {
+        if (isAuthEnabled()) {
+            String message = String.format("Delegation token for request [%s] with scope [%s] and stream [%s] is: [%s]",
+                    requestName, scopeName, streamName, delegationToken);
+            logIfEmpty(delegationToken, message);
+        }
+    }
+
+    private void logIfEmpty(String delegationToken, String message) {
+        if (isAuthEnabled()) {
+            if (delegationToken == null || delegationToken.equals("")) {
+                log.warn(message);
+            }
+        }
+    }
+
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver, RequestTag requestTag) {
         try {
-            String delegationToken;
-            delegationToken = authenticator.get();
-            if (this.isAuthEnabled()) {
-                if (delegationToken == null || delegationToken.equals("")) {
-                    log.warn("Delegation token is [{}]", delegationToken);
-                }
-            }
+            String delegationToken = authenticator.get();
             CompletableFuture<T> result = call.apply(delegationToken);
             result.whenComplete(
                     (value, ex) -> {
