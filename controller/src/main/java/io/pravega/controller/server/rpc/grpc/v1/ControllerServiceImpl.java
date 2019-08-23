@@ -197,8 +197,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                         request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> {
-                    logIfEmpty("getSegments", request.getStreamInfo().getScope(),
-                            request.getStreamInfo().getStream(), delegationToken);
+                    logIfEmpty(delegationToken, "getSegments", request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream());
                     return controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
                             request.getStreamInfo().getStream())
                             .thenApply(segments -> {
@@ -246,8 +246,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ),
                 delegationToken -> {
-                    logIfEmpty("getSegmentsBetween", request.getStreamInfo().getScope(),
-                            request.getStreamInfo().getStream(), delegationToken);
+                    logIfEmpty(delegationToken, "getSegmentsBetween", request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream());
                     return controllerService.getSegmentsBetweenStreamCuts(request)
                             .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
                                     segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
@@ -486,7 +486,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> {
-                    logIfEmpty("getDelegationToken", request.getScope(), request.getStream(), delegationToken);
+                    logIfEmpty(delegationToken, "getDelegationToken", request.getScope(), request.getStream());
                     return CompletableFuture.completedFuture(DelegationToken
                             .newBuilder()
                             .setDelegationToken(delegationToken)
@@ -498,7 +498,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     private void logIfEmpty(String delegationToken, String requestName, String scopeName,
                             String streamName) {
         if (isAuthEnabled()) {
-            String message = String.format("Delegation token for request [%s] with scope [%s] and stream [%s] is: [%s]",
+            String message = String.format("Delegation token for request [%s] with scope [%s] and stream [%s], is: [%s]",
                     requestName, scopeName, streamName, delegationToken);
             logIfEmpty(delegationToken, message);
         }
