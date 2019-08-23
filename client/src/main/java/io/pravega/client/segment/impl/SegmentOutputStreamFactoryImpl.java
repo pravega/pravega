@@ -66,7 +66,13 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
         String key = segment.toString();
         if (config.isEnableConnectionPooling()) {
-            final Map.Entry<SegmentOutputStreamImpl, SegmentSealedCallbacks> entry = setupSegments.get(key);
+            Map.Entry<SegmentOutputStreamImpl, SegmentSealedCallbacks> entry = setupSegments.get(key);
+            if (entry != null) {
+                if (entry.getKey().getRefCnt() == 0) {
+                    setupSegments.remove(key);
+                    entry = null;
+                }
+            }
             if (entry == null) {
                 segmentSeal = new SegmentSealedCallbacks();
                 result = new SegmentOutputStreamImpl(key, config.isEnableConnectionPooling(),
@@ -81,6 +87,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
                 segmentSeal = setupSegments.get(key).getValue();
                 result = entry.getKey();
             }
+            result.increment();
             segmentSeal.add(segmentSealedCallback);
         } else {
             result = new SegmentOutputStreamImpl(key, config.isEnableConnectionPooling(), controller, cf,

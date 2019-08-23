@@ -85,6 +85,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @Getter
     private final long requestId = Flow.create().asLong();
 
+    private int refCnt = 0;
+
     /**
      * Internal object that tracks the state of the connection.
      * All mutations of data occur inside of this class. All operations are protected by the lock object.
@@ -111,6 +113,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         private final ReusableFutureLatch<ClientConnection> setupConnection = new ReusableFutureLatch<>();
         private final ReusableLatch waitingInflight = new ReusableLatch(true);
         private final AtomicBoolean needSuccessors = new AtomicBoolean();
+
 
         /**
          * Block until all events are acked by the server.
@@ -295,6 +298,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             failConnection(new ConnectionFailedException(wrongHost.toString()));
         }
 
+
         /**
          * Invariants for segment sealed:
          *   - SegmentSealed callback and write will not run concurrently.
@@ -470,13 +474,25 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         state.setupConnection.register(future);
         return future;
     }
-    
+
+    synchronized  public int getRefCnt() {
+        return refCnt;
+    }
+
+    synchronized  public void increment() {
+          refCnt++;
+    }
+
     /**
      * @see SegmentOutputStream#close()
      */
     @Override
     synchronized public void close() throws SegmentSealedException {
         if (state.isClosed()) {
+            return;
+        }
+        refCnt--;
+        if (refCnt > 0) {
             return;
         }
         log.debug("Closing writer: {}", writerId);
