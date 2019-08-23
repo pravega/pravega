@@ -427,7 +427,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      *
      */
     @Override
-    public void write(PendingEvent event) {
+    synchronized public void write(PendingEvent event) {
         //State is set to sealed during a Transaction abort and the segment writer should not throw an {@link IllegalStateException} in such a case.
         checkState(StreamSegmentNameUtils.isTransactionSegment(segmentName) || !state.isAlreadySealed(), "Segment: %s is already sealed", segmentName);
         synchronized (writeOrderLock) {
@@ -475,7 +475,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      * @see SegmentOutputStream#close()
      */
     @Override
-    public void close() throws SegmentSealedException {
+    synchronized public void close() throws SegmentSealedException {
         if (state.isClosed()) {
             return;
         }
@@ -493,7 +493,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      * @see SegmentOutputStream#flush()
      */
     @Override
-    public void flush() throws SegmentSealedException {
+    synchronized  public void flush() throws SegmentSealedException {
         int numInflight = state.getNumInflight();
         log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
         if (numInflight != 0) {
