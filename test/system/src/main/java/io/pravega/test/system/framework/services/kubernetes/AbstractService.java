@@ -89,7 +89,6 @@ public abstract class AbstractService implements Service {
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
-    private static Boolean IS_LATER_OPERATOR = true;
 
     final K8sClient k8sClient;
     private final String id;
@@ -190,7 +189,7 @@ public abstract class AbstractService implements Service {
                     .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
                     .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
                     .put("options", props)
-                    .put("image", getImageSpec(pravegaImg, PRAVEGA_VERSION)) b
+                    .put("image", getImageSpec(pravegaImg, PRAVEGA_VERSION))
                     .put("tier2", tier2Spec())
                     .build();
 
