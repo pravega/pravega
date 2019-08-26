@@ -89,10 +89,10 @@ public abstract class AbstractService implements Service {
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
-    private Boolean isLaterOperator = true;
 
     final K8sClient k8sClient;
     private final String id;
+    private boolean isLaterOperator = true;
 
     AbstractService(final String id) {
         this.k8sClient = ClientFactory.INSTANCE.getK8sClient();
