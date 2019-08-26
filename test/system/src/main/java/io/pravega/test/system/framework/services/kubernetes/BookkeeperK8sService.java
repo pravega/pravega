@@ -110,8 +110,6 @@ public class BookkeeperK8sService extends AbstractService {
                                         .build();
                                 return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, request)
                                         .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
-//                              return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount, properties)
-//                                      .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
                             } else {
                                 return CompletableFuture.completedFuture(null);
                             }
