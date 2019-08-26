@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -180,11 +181,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
-                                       .thenApply(segmentRanges -> SegmentRanges.newBuilder()
-                                                                                .addAllSegmentRanges(segmentRanges)
-                                                                                .setDelegationToken(delegationToken)
-                                                                                .build()),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getCurrentSegments", request.getScope(), request.getStream());
+                    return controllerService.getCurrentSegments(request.getScope(), request.getStream())
+                            .thenApply(segmentRanges -> SegmentRanges.newBuilder()
+                                    .addAllSegmentRanges(segmentRanges)
+                                    .setDelegationToken(delegationToken)
+                                    .build());
+                },
                 responseObserver);
     }
 
@@ -495,9 +499,8 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 responseObserver);
     }
 
-    private void logIfEmpty(String delegationToken, String requestName, String scopeName,
-                            String streamName) {
-        if (isAuthEnabled() && (delegationToken == null || delegationToken.equals(""))) {
+    private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
+        if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
             log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
                     requestName, scopeName, streamName, delegationToken);
         }
