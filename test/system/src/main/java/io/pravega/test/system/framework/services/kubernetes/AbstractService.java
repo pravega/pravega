@@ -89,7 +89,7 @@ public abstract class AbstractService implements Service {
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
-    private static Boolean IS_LATER_OPERATOR = true;
+    private Boolean isLaterOperator = true;
 
     final K8sClient k8sClient;
     private final String id;
@@ -131,12 +131,12 @@ public abstract class AbstractService implements Service {
         // generate Pravega Spec.
         final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
 
-        String BOOKKEEPER_IMAGE = DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME;
-        String PRAVEGA_IMAGE = DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME;
+        String bookkeeperImg = DOCKER_REGISTRY + PREFIX + "/" + BOOKKEEPER_IMAGE_NAME;
+        String pravegaImg = DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME;
 
-        if(IS_LATER_OPERATOR){
+        if (isLaterOperator) {
 
-            final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", ImmutableMap.of("repository", BOOKKEEPER_IMAGE))
+            final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", ImmutableMap.of("repository", bookkeeperImg))
                     .put("replicas", bookieCount)
                     .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
                     .put("storage", ImmutableMap.builder()
@@ -147,7 +147,6 @@ public abstract class AbstractService implements Service {
                     .put("autoRecovery", true)
                     .build();
 
-
             final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                     .put("segmentStoreReplicas", segmentStoreCount)
                     .put("debugLogging", true)
@@ -155,7 +154,7 @@ public abstract class AbstractService implements Service {
                     .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
                     .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
                     .put("options", props)
-                    .put("image", ImmutableMap.of("repository", PRAVEGA_IMAGE))
+                    .put("image", ImmutableMap.of("repository", pravegaImg))
                     .put("tier2", tier2Spec())
                     .build();
 
@@ -169,10 +168,10 @@ public abstract class AbstractService implements Service {
                             .put("version", PRAVEGA_VERSION)
                             .build())
                     .build();
-        }else{
+        } else {
 
             final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image",
-                    getImageSpec(BOOKKEEPER_IMAGE, PRAVEGA_BOOKKEEPER_VERSION))
+                    getImageSpec(bookkeeperImg, PRAVEGA_BOOKKEEPER_VERSION))
                     .put("replicas", bookieCount)
                     .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
                     .put("storage", ImmutableMap.builder()
@@ -190,7 +189,7 @@ public abstract class AbstractService implements Service {
                     .put("controllerResources", getResources("2000m", "3Gi", "1000m", "1Gi"))
                     .put("segmentStoreResources", getResources("2000m", "5Gi", "1000m", "3Gi"))
                     .put("options", props)
-                    .put("image", getImageSpec(PRAVEGA_IMAGE, PRAVEGA_VERSION))
+                    .put("image", getImageSpec(pravegaImg, PRAVEGA_VERSION))
                     .put("tier2", tier2Spec())
                     .build();
 
@@ -262,12 +261,12 @@ public abstract class AbstractService implements Service {
 
     private V1beta1CustomResourceDefinition getPravegaCRD() {
 
-        String PRAVEGA_OPERATOR_TAG = PRAVEGA_OPERATOR_IMAGE.substring(PRAVEGA_OPERATOR_IMAGE.lastIndexOf(":")+1);
-        if(!PRAVEGA_OPERATOR_TAG.equals("latest")){
-            String version = PRAVEGA_OPERATOR_TAG.substring(0,PRAVEGA_OPERATOR_TAG.lastIndexOf("."));
+        String pravegaOperatorTag = PRAVEGA_OPERATOR_IMAGE.substring(PRAVEGA_OPERATOR_IMAGE.lastIndexOf(":") + 1);
+        if (!pravegaOperatorTag.equals("latest")) {
+            String version = pravegaOperatorTag.substring(0, pravegaOperatorTag.lastIndexOf("."));
             float v = Float.parseFloat(version);
-            if(v < 0.4){
-                IS_LATER_OPERATOR = false;
+            if (v < 0.4) {
+                isLaterOperator = false;
             }
         }
 

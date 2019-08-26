@@ -97,8 +97,21 @@ public class BookkeeperK8sService extends AbstractService {
                             log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
                                       currentControllerCount, currentSegmentStoreCount);
                             if (currentBookkeeperCount != newInstanceCount) {
-                                return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount, properties)
+                                final Map<String, Object> bookieSpec = ImmutableMap.<String, Object>builder()
+                                        .put("replicas", newInstanceCount)
+                                        .build();
+                                final Map<String, Object> request = ImmutableMap.<String, Object>builder()
+                                        .put("apiVersion", "pravega.pravega.io/v1alpha1")
+                                        .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
+                                        .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
+                                        .put("spec", ImmutableMap.builder()
+                                                .put("bookkeeper", bookieSpec)
+                                                .build())
+                                        .build();
+                                return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, request)
                                         .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
+//                              return deployPravegaUsingOperator(zkUri, currentControllerCount, currentSegmentStoreCount, newInstanceCount, properties)
+//                                      .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", BOOKKEEPER_LABEL, newInstanceCount));
                             } else {
                                 return CompletableFuture.completedFuture(null);
                             }
