@@ -100,8 +100,21 @@ public class PravegaControllerK8sService extends AbstractService {
                            log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentControllerCount != newInstanceCount) {
-                               return deployPravegaUsingOperator(zkUri, newInstanceCount, currentSegmentStoreCount, currentBookkeeperCount, properties)
+                               final Map<String, Object> pSpec = ImmutableMap.<String, Object>builder()
+                                       .put("controllerReplicas", newInstanceCount)
+                                       .build();
+                               final Map<String, Object> request = ImmutableMap.<String, Object>builder()
+                                       .put("apiVersion", "pravega.pravega.io/v1alpha1")
+                                       .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
+                                       .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
+                                       .put("spec", ImmutableMap.builder()
+                                               .put("pravega", pSpec)
+                                               .build())
+                                       .build();
+                               return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, request)
                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
+//                               return deployPravegaUsingOperator(zkUri, newInstanceCount, currentSegmentStoreCount, currentBookkeeperCount, properties)
+//                                       .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_CONTROLLER_LABEL, newInstanceCount));
                            } else {
                                return CompletableFuture.completedFuture(null);
                            }
