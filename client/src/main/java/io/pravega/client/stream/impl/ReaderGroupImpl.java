@@ -140,7 +140,8 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
 
         return waitForCheckpointComplete(checkpointName, backgroundExecutor)
-                .thenApply(v -> completeCheckpoint(checkpointName));
+                .thenApply(v -> completeCheckpoint(checkpointName))
+                .thenApply(checkpoint -> checkpoint); //Added to prevent users from canceling completeCheckpoint
     }
 
     /**

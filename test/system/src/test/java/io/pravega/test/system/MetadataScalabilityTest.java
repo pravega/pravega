@@ -48,14 +48,14 @@ import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertTrue;
 
+/**
+ * Base class for scalability tests. This class takes a stream name and number of segments and scales to perform and then
+ * performs that many scales. The scale input is supplied by derived class.
+ * Then we perform truncation arbitrary number of times but the moment any truncation stream cut contains a segment from latest epoch,
+ * the test concludes. Post which we seal and delete the stream.
+ */
 @Slf4j
 @RunWith(SystemTestRunner.class)
-/**
- * Base class for scalability tests. This class takes a stream name and number of segments and scales to perform and then 
- * performs that many scales. The scale input is supplied by derived class. 
- * Then we perform truncation arbitrary number of times but the moment any truncation stream cut contains a segment from latest epoch, 
- * the test concludes. Post which we seal and delete the stream. 
- */
 public abstract class MetadataScalabilityTest extends AbstractScaleTests {
     @Rule
     public Timeout globalTimeout = Timeout.seconds(60 * 60);
@@ -117,77 +117,77 @@ public abstract class MetadataScalabilityTest extends AbstractScaleTests {
 
         CompletableFuture<Void> scaleFuture = Futures.loop(() -> counter.incrementAndGet() <= scalesToPerform,
                 () -> controller.getCurrentSegments(SCOPE, streamName)
-                                .thenCompose(segments -> {
-                                    ArrayList<Segment> sorted = Lists.newArrayList(segments.getSegments().stream()
-                                                                                           .sorted(Comparator.comparingInt(x ->
-                                                                                                   StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % numSegments))
-                                                                                           .collect(Collectors.toList()));
-                                    listOfEpochs.add(sorted);
-                                    // note: with SCALES_TO_PERFORM < numSegments, we can use the segment number as the index
-                                    // into the range map
-                                    Pair<List<Long>, Map<Double, Double>> scaleInput = getScaleInput(sorted);
-                                    List<Long> segmentsToSeal = scaleInput.getKey();
-                                    Map<Double, Double> newRanges = scaleInput.getValue();
+                        .thenCompose(segments -> {
+                            ArrayList<Segment> sorted = Lists.newArrayList(segments.getSegments().stream()
+                                    .sorted(Comparator.comparingInt(x ->
+                                            StreamSegmentNameUtils.getSegmentNumber(x.getSegmentId()) % numSegments))
+                                    .collect(Collectors.toList()));
+                            listOfEpochs.add(sorted);
+                            // note: with SCALES_TO_PERFORM < numSegments, we can use the segment number as the index
+                            // into the range map
+                            Pair<List<Long>, Map<Double, Double>> scaleInput = getScaleInput(sorted);
+                            List<Long> segmentsToSeal = scaleInput.getKey();
+                            Map<Double, Double> newRanges = scaleInput.getValue();
 
-                                    return controller.scaleStream(stream, segmentsToSeal, newRanges, executorService)
-                                                     .getFuture()
-                                                     .thenAccept(scaleStatus -> {
-                                                         log.info("scale stream for epoch {} completed with status {}", counter.get(), scaleStatus);
-                                                         assert scaleStatus;
-                                                     });
-                                }), executorService);
+                            return controller.scaleStream(stream, segmentsToSeal, newRanges, executorService)
+                                    .getFuture()
+                                    .thenAccept(scaleStatus -> {
+                                        log.info("scale stream for epoch {} completed with status {}", counter.get(), scaleStatus);
+                                        assert scaleStatus;
+                                    });
+                        }), executorService);
 
         scaleFuture.join();
-        
+
         return listOfEpochs;
     }
-     
-     void truncation(ControllerImpl controller, List<List<Segment>> listOfEpochs) {
-         int numSegments = getStreamConfig().getScalingPolicy().getMinNumSegments();
-         int scalesToPerform = getScalesToPerform();
-         Stream stream = new StreamImpl(SCOPE, getStreamName());
 
-         // try SCALES_TO_PERFORM randomly generated stream cuts and truncate stream at those 
-         // stream cuts. 
-         List<AtomicInteger> indexes = new LinkedList<>();
-         Random rand = new Random();
-         for (int i = 0; i < numSegments; i++) {
-             indexes.add(new AtomicInteger(1));
-         }
-         Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < scalesToPerform - 1), () -> {
-             // We randomly generate a stream cut in each iteration of this loop. A valid stream
-             // cut in this scenario contains for each position i in [0, numSegments -1], a segment
-             // from one of the scale epochs of the stream. For each position i, we randomly
-             // choose an epoch and pick the segment at position i. It increments the epoch
-             // index accordingly (indexes list) so that in the next iteration it chooses a later
-             // epoch for the same i.
-             //
-             // Because the segment in position i always contain the range [d * (i-1), d * i],
-             // where d = 1 / (number of segments), the stream cut is guaranteed to cover
-             // the entire key space. 
-             Map<Segment, Long> map = new HashMap<>();
-             for (int i = 0; i < numSegments; i++) {
-                 AtomicInteger index = indexes.get(i);
-                 index.set(index.get() + rand.nextInt(scalesToPerform - index.get()));
-                 map.put(listOfEpochs.get(index.get()).get(i), 0L);
-             }
+    void truncation(ControllerImpl controller, List<List<Segment>> listOfEpochs) {
+        int numSegments = getStreamConfig().getScalingPolicy().getMinNumSegments();
+        int scalesToPerform = getScalesToPerform();
+        Stream stream = new StreamImpl(SCOPE, getStreamName());
 
-             StreamCut cut = new StreamCutImpl(stream, map);
-             log.info("truncating stream at {}", map);
-             return controller.truncateStream(SCOPE, streamName, cut).
-                     thenCompose(truncated -> {
-                         log.info("stream truncated successfully at {}", cut);
-                         assertTrue(truncated);
-                         // we will just validate that a non empty value is returned. 
-                         return controller.getSuccessors(cut)
-                                          .thenAccept(successors -> {
-                                              assertTrue(successors.getSegments().size() > 0);
-                                              log.info("Successors for streamcut {} are {}", cut, successors);
-                                          });
-                     });
-         }, executorService).join();
-     }
-    
+        // try SCALES_TO_PERFORM randomly generated stream cuts and truncate stream at those
+        // stream cuts.
+        List<AtomicInteger> indexes = new LinkedList<>();
+        Random rand = new Random();
+        for (int i = 0; i < numSegments; i++) {
+            indexes.add(new AtomicInteger(1));
+        }
+        Futures.loop(() -> indexes.stream().allMatch(x -> x.get() < scalesToPerform - 1), () -> {
+            // We randomly generate a stream cut in each iteration of this loop. A valid stream
+            // cut in this scenario contains for each position i in [0, numSegments -1], a segment
+            // from one of the scale epochs of the stream. For each position i, we randomly
+            // choose an epoch and pick the segment at position i. It increments the epoch
+            // index accordingly (indexes list) so that in the next iteration it chooses a later
+            // epoch for the same i.
+            //
+            // Because the segment in position i always contain the range [d * (i-1), d * i],
+            // where d = 1 / (number of segments), the stream cut is guaranteed to cover
+            // the entire key space.
+            Map<Segment, Long> map = new HashMap<>();
+            for (int i = 0; i < numSegments; i++) {
+                AtomicInteger index = indexes.get(i);
+                index.set(index.get() + rand.nextInt(scalesToPerform - index.get()));
+                map.put(listOfEpochs.get(index.get()).get(i), 0L);
+            }
+
+            StreamCut cut = new StreamCutImpl(stream, map);
+            log.info("truncating stream at {}", map);
+            return controller.truncateStream(SCOPE, streamName, cut).
+                    thenCompose(truncated -> {
+                        log.info("stream truncated successfully at {}", cut);
+                        assertTrue(truncated);
+                        // we will just validate that a non empty value is returned.
+                        return controller.getSuccessors(cut)
+                                .thenAccept(successors -> {
+                                    assertTrue(successors.getSegments().size() > 0);
+                                    log.info("Successors for streamcut {} are {}", cut, successors);
+                                });
+                    });
+        }, executorService).join();
+    }
+
     void sealAndDeleteStream(ControllerImpl controller) {
         controller.sealStream(SCOPE, streamName).join();
         controller.deleteStream(SCOPE, streamName).join();
