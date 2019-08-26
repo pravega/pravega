@@ -110,8 +110,6 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
                                        .build();
                                return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, request)
                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, newInstanceCount));
-//                               return deployPravegaUsingOperator(zkUri, currentControllerCount, newInstanceCount, currentBookkeeperCount, properties)
-//                                       .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, newInstanceCount));
                            } else {
                                return CompletableFuture.completedFuture(null);
                            }
