@@ -45,7 +45,7 @@ import io.pravega.test.integration.utils.PasswordAuthHandlerInput.Entry;
  * much like the ControllerWrapper; This one wraps both Controller and Segment Store.
  */
 @Slf4j
-public class ClusterWrapper {
+public class ClusterWrapper implements AutoCloseable {
 
     private File passwordInputFile;
 
@@ -76,6 +76,10 @@ public class ClusterWrapper {
 
     public ClusterWrapper(boolean isAuthEnabled, int tokenTtlInSeconds) {
          this(isAuthEnabled, "secret", tokenTtlInSeconds,  null, 4);
+    }
+
+    public ClusterWrapper() {
+        this(false, "", 600, null, 4);
     }
 
     public ClusterWrapper(boolean isAuthEnabled, String tokenSigningKeyBasis, int tokenTtlInSeconds,
@@ -130,7 +134,7 @@ public class ClusterWrapper {
             passwordInputFile = createAuthFile(this.passwordAuthHandlerEntries);
         }
 
-        segmentStoreServer = new PravegaConnectionListener(false, "localhost", segmentStorePort, store, tableStore,
+        segmentStoreServer = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
             new TokenVerifierImpl(isAuthEnabled, tokenSigningKeyBasis),
             null, null, true);
@@ -169,10 +173,15 @@ public class ClusterWrapper {
     }
 
     private ControllerWrapper createControllerWrapper() {
+        String passwordInputFilePath = null;
+        if (passwordInputFile != null) {
+            passwordInputFilePath = passwordInputFile.getPath();
+        }
         return new ControllerWrapper(zookeeperServer.getConnectString(),
                 false, true,
                 controllerPort, serviceHost, segmentStorePort, containerCount, -1,
-                isAuthEnabled, passwordInputFile.getPath(), tokenSigningKeyBasis, tokenTtlInSeconds);
+                isAuthEnabled, passwordInputFilePath,
+                tokenSigningKeyBasis, tokenTtlInSeconds);
     }
 
     public String controllerUri() {
@@ -193,6 +202,7 @@ public class ClusterWrapper {
         PasswordAuthHandlerInput result = new PasswordAuthHandlerInput(
                 UUID.randomUUID().toString(), ".txt");
         result.postEntries(entries);
+        log.debug("Posted entries to [{}] file", result.getFile().getPath());
         return result.getFile();
     }
 }

@@ -116,7 +116,7 @@ public class StreamSegments {
     
     /**
      * This combines consecutive entries in the map that refer to the same segment.
-     * This happens following a merge because the preceeding segments are replaced one at a time.
+     * This happens following a merge because the preceding segments are replaced one at a time.
      */
     private void removeDuplicates(NavigableMap<Double, SegmentWithRange> result) {
         Segment last = null;
@@ -168,7 +168,7 @@ public class StreamSegments {
     private void verifyContinuous(List<SegmentWithRange> newSegments) {
         double previous = newSegments.get(0).getHigh();
         for (SegmentWithRange s : newSegments) {
-            Preconditions.checkArgument(previous == s.getHigh(), "Replacement segments were not continious: {}", newSegments);
+            Preconditions.checkArgument(previous == s.getHigh(), "Replacement segments were not continuous: {}", newSegments);
             previous = s.getLow();
         }
     }

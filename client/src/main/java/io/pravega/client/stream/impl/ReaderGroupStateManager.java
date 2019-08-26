@@ -103,7 +103,7 @@ public class ReaderGroupStateManager {
     void initializeReader(long initialAllocationDelay) {
         boolean alreadyAdded = sync.updateState((state, updates) -> {
             if (state.getSegments(readerId) == null) {
-                log.debug("Adding reader {} to reader grop. CurrentState is: {}", readerId, state);
+                log.debug("Adding reader {} to reader group. CurrentState is: {}", readerId, state);
                 updates.add(new AddReader(readerId));
                 return false;
             } else {

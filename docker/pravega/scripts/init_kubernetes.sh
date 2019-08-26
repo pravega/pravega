@@ -47,25 +47,39 @@ init_kubernetes() {
         local podname=${POD_NAME}
         export PUBLISHED_ADDRESS=""
         export PUBLISHED_PORT=""
+	
+	export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".metadata.annotations[\"external-dns.alpha.kubernetes.io/hostname\"]" )
+
+        if [[ -n ${PUBLISHED_ADDRESS} && "${PUBLISHED_ADDRESS:${#PUBLISHED_ADDRESS}-1}" == "." ]];
+        then
+          export PUBLISHED_ADDRESS=${PUBLISHED_ADDRESS::-1}
+        fi
 
         service_type=$( k8 "${ns}" "services" "${podname}" ".spec.type" )
         if [ "${service_type}" == "LoadBalancer" ]; then
             while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
             do
-                echo "Trying to obtain LoadBalancer external endpoint..."
-                sleep 10
-                export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
+                if [ -z ${PUBLISHED_ADDRESS} ]; then
+		        echo "Trying to obtain LoadBalancer external endpoint..."
+		        sleep 10
+                	export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].ip" )
+                	if [ -z "${PUBLISHED_ADDRESS}" ]; then
+                    		export PUBLISHED_ADDRESS=$( k8 "${ns}" "services" "${podname}" ".status.loadBalancer.ingress[0].hostname" )
+                	fi
+		fi
                 export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].port" )
             done
         elif [ "${service_type}" == "NodePort" ]; then
             nodename=$( k8 "${ns}" "pods" "${podname}" ".spec.nodeName" )
             while [ -z ${PUBLISHED_ADDRESS} ] || [ -z ${PUBLISHED_PORT} ]
             do
-                echo "Trying to obtain NodePort external endpoint..."
-                sleep 10
-                export PUBLISHED_ADDRESS=$( k8 "" "nodes" "${nodename}" ".status.addresses[] | select(.type == \"ExternalIP\") | .address" )
-                export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].nodePort" )
-            done
+                if [ -z ${PUBLISHED_ADDRESS} ]; then
+		  echo "Trying to obtain NodePort external endpoint..."
+                  sleep 10
+                  export PUBLISHED_ADDRESS=$( k8 "" "nodes" "${nodename}" ".status.addresses[] | select(.type == \"ExternalIP\") | .address" )
+                  export PUBLISHED_PORT=$( k8 "${ns}" "services" "${podname}" ".spec.ports[].nodePort" )
+            	fi
+	    done
         else
             echo "Unexpected service type ${service_type}. Exiting..."
             exit 1

@@ -42,6 +42,22 @@ public class DataFrameInputStream extends InputStream {
     @Getter
     private boolean closed;
     private boolean hasReadAnyData;
+    /**
+     * The {@link DataFrameInputStream} provides an {@link InputStream}-like interface on top of
+     * {@link DataFrame.DataFrameEntry} instances that make up the {@link DurableDataLog}. Every call to {@link #read} may
+     * either read from the currently loaded {@link DataFrame.DataFrameEntry} or fetch another one ({@link #fetchNextEntry()}.
+     *
+     * However, in certain exceptional cases (such as when an Operation has been split but only one part was successfully
+     * written to the {@link DurableDataLog}), we may have had to request more {@link DataFrame.DataFrameEntry} instances
+     * in order to figure out the situation (which means we may have also read part of the next (valid) operation). When
+     * this happens, we need to notify the upstream code (via a {@link RecordResetException}) and set ourselves in a state
+     * where we can only proceed once that upstream code has recovered from this situation and is ready to begin reading
+     * the next item ({@link #beginRecord}.
+     *
+     * Upstream code may wrap this instance in other types of {@link InputStream}s which may invoke {@link #skip} when
+     * closed (for exceptional cases). We need to make sure we don't skip over bytes that may actually be needed, while
+     * at the same time do support {@link #skip} for other, valid cases.
+     */
     private boolean prefetchedEntry;
 
     //endregion
@@ -77,6 +93,7 @@ public class DataFrameInputStream extends InputStream {
     @Override
     @SneakyThrows(DurableDataLogException.class)
     public int read() throws IOException {
+        Preconditions.checkState(!this.prefetchedEntry, "Must call beginRecord() before reading or skipping from a prefetched entry.");
         while (!this.closed) {
             int r = this.currentEntry.getData().read();
             if (r >= 0) {
@@ -96,6 +113,7 @@ public class DataFrameInputStream extends InputStream {
     @Override
     @SneakyThrows(DurableDataLogException.class)
     public int read(byte[] buffer, int index, int length) throws IOException {
+        Preconditions.checkState(!this.prefetchedEntry, "Must call beginRecord() before reading or skipping from a prefetched entry.");
         Preconditions.checkNotNull(buffer, "buffer");
         if (index < 0 || length < 0 | index + length > buffer.length) {
             throw new IndexOutOfBoundsException();

@@ -9,10 +9,15 @@
  */
 package io.pravega.shared;
 
+import com.google.common.base.Strings;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
+import java.net.InetAddress;
+
+import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
 import static io.pravega.shared.MetricsTags.containerTag;
+import static io.pravega.shared.MetricsTags.createHostTag;
 import static io.pravega.shared.MetricsTags.hostTag;
 import static io.pravega.shared.MetricsTags.segmentTags;
 import static io.pravega.shared.MetricsTags.streamTags;
@@ -34,6 +39,34 @@ public class MetricsTagsTest {
         String[] tag = hostTag("localhost");
         assertEquals(MetricsTags.TAG_HOST, tag[0]);
         assertEquals("localhost", tag[1]);
+    }
+
+    @Test
+    public void testCreateHostTag() throws Exception {
+        //Scenario 1: system property is defined - property is taken
+        String originalProperty = System.getProperty(DEFAULT_HOSTNAME_KEY);
+        System.setProperty(DEFAULT_HOSTNAME_KEY, "expectedHostname");
+        assertEquals("expectedHostname", createHostTag(DEFAULT_HOSTNAME_KEY)[1]);
+        if (!Strings.isNullOrEmpty(originalProperty)) {
+            System.setProperty(DEFAULT_HOSTNAME_KEY, originalProperty);
+        }
+
+        //Scenario 2: system property not defined, env var is defined - env var is taken
+        String envVarDefined = System.getenv().keySet().iterator().next();
+        originalProperty = System.getProperty(envVarDefined);
+        System.clearProperty(envVarDefined);
+        assertEquals(System.getenv(envVarDefined), createHostTag(envVarDefined)[1]);
+        if (!Strings.isNullOrEmpty(originalProperty)) {
+            System.setProperty(envVarDefined, originalProperty);
+        }
+
+        //Scenario 3: system property not defined, env var not defined - localhost config is taken
+        originalProperty = System.getProperty("NON_EXIST_ENV");
+        System.clearProperty("NON_EXIST_ENV");
+        assertEquals(InetAddress.getLocalHost().getHostName(), createHostTag("NON_EXIST_ENV")[1]);
+        if (!Strings.isNullOrEmpty(originalProperty)) {
+            System.setProperty("NON_EXIST_ENV", originalProperty);
+        }
     }
 
     @Test
