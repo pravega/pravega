@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.mocks;
 
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -19,7 +20,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -32,7 +32,7 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     private final StreamSegmentStore impl;
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates,
+    public CompletableFuture<Void> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates,
                                           Duration timeout) {
         CompletableFuture<Void> result = impl.append(streamSegmentName, data, attributeUpdates, timeout);
         Futures.await(result);
@@ -40,7 +40,7 @@ public class SynchronousStreamSegmentStore implements StreamSegmentStore {
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data,
+    public CompletableFuture<Void> append(String streamSegmentName, long offset, BufferView data,
                                           Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         CompletableFuture<Void> result = impl.append(streamSegmentName, offset, data, attributeUpdates, timeout);
         Futures.await(result);
