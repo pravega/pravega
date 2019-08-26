@@ -497,18 +497,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
 
     private void logIfEmpty(String delegationToken, String requestName, String scopeName,
                             String streamName) {
-        if (isAuthEnabled()) {
-            String message = String.format("Delegation token for request [%s] with scope [%s] and stream [%s], is: [%s]",
+        if (isAuthEnabled() && (delegationToken == null || delegationToken.equals(""))) {
+            log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
                     requestName, scopeName, streamName, delegationToken);
-            logIfEmpty(delegationToken, message);
-        }
-    }
-
-    private void logIfEmpty(String delegationToken, String message) {
-        if (isAuthEnabled()) {
-            if (delegationToken == null || delegationToken.equals("")) {
-                log.warn(message);
-            }
         }
     }
 
