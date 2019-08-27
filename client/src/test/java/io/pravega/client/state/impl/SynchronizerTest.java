@@ -20,6 +20,7 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.state.examples.SetSynchronizer;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.mock.MockClientFactory;
@@ -43,6 +44,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SynchronizerTest {
 
@@ -527,5 +530,36 @@ public class SynchronizerTest {
         syncB.fetchUpdates();
         assertEquals("h", syncB.getState().getValue());
         assertEquals(0, syncA.bytesWrittenSinceCompaction());
+    }
+
+
+    @Test(timeout = 20000)
+    @SuppressWarnings("unchecked")
+    public void testCompactWithMultipledTruncation() {
+        String streamName = "streamName";
+        String scope = "scope";
+
+        RevisionedStreamClient<UpdateOrInit<RevisionedImpl>> revisionedClient =
+                (RevisionedStreamClient<UpdateOrInit<RevisionedImpl>>) mock(RevisionedStreamClient.class);
+        final Segment segment = new Segment(scope, streamName, 0L);
+        StateSynchronizerImpl<RevisionedImpl> syncA = new StateSynchronizerImpl<>(segment, revisionedClient);
+
+        Revision firstMark = new RevisionImpl(segment, 10L, 1);
+        Revision secondMark = new RevisionImpl(segment, 20L, 2);
+        final AbstractMap.SimpleImmutableEntry<Revision, UpdateOrInit<RevisionedImpl>> entry =
+                new AbstractMap.SimpleImmutableEntry<>(secondMark, new UpdateOrInit<>(new RegularUpdate("x")));
+        Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> iterator =
+                Collections.<Entry<Revision, UpdateOrInit<RevisionedImpl>>>singletonList(entry).iterator();
+
+        // Setup Mock
+        when(revisionedClient.getMark()).thenReturn(firstMark);
+        when(revisionedClient.readFrom(firstMark))
+                // simulate multiple TruncatedDataExceptions.
+                .thenThrow(new TruncatedDataException())
+                .thenThrow(new TruncatedDataException())
+                .thenReturn(iterator);
+
+        syncA.fetchUpdates();
+        assertEquals("x", syncA.getState().getValue());
     }
 }
