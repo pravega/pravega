@@ -104,6 +104,7 @@ allprojects {
             force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
+            force "com.fasterxml.jackson.core:jackson-databind: " + jacksonVersion 
             force "org.slf4j:slf4j-api:" + slf4jApiVersion
 
             dependencySubstitution {
