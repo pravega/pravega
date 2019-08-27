@@ -26,6 +26,8 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.BackgroundCallback;
 import org.apache.curator.framework.api.CreateBuilder;
 import org.apache.curator.framework.api.CuratorEvent;
+import org.apache.curator.framework.api.transaction.CuratorOp;
+import org.apache.curator.framework.api.transaction.CuratorTransactionResult;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
@@ -60,6 +62,21 @@ public class ZKStoreHelper {
      */
     public CompletableFuture<List<String>> listScopes() {
         return getChildren("/store");
+    }
+
+    CompletableFuture<List<CuratorTransactionResult>> transaction(List<CuratorOp> opList) {
+        final CompletableFuture<List<CuratorTransactionResult>> result = new CompletableFuture<>();
+        try {
+            // We don't know the accurate path on which this transaction failed.
+            // See also ZOOKEEPER-3290
+            String unknownPath = "<unknown>";
+
+            client.transaction().inBackground(
+                    callback(x -> result.complete(x.getOpResults()), result::completeExceptionally, unknownPath), executor).forOperations(opList);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e));
+        }
+        return result;
     }
 
     CompletableFuture<Void> addNode(final String path) {

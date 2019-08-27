@@ -16,8 +16,11 @@ import io.pravega.common.concurrent.Futures;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.curator.framework.api.transaction.CuratorOp;
 import org.apache.curator.utils.ZKPaths;
+import org.apache.zookeeper.CreateMode;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -92,30 +95,54 @@ class ZkOrderedStore {
      */
     CompletableFuture<Long> addEntity(String scope, String stream, String entity) {
         // add persistent sequential node to the latest collection number 
-        // if collectionNum is sealed, increment collection number and write the entity there. 
+        // if collectionNumber is sealed, increment collection number and write the entity there.
         return getLatestCollection(scope, stream)
-                .thenCompose(latestcollectionNum ->
-                        storeHelper.createPersistentSequentialZNode(getEntitySequentialPath(scope, stream, latestcollectionNum),
+                .thenCompose(latestCollectionNumber ->
+                        storeHelper.createPersistentSequentialZNode(getEntitySequentialPath(scope, stream, latestCollectionNumber),
                                 entity.getBytes(Charsets.UTF_8))
                                    .thenCompose(positionPath -> {
                                        int position = getPositionFromPath(positionPath);
                                        if (position > rollOverAfter) {
                                            // if newly created position exceeds rollover limit, we need to delete that entry 
                                            // and roll over. 
-                                           // 1. delete newly created path
-                                           return storeHelper.deletePath(positionPath, false)
-                                                             // 2. seal latest collection
-                                                             .thenCompose(v -> storeHelper.createZNodeIfNotExist(
-                                                                     getCollectionSealedPath(scope, stream, latestcollectionNum)))
-                                                             // 3. call addEntity recursively
-                                                             .thenCompose(v -> addEntity(scope, stream, entity))
-                                                             // 4. delete empty sealed collection path
+                                        try {
+                                            // prepare transaction: delete newly created path, create new collection and put the entity in
+                                            int newCollectionNumber = latestCollectionNumber + 1;
+
+                                            String collectionPath = getCollectionPath(scope, stream, newCollectionNumber);
+                                            String entitiesPath = getEntitiesPath(scope, stream, newCollectionNumber);
+                                            String entitySequentialPath = getEntitySequentialPath(scope, stream, newCollectionNumber);
+
+                                            CuratorOp op1 = storeHelper.getClient().transactionOp().delete().forPath(positionPath);
+                                            CuratorOp op2 = storeHelper.getClient().transactionOp().create().forPath(collectionPath);
+                                            CuratorOp op3 = storeHelper.getClient().transactionOp().create().forPath(entitiesPath);
+                                            CuratorOp op4 = storeHelper.getClient().transactionOp()
+                                                    .create()
+                                                    .withMode(CreateMode.PERSISTENT_SEQUENTIAL)
+                                                    .forPath(entitySequentialPath, entity.getBytes(Charsets.UTF_8));
+
+                                            // 1. seal latest collection
+                                            return storeHelper.createZNodeIfNotExist(getCollectionSealedPath(scope, stream, latestCollectionNumber))
+                                                    // 2. delete newly created path, create new collection and put the entity in
+                                                    .thenCompose(v -> storeHelper.transaction(Arrays.asList(op1, op2, op3, op4))
+                                                            .thenApply(results -> {
+                                                                int positionIndex = results.size() - 1;
+                                                                String newPositionPath = results.get(positionIndex).getResultPath();
+                                                                int newPosition = getPositionFromPath(newPositionPath);
+                                                                return Position.toLong(newCollectionNumber, newPosition);
+                                                            }))
+                                                    // 3. delete empty sealed collection path
                                                              .thenCompose(orderedPosition -> 
-                                                                     tryDeleteSealedCollection(scope, stream, latestcollectionNum)
+                                                            tryDeleteSealedCollection(scope, stream, latestCollectionNumber)
                                                                      .thenApply(v -> orderedPosition));
+                                        } catch (Exception e) {
+                                            CompletableFuture<Long> exceptionally = new CompletableFuture<>();
+                                            exceptionally.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e));
+                                            return exceptionally;
+                                        }
 
                                        } else {
-                                           return CompletableFuture.completedFuture(Position.toLong(latestcollectionNum, position));
+                                        return CompletableFuture.completedFuture(Position.toLong(latestCollectionNumber, position));
                                        }
                                    }))
                 .whenComplete((r, e) -> {
@@ -242,18 +269,18 @@ class ZkOrderedStore {
 
     private CompletableFuture<Integer> getLatestCollection(String scope, String stream) {
         return storeHelper.getChildren(getCollectionsPath(scope, stream))
-                          .thenCompose(children -> {
-                              int latestcollectionNum = children.stream().mapToInt(Integer::parseInt).max().orElse(0);
-                              return storeHelper.checkExists(getCollectionSealedPath(scope, stream, latestcollectionNum))
-                                                .thenCompose(sealed -> {
-                                                    if (sealed) {
-                                                        return storeHelper.createZNodeIfNotExist(
-                                                                getCollectionPath(scope, stream, latestcollectionNum + 1))
-                                                                          .thenApply(v -> latestcollectionNum + 1);
-                                                    } else {
-                                                        return CompletableFuture.completedFuture(latestcollectionNum);
-                                                    }
-                                                });
+                .thenCompose(children -> { 
+                    int latestCollectionNumber = children.stream().mapToInt(Integer::parseInt).max().orElse(0);
+                    return storeHelper.checkExists(getCollectionSealedPath(scope, stream, latestCollectionNumber))
+                            .thenCompose(sealed -> { 
+                                if (sealed) {
+                                    return storeHelper.createZNodeIfNotExist(
+                                            getCollectionPath(scope, stream, latestCollectionNumber + 1))
+                                            .thenApply(v -> latestCollectionNumber + 1);
+                                } else { 
+                                    return CompletableFuture.completedFuture(latestCollectionNumber);
+                                }
+                            });
                           });
     }
 
@@ -269,7 +296,7 @@ class ZkOrderedStore {
         // attempt to delete entities node
         // delete collection
         return getLatestCollection(scope, stream)
-                .thenCompose(latestcollectionNum ->
+                .thenCompose(latestCollectionNumber ->
                         // 1. purge
                         storeHelper.getChildren(getEntitiesPath(scope, stream, collectionNum))
                                    .thenCompose(entitiesPos -> {
