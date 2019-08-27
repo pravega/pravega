@@ -75,7 +75,13 @@ public class GrpcAuthHelper {
 
     public String checkAuthorizationAndCreateToken(String resource, AuthHandler.Permissions expectedLevel) {
         if (isAuthEnabled) {
-            checkAuthorization(resource, expectedLevel);
+            try {
+                checkAuthorization(resource, expectedLevel);
+            } catch (RuntimeException e) {
+                // An auth handler plugin loaded in the system may throw this exception.
+                log.warn("Authorization failed", e);
+                throw e;
+            }
             return createDelegationToken(resource, expectedLevel, tokenSigningKey);
         }
         return "";
