@@ -532,10 +532,9 @@ public class SynchronizerTest {
         assertEquals(0, syncA.bytesWrittenSinceCompaction());
     }
 
-
     @Test(timeout = 20000)
     @SuppressWarnings("unchecked")
-    public void testCompactWithMultipledTruncation() {
+    public void testFetchUpdatesWithMultipleTruncation() {
         String streamName = "streamName";
         String scope = "scope";
 
@@ -558,8 +557,9 @@ public class SynchronizerTest {
                 .thenThrow(new TruncatedDataException())
                 .thenThrow(new TruncatedDataException())
                 .thenReturn(iterator);
+        when(revisionedClient.readFrom(secondMark)).thenReturn(iterator);
 
-        syncA.fetchUpdates();
+        syncA.fetchUpdates(); // invoke fetchUpdates which will encounter TruncatedDataException from RevisionedStreamClient.
         assertEquals("x", syncA.getState().getValue());
     }
 }
