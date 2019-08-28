@@ -44,6 +44,8 @@ public abstract class DockerBasedService implements io.pravega.test.system.frame
 
     static final int ZKSERVICE_ZKPORT = 2181;
     static final String IMAGE_PATH = Utils.isAwsExecution() ? "" :  System.getProperty("dockerImageRegistry") + "/";
+    static final String IMAGE_PREFIX = System.getProperty("imagePrefix", "pravega") + "/";
+    static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega") + ":";
     static final String PRAVEGA_VERSION = System.getProperty("imageVersion");
     static final String MASTER_IP = Utils.isAwsExecution() ? System.getProperty("awsMasterIP").trim() : System.getProperty("masterIP");
     private static final String CMD_SHELL = "CMD-SHELL"; // Docker Instruction used to run a health check command.
