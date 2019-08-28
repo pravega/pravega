@@ -23,6 +23,7 @@ import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.AppendDecoder;
@@ -40,11 +41,14 @@ import io.pravega.shared.protocol.netty.WireCommands.ConditionalCheckFailed;
 import io.pravega.shared.protocol.netty.WireCommands.DataAppended;
 import io.pravega.shared.protocol.netty.WireCommands.OperationUnsupported;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.test.common.IntentionalException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
@@ -81,6 +85,29 @@ import static org.mockito.Mockito.when;
 public class AppendProcessorTest {
     private final long requestId = 1L;
 
+    private static class AppendProcessorExt extends AppendProcessor {
+        final List<Long> pendingList;
+
+        public AppendProcessorExt(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
+                        DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
+            super(store, connection, next, statsRecorder, tokenVerifier, replyWithStackTraceOnError);
+            pendingList = new ArrayList<>();
+         }
+
+        @Override
+        protected long getPendingBytes() {
+            if (pendingList.size() > 0) {
+                return pendingList.get(pendingList.size() - 1);
+            }
+            return 0;
+        }
+
+        @Override
+        protected void setPendingBytes(long val) {
+            pendingList.add(val);
+        }
+    }
+
     @Test
     public void testAppend() throws Exception {
         String streamSegmentName = "scope/stream/0.#epoch.0";
@@ -105,6 +132,33 @@ public class AppendProcessorTest {
         verifyNoMoreInteractions(store);
 
         verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
+    }
+
+    @Test
+    public void testPendingBytes() throws Exception {
+        String streamSegmentName = "scope/stream/0.#epoch.0";
+        UUID clientId = UUID.randomUUID();
+        byte[] data = new byte[] { 1, 2, 3, 4, 6, 7, 8, 9 };
+        StreamSegmentStore store = mock(StreamSegmentStore.class);
+        ServerConnection connection = mock(ServerConnection.class);
+        val mockedRecorder = Mockito.mock(SegmentStatsRecorder.class);
+        AppendProcessorExt processor = new AppendProcessorExt(store, connection, new FailingRequestProcessor(), mockedRecorder, null, false);
+
+        setupGetAttributes(streamSegmentName, clientId, store);
+        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture(null));
+
+        processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
+        processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
+        verify(store).getAttributes(anyString(), eq(Collections.singleton(clientId)), eq(true), eq(AppendProcessor.TIMEOUT));
+        verifyStoreAppend(ac, data);
+        verify(connection).send(new AppendSetup(1, streamSegmentName, clientId, 0));
+        verify(connection, atLeast(0)).resumeReading();
+        verify(connection).send(new DataAppended(requestId, clientId, data.length, 0L));
+        verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(store);
+        verify(mockedRecorder).recordAppend(eq(streamSegmentName), eq(8L), eq(1), any());
+        assertEquals((long) processor.pendingList.get(0), data.length);
+        assertEquals((long) processor.pendingList.get(1), 0);
     }
 
     @Test
