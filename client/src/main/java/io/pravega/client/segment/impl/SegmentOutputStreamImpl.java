@@ -81,7 +81,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final RetryWithBackoff retrySchedule;
     private final Object writeOrderLock = new Object();
     private final String delegationToken;
-
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
@@ -421,36 +420,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
             failConnection(new TokenException(authTokenCheckFailed.toString()));
         }
-    }
-
-    /**
-     * Constructor with the default implementation for resendToSuccessorCallback. This callback is invoked when the {@link Segment} being
-     * written to is sealed or deleted. The default implementation of the callback changes the state of the writer to Sealed and
-     * ensures all the write futures are completed exceptionally with {@link SegmentSealedException}.
-     * @param segmentName The Segment name.
-     * @param useConnectionPooling Flag used to enable or disable connection pooling.
-     * @param controller Controller to be used.
-     * @param connectionFactory ConnectionFactory to be used.
-     * @param writerId Writer id.
-     * @param retrySchedule Retry schedule
-     * @param delegationToken The delegation used to connect to the server.
-     */
-    public SegmentOutputStreamImpl(String segmentName, boolean useConnectionPooling, Controller controller,
-                            ConnectionFactory connectionFactory, UUID writerId, RetryWithBackoff retrySchedule,
-                            String delegationToken) {
-        this.segmentName = segmentName;
-        this.useConnectionPooling = useConnectionPooling;
-        this.controller = controller;
-        this.connectionFactory = connectionFactory;
-        this.writerId = writerId;
-        this.resendToSuccessorsCallback = segment -> {
-            List<PendingEvent> r = this.getUnackedEventsOnSeal();
-            r.stream()
-             .filter(pendingEvent -> pendingEvent.getAckFuture() != null)
-             .forEach(pendingEvent -> pendingEvent.getAckFuture().completeExceptionally(new SegmentSealedException(segment.toString())));
-        };
-        this.retrySchedule = retrySchedule;
-        this.delegationToken = delegationToken;
     }
 
     /**

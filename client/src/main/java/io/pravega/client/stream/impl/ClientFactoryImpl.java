@@ -32,7 +32,6 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
-import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
@@ -179,10 +178,9 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment);
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStreamName()), RuntimeException::new);
-        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, config.getEventWriterConfig(), delegationToken);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationToken);
-        return new RevisionedStreamClientImpl<>(segment, in, out, cond, meta, serializer);
+        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationToken);
     }
 
     @Override
