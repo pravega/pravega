@@ -10,6 +10,10 @@
 package io.pravega.client.state.impl;
 
 import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
+import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
@@ -20,13 +24,15 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
+import io.pravega.common.util.ByteBufferUtils;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.test.common.AssertExtensions;
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.TreeMap;
@@ -35,11 +41,17 @@ import lombok.Cleanup;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RevisionedStreamClientTest {
@@ -197,7 +209,7 @@ public class RevisionedStreamClientTest {
         assertEquals(ra, client.fetchOldestRevision());
         client.truncateToRevision(r0);
         assertEquals(ra, client.fetchOldestRevision());
-        AssertExtensions.assertThrows(TruncatedDataException.class, () -> client.readFrom(r0));
+        assertThrows(TruncatedDataException.class, () -> client.readFrom(r0));
         Iterator<Entry<Revision, String>> iterA = client.readFrom(ra);
         assertTrue(iterA.hasNext());
         Iterator<Entry<Revision, String>> iterB = client.readFrom(ra);
@@ -210,7 +222,7 @@ public class RevisionedStreamClientTest {
         client.truncateToRevision(rc);
         assertFalse(iterA.hasNext());
         assertTrue(iterB.hasNext());
-        AssertExtensions.assertThrows(TruncatedDataException.class, () -> iterB.next());
+        assertThrows(TruncatedDataException.class, () -> iterB.next());
         
     }
 
@@ -234,22 +246,62 @@ public class RevisionedStreamClientTest {
         result.complete(new StreamSegments(new TreeMap<>(), ""));
         when(controller.getCurrentSegments(scope, stream)).thenReturn(result);
 
-        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
+        assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
 
         // Simulate invalid stream.
         result = new CompletableFuture<>();
         result.completeExceptionally(new RuntimeException());
         when(controller.getCurrentSegments(scope, stream)).thenReturn(result);
 
-        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
+        assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
 
         // Simulate null result from Controller.
         result = new CompletableFuture<>();
         result.complete(null);
         when(controller.getCurrentSegments(scope, stream)).thenReturn(result);
 
-        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
+        assertThrows(InvalidStreamException.class, () -> clientFactory.createRevisionedStreamClient(stream, serializer, config));
 
+    }
+
+    @Test
+    public void testSegmentSealedFromSegmentOutputStreamError() {
+        String scope = "scope";
+        String stream = "stream";
+        // Setup Environment
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", SERVICE_PORT);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+        @Cleanup
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
+        createScopeAndStream(scope, stream, controller);
+        MockSegmentStreamFactory streamFactory = new MockSegmentStreamFactory();
+
+        // Setup mock
+        SegmentOutputStreamFactory outFactory = mock(SegmentOutputStreamFactory.class);
+        SegmentOutputStream out = mock(SegmentOutputStream.class);
+        when(outFactory.createOutputStreamForSegment(eq(new Segment(scope, stream, 0)), any(), any(), eq("")))
+                .thenReturn(out);
+        @Cleanup
+        SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory,
+                                                                        streamFactory, outFactory, streamFactory, streamFactory);
+
+        CompletableFuture<Void> writeFuture = new CompletableFuture<>();
+        PendingEvent event1 = PendingEvent.withoutHeader("key", ByteBufferUtils.EMPTY, writeFuture);
+        PendingEvent event2 = PendingEvent.withoutHeader("key", ByteBufferUtils.EMPTY, null);
+        // Two events are returned when the callback invokes getUnackedEventsOnSeal
+        when(out.getUnackedEventsOnSeal()).thenReturn(Arrays.asList(event1, event2));
+
+        @Cleanup
+        RevisionedStreamClient<String> client = clientFactory.createRevisionedStreamClient(stream, new JavaSerializer<>(),
+                                                                                           SynchronizerConfig.builder().build());
+        // simulate invocation of handleSegmentSealed by Segment writer.
+        ((RevisionedStreamClientImpl) client).handleSegmentSealed();
+
+        // Verify SegmentOutputStream#getUnackedEventsOnSeal is invoked.
+        verify(out, times(1)).getUnackedEventsOnSeal();
+        assertTrue(writeFuture.isCompletedExceptionally());
+        assertThrows(SegmentSealedException.class, writeFuture::get);
     }
 
     private void createScopeAndStream(String scope, String stream, MockController controller) {

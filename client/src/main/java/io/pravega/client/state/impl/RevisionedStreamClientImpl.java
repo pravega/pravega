@@ -9,6 +9,7 @@
  */
 package io.pravega.client.state.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
@@ -217,7 +218,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         }
     }
 
-    private void handleSegmentSealed() {
+    @VisibleForTesting
+    void handleSegmentSealed() {
         log.debug("Complete all unacked events with SegmentSealedException for segment {}", segment);
         List<PendingEvent> r = out.getUnackedEventsOnSeal();
         r.stream()
