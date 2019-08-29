@@ -89,10 +89,10 @@ public abstract class AbstractService implements Service {
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
+    private static final boolean LATER_OPERATOR = getOperatorVersion();
 
     final K8sClient k8sClient;
     private final String id;
-    private boolean isLaterOperator = true;
 
     AbstractService(final String id) {
         this.k8sClient = ClientFactory.INSTANCE.getK8sClient();
@@ -136,7 +136,7 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> bookkeeperImgSpec;
         final Map<String, Object> pravegaImgSpec;
 
-        if (isLaterOperator) {
+        if (LATER_OPERATOR) {
 
             bookkeeperImgSpec = ImmutableMap.of("repository", bookkeeperImg);
             pravegaImgSpec = ImmutableMap.of("repository", pravegaImg);
@@ -174,32 +174,38 @@ public abstract class AbstractService implements Service {
                 .put("apiVersion", "pravega.pravega.io/v1alpha1")
                 .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
                 .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", pravegaClusterSpecBuilder(zkLocation, bookkeeperSpec, pravegaSpec))
+                .put("spec", buildPravegaClusterSpec(zkLocation, bookkeeperSpec, pravegaSpec))
                 .build();
     }
 
-    protected Map<String, Object> pravegaClusterSpecBuilder(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec) {
-        if (isLaterOperator) {
-            return ImmutableMap.<String, Object>builder()
-                    .put("zookeeperUri", zkLocation)
-                    .put("bookkeeper", bookkeeperSpec)
-                    .put("pravega", pravegaSpec)
-                    .put("version", PRAVEGA_VERSION)
-                    .build();
-        } else {
-            return ImmutableMap.<String, Object>builder()
-                    .put("zookeeperUri", zkLocation)
-                    .put("bookkeeper", bookkeeperSpec)
-                    .put("pravega", pravegaSpec)
-                    .build();
+    private static boolean getOperatorVersion() {
+        String pravegaOperatorTag = PRAVEGA_OPERATOR_IMAGE.substring(PRAVEGA_OPERATOR_IMAGE.lastIndexOf(":") + 1);
+        if (!pravegaOperatorTag.equals("latest")) {
+            String version = pravegaOperatorTag.substring(0, pravegaOperatorTag.lastIndexOf("."));
+            float v = Float.parseFloat(version);
+            if (v < 0.4) {
+                return false;
+            }
         }
+        return true;
     }
 
-    protected Map<String, Object> getImageSpec(String imageName, String tag) {
-        return ImmutableMap.<String, Object>builder().put("repository", imageName)
-                                                     .put("tag", tag)
-                                                     .put("pullPolicy", IMAGE_PULL_POLICY)
-                                                     .build();
+    protected Map<String, Object> buildPravegaClusterSpec(String zkLocation, Map<String, Object> bookkeeperSpec, Map<String, Object> pravegaSpec) {
+
+        ImmutableMap<String, Object> commonEntries = ImmutableMap.<String, Object>builder()
+                .put("zookeeperUri", zkLocation)
+                .put("bookkeeper", bookkeeperSpec)
+                .put("pravega", pravegaSpec)
+                .build();
+
+        if (LATER_OPERATOR) {
+            return ImmutableMap.<String, Object>builder()
+                    .putAll(commonEntries)
+                    .put("version", PRAVEGA_VERSION)
+                    .build();
+        }
+        return commonEntries;
+
     }
 
     private Map<String, Object> tier2Spec() {
@@ -236,6 +242,13 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
+    protected Map<String, Object> getImageSpec(String imageName, String tag) {
+        return ImmutableMap.<String, Object>builder().put("repository", imageName)
+                .put("tag", tag)
+                .put("pullPolicy", IMAGE_PULL_POLICY)
+                .build();
+    }
+
     private Map<String, Object> getResources(String limitsCpu, String limitsMem, String requestsCpu, String requestsMem) {
         return ImmutableMap.<String, Object>builder()
                 .put("limits", ImmutableMap.builder()
@@ -250,15 +263,6 @@ public abstract class AbstractService implements Service {
     }
 
     private V1beta1CustomResourceDefinition getPravegaCRD() {
-
-        String pravegaOperatorTag = PRAVEGA_OPERATOR_IMAGE.substring(PRAVEGA_OPERATOR_IMAGE.lastIndexOf(":") + 1);
-        if (!pravegaOperatorTag.equals("latest")) {
-            String version = pravegaOperatorTag.substring(0, pravegaOperatorTag.lastIndexOf("."));
-            float v = Float.parseFloat(version);
-            if (v < 0.4) {
-                isLaterOperator = false;
-            }
-        }
 
         return new V1beta1CustomResourceDefinitionBuilder()
                 .withApiVersion("apiextensions.k8s.io/v1beta1")

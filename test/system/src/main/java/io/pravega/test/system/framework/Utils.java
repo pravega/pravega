@@ -28,6 +28,7 @@ import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreSer
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -161,6 +162,22 @@ public class Utils {
                                .build();
         }
 
+    }
+
+    public static Map<String, Object> buildPatchedPravegaClusterSpec(String replicas, int replicaCount, String component, String namespace, String name, String kind) {
+
+        final Map<String, Object> componentSpec = ImmutableMap.<String, Object>builder()
+                .put(replicas, replicaCount)
+                .build();
+
+        return ImmutableMap.<String, Object>builder()
+                .put("apiVersion", "pravega.pravega.io/v1alpha1")
+                .put("kind", kind)
+                .put("metadata", ImmutableMap.of("name", name, "namespace", namespace))
+                .put("spec", ImmutableMap.builder()
+                        .put(component, componentSpec)
+                        .build())
+                .build();
     }
 
     /**

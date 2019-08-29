@@ -12,6 +12,7 @@ package io.pravega.test.system.framework.services.kubernetes;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
+import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.util.List;
@@ -81,22 +82,6 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
                                               t -> new TestFrameworkException(RequestFailed, "Failed to fetch ServiceDetails for pravega-segmentstore", t));
     }
 
-    protected Map<String, Object> patchSpecBuilder(int newInstanceCount) {
-
-        Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder()
-                .put("segmentStoreReplicas", newInstanceCount)
-                .build();
-
-        return ImmutableMap.<String, Object>builder()
-                .put("apiVersion", "pravega.pravega.io/v1alpha1")
-                .put("kind", CUSTOM_RESOURCE_KIND_PRAVEGA)
-                .put("metadata", ImmutableMap.of("name", PRAVEGA_ID, "namespace", NAMESPACE))
-                .put("spec", ImmutableMap.builder()
-                        .put("pravega", pravegaSpec)
-                        .build())
-                .build();
-    }
-
     @Override
     @SuppressWarnings("unchecked")
     public CompletableFuture<Void> scaleService(int newInstanceCount) {
@@ -113,8 +98,8 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
                            log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentSegmentStoreCount != newInstanceCount) {
-                               final Map<String, Object> patchSpec = patchSpecBuilder(newInstanceCount);
-                               return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchSpec)
+                               final Map<String, Object> patchedSpec = Utils.buildPatchedPravegaClusterSpec("segmentStoreReplicas", newInstanceCount, "pravega", NAMESPACE, PRAVEGA_ID, CUSTOM_RESOURCE_KIND_PRAVEGA);
+                               return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchedSpec)
                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, newInstanceCount));
                            } else {
                                return CompletableFuture.completedFuture(null);
