@@ -59,6 +59,8 @@ public class ZookeeperK8sService extends AbstractService {
     private static final String CUSTOM_RESOURCE_KIND = "ZookeeperCluster";
     private static final String OPERATOR_ID = "zookeeper-operator";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
+    private static final String ZOOKEEPER_IMAGE_NAME = System.getProperty("zookeeperImageName", "zookeeper");
+    private static final String PRAVEGA_ZOOKEEPER_IMAGE_VERSION = System.getProperty("zookeeperImageVersion", "latest");
 
     public ZookeeperK8sService(String id) {
         super(id);
@@ -236,7 +238,9 @@ public class ZookeeperK8sService extends AbstractService {
                 .put("apiVersion", "zookeeper.pravega.io/v1beta1")
                 .put("kind", CUSTOM_RESOURCE_KIND)
                 .put("metadata", ImmutableMap.of("name", deploymentName))
-                .put("spec", ImmutableMap.of("size", clusterSize))
+                .put("spec", ImmutableMap.builder().put("image",  getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + ZOOKEEPER_IMAGE_NAME, PRAVEGA_ZOOKEEPER_IMAGE_VERSION))
+                                         .put("size", clusterSize)
+                                         .build())
                 .build();
     }
 }
