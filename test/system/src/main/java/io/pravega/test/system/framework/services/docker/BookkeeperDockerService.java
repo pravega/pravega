@@ -34,6 +34,7 @@ import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 public class BookkeeperDockerService extends DockerBasedService {
 
     private static final int BK_PORT = 3181;
+    private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper") + ":";
     private final long instances = 3;
     private final double cpu = 0.5;
     private final double mem = 1024.0;
@@ -81,7 +82,7 @@ public class BookkeeperDockerService extends DockerBasedService {
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
                         .labels(labels)
-                        .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
+                        .image(IMAGE_PATH + IMAGE_PREFIX + BOOKKEEPER_IMAGE_NAME + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
                         .env(stringList).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())

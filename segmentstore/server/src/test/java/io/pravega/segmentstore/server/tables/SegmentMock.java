@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -22,6 +23,7 @@ import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -32,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
@@ -79,14 +82,18 @@ class SegmentMock implements DirectSegmentAccess {
     }
 
     @Override
-    public CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
             // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
             // this method should only be used for constructing the test data.
             long offset;
             synchronized (this) {
                 offset = this.contents.size();
-                this.contents.write(data);
+                try {
+                    data.copyTo(this.contents);
+                } catch (IOException ex) {
+                    throw new CompletionException(ex);
+                }
                 if (attributeUpdates != null) {
                     val updatedValues = new HashMap<UUID, Long>();
                     attributeUpdates.forEach(update -> collectAttributeValue(update, updatedValues));
