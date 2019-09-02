@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,10 +12,8 @@ package io.pravega.local;
 import io.pravega.client.ClientConfig;
 
 import io.pravega.client.admin.StreamManager;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
-import java.util.concurrent.ExecutionException;
 import javax.net.ssl.SSLHandshakeException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -57,15 +55,9 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
     ClientConfig prepareValidClientConfig() {
         return ClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .trustStore("../config/cert.pem")
                 .validateHostName(false)
                 .build();
-    }
-
-    @Override
-    @Test
-    public void testWriteAndReadEventWithValidClientConfig() throws ExecutionException, InterruptedException {
-        super.testWriteAndReadEventWithValidClientConfig();
     }
 
     /**

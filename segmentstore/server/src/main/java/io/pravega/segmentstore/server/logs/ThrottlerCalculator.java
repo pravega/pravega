@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,15 +10,14 @@
 package io.pravega.segmentstore.server.logs;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.MathHelpers;
 import io.pravega.segmentstore.storage.QueueStats;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.Singular;
 
@@ -42,31 +41,22 @@ class ThrottlerCalculator {
     @VisibleForTesting
     static final int MAX_DELAY_MILLIS = 25000;
     /**
-     * Adjustment to the target utilization ratio at or above which throttling will begin to apply. This value helps
-     * separate the goals of the {@link ThrottlerCalculator.CacheThrottler} (slow operations if we exceed the target) and
-     * the CacheManager (keep the Cache Utilization at or below target, so that we may not need to slow operations if
-     * we don't need to).
-     *
-     * The goal of this adjustment is to give the CacheManager enough breathing room so that it can do its job. It's an
-     * async task so it is possible that the cache utilization may slightly exceed the target until it can be reduced to
-     * an acceptable level. To avoid unnecessary wobbling in throttling, there is a need for a buffer (adjustment) between
-     * this target and when we begin throttling.
-     *
-     * Example: If CachePolicy.getTargetUtilization()==0.85 and Adjustment==0.05, then throttling will begin to apply
-     * at 0.85+0.05=0.90 (90%) of maximum cache capacity.
+     * Amount of time (millis) to increase throttling by for each percentage point increase in the cache utilization (above 100%).
      */
     @VisibleForTesting
-    static final double CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT = 0.05;
+    static final int THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT = 100;
+
     /**
      * Number of items in the Commit Backlog above which throttling will apply.
      */
     @VisibleForTesting
     static final int COMMIT_BACKLOG_COUNT_THRESHOLD = 100;
+
     /**
-     * Number of items in the Commit Backlog at or above which the maximum throttling will apply.
+     * Amount of time (millis) to increase throttling by for each incremental increase of the Commit Queue, over the threshold.
      */
     @VisibleForTesting
-    static final int COMMIT_BACKLOG_COUNT_FULL_THROTTLE_THRESHOLD = 500;
+    static final int THROTTLING_MILLIS_PER_COMMIT_OVER_LIMIT = 50;
 
     @Singular
     private final List<Throttler> throttlers;
@@ -103,7 +93,7 @@ class ThrottlerCalculator {
         // a throttling delay will have increased batching as a side effect.
         int maxDelay = 0;
         boolean maximum = false;
-        ThrottlerName throttlerName = null;
+        String throttlerName = null;
         for (Throttler t : this.throttlers) {
             int delay = t.getDelayMillis();
             if (delay >= MAX_DELAY_MILLIS) {
@@ -121,10 +111,6 @@ class ThrottlerCalculator {
         }
 
         return new DelayResult(throttlerName, maxDelay, maximum);
-    }
-
-    private static <T, V extends Number> int calculateBaseDelay(T fullThrottleThreshold, Function<T, V> calculator) {
-        return (int) Math.ceil(MAX_DELAY_MILLIS / calculator.apply(fullThrottleThreshold).doubleValue());
     }
 
     //endregion
@@ -150,49 +136,32 @@ class ThrottlerCalculator {
          *
          * @return
          */
-        abstract ThrottlerName getName();
+        abstract String getName();
     }
 
     /**
      * Calculates the amount of time to wait before processing more operations from the queue in order to relieve pressure
      * on the cache. This is based on ReadIndex statistics, mainly cache utilization ratio.
      */
+    @RequiredArgsConstructor
     private static class CacheThrottler extends Throttler {
-        private final double targetCacheUtilization;
-        private final int baseDelay;
-        @NonNull
         private final Supplier<Double> getCacheUtilization;
-
-        CacheThrottler(Supplier<Double> getCacheUtilization, double targetCacheUtilization, double maxCacheUtilization) {
-            this.targetCacheUtilization = targetCacheUtilization + CACHE_TARGET_UTILIZATION_THRESHOLD_ADJUSTMENT;
-            this.getCacheUtilization = getCacheUtilization;
-            if (this.targetCacheUtilization >= maxCacheUtilization) {
-                // Since this is externally provided, we need to be able to handle invalid values. If we get too small of
-                // a utilization, then we will apply maximum throttle as soon as we reach the min utilization threshold.
-                this.baseDelay = MAX_DELAY_MILLIS;
-            } else {
-                this.baseDelay = calculateBaseDelay(maxCacheUtilization, this::getDelayMultiplier);
-            }
-        }
 
         @Override
         boolean isThrottlingRequired() {
-            return this.getCacheUtilization.get() > this.targetCacheUtilization;
+            return this.getCacheUtilization.get() > 1;
         }
 
         @Override
         int getDelayMillis() {
             // We only throttle if we exceed the cache capacity. We increase the throttling amount in a linear fashion.
-            return (int) (getDelayMultiplier(this.getCacheUtilization.get()) * this.baseDelay);
+            double cacheUtilization = this.getCacheUtilization.get();
+            return (int) Math.max((cacheUtilization - 1.0) * 100 * THROTTLING_MILLIS_PER_PERCENT_OVER_LIMIT, 0);
         }
 
         @Override
-        ThrottlerName getName() {
-            return ThrottlerName.Cache;
-        }
-
-        private double getDelayMultiplier(double utilization) {
-            return 100 * (utilization - this.targetCacheUtilization);
+        String getName() {
+            return "Cache";
         }
     }
 
@@ -202,30 +171,24 @@ class ThrottlerCalculator {
      */
     @RequiredArgsConstructor
     private static class CommitBacklogThrottler extends Throttler {
-        private static final int BASE_DELAY =
-                calculateBaseDelay(COMMIT_BACKLOG_COUNT_FULL_THROTTLE_THRESHOLD, CommitBacklogThrottler::getDelayMultiplier);
-        @NonNull
         private final Supplier<Integer> getCommitBacklogCount;
+
 
         @Override
         boolean isThrottlingRequired() {
             return this.getCommitBacklogCount.get() > COMMIT_BACKLOG_COUNT_THRESHOLD;
         }
 
-        static int getDelayMultiplier(int backlogCount) {
-            return backlogCount - COMMIT_BACKLOG_COUNT_THRESHOLD;
-        }
-
         @Override
         int getDelayMillis() {
             // We only throttle if we exceed the threshold. We increase the throttling amount in a linear fashion.
-            int count = this.getCommitBacklogCount.get();
-            return getDelayMultiplier(count) * BASE_DELAY;
+            long count = this.getCommitBacklogCount.get();
+            return (int) MathHelpers.minMax((count - COMMIT_BACKLOG_COUNT_THRESHOLD) * THROTTLING_MILLIS_PER_COMMIT_OVER_LIMIT, 0, Integer.MAX_VALUE);
         }
 
         @Override
-        ThrottlerName getName() {
-            return ThrottlerName.CommitBacklog;
+        String getName() {
+            return "Commit Backlog";
         }
     }
 
@@ -235,7 +198,6 @@ class ThrottlerCalculator {
      */
     @RequiredArgsConstructor
     private static class BatchingThrottler extends Throttler {
-        @NonNull
         private final Supplier<QueueStats> getQueueStats;
 
         @Override
@@ -258,8 +220,8 @@ class ThrottlerCalculator {
         }
 
         @Override
-        ThrottlerName getName() {
-            return ThrottlerName.Batching;
+        String getName() {
+            return "Batching";
         }
     }
 
@@ -274,14 +236,13 @@ class ThrottlerCalculator {
         /**
          * Includes a Cache Throttler.
          *
-         * @param getCacheUtilization    A Supplier that, when invoked, returns a non-negative number representing the cache
-         *                               utilization (calculated as the ratio of used cache to total cache available).
-         * @param targetCacheUtilization Target cache utilization, at or above which throttling will gradually begin to apply.
-         * @param maxCacheUtilization    Maximum allowed cache utilization, at or above which full throttling will apply.
+         * @param getCacheUtilization A Supplier that, when invoked, returns a non-negative number representing the cache
+         *                            utilization (calculated as the ratio of used cache to total cache available). May be
+         *                            greater than 1 if too much cache is used (and thus throttling is required).
          * @return This builder.
          */
-        ThrottlerCalculatorBuilder cacheThrottler(Supplier<Double> getCacheUtilization, double targetCacheUtilization, double maxCacheUtilization) {
-            return throttler(new CacheThrottler(getCacheUtilization, targetCacheUtilization, maxCacheUtilization));
+        ThrottlerCalculatorBuilder cacheThrottler(Supplier<Double> getCacheUtilization) {
+            return throttler(new CacheThrottler(Preconditions.checkNotNull(getCacheUtilization, "getCacheUtilization")));
         }
 
         /**
@@ -292,7 +253,7 @@ class ThrottlerCalculator {
          * @return This builder.
          */
         ThrottlerCalculatorBuilder batchingThrottler(Supplier<QueueStats> getQueueStats) {
-            return throttler(new BatchingThrottler(getQueueStats));
+            return throttler(new BatchingThrottler(Preconditions.checkNotNull(getQueueStats, "getQueueStats")));
         }
 
         /**
@@ -303,7 +264,7 @@ class ThrottlerCalculator {
          * @return This builder.
          */
         ThrottlerCalculatorBuilder commitBacklogThrottler(Supplier<Integer> getCommitBacklogCount) {
-            return throttler(new CommitBacklogThrottler(getCommitBacklogCount));
+            return throttler(new CommitBacklogThrottler(Preconditions.checkNotNull(getCommitBacklogCount, "getCommitBacklogCount")));
         }
     }
 
@@ -315,48 +276,27 @@ class ThrottlerCalculator {
      * The result returned by the ThrottlerCalculator.
      */
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-    @Getter
     static class DelayResult {
         /**
          * The name of the throttler inducing this delay.
          */
-        private final ThrottlerName throttlerName;
+        private final String reason;
         /**
          * The suggested delay, in millis.
          */
+        @Getter
         private final int durationMillis;
         /**
          * Whether the suggested delay equals or exceeds the maximum defined delay (which usually means it would have been
          * higher if not capped at this value).
          */
+        @Getter
         private final boolean maximum;
 
         @Override
         public String toString() {
-            return String.format("%dms (Max=%s, Reason=%s)", this.durationMillis, this.maximum, this.throttlerName);
+            return String.format("%dms (Max=%s, Reason=%s)", this.durationMillis, this.maximum, this.reason);
         }
-    }
-
-    //endregion
-
-    //region ThrottlerName
-
-    /**
-     * Defines Throttler Names.
-     */
-    enum ThrottlerName {
-        /**
-         * Throttling is required in order to aggregate multiple operations together in a single write.
-         */
-        Batching,
-        /**
-         * Throttling is required due to excessive Cache utilization.
-         */
-        Cache,
-        /**
-         * Throttling is required due to excessive size of the Commit (Memory) Backlog Queue.
-         */
-        CommitBacklog
     }
 
     //endregion

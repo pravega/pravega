@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.rpc.auth.AuthHelper;
 import io.pravega.controller.store.stream.records.CommittingTransactionsRecord;
 import io.pravega.controller.store.stream.records.CompletedTxnRecord;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
@@ -64,7 +64,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
         cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), sessionTimeout, connectionTimeout, new RetryOneTime(2000));
         cli.start();
         segmentHelperMockForTables = SegmentHelperMock.getSegmentHelperMockForTables(executor);
-        store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), GrpcAuthHelper.getDisabledAuthHelper());
+        store = new PravegaTablesStreamMetadataStore(segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), AuthHelper.getDisabledAuthHelper());
         bucketStore = StreamStoreFactory.createZKBucketStore(1, cli, executor);
     }
 
@@ -213,7 +213,7 @@ public class PravegaTablesStreamMetadataStoreTest extends StreamMetadataStoreTes
     @Test
     public void testGarbageCollection() {
         try (PravegaTablesStreamMetadataStore testStore = new PravegaTablesStreamMetadataStore(
-                segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), GrpcAuthHelper.getDisabledAuthHelper())) {
+                segmentHelperMockForTables, cli, executor, Duration.ofSeconds(100), AuthHelper.getDisabledAuthHelper())) {
             AtomicInteger currentBatch = new AtomicInteger(0);
             Supplier<Integer> supplier = currentBatch::get;
             ZKGarbageCollector gc = mock(ZKGarbageCollector.class);

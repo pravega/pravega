@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -403,7 +403,7 @@ public class LocalController implements Controller {
 
     public String retrieveDelegationToken() {
         if (authorizationEnabled) {
-            return GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
+            return PravegaInterceptor.retrieveMasterToken(tokenSigningKey);
         } else {
             return StringUtils.EMPTY;
         }
@@ -413,7 +413,7 @@ public class LocalController implements Controller {
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         String retVal = "";
         if (authorizationEnabled) {
-            retVal = GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
+            retVal = PravegaInterceptor.retrieveMasterToken(tokenSigningKey);
         }
         return CompletableFuture.completedFuture(retVal);
     }

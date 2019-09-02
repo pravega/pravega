@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@ import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
 import lombok.Cleanup;
@@ -56,9 +55,7 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
     ClientConfig prepareValidClientConfig() {
         return ClientConfig.builder()
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
-                .credentials(new DefaultCredentials(
-                        SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
-                        SecurityConfigDefaults.AUTH_ADMIN_USERNAME))
+                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                 .build();
     }
 

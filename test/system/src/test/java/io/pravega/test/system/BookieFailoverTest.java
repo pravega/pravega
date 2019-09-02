@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,10 +10,10 @@
 
 package io.pravega.test.system;
 
+import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -114,21 +114,20 @@ public class BookieFailoverTest extends AbstractFailoverTests  {
 
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
                 "BookieFailoverTest-controller");
-
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                .clientConfig(Utils.buildClientConfig(controllerURIDirect))
+                .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
                 .maxBackoffMillis(5000).build(),
                 controllerExecutorService);
 
         testState = new TestState(false);
         //read and write count variables
         testState.writersListComplete.add(0, testState.writersComplete);
-        streamManager = new StreamManagerImpl(Utils.buildClientConfig(controllerURIDirect));
+        streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(SCOPE, STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", SCOPE);
-        clientFactory = new ClientFactoryImpl(SCOPE, controller, new ConnectionFactoryImpl(Utils.buildClientConfig(controllerURIDirect)));
-        readerGroupManager = ReaderGroupManager.withScope(SCOPE, Utils.buildClientConfig(controllerURIDirect));
+        clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        readerGroupManager = ReaderGroupManager.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerURIDirect).build());
     }
 
     @After

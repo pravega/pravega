@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -10,7 +10,6 @@
 package io.pravega.controller.server.rpc.auth;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
 import io.grpc.ServerInterceptors;
@@ -18,7 +17,6 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
-import io.grpc.stub.StreamObserver;
 import io.pravega.auth.AuthHandler;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
@@ -62,7 +60,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnId;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceBlockingStub;
-import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.AssertExtensions;
@@ -84,7 +81,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -151,7 +148,7 @@ public class ControllerGrpcAuthFocusedTest {
                         .credentials(new DefaultCredentials(DEFAULT_PASSWORD, UserNames.ADMIN))
                         .build());
 
-        GrpcAuthHelper authHelper = new GrpcAuthHelper(true, "secret", 300);
+        AuthHelper authHelper = new AuthHelper(true, "secret");
 
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
                 EXECUTOR, "host", authHelper, requestTracker);
@@ -196,7 +193,7 @@ public class ControllerGrpcAuthFocusedTest {
         // https://grpc.io/grpc-java/javadoc/io/grpc/inprocess/InProcessServerBuilder.html for more information.
         grpcServer = InProcessServerBuilder.forName(uniqueServerName)
                 .addService(ServerInterceptors.intercept(controllerServiceImplBase,
-                        new AuthInterceptor(authHandler)))
+                        new PravegaInterceptor(authHandler)))
                 .directExecutor()
                 .build()
                 .start();
@@ -219,7 +216,7 @@ public class ControllerGrpcAuthFocusedTest {
     public void createScopeSucceedsForPrivilegedUser() {
         //Arrange
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
-                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+                prepareCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
 
         //Act
         CreateScopeStatus status = blockingStub.createScope(Controller.ScopeInfo.newBuilder().setScope("dummy").build());
@@ -232,7 +229,7 @@ public class ControllerGrpcAuthFocusedTest {
     public void createScopeFailsForUnauthorizedUser() {
         //Arrange
         ControllerServiceGrpc.ControllerServiceBlockingStub blockingStub =
-                prepareBlockingCallStub(UserNames.SCOPE_READER, DEFAULT_PASSWORD);
+                prepareCallStub(UserNames.SCOPE_READER, DEFAULT_PASSWORD);
 
         //Verify
         thrown.expect(StatusRuntimeException.class);
@@ -246,7 +243,7 @@ public class ControllerGrpcAuthFocusedTest {
     public void createScopeFailsForNonExistentUser() {
         //Arrange
         ControllerServiceBlockingStub blockingStub =
-                prepareBlockingCallStub("whatever", "whatever");
+                prepareCallStub("whatever", "whatever");
 
         //Verify
         thrown.expect(StatusRuntimeException.class);
@@ -264,7 +261,7 @@ public class ControllerGrpcAuthFocusedTest {
         //Arrange
         createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
 
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
 
         //Act
         NodeUri nodeUri1 = stub.getURI(segmentId(scope, stream, 0));
@@ -284,7 +281,7 @@ public class ControllerGrpcAuthFocusedTest {
 
         //Arrange
         createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub("nonexistentuser", "whatever");
+        ControllerServiceBlockingStub stub = prepareCallStub("nonexistentuser", "whatever");
 
         //Verify
         thrown.expect(StatusRuntimeException.class);
@@ -299,7 +296,7 @@ public class ControllerGrpcAuthFocusedTest {
         String scope = "scope1";
         String stream = "stream1";
         createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE1_STREAM1_READ, DEFAULT_PASSWORD);
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE1_STREAM1_READ, DEFAULT_PASSWORD);
 
         assertTrue(stub.isSegmentValid(segmentId(scope, stream, 0)).getResponse());
         assertFalse(stub.isSegmentValid(segmentId(scope, stream, 3)).getResponse());
@@ -312,7 +309,7 @@ public class ControllerGrpcAuthFocusedTest {
         createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
 
         //Note that the user has READ access to scope1/stream2, not scope1/stream1.
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE1_STREAM2_READ, DEFAULT_PASSWORD);
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE1_STREAM2_READ, DEFAULT_PASSWORD);
 
         //Set the expected exception
         thrown.expect(StatusRuntimeException.class);
@@ -330,7 +327,7 @@ public class ControllerGrpcAuthFocusedTest {
         createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
         TxnId transactionId = createTransaction(StreamInfo.newBuilder().setScope(scope).setStream(stream).build(), 2000);
 
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE1_STREAM1_READUPDATE, DEFAULT_PASSWORD);
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE1_STREAM1_READUPDATE, DEFAULT_PASSWORD);
 
         PingTxnStatus status = stub.pingTransaction(Controller.PingTxnRequest.newBuilder()
                     .setStreamInfo(StreamInfo.newBuilder().setScope(scope).setStream(stream).build())
@@ -348,7 +345,7 @@ public class ControllerGrpcAuthFocusedTest {
         createScopeAndStream(scope, stream, prepareFromFixedScaleTypePolicy(2));
         TxnId transactionId = createTransaction(StreamInfo.newBuilder().setScope(scope).setStream(stream).build(), 2000);
 
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE1_STREAM1_READ, DEFAULT_PASSWORD);
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE1_STREAM1_READ, DEFAULT_PASSWORD);
 
         //Set the expected exception
         thrown.expect(StatusRuntimeException.class);
@@ -361,8 +358,9 @@ public class ControllerGrpcAuthFocusedTest {
                 .build());
     }
 
+
     @Test
-    public void listStreamsReturnsAllWhenUserHasWildCardAccessUsingBlockingStub() {
+    public void listStreamsReturnsAllWhenUserHasWildCardAccess() {
         // Arrange
         String scopeName = "scope1";
         createScopeAndStreams(scopeName, Arrays.asList("stream1", "stream2"),
@@ -372,7 +370,8 @@ public class ControllerGrpcAuthFocusedTest {
                 .newBuilder().setScope(
                         Controller.ScopeInfo.newBuilder().setScope(scopeName).build())
                 .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
 
         // Act
         Controller.StreamsInScopeResponse response = stub.listStreamsInScope(request);
@@ -382,32 +381,11 @@ public class ControllerGrpcAuthFocusedTest {
     }
 
     @Test
-    public void listStreamsReturnsAllWhenUserHasWildCardAccessUsingAsyncStub() {
-        // Arrange
-        String scopeName = "scope1";
-        createScopeAndStreams(scopeName, Arrays.asList("stream1", "stream2"),
-                prepareFromFixedScaleTypePolicy(2));
-
-        Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
-                .newBuilder().setScope(
-                        Controller.ScopeInfo.newBuilder().setScope(scopeName).build())
-                .setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
-
-        ControllerServiceStub stub = prepareNonBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
-        ResultObserver<Controller.StreamsInScopeResponse> responseObserver = new ResultObserver<>();
-        stub.listStreamsInScope(request, responseObserver);
-        List<Controller.StreamInfo> streamsInResponse = responseObserver.get().getStreamsList();
-
-        assertFalse(Strings.isNullOrEmpty(responseObserver.get().getContinuationToken().getToken()));
-        assertEquals(2, streamsInResponse.size());
-    }
-
-    @Test
     public void listStreamReturnsEmptyResultWhenUserHasNoAccessToStreams() {
         // Arrange
         createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
                 prepareFromFixedScaleTypePolicy(2));
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE1_READ, DEFAULT_PASSWORD);
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE1_READ, DEFAULT_PASSWORD);
         Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
                 .newBuilder().setScope(
                         Controller.ScopeInfo.newBuilder().setScope("scope1").build())
@@ -425,7 +403,7 @@ public class ControllerGrpcAuthFocusedTest {
         // Arrange
         createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
                 prepareFromFixedScaleTypePolicy(2));
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE1_STREAM1_LIST_READ, DEFAULT_PASSWORD);
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE1_STREAM1_LIST_READ, DEFAULT_PASSWORD);
         Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
                 .newBuilder().setScope(
                         Controller.ScopeInfo.newBuilder().setScope("scope1").build())
@@ -444,7 +422,7 @@ public class ControllerGrpcAuthFocusedTest {
         createScopeAndStreams("scope1", Arrays.asList("stream1", "stream2", "stream3"),
                 prepareFromFixedScaleTypePolicy(2));
 
-        ControllerServiceBlockingStub stub = prepareBlockingCallStub(UserNames.SCOPE2_READ, DEFAULT_PASSWORD);
+        ControllerServiceBlockingStub stub = prepareCallStub(UserNames.SCOPE2_READ, DEFAULT_PASSWORD);
         Controller.StreamsInScopeRequest request = Controller.StreamsInScopeRequest
                 .newBuilder().setScope(
                         Controller.ScopeInfo.newBuilder().setScope("scope1").build())
@@ -457,6 +435,14 @@ public class ControllerGrpcAuthFocusedTest {
     }
 
     //region Private methods
+
+    private static TxnId decode(UUID txnId) {
+        Preconditions.checkNotNull(txnId, "txnId");
+        return Controller.TxnId.newBuilder()
+                .setHighBits(txnId.getMostSignificantBits())
+                .setLowBits(txnId.getLeastSignificantBits())
+                .build();
+    }
 
     private TxnId createTransaction(StreamInfo streamInfo, int lease) {
         Preconditions.checkNotNull(streamInfo, "streamInfo");
@@ -472,7 +458,7 @@ public class ControllerGrpcAuthFocusedTest {
                 .setLease(lease)
                 .build();
 
-        Controller.CreateTxnResponse response = prepareBlockingCallStub(username, password).createTransaction(request);
+        Controller.CreateTxnResponse response = prepareCallStub(username, password).createTransaction(request);
         return response.getTxnId();
     }
 
@@ -485,27 +471,12 @@ public class ControllerGrpcAuthFocusedTest {
                 .build();
     }
 
-    private ControllerServiceBlockingStub prepareBlockingCallStub(String username, String password) {
+    private ControllerServiceBlockingStub prepareCallStub(String username, String password) {
         Exceptions.checkNotNullOrEmpty(username, "username");
         Exceptions.checkNotNullOrEmpty(password, "password");
 
         ControllerServiceBlockingStub stub =
                 ControllerServiceGrpc.newBlockingStub(inProcessChannel);
-
-        // Set call credentials
-        Credentials credentials = new DefaultCredentials(password, username);
-        if (credentials != null) {
-            PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
-            stub = stub.withCallCredentials(MoreCallCredentials.from(wrapper));
-        }
-        return stub;
-    }
-
-    private ControllerServiceStub prepareNonBlockingCallStub(String username, String password) {
-        Exceptions.checkNotNullOrEmpty(username, "username");
-        Exceptions.checkNotNullOrEmpty(password, "password");
-
-        ControllerServiceGrpc.ControllerServiceStub stub = ControllerServiceGrpc.newStub(inProcessChannel);
 
         // Set call credentials
         Credentials credentials = new DefaultCredentials(password, username);
@@ -536,7 +507,7 @@ public class ControllerGrpcAuthFocusedTest {
         Preconditions.checkNotNull(scalingPolicy, "scalingPolicy");
 
         ControllerServiceBlockingStub stub =
-                prepareBlockingCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
+                prepareCallStub(UserNames.ADMIN, DEFAULT_PASSWORD);
         createScope(stub, scopeName);
 
         streamNames.stream().forEach(n -> createStream(stub, scopeName, n, scalingPolicy));
@@ -601,29 +572,5 @@ public class ControllerGrpcAuthFocusedTest {
         private final static String SCOPE1_STREAM1_READ = "authSc1Str1readonly";
         private final static String SCOPE1_STREAM2_READ = "authSc1Str2readonly";
         private final static String SCOPE1_STREAM1_LIST_READ = "scope1stream1lr";
-    }
-
-    static class ResultObserver<T> implements StreamObserver<T> {
-        private T result = null;
-        private final CompletableFuture<T> future = new CompletableFuture<>();
-
-        @Override
-        public void onNext(T value) {
-            result = value;
-        }
-
-        @Override
-        public void onError(Throwable t) {
-            future.completeExceptionally(t);
-        }
-
-        @Override
-        public void onCompleted() {
-            future.complete(result);
-        }
-
-        public T get() {
-            return future.join();
-        }
     }
 }

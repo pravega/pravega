@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,18 +44,14 @@ import java.net.URI;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.common.Exceptions.checkNotNullOrEmpty;
 import static java.util.Collections.singletonList;
 
-@Slf4j
 public abstract class AbstractService implements Service {
 
     public static final int CONTROLLER_GRPC_PORT = 9090;
     public static final int CONTROLLER_REST_PORT = 10080;
-    protected static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
-    protected static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     protected static final String TCP = "tcp://";
     static final int DEFAULT_CONTROLLER_COUNT = 1;
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
@@ -78,9 +74,11 @@ public abstract class AbstractService implements Service {
     static final String PRAVEGA_ID = "pravega";
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
+    private static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
     private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
     private static final String PRAVEGA_OPERATOR_IMAGE = System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest");
+    private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
@@ -99,8 +97,8 @@ public abstract class AbstractService implements Service {
         return id;
     }
 
-    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
-    return k8sClient.createCRD(getPravegaCRD())
+    CompletableFuture<Object> deployPravegaUsingOperator(final URI zkUri, int controllerCount, int segmentStoreCount, int bookieCount) {
+        return k8sClient.createCRD(getPravegaCRD())
                         .thenCompose(v -> k8sClient.createRole(NAMESPACE, getPravegaOperatorRole()))
                         .thenCompose(v -> k8sClient.createRoleBinding(NAMESPACE, getPravegaOperatorRoleBinding()))
                         //deploy pravega operator.
@@ -113,10 +111,11 @@ public abstract class AbstractService implements Service {
                                                                                 getPravegaDeployment(zkUri.getAuthority(),
                                                                                                    controllerCount,
                                                                                                    segmentStoreCount,
-                                                                                                   bookieCount, props)));
+                                                                                                   bookieCount)));
     }
 
-    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
+    private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount) {
+
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
         // use the latest version of bookkeeper.
@@ -132,15 +131,27 @@ public abstract class AbstractService implements Service {
 
         // generate Pravega Spec.
         final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
-
+        final ImmutableMap<String, String> options = ImmutableMap.<String, String>builder()
+                // Segment store properties.
+                .put("autoScale.muteInSeconds", "120")
+                .put("autoScale.cooldownInSeconds", "120")
+                .put("autoScale.cacheExpiryInSeconds", "120")
+                .put("autoScale.cacheCleanUpInSeconds", "120")
+                .put("curator-default-session-timeout", "10000")
+                .put("bookkeeper.bkAckQuorumSize", "3")
+                .put("hdfs.replaceDataNodesOnFailure", "false")
+                // Controller properties.
+                .put("controller.transaction.maxLeaseValue", "120000")
+                .put("controller.retention.frequencyMinutes", "2")
+                .put("log.level", "DEBUG")
+                .build();
         final Map<String, Object> pravegaSpec = ImmutableMap.<String, Object>builder().put("controllerReplicas", controllerCount)
                                                                                       .put("segmentStoreReplicas", segmentStoreCount)
                                                                                       .put("debugLogging", true)
                                                                                       .put("cacheVolumeClaimTemplate", pravegaPersistentVolumeSpec)
-                                                                                      //.put("options", props.getProperties())
-                                                                                      .put("options", props)
+                                                                                      .put("options", options)
                                                                                       .put("image",
-                                                                                       getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME, PRAVEGA_VERSION))
+                                                                                           getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + PRAVEGA_IMAGE_NAME, PRAVEGA_VERSION))
                                                                                       .put("tier2", tier2Spec())
                                                                                       .build();
         return ImmutableMap.<String, Object>builder()
@@ -154,7 +165,7 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    protected Map<String, Object> getImageSpec(String imageName, String tag) {
+    private Map<String, Object> getImageSpec(String imageName, String tag) {
         return ImmutableMap.<String, Object>builder().put("repository", imageName)
                                                      .put("tag", tag)
                                                      .put("pullPolicy", IMAGE_PULL_POLICY)

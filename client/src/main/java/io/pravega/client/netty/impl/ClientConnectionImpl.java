@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,7 +63,6 @@ public class ClientConnectionImpl implements ClientConnection {
             nettyHandler.setRecentMessage();
 
             channel = nettyHandler.getChannel();
-            log.debug("Write and flush message {} on channel {}", cmd, channel);
             channel.writeAndFlush(cmd)
                    .addListener((Future<? super Void> f) -> {
                        if (f.isSuccess()) {
@@ -73,7 +72,7 @@ public class ClientConnectionImpl implements ClientConnection {
                        }
                    });
         } catch (ConnectionFailedException cfe) {
-            log.debug("ConnectionFailedException observed when attempting to write WireCommand {} ", cmd);
+            log.debug("ConnectionFaileException observed when attempting to write WireCommand {} ", cmd);
             callback.complete(cfe);
         } catch (Exception e) {
             log.warn("Exception while attempting to write WireCommand {} on netty channel {}", cmd, channel);

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,8 +12,6 @@ package io.pravega.local;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import java.net.URI;
-
-import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Before;
@@ -53,12 +51,11 @@ public class SecurePravegaClusterTest extends InProcPravegaClusterTest {
                 .controllerURI(URI.create(localPravega.getInProcPravegaCluster().getControllerURI()))
 
                 // TLS-related
-                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .trustStore("../config/cert.pem")
                 .validateHostName(false)
 
                 // Auth-related
-                .credentials(new DefaultCredentials(SecurityConfigDefaults.AUTH_ADMIN_PASSWORD,
-                        SecurityConfigDefaults.AUTH_ADMIN_USERNAME))
+                .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                 .build();
     }
 

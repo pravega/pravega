@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -102,24 +102,6 @@ public class ZKStoreHelperTest {
         // let session get expired.
         // now read the data again. Verify that node no longer exists
         AssertExtensions.assertFutureThrows("", Futures.delayedFuture(() -> zkStoreHelper.getData("/testEphemeral", x -> x), 1000, executor),
-                e -> e instanceof StoreException.DataNotFoundException);
-    }
-    
-    @Test
-    public void testGetChildren() {
-        zkStoreHelper.createZNodeIfNotExist("/1").join();
-        zkStoreHelper.createZNodeIfNotExist("/1/1").join();
-        zkStoreHelper.createZNodeIfNotExist("/1/2").join();
-        zkStoreHelper.createZNodeIfNotExist("/1/3").join();
-        zkStoreHelper.createZNodeIfNotExist("/1/4").join();
-        zkStoreHelper.createZNodeIfNotExist("/1/1/1").join();
-        zkStoreHelper.createZNodeIfNotExist("/1/1/2").join();
-        assertEquals(zkStoreHelper.getChildren("/1").join().size(), 4);
-        assertEquals(zkStoreHelper.getChildren("/1/1").join().size(), 2);
-        assertEquals(zkStoreHelper.getChildren("/1/1/2").join().size(), 0);
-        assertEquals(zkStoreHelper.getChildren("/112").join().size(), 0);
-        AssertExtensions.assertFutureThrows("data not found",
-                zkStoreHelper.getChildren("/112", false),
                 e -> e instanceof StoreException.DataNotFoundException);
     }
     

@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.ClientConfig;
-import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -105,10 +104,7 @@ public class ConnectionPoolingTest {
         final SslContext sslCtx;
         if (ssl) {
             try {
-                sslCtx = SslContextBuilder.forServer(
-                        new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
-                        new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH))
-                        .build();
+                sslCtx = SslContextBuilder.forServer(new File("../config/cert.pem"), new File("../config/key.pem")).build();
             } catch (SSLException e) {
                 throw new RuntimeException(e);
             }
@@ -166,7 +162,7 @@ public class ConnectionPoolingTest {
         ClientConfig clientConfig = ClientConfig.builder()
                 .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://")
                                           + "localhost"))
-                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                .trustStore("../config/cert.pem")
                 .maxConnectionsPerSegmentStore(1)
                 .build();
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig);
@@ -248,7 +244,7 @@ public class ConnectionPoolingTest {
         ClientConfig clientConfig = ClientConfig.builder()
                                                 .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://")
                                                         + "localhost"))
-                                                .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
+                                                .trustStore("../config/cert.pem")
                                                 .maxConnectionsPerSegmentStore(1)
                                                 .build();
         ConnectionPoolImpl connectionPool = new ConnectionPoolImpl(clientConfig);

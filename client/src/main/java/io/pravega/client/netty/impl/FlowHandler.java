@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -280,6 +280,10 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                     log.debug("{} flows are not closed", openFlowCount);
                     // ensure all the ReplyProcessors are informed immediately about the channel being closed.
                     invokeProcessingFailureForAllFlows(new ConnectionClosedException());
+                }
+                final int appendTrackerCount = flowIDBatchSizeTrackerMap.size();
+                if (appendTrackerCount != 0) {
+                    log.warn("{} AppendBatchSizeTrackers are not closed", appendTrackerCount);
                 }
                 final int appendTrackerCount = flowIDBatchSizeTrackerMap.size();
                 if (appendTrackerCount != 0) {

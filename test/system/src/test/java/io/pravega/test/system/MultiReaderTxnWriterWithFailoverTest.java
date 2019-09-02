@@ -1,10 +1,11 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  */
 package io.pravega.test.system;
 
@@ -12,7 +13,6 @@ import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
@@ -95,20 +95,23 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         assertTrue(segmentStoreInstance.isRunning());
         log.info("Pravega Segmentstore service instance details: {}", segmentStoreInstance.getServiceDetails());
         //executor service
-        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 2, "MultiReaderTxnWriterWithFailoverTest-main");
-        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2, "MultiReaderTxnWriterWithFailoverTest-controller");
-        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
+        executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 2,
+                                                                        "MultiReaderTxnWriterWithFailoverTest-main");
+        controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
+                                                                                  "MultiReaderTxnWriterWithFailoverTest-controller");
         //get Controller Uri
-        controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                            .clientConfig(clientConfig)
-                                                            .maxBackoffMillis(5000).build(), controllerExecutorService);
+        controller = new ControllerImpl(
+                                        ControllerImplConfig.builder()
+                                                            .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                                            .maxBackoffMillis(5000).build(),
+                                        controllerExecutorService);
         testState = new TestState(true);
         //read and write count variables
-        streamManager = new StreamManagerImpl(clientConfig);
+        streamManager = new StreamManagerImpl( ClientConfig.builder().controllerURI(controllerURIDirect).build());
         createScopeAndStream(scope, STREAM_NAME, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
-        clientFactory = new ClientFactoryImpl(scope, controller, new ConnectionFactoryImpl(clientConfig));
-        readerGroupManager = ReaderGroupManager.withScope(scope, clientConfig);
+        clientFactory = new ClientFactoryImpl(scope, controller);
+        readerGroupManager = ReaderGroupManager.withScope(scope,  ClientConfig.builder().controllerURI(controllerURIDirect).build());
     }
 
     @After
@@ -125,7 +128,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
         //scale the controller and segmentStore back to 1 instance.
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
-    }
+}
 
     @Test
     public void multiReaderTxnWriterWithFailOverTest() throws Exception {
