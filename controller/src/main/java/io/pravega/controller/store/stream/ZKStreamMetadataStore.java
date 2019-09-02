@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoCloseable {
-    @VisibleForTesting
     /**
      * This constant defines the size of the block of counter values that will be used by this controller instance.
      * The controller will try to get current counter value from zookeeper. It then tries to update the value in store
@@ -48,6 +47,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
      * a controller crashes.
      * Since we use a 96 bit number for our counter, so
      */
+    @VisibleForTesting
     static final String SCOPE_ROOT_PATH = "/store";
     static final String DELETED_STREAMS_PATH = "/lastActiveStreamSegment/%s";
     private static final String TRANSACTION_ROOT_PATH = "/transactions";
@@ -56,7 +56,7 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
     static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
     static final String COMPLETED_TX_BATCH_ROOT_PATH = COMPLETED_TX_ROOT_PATH + "/batches";
     static final String COMPLETED_TX_BATCH_PATH = COMPLETED_TX_BATCH_ROOT_PATH + "/%d";
-    
+
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private ZKStoreHelper storeHelper;
@@ -150,11 +150,12 @@ class ZKStreamMetadataStore extends AbstractStreamMetadataStore implements AutoC
 
     @Override
     public CompletableFuture<List<String>> listScopes() {
-        return storeHelper.getChildren(SCOPE_ROOT_PATH);
+        return storeHelper.getChildren(SCOPE_ROOT_PATH)
+                .thenApply(children -> children.stream().filter(x -> !x.equals(ZKScope.STREAMS_IN_SCOPE)).collect(Collectors.toList()));
     }
 
     @Override
-    public CompletableFuture<CreateStreamResponse> createStream(String scope, String name, StreamConfiguration configuration, 
+    public CompletableFuture<CreateStreamResponse> createStream(String scope, String name, StreamConfiguration configuration,
                                                                 long createTimestamp, OperationContext context, Executor executor) {
         ZKScope zkScope = (ZKScope) getScope(scope);
         ZKStream zkStream = (ZKStream) getStream(scope, name, context);

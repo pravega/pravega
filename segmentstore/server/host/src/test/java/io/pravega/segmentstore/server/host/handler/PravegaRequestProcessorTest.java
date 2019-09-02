@@ -11,6 +11,7 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.HashedArray;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -37,6 +38,7 @@ import io.pravega.segmentstore.server.store.ServiceConfig;
 import io.pravega.segmentstore.server.store.StreamSegmentService;
 import io.pravega.shared.metrics.MetricsConfig;
 import io.pravega.shared.metrics.MetricsProvider;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -1008,7 +1010,7 @@ public class PravegaRequestProcessorTest {
 
     private boolean append(String streamSegmentName, int number, StreamSegmentStore store) {
         return Futures.await(store.append(streamSegmentName,
-                new byte[]{(byte) number},
+                new ByteBufWrapper(Unpooled.wrappedBuffer(new byte[]{(byte) number})),
                 null,
                 PravegaRequestProcessor.TIMEOUT));
     }

@@ -43,7 +43,7 @@ public class ZKHostStore implements HostControllerStore {
     private final CuratorFramework zkClient;
 
     private final Object lock = new Object();
-    
+
     @GuardedBy("$lock")
     //To bootstrap zookeeper on first use.
     private boolean zkInit = false;
@@ -54,7 +54,7 @@ public class ZKHostStore implements HostControllerStore {
 
     private final AtomicReference<HostContainerMap> hostContainerMap;
     /**
-     * The tests can add listeners to get notification when the update has happed in the store. 
+     * The tests can add listeners to get notification when the update has happed in the store.
      */
     private final AtomicReference<Listener> listenerRef;
     /**
@@ -78,7 +78,7 @@ public class ZKHostStore implements HostControllerStore {
     @SneakyThrows(Exception.class)
     private void tryInit() {
         if (!zkInit) {
-            // we are making remote calls under a lock but this is only done for initialization at 
+            // we are making remote calls under a lock but this is only done for initialization at
             // the start of controller process.
             ZKUtils.createPathIfNotExists(zkClient, zkPath, HostContainerMap.EMPTY.toBytes());
             hostContainerMapNode.getListenable().addListener(this::updateMap);
@@ -104,7 +104,7 @@ public class ZKHostStore implements HostControllerStore {
 
         return hostContainerMap.get().getHostContainerMap();
     }
-    
+
     @Override
     public void updateHostContainersMap(Map<Host, Set<Integer>> newMapping) {
         Preconditions.checkNotNull(newMapping, "newMapping");
@@ -121,7 +121,7 @@ public class ZKHostStore implements HostControllerStore {
     private Host getHostForContainer(int containerId) {
         tryInit();
 
-        // Note: the reference for hostContainerMap may be updated as we are accessing it. However, the map is immutable. 
+        // Note: the reference for hostContainerMap may be updated as we are accessing it. However, the map is immutable.
         Optional<Host> host = hostContainerMap.get().getHostContainerMap().entrySet().stream()
                                      .filter(x -> x.getValue().contains(containerId)).map(Map.Entry::getKey).findAny();
         if (host.isPresent()) {
@@ -131,12 +131,12 @@ public class ZKHostStore implements HostControllerStore {
             throw new HostStoreException("Could not find host for container id: " + String.valueOf(containerId));
         }
     }
-    
+
     @Override
     public int getContainerCount() {
         return segmentMapper.getTotalContainerCount();
     }
-    
+
     @Override
     public Host getHostForSegment(String scope, String stream, long segmentId) {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
@@ -147,17 +147,17 @@ public class ZKHostStore implements HostControllerStore {
     public Host getHostForTableSegment(String tableName) {
         return getHostForContainer(segmentMapper.getContainerId(tableName));
     }
-    
+
     @VisibleForTesting
     public void addListener(Listener listener) {
         this.listenerRef.set(listener);
     }
-    
+
+    /**
+     * Functional interface to notify tests about changes to the map as they occur.
+     */
     @VisibleForTesting
     @FunctionalInterface
-    /**
-     * Functional interface to notify tests about changes to the map as they occur.  
-     */
     public interface Listener {
         void signal();
     }

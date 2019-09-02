@@ -29,9 +29,8 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.CommitRequest
 import io.pravega.controller.server.eventProcessor.requesthandlers.ScaleOperationTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TaskExceptions;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
-import io.pravega.controller.store.stream.EpochTransitionOperationExceptions;
 import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
@@ -142,10 +141,10 @@ public abstract class ScaleRequestHandlerTest {
         clientFactory = mock(EventStreamClientFactory.class);
         SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
-                executor, hostId, AuthHelper.getDisabledAuthHelper(), requestTracker);
+                executor, hostId, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
         streamMetadataTasks.initializeStreamWriters(clientFactory, Config.SCALE_STREAM_NAME);
         streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, 
-                segmentHelper, executor, hostId, AuthHelper.getDisabledAuthHelper());
+                segmentHelper, executor, hostId, GrpcAuthHelper.getDisabledAuthHelper());
 
         long createTimestamp = System.currentTimeMillis();
 
@@ -258,8 +257,8 @@ public abstract class ScaleRequestHandlerTest {
         // This will bring down the test duration drastically because a retryable failure can keep retrying for few seconds.
         // And if someone changes retry durations and number of attempts in retry helper, it will impact this test's running time.
         // hence sending incorrect segmentsToSeal list which will result in a non retryable failure and this will fail immediately
-        assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(6L),
-                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.0, 1.0)), false, System.currentTimeMillis(), System.currentTimeMillis()))));
+        assertFalse(Futures.await(multiplexer.process(new ScaleOpEvent(scope, stream, Lists.newArrayList(five),
+                Lists.newArrayList(new AbstractMap.SimpleEntry<>(0.5, 1.0)), false, System.currentTimeMillis(), System.currentTimeMillis()))));
         activeSegments = streamStore.getActiveSegments(scope, stream, null, executor).get();
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == three));
         assertTrue(activeSegments.stream().noneMatch(z -> z.segmentId() == four));
@@ -798,8 +797,7 @@ public abstract class ScaleRequestHandlerTest {
         this.streamStore.setState(scope, stream, State.SCALING, null, executor).join();
 
         // rerun same auto scaling job. 
-        AssertExtensions.assertSuppliedFutureThrows("", () -> scaleRequestHandler.execute(event2),
-                e -> Exceptions.unwrap(e) instanceof EpochTransitionOperationExceptions.PreConditionFailureException);
+        scaleRequestHandler.execute(event2).join();
         assertEquals(State.ACTIVE, streamStore.getState(scope, stream, true, null, executor).join());
         assertEquals(2, streamStore.getActiveEpoch(scope, stream, null, true, executor).join().getEpoch());
 

@@ -10,15 +10,17 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.common.MathHelpers;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Random;
 import java.util.UUID;
-
 import lombok.val;
 import org.junit.Assert;
+import org.junit.Test;
 
 /**
  * Unit tests for StreamSegmentAppendOperation class.
@@ -32,7 +34,7 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
         byte[] data = new byte[random.nextInt(MAX_LENGTH - MIN_LENGTH) + MIN_LENGTH];
         random.nextBytes(data);
         val attributes = createAttributes();
-        return new StreamSegmentAppendOperation(random.nextLong(), data, attributes);
+        return new StreamSegmentAppendOperation(random.nextLong(), new ByteArraySegment(data), attributes);
     }
 
     @Override
@@ -57,5 +59,32 @@ public class StreamSegmentAppendOperationTests extends OperationTestsBase<Stream
         }
 
         return result;
+    }
+
+    @Test
+    public void testReferences() {
+        val buf = new RefCountByteArraySegment(new byte[1]);
+        val op = new StreamSegmentAppendOperation(1L, buf, Collections.emptyList());
+        Assert.assertEquals("Expected an invocation to BufferView.retain().", 1, buf.refCount);
+        op.close();
+        Assert.assertEquals("Expected an invocation to BufferView.release().", 0, buf.refCount);
+    }
+
+    private static class RefCountByteArraySegment extends ByteArraySegment {
+        private int refCount = 0;
+
+        RefCountByteArraySegment(byte[] array) {
+            super(array);
+        }
+
+        @Override
+        public void retain() {
+            this.refCount++;
+        }
+
+        @Override
+        public void release() {
+            this.refCount--;
+        }
     }
 }

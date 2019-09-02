@@ -32,6 +32,10 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class ZkOrderedStoreTest {
     //Ensure each test completes within 30 seconds.
@@ -130,5 +134,19 @@ public class ZkOrderedStoreTest {
         store.removeEntities(scope, stream, Collections.singletonList(position5)).join();
         // verify that collection 2 is not deleted as it is not sealed
         assertFalse(store.isDeleted(scope, stream, 2).join());
+    }
+
+    @Test
+    public void testSync() {
+        String test = "test";
+        String scope = "test";
+        String stream = "test";
+        ZKStoreHelper zkStoreHelper = spy(this.zkStoreHelper);
+        ZkOrderedStore store = new ZkOrderedStore(test, zkStoreHelper, executor, 1);
+        
+        store.addEntity(scope, stream, test + 1).join();
+        store.getEntitiesWithPosition(scope, stream).join();
+        
+        verify(zkStoreHelper, times(1)).sync(any());
     }
 }

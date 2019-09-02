@@ -16,7 +16,6 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
-import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -37,7 +36,6 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.task.TaskData;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -157,6 +155,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.listStreamsInScope(streamsInScopeRequest1, streamsInScopeResponse1);
         List<Controller.StreamInfo> list = streamsInScopeResponse1.get().getStreamsList();
         // check continuation token
+        assertEquals(streamsInScopeResponse1.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
         assertFalse(Strings.isNullOrEmpty(streamsInScopeResponse1.get().getContinuationToken().getToken()));
         assertEquals(2, list.size());
 
@@ -166,6 +165,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.listStreamsInScope(streamsInScopeRequest2, streamsInScopeResponse2);
         list = streamsInScopeResponse2.get().getStreamsList();
         // check continuation token
+        assertEquals(streamsInScopeResponse1.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
         assertFalse(Strings.isNullOrEmpty(streamsInScopeResponse2.get().getContinuationToken().getToken()));
         assertEquals(1, list.size());
 
@@ -175,6 +175,7 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.listStreamsInScope(streamsInScopeRequest3, streamsInScopeResponse3);
         list = streamsInScopeResponse3.get().getStreamsList();
         // check continuation token
+        assertEquals(streamsInScopeResponse1.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
         assertEquals(streamsInScopeResponse2.get().getContinuationToken().getToken(), streamsInScopeResponse3.get().getContinuationToken().getToken());
         assertEquals(0, list.size());
 
@@ -186,7 +187,13 @@ public abstract class ControllerServiceImplTest {
         assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM1)));
         assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM2)));
         assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM3)));
-        
+
+        Controller.StreamsInScopeRequest nonExistentScopeRequest = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(ScopeInfo.newBuilder().setScope("NonExistent").build()).setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+        ResultObserver<Controller.StreamsInScopeResponse> nonExistentScopeResponse = new ResultObserver<>();
+
+        this.controllerService.listStreamsInScope(nonExistentScopeRequest, nonExistentScopeResponse);
+        assertEquals(nonExistentScopeResponse.get().getStatus(), Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND);
     }
 
     @Test
@@ -303,33 +310,7 @@ public abstract class ControllerServiceImplTest {
         status = result6.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
     }
-
-    @Test
-    public void testCreateStreamThrowsLockFailed() {
-        // Check that concurrent calls to create a stream throw FailedLockingException
-        final String lockingScope = "locking-scope";
-        final String lockingStream = "locking";
-        final ScalingPolicy policy = ScalingPolicy.fixed(2);
-        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(policy).build();
-
-        ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
-        this.controllerService.createScope(ScopeInfo.newBuilder().setScope(lockingScope).build(), result);
-        Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
-
-        ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
-        ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
-        this.blockCriticalSection();
-        this.controllerService.createStream(ModelHelper.decode(lockingScope, lockingStream, configuration), result1);
-        this.controllerService.createStream(ModelHelper.decode(lockingScope, lockingStream, configuration), result2);
-        AssertExtensions.assertThrows(
-                "Concurrent call to create stream did not fail to lock or has thrown something else.",
-                () -> {
-                    result2.get();
-                    result1.get();
-                },
-                ex -> ex.getCause() instanceof LockFailedException);
-    }
-
+    
     @Test
     public void updateStreamTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
@@ -779,12 +760,4 @@ public abstract class ControllerServiceImplTest {
             }
         }
     }
-
-    /**
-     * Blocks call inside a critical section started with
-     * {@link TaskMetadataStore#lock(Resource, TaskData, String, String, String, String)} to force a concurrent
-     * execution.
-     */
-    abstract void blockCriticalSection();
-
 }

@@ -10,7 +10,7 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.controller.server.SegmentHelper;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.client.StoreClient;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.controller.util.Config;
@@ -22,7 +22,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public class StreamStoreFactory {
     public static StreamMetadataStore createStore(final StoreClient storeClient, final SegmentHelper segmentHelper,
-                                                  final AuthHelper authHelper, final ScheduledExecutorService executor) {
+                                                  final GrpcAuthHelper authHelper, final ScheduledExecutorService executor) {
         switch (storeClient.getType()) {
             case InMemory:
                 return new InMemoryStreamMetadataStore(executor);
@@ -36,7 +36,7 @@ public class StreamStoreFactory {
     }
 
     @VisibleForTesting
-    public static StreamMetadataStore createPravegaTablesStore(final SegmentHelper segmentHelper, final AuthHelper authHelper, 
+    public static StreamMetadataStore createPravegaTablesStore(final SegmentHelper segmentHelper, final GrpcAuthHelper authHelper,
                                                                final CuratorFramework client, final ScheduledExecutorService executor) {
         return new PravegaTablesStreamMetadataStore(segmentHelper, client, executor, authHelper);
     }

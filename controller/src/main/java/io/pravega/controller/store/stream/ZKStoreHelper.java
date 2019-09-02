@@ -177,13 +177,17 @@ public class ZKStoreHelper {
     }
 
     CompletableFuture<List<String>> getChildren(final String path) {
+        return getChildren(path, true);
+    }
+
+    CompletableFuture<List<String>> getChildren(final String path, boolean ignoreDataNotFound) {
         final CompletableFuture<List<String>> result = new CompletableFuture<>();
 
         try {
             client.getChildren().inBackground(
                     callback(event -> result.complete(event.getChildren()),
                             e -> {
-                                if (e instanceof StoreException.DataNotFoundException) {
+                                if (ignoreDataNotFound && e instanceof StoreException.DataNotFoundException) {
                                     result.complete(Collections.emptyList());
                                 } else {
                                     result.completeExceptionally(e);
@@ -332,6 +336,20 @@ public class ZKStoreHelper {
                     result::completeExceptionally, path);
             createBuilder.creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT_SEQUENTIAL)
                          .inBackground(callback, executor).forPath(path, data);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
+        return result;
+    }
+    
+    CompletableFuture<Void> sync(final String path) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+
+        try {
+            BackgroundCallback callback = callback(x -> result.complete(null),
+                    result::completeExceptionally, path);
+            client.sync().inBackground(callback, executor).forPath(path);
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }

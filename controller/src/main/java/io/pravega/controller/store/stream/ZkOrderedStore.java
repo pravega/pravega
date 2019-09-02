@@ -167,34 +167,38 @@ class ZkOrderedStore {
      */
     CompletableFuture<Map<Long, String>> getEntitiesWithPosition(String scope, String stream) {
         Map<Long, String> result = new ConcurrentHashMap<>();
-        return Futures.exceptionallyExpecting(storeHelper.getChildren(getCollectionsPath(scope, stream)), DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
-                          .thenCompose(children -> {
-                              // start with smallest collection and collect records
-                              List<Integer> iterable = children.stream().map(Integer::parseInt).collect(Collectors.toList());
-                              
-                              return Futures.loop(iterable, collectionNumber -> {
-                                  return Futures.exceptionallyExpecting(storeHelper.getChildren(getEntitiesPath(scope, stream, collectionNumber)),
-                                                    DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
-                                                    .thenCompose(entities -> Futures.allOf(
-                                                                    entities.stream().map(x -> {
-                                                                        int pos = getPositionFromPath(x);
-                                                                        return storeHelper.getData(getEntityPath(scope, stream, collectionNumber, pos),
-                                                                                m -> new String(m, Charsets.UTF_8))
-                                                                                          .thenAccept(r -> {
-                                                                                              result.put(Position.toLong(collectionNumber, pos),
-                                                                                                      r.getObject());
-                                                                                          });
-                                                                    }).collect(Collectors.toList()))
-                                                    ).thenApply(v -> true);
-                              }, executor);
-                          }).thenApply(v -> result)
-                      .whenComplete((r, e) -> {
-                          if (e != null) {
-                              log.error("error encountered while trying to retrieve entities for stream {}/{}", scope, stream, e);
-                          } else {
-                              log.debug("entities at positions {} retrieved for stream {}/{}", r, scope, stream);
-                          }
-                      });
+        String collectionsPath = getCollectionsPath(scope, stream);
+        return storeHelper.sync(collectionsPath)
+                          .thenCompose(z -> {
+                    return Futures.exceptionallyExpecting(storeHelper.getChildren(collectionsPath), DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
+                                  .thenCompose(children -> {
+                                      // start with smallest collection and collect records
+                                      List<Integer> iterable = children.stream().map(Integer::parseInt).collect(Collectors.toList());
+
+                                      return Futures.loop(iterable, collectionNumber -> {
+                                          return Futures.exceptionallyExpecting(storeHelper.getChildren(getEntitiesPath(scope, stream, collectionNumber)),
+                                                  DATA_NOT_FOUND_PREDICATE, Collections.emptyList())
+                                                        .thenCompose(entities -> Futures.allOf(
+                                                                entities.stream().map(x -> {
+                                                                    int pos = getPositionFromPath(x);
+                                                                    return storeHelper.getData(getEntityPath(scope, stream, collectionNumber, pos),
+                                                                            m -> new String(m, Charsets.UTF_8))
+                                                                                      .thenAccept(r -> {
+                                                                                          result.put(Position.toLong(collectionNumber, pos),
+                                                                                                  r.getObject());
+                                                                                      });
+                                                                }).collect(Collectors.toList()))
+                                                        ).thenApply(v -> true);
+                                      }, executor);
+                                  }).thenApply(v -> result)
+                                  .whenComplete((r, e) -> {
+                                      if (e != null) {
+                                          log.error("error encountered while trying to retrieve entities for stream {}/{}", scope, stream, e);
+                                      } else {
+                                          log.debug("entities at positions {} retrieved for stream {}/{}", r, scope, stream);
+                                      }
+                                  });
+                });
 
     }
 
