@@ -71,7 +71,7 @@ public class RocksDBConfig {
     private final boolean directReads;
 
     /**
-     * Enabling memory only will let rocksdb write everything into memory instead of disks. This supposed to provide
+     * Enabling memory only will let RocksDB write everything into memory instead of disks. This is supposed to provide
      * very high performance since there is not disk IO incurred.
      */
     @Getter

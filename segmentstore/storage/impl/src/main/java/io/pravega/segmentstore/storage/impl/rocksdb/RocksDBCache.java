@@ -262,7 +262,7 @@ class RocksDBCache implements Cache {
                 .setOptimizeFiltersForHits(true)
                 .setUseDirectReads(this.directReads);
 
-        if(this.memoryOnly) {
+        if (this.memoryOnly) {
             Env env = new RocksMemEnv();
             options.setEnv(env);
         }
