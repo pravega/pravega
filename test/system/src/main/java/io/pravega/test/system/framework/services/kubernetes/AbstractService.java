@@ -89,7 +89,7 @@ public abstract class AbstractService implements Service {
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
     private static final String TIER2_TYPE = System.getProperty("tier2Type", TIER2_NFS);
-    private static final boolean LATER_OPERATOR = getOperatorVersion();
+    private static final boolean IS_OPERATOR_VERSION_ABOVE_040 = isOperatorVersionAbove040();
 
     final K8sClient k8sClient;
     private final String id;
@@ -136,7 +136,7 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> bookkeeperImgSpec;
         final Map<String, Object> pravegaImgSpec;
 
-        if (LATER_OPERATOR) {
+        if (IS_OPERATOR_VERSION_ABOVE_040) {
 
             bookkeeperImgSpec = ImmutableMap.of("repository", bookkeeperImg);
             pravegaImgSpec = ImmutableMap.of("repository", pravegaImg);
@@ -178,7 +178,17 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    private static boolean getOperatorVersion() {
+    /**
+     * As upgrade has been included in operator 0.4.0
+     * a few changes have been included in the Pravega Cluster Spec
+     * like the image tag field for pravega and bookeeper has been replaced by a
+     * single version field which indicates the version for both the pravega and bookeeper components
+     * Hence determining whether the operator version to be used for running the System Tests is below
+     * 0.4.0 or not is of crucial importance
+     *
+     * @return true if operator version used is greater or equal to 0.4.0, false otherwise
+     */
+    private static boolean isOperatorVersionAbove040() {
         String pravegaOperatorTag = PRAVEGA_OPERATOR_IMAGE.substring(PRAVEGA_OPERATOR_IMAGE.lastIndexOf(":") + 1);
         if (!pravegaOperatorTag.equals("latest")) {
             String version = pravegaOperatorTag.substring(0, pravegaOperatorTag.lastIndexOf("."));
@@ -198,7 +208,7 @@ public abstract class AbstractService implements Service {
                 .put("pravega", pravegaSpec)
                 .build();
 
-        if (LATER_OPERATOR) {
+        if (IS_OPERATOR_VERSION_ABOVE_040) {
             return ImmutableMap.<String, Object>builder()
                     .putAll(commonEntries)
                     .put("version", PRAVEGA_VERSION)
