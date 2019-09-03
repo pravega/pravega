@@ -165,15 +165,21 @@ public class Utils {
     }
 
     /**
-     * Helper method to create the Pravega Cluster Spec
-     * which specifies just those values in the spec which need to be patched
-     * Other values remain same as were specified at the time of deployment
-     * @return the new Pravega Cluster Spec containing the values that need to be patched
+     * Helper method to create the Pravega Cluster Spec which specifies just those values in the spec which need to be patched.
+     * Other values remain same as were specified at the time of deployment.
+     * @param service Name of the service to be patched (bookkeeper/ segment store/ controller).
+     * @param replicaCount Number of replicas.
+     * @param component Name of the component (pravega/ bookkeeper).
+     * @param namespace Namespace.
+     * @param name Name of the object.
+     * @param kind Kind of the object.
+     *
+     * @return the new Pravega Cluster Spec containing the values that need to be patched.
      */
-    public static Map<String, Object> buildPatchedPravegaClusterSpec(String replicas, int replicaCount, String component, String namespace, String name, String kind) {
+    public static Map<String, Object> buildPatchedPravegaClusterSpec(String service, int replicaCount, String component, String namespace, String name, String kind) {
 
         final Map<String, Object> componentSpec = ImmutableMap.<String, Object>builder()
-                .put(replicas, replicaCount)
+                .put(service, replicaCount)
                 .build();
 
         return ImmutableMap.<String, Object>builder()

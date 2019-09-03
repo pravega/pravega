@@ -186,7 +186,7 @@ public abstract class AbstractService implements Service {
      * Hence determining whether the operator version to be used for running the System Tests is below
      * 0.4.0 or not is of crucial importance
      *
-     * @return true if operator version used is greater or equal to 0.4.0, false otherwise
+     * @return true if operator version used is greater or equal to 0.4.0, false otherwise.
      */
     private static boolean isOperatorVersionAbove040() {
         String pravegaOperatorTag = PRAVEGA_OPERATOR_IMAGE.substring(PRAVEGA_OPERATOR_IMAGE.lastIndexOf(":") + 1);
