@@ -127,7 +127,6 @@ public abstract class AbstractService implements Service {
     private Map<String, Object> getPravegaDeployment(String zkLocation, int controllerCount, int segmentStoreCount, int bookieCount, ImmutableMap<String, String> props) {
         // generate BookkeeperSpec.
         final Map<String, Object> bkPersistentVolumeSpec = getPersistentVolumeClaimSpec("10Gi", "standard");
-        // use the latest version of bookkeeper.
 
         // generate Pravega Spec.
         final Map<String, Object> pravegaPersistentVolumeSpec = getPersistentVolumeClaimSpec("20Gi", "standard");
@@ -138,17 +137,13 @@ public abstract class AbstractService implements Service {
         final Map<String, Object> pravegaImgSpec;
 
         if (IS_OPERATOR_VERSION_ABOVE_040) {
-
             bookkeeperImgSpec = ImmutableMap.of("repository", bookkeeperImg);
             pravegaImgSpec = ImmutableMap.of("repository", pravegaImg);
-
         } else {
-
             bookkeeperImgSpec = getImageSpec(bookkeeperImg, PRAVEGA_BOOKKEEPER_VERSION);
             pravegaImgSpec = getImageSpec(pravegaImg, PRAVEGA_VERSION);
-
         }
-
+        
         final Map<String, Object> bookkeeperSpec = ImmutableMap.<String, Object>builder().put("image", bookkeeperImgSpec)
                 .put("replicas", bookieCount)
                 .put("resources", getResources("2000m", "5Gi", "1000m", "3Gi"))
@@ -180,12 +175,11 @@ public abstract class AbstractService implements Service {
     }
 
     /**
-     * As upgrade has been included in operator 0.4.0
-     * a few changes have been included in the Pravega Cluster Spec
-     * like the image tag field for pravega and bookeeper has been replaced by a
-     * single version field which indicates the version for both the pravega and bookeeper components
-     * Hence determining whether the operator version to be used for running the System Tests is below
-     * 0.4.0 or not is of crucial importance
+     * As upgrade has been included in operator 0.4.0 a few changes have been included in
+     * the Pravega Cluster Spec like the image tag field for Pravega and Bookeeper has
+     * been replaced by a single version field which indicates the version for both the
+     * Pravega and Bookeeper components. Hence determining whether the operator version to
+     * be used for running the System Tests is below 0.4.0 or not is crucial.
      *
      * @return true if operator version used is greater or equal to 0.4.0, false otherwise.
      */
@@ -220,11 +214,12 @@ public abstract class AbstractService implements Service {
     }
 
     /**
-     * Helper method to create the Pravega Cluster Spec which specifies just those values in the spec which need to be patched.
-     * Other values remain same as were specified at the time of deployment.
+     * Helper method to create the Pravega Cluster Spec which specifies just those values in the
+     * spec which need to be patched. Other values remain same as were specified at the time of
+     * deployment.
      * @param service Name of the service to be patched (bookkeeper/ segment store/ controller).
      * @param replicaCount Number of replicas.
-     * @param component Name of the component (pravega/ bookkeeper)..
+     * @param component Name of the component (pravega/ bookkeeper).
      *
      * @return the new Pravega Cluster Spec containing the values that need to be patched.
      */
