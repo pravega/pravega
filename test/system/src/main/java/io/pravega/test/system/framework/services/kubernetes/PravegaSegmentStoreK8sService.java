@@ -12,7 +12,6 @@ package io.pravega.test.system.framework.services.kubernetes;
 import com.google.common.collect.ImmutableMap;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.system.framework.TestFrameworkException;
-import io.pravega.test.system.framework.Utils;
 import lombok.extern.slf4j.Slf4j;
 import java.net.URI;
 import java.util.List;
@@ -98,7 +97,7 @@ public class PravegaSegmentStoreK8sService extends AbstractService {
                            log.debug("Current instance counts : Bookkeeper {} Controller {} SegmentStore {}.", currentBookkeeperCount,
                                      currentControllerCount, currentSegmentStoreCount);
                            if (currentSegmentStoreCount != newInstanceCount) {
-                               final Map<String, Object> patchedSpec = Utils.buildPatchedPravegaClusterSpec("segmentStoreReplicas", newInstanceCount, "pravega", NAMESPACE, PRAVEGA_ID, CUSTOM_RESOURCE_KIND_PRAVEGA);
+                               final Map<String, Object> patchedSpec = buildPatchedPravegaClusterSpec("segmentStoreReplicas", newInstanceCount, "pravega");
                                return k8sClient.createAndUpdateCustomObject(CUSTOM_RESOURCE_GROUP_PRAVEGA, CUSTOM_RESOURCE_VERSION_PRAVEGA, NAMESPACE, CUSTOM_RESOURCE_PLURAL_PRAVEGA, patchedSpec)
                                        .thenCompose(v -> k8sClient.waitUntilPodIsRunning(NAMESPACE, "component", PRAVEGA_SEGMENTSTORE_LABEL, newInstanceCount));
                            } else {
