@@ -157,29 +157,29 @@ public class WatermarkReaderImpl {
                       entry.getValue());
         }
         boolean leftBelowRight = false;
-		boolean leftAboveRight = false;
-		for (Entry<SegmentWithRange, Long> entry : left.entrySet()) {
-		    SegmentWithOffset matching = findOverlappingSegmentIn(entry.getKey(), right);
-		    if (matching != null) {
-		        SegmentWithOffset leftSegment = new SegmentWithOffset(entry.getKey().getSegment(), entry.getValue());
-		        int compairson = leftSegment.compareTo(matching);
-		        if (compairson > 0) {
-		            leftAboveRight = true;
-		        } else if (compairson < 0) {
-		            leftBelowRight = true;
-		        }               
-		    }
-		}
-		if (leftBelowRight && leftAboveRight) {
-		    return 0;
-		}
-		if (leftBelowRight) {
-		    return -1;
-		}
-		if (leftAboveRight) {
-		    return 1;
-		}
-		return 1; //If the reader is exactly at a mark, time should advance.
+        boolean leftAboveRight = false;
+        for (Entry<SegmentWithRange, Long> entry : left.entrySet()) {
+            SegmentWithOffset matching = findOverlappingSegmentIn(entry.getKey(), right);
+            if (matching != null) {
+                SegmentWithOffset leftSegment = new SegmentWithOffset(entry.getKey().getSegment(), entry.getValue());
+                int compairson = leftSegment.compareTo(matching);
+                if (compairson > 0) {
+                    leftAboveRight = true;
+                } else if (compairson < 0) {
+                    leftBelowRight = true;
+                }
+            }
+        }
+        if (leftBelowRight && leftAboveRight) {
+            return 0;
+        }
+        if (leftBelowRight) {
+            return -1;
+        }
+        if (leftAboveRight) {
+            return 1;
+        }
+        return 1; // If the reader is exactly at a mark, time should advance.
     }
     
     @Data
