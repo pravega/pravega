@@ -16,12 +16,12 @@ import lombok.Data;
  * 
  * The lower time bound is a timestamp which is less than or equal to the most recent
  * value provided via the {@link EventStreamWriter#noteTime(long)} API for by any writer using that
- * API at the current location in the stream. If the reader is near the beginning of the truncation 
- * point of the stream, there may be no timestamps to compare against and no lower bound can be established. 
+ * API at the current location in the stream. If the reader is near the beginning (or the truncation 
+ * point) of the stream, there may be no timestamps to compare against and no lower bound can be established. 
  * 
  * Similarly the upper time bound is a timestamp which is greater than or equal to any that were provided by
  * any writer via the {@link EventStreamWriter#noteTime(long)} API prior to the current location in
- * the stream. If a reader is near the end of the stream there may be no writer timestamps 
+ * the stream. If a reader is near the end (tail) of the stream there may be no writer timestamps 
  * to compare against and no upper bound can be established.
  *
  * upperTimeBound will always be greater than or equal to lowerTimeBound.
