@@ -34,8 +34,10 @@ import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
 import io.pravega.client.watermark.WatermarkSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.system.framework.Environment;
@@ -107,7 +109,6 @@ public class WatermarkingTest extends AbstractSystemTest {
         streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
-        assertTrue("Creating mark stream", streamManager.createStream(SCOPE, NameUtils.getMarkStreamForStream(STREAM), config));
     }
 
     @After
@@ -122,6 +123,7 @@ public class WatermarkingTest extends AbstractSystemTest {
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                                                        connectionFactory.getInternalExecutor());
+        
         // create 2 writers
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, clientConfig);
@@ -141,6 +143,13 @@ public class WatermarkingTest extends AbstractSystemTest {
         // scale the stream several times so that we get complex positions
         Stream streamObj = Stream.of(SCOPE, STREAM);
         scale(controller, streamObj);
+
+        // wait until mark stream is created
+        AtomicBoolean markStreamCreated = new AtomicBoolean(false);
+        Futures.loop(() -> !markStreamCreated.get(), 
+                () -> Futures.exceptionallyExpecting(controller.getCurrentSegments(SCOPE, NameUtils.getMarkStreamForStream(STREAM)), 
+                    e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
+                .thenAccept(v -> markStreamCreated.set(v != null)), executorService);
 
         @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(SCOPE, clientConfig);
