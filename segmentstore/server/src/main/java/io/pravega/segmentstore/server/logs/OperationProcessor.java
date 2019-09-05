@@ -251,9 +251,9 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         if (delay.isMaximum() || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog) {
             // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
             // processing of operations) or if this is due to the Commit Processor not being able to keep up.
-            log.warn("{}: Processing delay = {}.", this.traceObjectId, delay);
+            log.info("{}: Processing delay = {}.", this.traceObjectId, delay);
         } else {
-            log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
+            log.info("{}: Processing delay = {}.", this.traceObjectId, delay);
         }
 
         return Futures.delayedFuture(Duration.ofMillis(delay.getDurationMillis()), this.executor);
@@ -309,6 +309,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
+                    log.info("isThrottlingRequired {}", this.throttlerCalculator.isThrottlingRequired());    
                     if (!this.throttlerCalculator.isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.

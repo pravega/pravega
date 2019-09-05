@@ -217,6 +217,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         AtomicLong sizeRemoved = new AtomicLong();
         ArrayList<ReadIndexEntry> toRemove = new ArrayList<>();
         synchronized (this.lock) {
+            log.info(">>> lock");
             this.indexEntries.forEach(entry -> {
                 // We can only evict if both these conditions are met:
                 // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
@@ -228,8 +229,11 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                         && lastOffset < this.metadata.getStorageLength()
                         && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
                 if (canRemove) {
+                    log.info(">>> can Remove {} {} {} {}", entry.getGeneration(), oldestGeneration, lastOffset, this.metadata.getStartOffset());
                     toRemove.add(entry);
-                }
+                } else {
+                    log.info(">>> can't Remove {} {} {} {}", entry.getGeneration(), oldestGeneration, lastOffset, this.metadata.getStartOffset());  
+		}	
             });
 
             // Remove from the index and from the cache.
