@@ -1,5 +1,5 @@
 /**
- * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,10 +98,10 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, OperationSerializer.DEFAULT, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
         this.throttlerCalculator = ThrottlerCalculator.builder()
-                                                      .cacheThrottler(stateUpdater::getCacheUtilization)
-                                                      .commitBacklogThrottler(this.commitQueue::size)
-                                                      .batchingThrottler(durableDataLog::getQueueStatistics)
-                                                      .build();
+                .cacheThrottler(stateUpdater::getCacheUtilization, stateUpdater.getCacheTargetUtilization(), stateUpdater.getCacheMaxUtilization())
+                .commitBacklogThrottler(this.commitQueue::size)
+                .batchingThrottler(durableDataLog::getQueueStatistics)
+                .build();
     }
 
     //endregion
@@ -248,7 +248,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
         this.metrics.processingDelay(delay.getDurationMillis());
-        log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
+        if (delay.isMaximum() || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog) {
+            // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
+            // processing of operations) or if this is due to the Commit Processor not being able to keep up.
+            log.info("{}: Processing delay = {}.", this.traceObjectId, delay);
+        } else {
+            log.info("{}: Processing delay = {}.", this.traceObjectId, delay);
+        }
+
         return Futures.delayedFuture(Duration.ofMillis(delay.getDurationMillis()), this.executor);
     }
 
@@ -302,6 +309,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
+                    log.info("isThrottlingRequired {}", this.throttlerCalculator.isThrottlingRequired());    
                     if (!this.throttlerCalculator.isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.
