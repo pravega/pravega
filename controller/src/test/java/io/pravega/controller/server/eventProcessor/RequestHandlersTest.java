@@ -48,6 +48,7 @@ import io.pravega.controller.store.task.TaskStoreFactory;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.util.Config;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.CommitEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -77,9 +78,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -515,7 +514,38 @@ public abstract class RequestHandlersTest {
         streamStore1.close();
         streamStore2.close();
     }
-    
+
+    @Test
+    public void testDeleteAssociatedStream() {
+        String stream = "deleteAssociated";
+        createStreamInStore(stream);
+        String markStream = NameUtils.getMarkStreamForStream(stream);
+        createStreamInStore(markStream);
+
+        SealStreamTask sealStreamTask = new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executor);
+        DeleteStreamTask deleteStreamTask = new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executor);
+
+        // create mark stream
+        // seal stream. 
+        SealStreamEvent sealEvent = new SealStreamEvent(scope, stream, 0L);
+        // set state to sealing and send event to the processor
+        streamStore.setState(scope, stream, State.SEALING, null, executor).join();
+        sealStreamTask.execute(sealEvent).join();
+        assertEquals(State.SEALED, streamStore.getState(scope, stream, true, null, executor).join());
+
+        // mark stream should still be present and active
+        assertTrue(streamStore.checkStreamExists(scope, markStream).join());
+        assertEquals(streamStore.getState(scope, markStream, true, null, executor).join(), State.ACTIVE);
+
+        // delete the stream
+        long creationTime = streamStore.getCreationTime(scope, stream, null, executor).join();
+        DeleteStreamEvent firstDeleteEvent = new DeleteStreamEvent(scope, stream, 0L, creationTime);
+        deleteStreamTask.execute(firstDeleteEvent).join();
+
+        // verify that mark stream is also deleted
+        assertFalse(streamStore.checkStreamExists(scope, markStream).join());
+    }
+
     @Test
     public void testDeleteStreamReplay() {
         String stream = "delete";

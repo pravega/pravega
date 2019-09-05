@@ -27,6 +27,8 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.client.watermark.WatermarkSerializer;
+import io.pravega.common.Exceptions;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
@@ -34,6 +36,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -110,7 +113,8 @@ public class ControllerWatermarkingTest {
         controller.createScope(scope).join();
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         controller.createStream(scope, stream, config).join();
-        controller.createStream(scope, NameUtils.getMarkStreamForStream(stream), config).join();
+        String markStream = NameUtils.getMarkStreamForStream(stream);
+        controller.createStream(scope, markStream, config).join();
         Stream streamObj = new StreamImpl(scope, stream);
         WriterPosition pos1 = WriterPosition.builder().segments(Collections.singletonMap(new Segment(scope, stream, 0L), 10L)).build();
         WriterPosition pos2 = WriterPosition.builder().segments(Collections.singletonMap(new Segment(scope, stream, 0L), 20L)).build();
@@ -118,7 +122,6 @@ public class ControllerWatermarkingTest {
         controller.noteTimestampFromWriter("1", streamObj, 1L, pos1).join();
         controller.noteTimestampFromWriter("2", streamObj, 2L, pos2).join();
 
-        String markStream = NameUtils.getMarkStreamForStream(stream);
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
          ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
          ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory);
@@ -139,5 +142,12 @@ public class ControllerWatermarkingTest {
         assertNotNull(watermark.getEvent());
         assertEquals(watermark.getEvent().getLowerTimeBound(), 1L);
         assertTrue(watermark.getEvent().getStreamCut().entrySet().stream().anyMatch(x -> x.getKey().getSegmentId() == 0L && x.getValue() ==  20L));
+
+        controller.sealStream(scope, stream).join();
+        controller.deleteStream(scope, stream).join();
+        
+        AssertExtensions.assertFutureThrows("Mark Stream should not exist", 
+                controller.getCurrentSegments(scope, markStream),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
     }
 }
