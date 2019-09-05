@@ -45,7 +45,7 @@ public class WatermarkReaderImplTest {
         SegmentWithRange s3 = new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), 3), 0.5, 1);
         Map<SegmentWithRange, Long> readerGroupPosition = ImmutableMap.of(s1, 1L, s2, 2L);
         Watermark watermark = Watermark.builder().streamCut(convert(readerGroupPosition)).build();
-        assertEquals(0, WatermarkReaderImpl.compare(stream, readerGroupPosition, watermark));
+        assertEquals(1, WatermarkReaderImpl.compare(stream, readerGroupPosition, watermark));
         Map<SegmentWithRange, Long> before = ImmutableMap.of(s0, 0L, s1, 1L);
         assertEquals(-1, WatermarkReaderImpl.compare(stream, before, watermark));
         before = ImmutableMap.of(s1, 0L, s2, 1L);

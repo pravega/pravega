@@ -9,8 +9,19 @@
  */
 package io.pravega.client.stream.impl;
 
+import java.util.ArrayDeque;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
+
+import javax.annotation.concurrent.GuardedBy;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
@@ -22,14 +33,6 @@ import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.LatestItemSequentialProcessor;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
-import java.util.ArrayDeque;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.Executor;
-import java.util.function.Consumer;
-import javax.annotation.concurrent.GuardedBy;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
@@ -153,36 +156,32 @@ public class WatermarkReaderImpl {
             right.put(new SegmentWithRange(segment, entry.getKey().getRangeLow(), entry.getKey().getRangeHigh()),
                       entry.getValue());
         }
-        return compare(left, right);
+        boolean leftBelowRight = false;
+		boolean leftAboveRight = false;
+		for (Entry<SegmentWithRange, Long> entry : left.entrySet()) {
+		    SegmentWithOffset matching = findOverlappingSegmentIn(entry.getKey(), right);
+		    if (matching != null) {
+		        SegmentWithOffset leftSegment = new SegmentWithOffset(entry.getKey().getSegment(), entry.getValue());
+		        int compairson = leftSegment.compareTo(matching);
+		        if (compairson > 0) {
+		            leftAboveRight = true;
+		        } else if (compairson < 0) {
+		            leftBelowRight = true;
+		        }               
+		    }
+		}
+		if (leftBelowRight && leftAboveRight) {
+		    return 0;
+		}
+		if (leftBelowRight) {
+		    return -1;
+		}
+		if (leftAboveRight) {
+		    return 1;
+		}
+		return 1; //If the reader is exactly at a mark, time should advance.
     }
     
-    private static int compare(Map<SegmentWithRange, Long> left, Map<SegmentWithRange, Long> right) {
-        boolean leftBelowRight = false;
-        boolean leftAboveRight = false;
-        for (Entry<SegmentWithRange, Long> entry : left.entrySet()) {
-            SegmentWithOffset matching = findOverlappingSegmentIn(entry.getKey(), right);
-            if (matching != null) {
-                SegmentWithOffset leftSegment = new SegmentWithOffset(entry.getKey().getSegment(), entry.getValue());
-                int compairson = leftSegment.compareTo(matching);
-                if (compairson > 0) {
-                    leftAboveRight = true;
-                } else if (compairson < 0) {
-                    leftBelowRight = true;
-                }               
-            }
-        }
-        if (leftBelowRight && leftAboveRight) {
-            return 0;
-        }
-        if (leftBelowRight) {
-            return -1;
-        }
-        if (leftAboveRight) {
-            return 1;
-        }
-        return 0;
-    }
-
     @Data
     private static final class SegmentWithOffset implements Comparable<SegmentWithOffset> {
         private final Segment segment;
