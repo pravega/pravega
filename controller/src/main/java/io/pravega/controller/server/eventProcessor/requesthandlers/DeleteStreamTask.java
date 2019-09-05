@@ -86,7 +86,14 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
     private CompletableFuture<Void> deleteAssociatedStreams(String scope, String stream, long requestId) {
         String markStream = NameUtils.getMarkStreamForStream(stream);
         OperationContext context = streamMetadataStore.createContext(scope, markStream);
-        return notifyAndDelete(context, scope, markStream, requestId);
+        return streamMetadataStore.checkStreamExists(scope, markStream)
+            .thenCompose(exists -> {
+                if (exists) {
+                    return notifyAndDelete(context, scope, markStream, requestId);
+                } else {
+                    return CompletableFuture.completedFuture(null);     
+                }
+            });
     }
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream, long requestId) {
