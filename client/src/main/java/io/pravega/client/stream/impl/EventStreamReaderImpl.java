@@ -308,6 +308,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     @Override
     public void close() {
         closeAt(getPosition());
+        for (WatermarkReaderImpl reader : waterMarkReaders.values()) {
+            reader.close();
+        }           
     }
 
     @Override

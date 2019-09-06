@@ -22,22 +22,18 @@ import javax.annotation.concurrent.GuardedBy;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
-import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
-import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.TimeWindow;
-import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.LatestItemSequentialProcessor;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
 
-public class WatermarkReaderImpl {
+public class WatermarkReaderImpl implements AutoCloseable {
 
     private final Stream stream;
     private final WatermarkFetcher fetcher;
@@ -50,7 +46,7 @@ public class WatermarkReaderImpl {
     private Long passedTimestamp = null;
     
     @RequiredArgsConstructor
-    private static class WatermarkFetcher {
+    private static class WatermarkFetcher implements AutoCloseable {
         private final RevisionedStreamClient<Watermark> client; 
         @GuardedBy("$lock")
         private Revision location = null;
@@ -77,6 +73,11 @@ public class WatermarkReaderImpl {
                 return next.getValue();
             }
             return null;
+        }
+
+        @Override
+        public void close() {
+            client.close();
         }
     }
 
@@ -112,16 +113,12 @@ public class WatermarkReaderImpl {
      * Creates a Reader to keep track of the current time window for a given stream.
      * 
      * @param stream The stream to read the water marks for.
-     * @param clientFactory A factory to create the water mark reader. NOTE: This must use the same scope as the `stream` passed.
+     * 
      * @param executor A threadpool to perform background operations.
      */
-    public WatermarkReaderImpl(Stream stream, SynchronizerClientFactory clientFactory, Executor executor) {
+    public WatermarkReaderImpl(Stream stream, RevisionedStreamClient<Watermark> markClient, Executor executor) {
         this.stream = Preconditions.checkNotNull(stream);       
-        
-        SynchronizerConfig config = SynchronizerConfig.builder().readBufferSize(4096).build();
-        this.fetcher = new WatermarkFetcher(clientFactory.createRevisionedStreamClient(StreamSegmentNameUtils.getMarkForStream(stream.getStreamName()),
-                                                                                       new WatermarkSerializer(),
-                                                                                       config));
+        this.fetcher = new WatermarkFetcher(markClient);
         this.processor = new LatestItemSequentialProcessor<>(processFunction, Preconditions.checkNotNull(executor));     
     }
     
@@ -162,10 +159,10 @@ public class WatermarkReaderImpl {
             SegmentWithOffset matching = findOverlappingSegmentIn(entry.getKey(), right);
             if (matching != null) {
                 SegmentWithOffset leftSegment = new SegmentWithOffset(entry.getKey().getSegment(), entry.getValue());
-                int compairson = leftSegment.compareTo(matching);
-                if (compairson > 0) {
+                int comparison = leftSegment.compareTo(matching);
+                if (comparison > 0) {
                     leftAboveRight = true;
-                } else if (compairson < 0) {
+                } else if (comparison < 0) {
                     leftBelowRight = true;
                 }
             }
@@ -204,6 +201,11 @@ public class WatermarkReaderImpl {
             }
         }
         return null;
+    }
+
+    @Override
+    public void close() {
+        fetcher.close();
     }
    
 }

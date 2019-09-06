@@ -60,7 +60,7 @@ public class LatestItemSequentialProcessorTest {
     }
     
     @Test
-    public void testNotCalledInParrallel() throws InterruptedException {
+    public void testNotCalledInParallel() throws InterruptedException {
         @Cleanup("shutdown")
         ExecutorService pool = Executors.newFixedThreadPool(2);
         CountDownLatch parCheck = new CountDownLatch(2);

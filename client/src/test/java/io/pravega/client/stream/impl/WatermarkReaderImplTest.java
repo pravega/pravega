@@ -20,6 +20,8 @@ import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.InlineExecutor;
+import lombok.Cleanup;
+
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.junit.Test;
@@ -72,12 +74,14 @@ public class WatermarkReaderImplTest {
     public void testUpdates() {
         Stream stream = new StreamImpl("Scope", "streamName");
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
+        @Cleanup
         MockClientFactory clientFactory = new MockClientFactory("Scope", segmentStreamFactory);
         RevisionedStreamClient<Watermark> writer = clientFactory.createRevisionedStreamClient(NameUtils.getMarkStreamForStream("streamName"),
                                                                                               new WatermarkSerializer(),
                                                                                               SynchronizerConfig.builder().build());
         InlineExecutor executor = new InlineExecutor();
-        WatermarkReaderImpl impl = new WatermarkReaderImpl(stream, clientFactory, executor);
+        @Cleanup
+        WatermarkReaderImpl impl = new WatermarkReaderImpl(stream, writer, executor);
 
         SegmentWithRange s0 = new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), 0), 0, 0.5);
         SegmentWithRange s1 = new SegmentWithRange(new Segment(stream.getScope(), stream.getStreamName(), 1), 0.5, 1);

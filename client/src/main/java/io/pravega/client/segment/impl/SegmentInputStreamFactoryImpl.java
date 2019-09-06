@@ -44,8 +44,8 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
-        async.getConnection();
-        bufferSize = MathHelpers.minMax(bufferSize, 1024, 10 * 1024 * 1024); //Sanity enforcement
+        async.getConnection();                      //Sanity enforcement
+        bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
         return getEventSegmentReader(async, 0, endOffset, bufferSize);
     }
 

@@ -54,9 +54,13 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
+import io.pravega.shared.watermarks.Watermark;
+
 import java.util.UUID;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Consumer;
@@ -178,7 +182,10 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
         if (!config.isDisableTimeWindows()) {
             for (Stream stream : stateManager.getStreams()) {
-                watermarkReaders.put(stream, new WatermarkReaderImpl(stream, this, connectionFactory.getInternalExecutor()));
+                val client = createRevisionedStreamClient(StreamSegmentNameUtils.getMarkForStream(stream.getStreamName()),
+                                                           new WatermarkSerializer(),
+                                                           SynchronizerConfig.builder().readBufferSize(4096).build());
+                watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, connectionFactory.getInternalExecutor()));
             }
         }
         return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config, watermarkReaders.build());
