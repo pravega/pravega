@@ -145,7 +145,8 @@ public class AppendProcessorTest {
         AppendProcessorExt processor = new AppendProcessorExt(store, connection, new FailingRequestProcessor(), mockedRecorder, null, false);
 
         setupGetAttributes(streamSegmentName, clientId, store);
-        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), CompletableFuture.completedFuture(null));
+        CompletableFuture<Long> appendResult = CompletableFuture.completedFuture(Long.valueOf(data.length));
+        val ac = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, data.length), appendResult);
 
         processor.setupAppend(new SetupAppend(1, clientId, streamSegmentName, ""));
         processor.append(new Append(streamSegmentName, clientId, data.length, 1, Unpooled.wrappedBuffer(data), null, requestId));
@@ -535,7 +536,7 @@ public class AppendProcessorTest {
 
         //Setup mock for check behaviour after the delayed/hung dataAppended completes.
         val ac2 = interceptAppend(store, streamSegmentName, updateEventNumber(clientId, 200, 100, eventCount),
-                CompletableFuture.completedFuture(null));
+                CompletableFuture.completedFuture(Long.valueOf(2 * data.length)));
         completeFirstDataAppendedAck.release(); //Now ensure the dataAppended sent
         secondStoreAppendInvoked.await(); // wait until the next store append is invoked.
 
@@ -544,7 +545,7 @@ public class AppendProcessorTest {
         //Verify two DataAppended acks are sent out.
         verify(connection, times(2)).send(any(DataAppended.class));
         verify(connection).send(new DataAppended(requestId, clientId, 100, Long.MIN_VALUE, data.length));
-        verify(connection).send(new DataAppended(requestId, clientId, 200, 100, data.length));
+        verify(connection).send(new DataAppended(requestId, clientId, 200, 100, 2 * data.length));
     }
 
     @Test
