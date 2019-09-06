@@ -28,9 +28,9 @@ public class RESTAuthHelper {
     /**
      * The delegate used for performing authentication and authorization.
      */
-    private final PravegaAuthManager pravegaAuthManager;
+    private final AuthHandlerManager pravegaAuthManager;
 
-    public RESTAuthHelper(PravegaAuthManager pravegaAuthManager) {
+    public RESTAuthHelper(AuthHandlerManager pravegaAuthManager) {
         this.pravegaAuthManager = pravegaAuthManager;
     }
 

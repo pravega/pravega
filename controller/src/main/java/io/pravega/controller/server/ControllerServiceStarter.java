@@ -34,7 +34,7 @@ import io.pravega.controller.server.bucket.PeriodicWatermarking;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
 import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
@@ -191,7 +191,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
             segmentHelperRef.compareAndSet(null, new SegmentHelper(connectionFactory, hostStore));
 
-            AuthHelper authHelper = new AuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
+            GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
                     serviceConfig.getGRPCServerConfig().get().getTokenSigningKey(),
                     serviceConfig.getGRPCServerConfig().get().getAccessTokenTTLInSeconds());
             
@@ -293,7 +293,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (serviceConfig.getRestServerConfig().isPresent()) {
                 restServer = new RESTServer(this.localController,
                         controllerService,
-                        grpcServer.getPravegaAuthManager(),
+                        grpcServer.getAuthHandlerManager(),
                         serviceConfig.getRestServerConfig().get(),
                         connectionFactory);
                 restServer.startAsync();

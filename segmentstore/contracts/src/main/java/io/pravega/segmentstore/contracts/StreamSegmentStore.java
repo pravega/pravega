@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.contracts;
 
+import io.pravega.common.util.BufferView;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
@@ -33,9 +34,10 @@ public interface StreamSegmentStore {
      * guarantee of ordering between different calls to this method.
      *
      * @param streamSegmentName The name of the StreamSegment to append to.
-     * @param data              The data to add.
-     * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which
-     *                          indicates no updates). See Notes about AttributeUpdates in the interface Javadoc.
+     * @param data              A {@link BufferView} representing the data to add. This {@link BufferView} should not be
+     *                          modified until the returned CompletableFuture from this method completes.
+     * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
+     *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will indicate the append completed
      *         successfully and contains the new length of the segment. If the operation failed, the
@@ -47,7 +49,7 @@ public interface StreamSegmentStore {
      *                                  check if the StreamSegment does not exist - that exception 
      *                                  will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Long> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
 
     /**
      * Appends a range of bytes at the end of a StreamSegment an atomically updates the given
@@ -56,11 +58,12 @@ public interface StreamSegmentStore {
      * subsequent calls).
      *
      * @param streamSegmentName The name of the StreamSegment to append to.
-     * @param offset            The offset at which to append. If the current length of the StreamSegment does
-     *                          not equal this value, the operation will fail with a BadOffsetException.
-     * @param data              The data to add.
-     * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which
-     *                          indicates no updates). See Notes about AttributeUpdates in the interface Javadoc.
+     * @param offset            The offset at which to append. If the current length of the StreamSegment does not equal
+     *                          this value, the operation will fail with a BadOffsetException.
+     * @param data              A {@link BufferView} representing the data to add. This {@link BufferView} should not be
+     *                          modified until the returned CompletableFuture from this method completes.
+     * @param attributeUpdates  A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
+     *                          See Notes about AttributeUpdates in the interface Javadoc.
      * @param timeout           Timeout for the operation
      * @return A CompletableFuture that, when completed normally, will indicate the append completed
      *         successfully and contains the new length of the segment. If the operation failed, the
@@ -72,7 +75,7 @@ public interface StreamSegmentStore {
      *                                  check if the StreamSegment does not exist - that exception
      *                                  will be set in the returned CompletableFuture).
      */
-    CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
 
     /**
      * Performs an attribute update operation on the given Segment.

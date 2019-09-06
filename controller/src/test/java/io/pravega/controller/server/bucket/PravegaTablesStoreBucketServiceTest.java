@@ -11,18 +11,17 @@ package io.pravega.controller.server.bucket;
 
 import com.google.common.collect.ImmutableMap;
 import io.pravega.controller.mocks.SegmentHelperMock;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.TestingServerStarter;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-
-import java.util.concurrent.ScheduledExecutorService;
 
 public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
@@ -53,7 +52,7 @@ public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     @Override
     StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
         return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), 
-                AuthHelper.getDisabledAuthHelper(), zkClient, executor);
+                                                           GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
     }
 
     @Override

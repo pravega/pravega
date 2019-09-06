@@ -10,11 +10,15 @@
 package io.pravega.shared;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
 public final class MetricsTags {
+
+    //The default key to lookup hostname system property or env var.
+    public static final String DEFAULT_HOSTNAME_KEY = "HOSTNAME";
 
     // Metric Tag Names
     public static final String TAG_CONTAINER = "container";
@@ -134,11 +138,26 @@ public final class MetricsTags {
     }
 
     /**
-     * Create host tag based on the local host.
+     * Create host tag based on the system property, env var or local host config.
+     * @param hostnameKey the lookup key for hostname system property or env var.
      * @return host tag.
      */
-    public static String[] createHostTag() {
+    public static String[] createHostTag(String hostnameKey) {
         String[] hostTag = {MetricsTags.TAG_HOST, null};
+
+        //Always take system property if it's defined.
+        hostTag[1] = System.getProperty(hostnameKey);
+        if (!Strings.isNullOrEmpty(hostTag[1])) {
+            return hostTag;
+        }
+
+        //Then take env variable if it's defined.
+        hostTag[1] = System.getenv(hostnameKey);
+        if (!Strings.isNullOrEmpty(hostTag[1])) {
+            return hostTag;
+        }
+
+        //Finally use the resolved hostname based on localhost config.
         try {
             hostTag[1] = InetAddress.getLocalHost().getHostName();
         } catch (UnknownHostException e) {

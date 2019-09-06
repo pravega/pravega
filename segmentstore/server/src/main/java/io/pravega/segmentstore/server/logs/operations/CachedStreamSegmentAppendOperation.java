@@ -42,7 +42,7 @@ public class CachedStreamSegmentAppendOperation extends StorageOperation impleme
         Preconditions.checkArgument(baseOperation.getStreamSegmentOffset() >= 0, "given baseOperation does not have an assigned StreamSegment Offset.");
 
         this.streamSegmentOffset = baseOperation.getStreamSegmentOffset();
-        this.length = baseOperation.getData().length;
+        this.length = baseOperation.getData().getLength();
         if (baseOperation.getSequenceNumber() >= 0) {
             setSequenceNumber(baseOperation.getSequenceNumber());
         }

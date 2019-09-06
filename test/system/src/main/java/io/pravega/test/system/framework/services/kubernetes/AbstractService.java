@@ -54,6 +54,8 @@ public abstract class AbstractService implements Service {
 
     public static final int CONTROLLER_GRPC_PORT = 9090;
     public static final int CONTROLLER_REST_PORT = 10080;
+    protected static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
+    protected static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     protected static final String TCP = "tcp://";
     static final int DEFAULT_CONTROLLER_COUNT = 1;
     static final int DEFAULT_SEGMENTSTORE_COUNT = 1;
@@ -76,11 +78,9 @@ public abstract class AbstractService implements Service {
     static final String PRAVEGA_ID = "pravega";
     static final String ZOOKEEPER_OPERATOR_IMAGE = System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest");
     static final String IMAGE_PULL_POLICY = System.getProperty("imagePullPolicy", "Always");
-    private static final String DOCKER_REGISTRY =  System.getProperty("dockerRegistryUrl", "");
     private static final String PRAVEGA_VERSION = System.getProperty("imageVersion", "latest");
     private static final String PRAVEGA_BOOKKEEPER_VERSION = System.getProperty("pravegaBookkeeperVersion", PRAVEGA_VERSION);
     private static final String PRAVEGA_OPERATOR_IMAGE = System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest");
-    private static final String PREFIX = System.getProperty("imagePrefix", "pravega");
     private static final String PRAVEGA_IMAGE_NAME = System.getProperty("pravegaImageName", "pravega");
     private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper");
     private static final String TIER2_NFS = "nfs";
@@ -154,7 +154,7 @@ public abstract class AbstractService implements Service {
                 .build();
     }
 
-    private Map<String, Object> getImageSpec(String imageName, String tag) {
+    protected Map<String, Object> getImageSpec(String imageName, String tag) {
         return ImmutableMap.<String, Object>builder().put("repository", imageName)
                                                      .put("tag", tag)
                                                      .put("pullPolicy", IMAGE_PULL_POLICY)

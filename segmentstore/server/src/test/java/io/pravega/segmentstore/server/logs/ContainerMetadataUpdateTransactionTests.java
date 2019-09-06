@@ -74,7 +74,7 @@ public class ContainerMetadataUpdateTransactionTests {
     private static final long NOTSEALED_SOURCE_ID = 890;
     private static final long SEALED_SOURCE_LENGTH = 12;
     private static final long SEGMENT_LENGTH = 1234567;
-    private static final byte[] DEFAULT_APPEND_DATA = "hello".getBytes();
+    private static final ByteArraySegment DEFAULT_APPEND_DATA = new ByteArraySegment("hello".getBytes());
     private static final AttributeUpdateType[] ATTRIBUTE_UPDATE_TYPES = new AttributeUpdateType[]{
             AttributeUpdateType.Replace, AttributeUpdateType.Accumulate};
     private static final Supplier<Long> NEXT_ATTRIBUTE_VALUE = System::nanoTime;
@@ -188,7 +188,7 @@ public class ContainerMetadataUpdateTransactionTests {
         txn.preProcessOperation(appendOp);
         txn.acceptOperation(appendOp);
         Assert.assertEquals("acceptOperation did not update the transaction.",
-                SEGMENT_LENGTH + appendOp.getData().length, txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
+                SEGMENT_LENGTH + appendOp.getData().getLength(), txn.getStreamSegmentMetadata(SEGMENT_ID).getLength());
         Assert.assertEquals("acceptOperation updated the metadata.",
                 SEGMENT_LENGTH, metadata.getStreamSegmentMetadata(SEGMENT_ID).getLength());
     }
@@ -1242,7 +1242,7 @@ public class ContainerMetadataUpdateTransactionTests {
         Assert.assertEquals("commit() seems to have modified the metadata sequence number while not in recovery mode.",
                 ContainerMetadata.INITIAL_OPERATION_SEQUENCE_NUMBER, targetMetadata.nextOperationSequenceNumber() - 1);
 
-        long expectedLength = SEGMENT_LENGTH + appendCount * DEFAULT_APPEND_DATA.length + SEALED_SOURCE_LENGTH;
+        long expectedLength = SEGMENT_LENGTH + appendCount * DEFAULT_APPEND_DATA.getLength() + SEALED_SOURCE_LENGTH;
 
         SegmentMetadata parentMetadata = targetMetadata.getStreamSegmentMetadata(SEGMENT_ID);
         Assert.assertEquals("Unexpected Length in metadata after commit.", expectedLength, parentMetadata.getLength());
@@ -1314,7 +1314,7 @@ public class ContainerMetadataUpdateTransactionTests {
 
         txn.clear();
 
-        long expectedLength = SEGMENT_LENGTH + DEFAULT_APPEND_DATA.length;
+        long expectedLength = SEGMENT_LENGTH + DEFAULT_APPEND_DATA.getLength();
 
         // Verify metadata is untouched and that the updater has truly rolled back.
         SegmentMetadata parentMetadata = metadata.getStreamSegmentMetadata(SEGMENT_ID);
