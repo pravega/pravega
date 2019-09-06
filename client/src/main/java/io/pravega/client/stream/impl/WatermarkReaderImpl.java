@@ -113,7 +113,7 @@ public class WatermarkReaderImpl implements AutoCloseable {
      * Creates a Reader to keep track of the current time window for a given stream.
      * 
      * @param stream The stream to read the water marks for.
-     * 
+     * @param markClient The segment to read marks from.
      * @param executor A threadpool to perform background operations.
      */
     public WatermarkReaderImpl(Stream stream, RevisionedStreamClient<Watermark> markClient, Executor executor) {

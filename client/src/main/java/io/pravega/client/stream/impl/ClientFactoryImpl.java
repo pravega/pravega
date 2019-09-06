@@ -9,10 +9,16 @@
  */
 package io.pravega.client.stream.impl;
 
+import java.util.UUID;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMap.Builder;
+
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
@@ -59,12 +65,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
-import io.pravega.shared.watermarks.Watermark;
-
-import java.util.UUID;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Consumer;
-import java.util.function.Supplier;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
