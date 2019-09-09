@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.host.handler;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -71,7 +72,7 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
             writeAndFlush(c, cmd);
         }
     }
-    
+
     private static void writeAndFlush(Channel channel, WireCommand data) {
         channel.writeAndFlush(data).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
     }  
@@ -85,7 +86,8 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
     public void close() {
         Channel ch = channel.get();
         if (ch != null) {
-            ch.close();
+            // wait for all messages to be sent before closing the channel.
+            ch.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
         }
     }
 

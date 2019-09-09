@@ -26,7 +26,7 @@ public class SynchronizerConfig implements Serializable {
     int readBufferSize;
     
     public static class SynchronizerConfigBuilder {
-        private EventWriterConfig eventWriterConfig = EventWriterConfig.builder().build();
+        private EventWriterConfig eventWriterConfig = EventWriterConfig.builder().enableConnectionPooling(true).build();
         private int readBufferSize = 256 * 1024;
     }
 }
