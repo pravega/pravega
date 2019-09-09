@@ -44,6 +44,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
 
     public static final int DOCKER_CLIENT_PORT = 2375;
     private final static String IMAGE = "java:8";
+    private static final String LOG_LEVEL = System.getProperty("logLevel", "DEBUG");
     private final AtomicReference<String> id = new AtomicReference<String>();
     private final String masterIp = Utils.isAwsExecution() ? getConfig("awsMasterIP", "Invalid Master IP").trim() : getConfig("masterIP", "Invalid Master IP");
     private final DockerClient client = DefaultDockerClient.builder().uri("http://" + masterIp
@@ -172,7 +173,7 @@ public class DockerBasedTestExecutor implements TestExecutor {
                 .user("root")
                 .workingDir("/data")
                 .cmd("sh", "-c", "java -DmasterIP=" + LoginClient.MESOS_MASTER + " -DexecType=" + getConfig("execType",
-                        "LOCAL") + " -cp /data/build/libs/test-docker-collection.jar io.pravega.test.system." +
+                        "LOCAL") + " -Dlog.level=" + LOG_LEVEL +  " -cp /data/build/libs/test-docker-collection.jar io.pravega.test.system." +
                         "SingleJUnitTestRunner " + className + "#" + methodName + " > server.log 2>&1")
                 .labels(labels)
                 .build();

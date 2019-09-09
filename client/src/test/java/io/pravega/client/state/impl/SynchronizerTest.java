@@ -20,8 +20,14 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.state.examples.SetSynchronizer;
+import io.pravega.client.stream.InvalidStreamException;
+import io.pravega.client.stream.ScalingPolicy;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ByteArraySerializer;
+import io.pravega.client.stream.impl.ClientFactoryImpl;
+import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.common.util.ReusableLatch;
@@ -31,6 +37,8 @@ import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.Cleanup;
@@ -43,8 +51,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SynchronizerTest {
+
+    private final StreamConfiguration config = StreamConfiguration.builder()
+                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
+                                                                  .build();
 
     @Data
     private static class RevisionedImpl implements Revisioned {
@@ -214,6 +228,8 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
@@ -267,6 +283,7 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
         @Cleanup
         StateSynchronizer<RevisionedImpl> syncA = clientFactory.createStateSynchronizer(streamName,
                                                                                         new JavaSerializer<>(),
@@ -311,6 +328,8 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         StateSynchronizer<RevisionedImpl> sync = clientFactory.createStateSynchronizer(streamName,
                                                                                        new JavaSerializer<>(),
                                                                                        new JavaSerializer<>(),
@@ -363,6 +382,8 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         SetSynchronizer<String> set = SetSynchronizer.createNewSet(streamName, clientFactory);
         RevisionedStreamClient<byte[]> rsc = clientFactory.createRevisionedStreamClient(streamName, new ByteArraySerializer(),
                                                                                    SynchronizerConfig.builder().build());
@@ -389,6 +410,8 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactory.getController());
+
         SetSynchronizer<String> set = SetSynchronizer.createNewSet(streamName, clientFactory);
         SetSynchronizer<String> set2 = SetSynchronizer.createNewSet(streamName, clientFactory);
         assertEquals(0, set.getCurrentSize());
@@ -419,8 +442,10 @@ public class SynchronizerTest {
         MockSegmentStreamFactory ioFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactoryA = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactoryA.getController());
         @Cleanup
         MockClientFactory clientFactoryB = new MockClientFactory(scope, ioFactory);
+        createScopeAndStream(streamName, scope, clientFactoryB.getController());
 
         StateSynchronizer<RevisionedImpl> syncA = clientFactoryA.createStateSynchronizer(streamName,
                 new JavaSerializer<>(),
@@ -527,5 +552,39 @@ public class SynchronizerTest {
         syncB.fetchUpdates();
         assertEquals("h", syncB.getState().getValue());
         assertEquals(0, syncA.bytesWrittenSinceCompaction());
+    }
+
+    @Test(timeout = 20000)
+    public void testCreateStateSynchronizerError() {
+        String streamName = "streamName";
+        String scope = "scope";
+
+        Controller controller = mock(Controller.class);
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller);
+
+        // Simulate a sealed stream.
+        CompletableFuture<StreamSegments> result = new CompletableFuture<>();
+        result.complete(new StreamSegments(new TreeMap<>(), ""));
+        when(controller.getCurrentSegments(scope, streamName)).thenReturn(result);
+
+        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createStateSynchronizer(streamName,
+                                                                                                                new JavaSerializer<>(),
+                                                                                                                new JavaSerializer<>(),
+                                                                                                                SynchronizerConfig.builder().build()));
+
+        result = new CompletableFuture<>();
+        result.completeExceptionally(new RuntimeException("Controller exception"));
+        when(controller.getCurrentSegments(scope, streamName)).thenReturn(result);
+
+        AssertExtensions.assertThrows(InvalidStreamException.class, () -> clientFactory.createStateSynchronizer(streamName,
+                                                                                                                new JavaSerializer<>(),
+                                                                                                                new JavaSerializer<>(),
+                                                                                                                SynchronizerConfig.builder().build()));
+    }
+
+    private void createScopeAndStream(String streamName, String scope, Controller controller) {
+        controller.createScope(scope).join();
+        controller.createStream(scope, streamName, config);
     }
 }
