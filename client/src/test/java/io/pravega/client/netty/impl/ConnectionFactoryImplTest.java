@@ -139,14 +139,16 @@ public class ConnectionFactoryImplTest {
     }
 
     @Test
-    public void getActiveChannelTest() throws InterruptedException, ConnectionFailedException {
+    public void getActiveChannelTestWithConnectionPooling() throws InterruptedException, ConnectionFailedException {
         @Cleanup
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                               .controllerURI(URI.create( "tcp://" + "localhost"))
                                                                               .build());
-        // establish a connection.
+        Flow flow = Flow.create();
+        // establish a connection with Flow.
         @Cleanup
-        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
+        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(flow, new PravegaNodeUri("localhost", port),
+                                                                                             new FailingReplyProcessor() {
 
             @Override
             public void connectionDropped() {
@@ -172,6 +174,7 @@ public class ConnectionFactoryImplTest {
 
         // close the connection, this does not close the underlying network connection due to connection pooling.
         connection.close();
+        // the underlying connection is closed only on closing the connection pool
         factory.getConnectionPool().close();
 
         // wait until the channel is closed.
@@ -179,5 +182,48 @@ public class ConnectionFactoryImplTest {
         assertEquals("Expected active channel count is 0", 0, factory.getActiveChannelCount());
         // verify that the channel is removed from channelGroup too.
         assertEquals(0,  ((ConnectionPoolImpl) factory.getConnectionPool()).getChannelGroup().size());
+    }
+
+    @Test
+    public void getActiveChannelTestWithoutConnectionPooling() throws InterruptedException, ConnectionFailedException {
+        @Cleanup
+        ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                              .controllerURI(URI.create("tcp://" + "localhost"))
+                                                                              .build());
+        final FailingReplyProcessor rp = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+
+            }
+        };
+        // establish a connection with Flow.
+        @Cleanup
+        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(new PravegaNodeUri("localhost", port), rp).join();
+
+        assertEquals("Expected active channel count is 1", 1, factory.getActiveChannelCount());
+
+        // add a listener to track the channel close.
+        final CountDownLatch latch = new CountDownLatch(1);
+        connection.getNettyHandler().getChannel().closeFuture().addListener(future -> latch.countDown());
+
+        // close the connection, this closes the underlying network connection since connection pooling is disabled.
+        connection.close();
+
+        // wait until the channel is closed.
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertEquals("Expected active channel count is 0", 0, factory.getActiveChannelCount());
+        // verify that the channel is removed from channelGroup too.
+        assertEquals(0, ((ConnectionPoolImpl) factory.getConnectionPool()).getChannelGroup().size());
     }
 }

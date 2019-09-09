@@ -26,7 +26,7 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
@@ -65,6 +65,12 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /**
  * Tests for ControllerService With ZK Stream Store
@@ -99,7 +105,7 @@ public abstract class ControllerServiceWithStreamTest {
                 new ExponentialBackoffRetry(200, 10, 5000));
         zkClient.start();
 
-        streamStore = getStore();
+        streamStore = spy(getStore());
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executor);
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
@@ -107,7 +113,7 @@ public abstract class ControllerServiceWithStreamTest {
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                   .controllerURI(URI.create("tcp://localhost"))
                                                                   .build());
-        AuthHelper disabledAuthHelper = AuthHelper.getDisabledAuthHelper();
+        GrpcAuthHelper disabledAuthHelper = GrpcAuthHelper.getDisabledAuthHelper();
         SegmentHelper segmentHelperMock = SegmentHelperMock.getSegmentHelperMock();
         streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelperMock,
                 executor, "host", disabledAuthHelper, requestTracker);
@@ -136,6 +142,32 @@ public abstract class ControllerServiceWithStreamTest {
         zkServer.close();
         connectionFactory.close();
         ExecutorServiceHelpers.shutdown(executor);
+    }
+
+    @Test(timeout = 5000)
+    public void createStreamTest() throws Exception {
+        String stream = "create";
+        final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
+        final StreamConfiguration configuration1 = StreamConfiguration.builder()
+                                                                      .scalingPolicy(policy1).build();
+        //Start time  when stream is created.
+        long start = System.currentTimeMillis();
+
+        // Create scope
+        Controller.CreateScopeStatus scopeStatus = consumer.createScope(SCOPE).join();
+        assertEquals(Controller.CreateScopeStatus.Status.SUCCESS, scopeStatus.getStatus());
+        
+        // create stream
+        Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, stream, configuration1, start).get();
+        assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
+
+        verify(streamStore, times(1)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
+        
+        streamStatus = consumer.createStream(SCOPE, stream, configuration1, start).get();
+        assertEquals(Controller.CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
+
+        // verify that create stream is not called again
+        verify(streamStore, times(1)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
     }
 
     @Test(timeout = 5000)

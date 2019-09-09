@@ -43,7 +43,7 @@
         <property name="max" value="4"/>
     </module>
     <module name="StringLiteralEquality"/>
-    
+
 
     <!-- style -->
     <module name="NoLineWrap"/>
@@ -108,6 +108,7 @@
       <property name="allowMultipleEmptyLinesInsideClassMembers" value="false"/>
     </module>
     <module name="AvoidNestedBlocks"/>
+    <module name="InvalidJavadocPosition"/>
     <module name="JavadocStyle">
       <property name="scope" value="protected"/>
       <property name="checkFirstSentence" value="true"/>
@@ -120,7 +121,7 @@
         <property name="allowSamelineMultipleAnnotations" value="false"/>
         <property name="allowSamelineSingleParameterlessAnnotation" value="false"/>
         <property name="allowSamelineParameterizedAnnotation" value="false"/>
-        <property name="tokens" value="VARIABLE_DEF, PARAMETER_DEF"/>
+        <property name="tokens" value="VARIABLE_DEF"/>
     </module>
     <module name="JavadocMethod">
       <property name="scope" value="protected"/>

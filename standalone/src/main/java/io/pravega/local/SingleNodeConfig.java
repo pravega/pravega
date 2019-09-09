@@ -38,6 +38,7 @@ public class SingleNodeConfig {
     public final static Property<String> KEYSTORE_JKS_PASSWORD_FILE =
             Property.named("keyStoreJKSPasswordFile", "");
     public final static Property<String> TRUSTSTORE_JKS = Property.named("trustStoreJKS", "");
+    public final static Property<Boolean> ENABLE_TLS_RELOAD = Property.named("segmentstoreEnableTlsReload", false);
 
     private static final String COMPONENT_CODE = "singlenode";
     //end region
@@ -79,6 +80,9 @@ public class SingleNodeConfig {
      */
     @Getter
     private String keyFile;
+
+    @Getter
+    private boolean enableSegmentStoreTlsReload;
 
     /**
      * File containing the username passwd db for default auth handler.
@@ -155,6 +159,7 @@ public class SingleNodeConfig {
         this.keyStoreJKS = properties.get(KEYSTORE_JKS);
         this.keyStoreJKSPasswordFile = properties.get(KEYSTORE_JKS_PASSWORD_FILE);
         this.trustStoreJKS = properties.get(TRUSTSTORE_JKS);
+        this.enableSegmentStoreTlsReload = properties.getBoolean(ENABLE_TLS_RELOAD);
     }
 
     /**

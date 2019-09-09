@@ -32,13 +32,13 @@ import static io.pravega.controller.store.stream.PravegaTablesStreamMetadataStor
 import static io.pravega.shared.NameUtils.INTERNAL_SCOPE_NAME;
 import static io.pravega.shared.segment.StreamSegmentNameUtils.getQualifiedTableName;
 
-@Slf4j
 /**
  * Pravega Tables based scope metadata.
- * At top level, there is a common scopes table at _system. This has a list of all scopes in the cluster. 
- * Then there are per scopes table called _system/_tables/`scope`/streamsInScope-`id`. 
- * Each such scope table is protected against recreation of scope by attaching a unique id to the scope when it is created. 
+ * At top level, there is a common scopes table at _system. This has a list of all scopes in the cluster.
+ * Then there are per scopes table called _system/_tables/`scope`/streamsInScope-`id`.
+ * Each such scope table is protected against recreation of scope by attaching a unique id to the scope when it is created.
  */
+@Slf4j
 public class PravegaTablesScope implements Scope {
     private static final String STREAMS_IN_SCOPE_TABLE_FORMAT = "streamsInScope" + SEPARATOR + "%s";
     private final String scopeName;
@@ -58,11 +58,11 @@ public class PravegaTablesScope implements Scope {
 
     @Override
     public CompletableFuture<Void> createScope() {
-        // We will first attempt to create the entry for the scope in scopes table. 
+        // We will first attempt to create the entry for the scope in scopes table.
         // If scopes table does not exist, we create the scopes table (idempotent)
-        // followed by creating a new entry for this scope with a new unique id. 
+        // followed by creating a new entry for this scope with a new unique id.
         // We then retrive id from the store (in case someone concurrently created the entry or entry already existed.
-        // This unique id is used to create scope specific table with unique id 
+        // This unique id is used to create scope specific table with unique id
         return Futures.exceptionallyComposeExpecting(storeHelper.addNewEntry(
                 SCOPES_TABLE, scopeName, newId()),
                 DATA_NOT_FOUND_PREDICATE,
@@ -83,7 +83,7 @@ public class PravegaTablesScope implements Scope {
     }
 
     CompletableFuture<String> getStreamsInScopeTableName() {
-        return getId().thenApply(id -> 
+        return getId().thenApply(id ->
                 getQualifiedTableName(INTERNAL_SCOPE_NAME, scopeName, String.format(STREAMS_IN_SCOPE_TABLE_FORMAT, id.toString())));
     }
 
