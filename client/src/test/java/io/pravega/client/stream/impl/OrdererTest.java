@@ -42,7 +42,7 @@ public class OrdererTest {
         }
 
         @Override
-        public CompletableFuture<Void> fillBuffer() {
+        public CompletableFuture<?> fillBuffer() {
             return CompletableFuture.completedFuture(null);
         }
 

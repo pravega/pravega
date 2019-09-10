@@ -34,6 +34,7 @@ import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -57,6 +58,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -77,6 +79,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore store;
     private final ServerConnection connection;
+    private final AtomicLong pendingBytes = new AtomicLong(0);
+
     @Getter
     private final RequestProcessor nextRequestProcessor;
     private final Object lock = new Object();
@@ -219,7 +223,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
                 Append last = appends.get(0);
                 int eventCount = 0;
-
                 int i = -1;
                 for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
                     Append a = iterator.next();
@@ -233,11 +236,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     iterator.remove();
                 }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
-
                 String segment = last.getSegment();
                 long eventNumber = last.getEventNumber();
                 outstandingAppend = new Append(segment, writer, eventNumber, eventCount, data, null, last.getRequestId());
             }
+            setPendingBytes(getPendingBytes() - outstandingAppend.getData().readableBytes());
             return outstandingAppend;
         }
     }
@@ -251,13 +254,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         List<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals, append.getEventNumber(), lastEventNumber),
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
-        ByteBuf buf = append.getData().asReadOnly();
-        byte[] bytes = new byte[buf.readableBytes()];
-        buf.readBytes(bytes);
+        ByteBufWrapper buf = new ByteBufWrapper(append.getData());
         if (append.isConditional()) {
-            return store.append(append.getSegment(), append.getExpectedLength(), bytes, attributes, TIMEOUT);
+            return store.append(append.getSegment(), append.getExpectedLength(), buf, attributes, TIMEOUT);
         } else {
-            return store.append(append.getSegment(), bytes, attributes, TIMEOUT);
+            return store.append(append.getSegment(), buf, attributes, TIMEOUT);
         }
     }
 
@@ -301,7 +302,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
                 } else {
                     if (!conditionalFailed) {
-                        waitingAppends.removeAll(append.getWriterId());
+                        long bytes = waitingAppends.removeAll(append.getWriterId())
+                                .stream().mapToInt(a -> a.getData().readableBytes()).sum();
+                        setPendingBytes(getPendingBytes() - bytes);
                         latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
                     }
                 }
@@ -381,13 +384,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * If there is room for more data, we resume consuming from the socket.
      */
     private void pauseOrResumeReading() {
-        int bytesWaiting;
-        synchronized (lock) {
-            bytesWaiting = waitingAppends.values()
-                    .stream()
-                    .mapToInt(a -> a.getData().readableBytes())
-                    .sum();
-        }
+        long bytesWaiting = getPendingBytes();
 
         if (bytesWaiting > HIGH_WATER_MARK) {
             log.debug("Pausing writing from connection {}", connection);
@@ -397,6 +394,23 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.trace("Resuming writing from connection {}", connection);
             connection.resumeReading();
         }
+    }
+
+    /**
+     * return the remaining bytes to be consumed.
+     */
+    protected long getPendingBytes() {
+        return pendingBytes.get();
+    }
+
+    /**
+     * set the remaining bytes to be consumed.
+     * Make sure that negative value is not set.
+     *
+     * @param val  New value to set.
+     */
+    protected void setPendingBytes(long val) {
+        pendingBytes.set(Math.max(val, 0));
     }
 
     /**
@@ -414,9 +428,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             Preconditions.checkState(append.getEventNumber() >= lastEventNumber, "Event was already appended.");
             waitingAppends.put(id, append);
         }
+        setPendingBytes(getPendingBytes() + append.getData().readableBytes());
         pauseOrResumeReading();
         performNextWrite();
     }
-
     //endregion
 }

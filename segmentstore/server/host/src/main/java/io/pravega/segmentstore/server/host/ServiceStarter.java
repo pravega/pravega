@@ -109,7 +109,8 @@ public final class ServiceStarter {
         log.info(serviceConfig.toString());
         log.info(builderConfig.getConfig(AutoScalerConfig::builder).toString());
 
-        this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.getListeningIPAddress(),
+        this.listener = new PravegaConnectionListener(this.serviceConfig.isEnableTls(), this.serviceConfig.isEnableTlsReload(),
+                                                      this.serviceConfig.getListeningIPAddress(),
                                                       this.serviceConfig.getListeningPort(), service, tableStoreService,
                                                       autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(),
                                                       tokenVerifier, this.serviceConfig.getCertFile(), this.serviceConfig.getKeyFile(),

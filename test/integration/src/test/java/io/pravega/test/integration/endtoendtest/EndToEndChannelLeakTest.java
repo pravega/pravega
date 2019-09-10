@@ -70,6 +70,7 @@ public class EndToEndChannelLeakTest {
     private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
     private final JavaSerializer<String> serializer = new JavaSerializer<>();
+    private final EventWriterConfig writerConfig = EventWriterConfig.builder().enableConnectionPooling(true).build();
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
@@ -124,8 +125,7 @@ public class EndToEndChannelLeakTest {
 
         //Create a writer.
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(SCOPE, new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(SCOPE, serializer, writerConfig);
 
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl(SCOPE, controller, clientFactory,
@@ -134,7 +134,7 @@ public class EndToEndChannelLeakTest {
                                        .stream(Stream.of(SCOPE, STREAM_NAME)).build());
 
         @Cleanup
-        EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, new JavaSerializer<>(),
+        EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
                 ReaderConfig.builder().build());
         //Write an event.
         writer.writeEvent("0", "zero").get();
@@ -202,8 +202,7 @@ public class EndToEndChannelLeakTest {
         
         //Create a writer and write an event.
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_NAME, new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_NAME, serializer, writerConfig);
         writer.writeEvent("0", "zero").get();
 
         expectedChannelCount += 1; // connection to segment 0.
@@ -305,8 +304,7 @@ public class EndToEndChannelLeakTest {
         
         //Create a writer.
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(SCOPE, new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(SCOPE, serializer, writerConfig);
 
         //Write an event.
         writer.writeEvent("0", "zero").get();
@@ -314,7 +312,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(channelCount, connectionPool);
 
         @Cleanup
-        EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, new JavaSerializer<>(),
+        EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
                 ReaderConfig.builder().build());
         
         channelCount += 4; //One for segment 3 for state synchronizer
@@ -409,8 +407,7 @@ public class EndToEndChannelLeakTest {
         
         //Create a writer and write an event.
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_NAME, new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(STREAM_NAME, serializer, writerConfig);
         writer.writeEvent("0", "zero").get();
 
         expectedChannelCount += 1; // connection to segment 0.

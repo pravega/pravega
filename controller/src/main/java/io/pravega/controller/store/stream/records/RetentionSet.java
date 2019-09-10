@@ -26,11 +26,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 
-@Slf4j
-@Data
 /**
  * Data class to capture a retention set. This contains a sorted (by recording time) list of retention set records.
  */
+@Slf4j
+@Data
 public class RetentionSet {
     public static final RetentionSetSerializer SERIALIZER = new RetentionSetSerializer();
 
@@ -42,9 +42,9 @@ public class RetentionSet {
     }
 
     /**
-     * This method adds a reference to retentionStreamCutRecord in the retentionSet.  
+     * This method adds a reference to retentionStreamCutRecord in the retentionSet.
      * @param retentionSet record
-     * @param cut stream cut for which the reference has to be added. 
+     * @param cut stream cut for which the reference has to be added.
      * @return updated retentionSet
      */
     public static RetentionSet addReferenceToStreamCutIfLatest(RetentionSet retentionSet, StreamCutRecord cut) {
@@ -96,12 +96,12 @@ public class RetentionSet {
     public List<StreamCutReferenceRecord> retentionRecordsBefore(StreamCutReferenceRecord record) {
         Preconditions.checkNotNull(record);
         int beforeIndex = getGreatestLowerBound(this, record.getRecordingTime(), StreamCutReferenceRecord::getRecordingTime);
-        
+
         return retentionRecords.subList(0, beforeIndex + 1);
     }
 
     /**
-     * Creates a new retention set object by removing all records on or before given record. 
+     * Creates a new retention set object by removing all records on or before given record.
      * @param set retention set to update
      * @param record reference record
      * @return updated retention set record after removing all elements before given reference record.
@@ -111,13 +111,13 @@ public class RetentionSet {
         // remove all stream cuts with recordingTime before supplied cut
         int beforeIndex = getGreatestLowerBound(set, record.getRecordingTime(), StreamCutReferenceRecord::getRecordingTime);
         if (beforeIndex < 0) {
-            return set;            
+            return set;
         }
-        
+
         if (beforeIndex + 1 == set.retentionRecords.size()) {
             return new RetentionSet(ImmutableList.of());
         }
-        
+
         return new RetentionSet(set.retentionRecords.subList(beforeIndex + 1, set.retentionRecords.size()));
     }
 
@@ -144,7 +144,7 @@ public class RetentionSet {
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
-    
+
     private static class RetentionSetSerializer
             extends VersionedSerializer.WithBuilder<RetentionSet, RetentionSet.RetentionSetBuilder> {
         @Override

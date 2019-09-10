@@ -25,19 +25,19 @@ import javax.annotation.concurrent.GuardedBy;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * Auth manager class for Pravega controller. This manages the handlers for grpc and REST together.
+ * Manages instances of {@link AuthHandler} for the Controller's gRPC and REST interfaces.
+ *
  * In case of grpc, the routing of the authenticate function to specific registered interceptor is taken care by grpc
- * interceptor mechanism.
- * In case of REST calls, this class routes the call to specific AuthHandler.
+ * interceptor mechanism. In case of REST calls, this class routes the call to specific AuthHandler.
  */
 @Slf4j
-public class PravegaAuthManager {
+public class AuthHandlerManager {
     private final GRPCServerConfig serverConfig;
 
     @GuardedBy("this")
     private final Map<String, AuthHandler> handlerMap;
 
-    public PravegaAuthManager(GRPCServerConfig serverConfig) {
+    public AuthHandlerManager(GRPCServerConfig serverConfig) {
         this.serverConfig = serverConfig;
         this.handlerMap = new HashMap<>();
     }
@@ -136,10 +136,11 @@ public class PravegaAuthManager {
      * to inject and register custom auth handlers. Also, this method is idempotent.
      *
      * @param authHandler the {@code AuthHandler} implementation to register
-     * @Throws NullPointerException {@code authHandler} is null
+     * @throws NullPointerException {@code authHandler} is null
      */
     @VisibleForTesting
     public synchronized void registerHandler(AuthHandler authHandler) {
+        Preconditions.checkNotNull(authHandler, "authHandler");
         this.handlerMap.put(authHandler.getHandlerName(), authHandler);
     }
 
@@ -161,7 +162,7 @@ public class PravegaAuthManager {
                                 continue;
                             }
                         }
-                        builder.intercept(new PravegaInterceptor(handler));
+                        builder.intercept(new AuthInterceptor(handler));
                     } catch (Exception e) {
                         log.warn("Exception while initializing auth handler {}", handler, e);
                     }

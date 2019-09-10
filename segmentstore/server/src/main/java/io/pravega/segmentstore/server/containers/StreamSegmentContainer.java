@@ -19,6 +19,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -81,6 +82,7 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -342,34 +344,30 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        logRequest("append", streamSegmentName, data.length);
+        logRequest("append", streamSegmentName, data.getLength());
         this.metrics.append();
         return this.metadataStore.getOrAssignSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
-                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
-                    return processAttributeUpdaterOperation(operation, timer).thenApply(v -> {
-                        return operation.getLastStreamSegmentOffset();
-                    });
+                    val operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
+                    return processAppend(operation, timer).thenApply(v -> operation.getLastStreamSegmentOffset());
                 });
     }
 
     @Override
-    public CompletableFuture<Long> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        logRequest("appendWithOffset", streamSegmentName, data.length);
+        logRequest("appendWithOffset", streamSegmentName, data.getLength());
         this.metrics.appendWithOffset();
         return this.metadataStore.getOrAssignSegmentId(streamSegmentName, timer.getRemaining(),
                 streamSegmentId -> {
-                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
-                    return processAttributeUpdaterOperation(operation, timer).thenApply(v -> {
-                        return operation.getLastStreamSegmentOffset();
-                    });
+                    val operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
+                    return processAppend(operation, timer).thenApply(v -> operation.getLastStreamSegmentOffset());
                 });
     }
 
@@ -637,6 +635,22 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     /**
+     * Processes the given {@link StreamSegmentAppendOperation} and ensures that the {@link StreamSegmentAppendOperation#close()}
+     * is invoked in case the operation failed to process (for whatever reason). If the operation completed successfully,
+     * the {@link OperationLog} will close it internall when it finished any async processing with it.
+     *
+     * @param appendOperation The Operation to process.
+     * @param timer           Timer for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate that the Operation has been successfully
+     * processed. If it failed, it will be completed with an appropriate exception.
+     */
+    private CompletableFuture<Void> processAppend(StreamSegmentAppendOperation appendOperation, TimeoutTimer timer) {
+        CompletableFuture<Void> result = processAttributeUpdaterOperation(appendOperation, timer);
+        Futures.exceptionListener(result, ex -> appendOperation.close());
+        return result;
+    }
+
+    /**
      * Processes the given AttributeUpdateOperation with exactly one retry in case it was rejected because of an attribute
      * update failure due to the attribute value missing from the in-memory cache.
      *
@@ -859,11 +873,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         private final long segmentId;
 
         @Override
-        public CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             ensureRunning();
-            logRequest("append", this.segmentId, data.length);
+            logRequest("append", this.segmentId, data.getLength());
             StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, data, attributeUpdates);
-            return processAttributeUpdaterOperation(operation, new TimeoutTimer(timeout))
+            return processAppend(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());
         }
 
