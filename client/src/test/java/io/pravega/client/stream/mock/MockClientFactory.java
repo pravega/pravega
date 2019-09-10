@@ -31,7 +31,6 @@ import java.util.function.Supplier;
 import lombok.Getter;
 
 public class MockClientFactory implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
-
     private final ConnectionFactoryImpl connectionFactory;
     @Getter
     private final Controller controller;

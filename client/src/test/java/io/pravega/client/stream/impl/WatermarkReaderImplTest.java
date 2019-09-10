@@ -13,7 +13,9 @@ import com.google.common.collect.ImmutableMap;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
+import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.client.watermark.WatermarkSerializer;
@@ -76,7 +78,9 @@ public class WatermarkReaderImplTest {
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         @Cleanup
         MockClientFactory clientFactory = new MockClientFactory("Scope", segmentStreamFactory);
-        RevisionedStreamClient<Watermark> writer = clientFactory.createRevisionedStreamClient(NameUtils.getMarkStreamForStream("streamName"),
+        String markStream = NameUtils.getMarkStreamForStream("streamName");
+        createScopeAndStream("Scope", markStream, clientFactory.getController());
+        RevisionedStreamClient<Watermark> writer = clientFactory.createRevisionedStreamClient(markStream,
                                                                                               new WatermarkSerializer(),
                                                                                               SynchronizerConfig.builder().build());
         InlineExecutor executor = new InlineExecutor();
@@ -150,6 +154,13 @@ public class WatermarkReaderImplTest {
         impl.advanceTo(ImmutableMap.of(s2, 7L, s3, 7L));
         assertEquals(80, impl.getTimeWindow().getLowerTimeBound().longValue());
         assertEquals(null, impl.getTimeWindow().getUpperTimeBound());
+    }
+    
+
+    private void createScopeAndStream(String scope, String stream, Controller controller) {
+        controller.createScope(scope).join();
+        controller.createStream(scope, stream,
+                                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build());
     }
     
 }
