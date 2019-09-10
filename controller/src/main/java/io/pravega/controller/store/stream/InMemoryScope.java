@@ -11,6 +11,7 @@ package io.pravega.controller.store.stream;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
+import io.pravega.common.concurrent.Futures;
 import lombok.Synchronized;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
@@ -56,6 +57,9 @@ public class InMemoryScope implements Scope {
     @Synchronized
     public CompletableFuture<Void> deleteScope() {
         this.sortedStreamsInScope.clear();
+        this.sortedStreamsInScope = null;
+        this.streamsPositionMap.clear();
+        this.streamsPositionMap = null;
         return CompletableFuture.completedFuture(null);
     }
 
@@ -92,6 +96,9 @@ public class InMemoryScope implements Scope {
         String newContinuationToken;
         List<Map.Entry<Integer, String>> limited;
         synchronized (this) {
+            if (sortedStreamsInScope == null) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "scope not found"));
+            }
             if (Strings.isNullOrEmpty(continuationToken)) {
                 limited = sortedStreamsInScope.entrySet().stream().limit(limit).collect(Collectors.toList());
             } else {

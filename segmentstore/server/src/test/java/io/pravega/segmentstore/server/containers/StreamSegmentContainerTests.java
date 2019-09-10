@@ -17,6 +17,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -225,6 +226,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 2. Add some appends.
         ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        ArrayList<RefCountByteArraySegment> appends = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
@@ -236,14 +238,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 attributeUpdates.add(new AttributeUpdate(attributeReplaceIfGreater, AttributeUpdateType.ReplaceIfGreater, i + 1));
                 attributeUpdates.add(new AttributeUpdate(attributeReplaceIfEquals,
                         i == 0 ? AttributeUpdateType.Replace : AttributeUpdateType.ReplaceIfEquals, i + 1, i));
-                byte[] appendData = getAppendData(segmentName, i);
-                long expectedLength = lengths.getOrDefault(segmentName, 0L) + appendData.length;
+                RefCountByteArraySegment appendData = getAppendData(segmentName, i);
+                long expectedLength = lengths.getOrDefault(segmentName, 0L) + appendData.getLength();
                 opFutures.add(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT).thenApply(length -> {
                     assertEquals(expectedLength, length.longValue());
                     return null;
                 }));
                 lengths.put(segmentName, expectedLength);
-                recordAppend(segmentName, appendData, segmentContents);
+                recordAppend(segmentName, appendData, segmentContents, appends);
             }
         }
 
@@ -296,6 +298,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // 4. Reads (regular reads, not tail reads).
         checkReadIndex(segmentContents, lengths, context);
 
+        // 4.1. After we ensured that all data has been ingested and processed, verify that all data buffers have been released.
+        checkAppendLeaks(appends);
+
         // 5. Writer moving data to Storage.
         waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         checkStorage(segmentContents, lengths, context);
@@ -317,18 +322,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 2. Add some appends & truncate as we go.
         ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
+        ArrayList<RefCountByteArraySegment> appends = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, Long> truncationOffsets = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
-                byte[] appendData = getAppendData(segmentName, i);
+                RefCountByteArraySegment appendData = getAppendData(segmentName, i);
                 opFutures.add(Futures.toVoid(context.container.append(segmentName, appendData, null, TIMEOUT)));
-                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                recordAppend(segmentName, appendData, segmentContents);
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.getLength());
+                recordAppend(segmentName, appendData, segmentContents, appends);
 
-                long truncateOffset = truncationOffsets.getOrDefault(segmentName, 0L) + appendData.length / 2 + 1;
+                long truncateOffset = truncationOffsets.getOrDefault(segmentName, 0L) + appendData.getLength() / 2 + 1;
                 truncationOffsets.put(segmentName, truncateOffset);
                 opFutures.add(context.container.truncateStreamSegment(segmentName, truncateOffset, TIMEOUT));
             }
@@ -350,6 +356,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 4. Reads (regular reads, not tail reads).
         checkReadIndex(segmentContents, lengths, truncationOffsets, context);
+
+        // 4.1. After we ensured that all data has been ingested and processed, verify that all data buffers have been released.
+        checkAppendLeaks(appends);
 
         // 5. Writer moving data to Storage.
         waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -646,7 +655,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                         new AttributeUpdate(attributeAccumulate, AttributeUpdateType.Accumulate, 1));
                 byte[] appendData = new byte[appendLength];
                 Arrays.fill(appendData, (byte) (fillValue + 1));
-                opFutures.add(Futures.toVoid(context.container.append(segmentName, appendData, attributeUpdates, TIMEOUT)));
+                opFutures.add(Futures.toVoid(context.container.append(segmentName, new ByteArraySegment(appendData), attributeUpdates, TIMEOUT)));
                 expectedLength.addAndGet(appendData.length);
             }));
         }
@@ -730,18 +739,19 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 2. Add some appends.
         ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
+        ArrayList<RefCountByteArraySegment> appends = new ArrayList<>();
         HashMap<String, Long> lengths = new HashMap<>();
         HashMap<String, ByteArrayOutputStream> segmentContents = new HashMap<>();
 
         int appendId = 0;
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
-                byte[] appendData = getAppendData(segmentName, i);
+                RefCountByteArraySegment appendData = getAppendData(segmentName, i);
                 long offset = lengths.getOrDefault(segmentName, 0L);
                 appendFutures.add(context.container.append(segmentName, offset, appendData, null, TIMEOUT));
 
-                lengths.put(segmentName, offset + appendData.length);
-                recordAppend(segmentName, appendData, segmentContents);
+                lengths.put(segmentName, offset + appendData.getLength());
+                recordAppend(segmentName, appendData, segmentContents, appends);
                 appendId++;
             }
         }
@@ -750,18 +760,24 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         // 2.1 Verify that if we pass wrong offsets, the append is failed.
         for (String segmentName : segmentNames) {
-            byte[] appendData = getAppendData(segmentName, appendId);
+            RefCountByteArraySegment appendData = getAppendData(segmentName, appendId);
             long offset = lengths.get(segmentName) + (appendId % 2 == 0 ? 1 : -1);
 
             AssertExtensions.assertSuppliedFutureThrows(
                     "append did not fail with the appropriate exception when passed a bad offset.",
                     () -> context.container.append(segmentName, offset, appendData, null, TIMEOUT),
                     ex -> ex instanceof BadOffsetException);
+
+            // Verify that failed appends have their buffers released.
+            checkAppendLeaks(Collections.singletonList(appendData));
             appendId++;
         }
 
         // 3. Reads (regular reads, not tail reads).
         checkReadIndex(segmentContents, lengths, context);
+
+        // 3.1. After we ensured that all data has been ingested and processed, verify that all data buffers have been released.
+        checkAppendLeaks(appends);
 
         // 4. Writer moving data to Storage.
         waitForSegmentsInStorage(segmentNames, context).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
@@ -793,10 +809,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             ByteArrayOutputStream segmentStream = new ByteArrayOutputStream();
             segmentContents.put(segmentName, segmentStream);
             for (int i = 0; i < appendsPerSegment; i++) {
-                byte[] appendData = getAppendData(segmentName, i);
+                ByteArraySegment appendData = getAppendData(segmentName, i);
                 appendFutures.add(context.container.append(segmentName, appendData, null, TIMEOUT));
-                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                segmentStream.write(appendData);
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.getLength());
+                appendData.copyTo(segmentStream);
             }
         }
 
@@ -820,14 +836,14 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                 Assert.assertEquals("Unexpected result from seal() future for segment " + segmentName, sp.getLength(), (long) sealFutures.get(i).join());
                 AssertExtensions.assertThrows(
                         "Container allowed appending to a sealed segment " + segmentName,
-                        context.container.append(segmentName, "foo".getBytes(), null, TIMEOUT)::join,
+                        context.container.append(segmentName, new ByteArraySegment("foo".getBytes()), null, TIMEOUT)::join,
                         ex -> ex instanceof StreamSegmentSealedException);
             } else {
                 Assert.assertFalse("Segment is sealed when it shouldn't be " + segmentName, sp.isSealed());
 
                 // Verify we can still append to these segments.
                 byte[] appendData = "foo".getBytes();
-                context.container.append(segmentName, appendData, null, TIMEOUT).join();
+                context.container.append(segmentName, new ByteArraySegment(appendData), null, TIMEOUT).join();
                 segmentContents.get(segmentName).write(appendData);
                 lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
             }
@@ -891,7 +907,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         AssertExtensions.assertThrows(
                 "append did not throw expected exception when called on a non-existent StreamSegment.",
-                context.container.append(segmentName, "foo".getBytes(), null, TIMEOUT)::join,
+                context.container.append(segmentName, new ByteArraySegment("foo".getBytes()), null, TIMEOUT)::join,
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         AssertExtensions.assertThrows(
@@ -965,7 +981,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
                     AssertExtensions.assertThrows(
                             "append did not throw expected exception when called on a deleted StreamSegment.",
-                            context.container.append(sn, "foo".getBytes(), null, TIMEOUT)::join,
+                            context.container.append(sn, new ByteArraySegment("foo".getBytes()), null, TIMEOUT)::join,
                             ex -> ex instanceof StreamSegmentNotExistsException);
 
                     AssertExtensions.assertThrows(
@@ -983,7 +999,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
                     Assert.assertFalse("Not-deleted segment was marked as deleted in metadata.", props.isDeleted());
 
                     // Verify we can still append and read from this segment.
-                    context.container.append(sn, "foo".getBytes(), null, TIMEOUT).join();
+                    context.container.append(sn, new ByteArraySegment("foo".getBytes()), null, TIMEOUT).join();
 
                     @Cleanup
                     ReadResult rr = context.container.read(sn, 0, 1, TIMEOUT).join();
@@ -1023,16 +1039,16 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             for (String segmentName : segmentNames) {
-                byte[] appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
+                RefCountByteArraySegment appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
                 appendFutures.add(context.container.append(segmentName, appendData, null, TIMEOUT));
-                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                recordAppend(segmentName, appendData, segmentContents);
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.getLength());
+                recordAppend(segmentName, appendData, segmentContents, null);
 
                 // Verify that we can no longer append to Transaction.
                 for (String transactionName : transactionsBySegment.get(segmentName)) {
                     AssertExtensions.assertThrows(
                             "An append was allowed to a merged Transaction " + transactionName,
-                            context.container.append(transactionName, "foo".getBytes(), null, TIMEOUT)::join,
+                            context.container.append(transactionName, new ByteArraySegment("foo".getBytes()), null, TIMEOUT)::join,
                             ex -> ex instanceof StreamSegmentMergedException || ex instanceof StreamSegmentNotExistsException);
                 }
             }
@@ -1113,10 +1129,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         ArrayList<CompletableFuture<Void>> operationFutures = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             for (String segmentName : segmentNames) {
-                byte[] appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
+                RefCountByteArraySegment appendData = getAppendData(segmentName, APPENDS_PER_SEGMENT + i);
                 operationFutures.add(Futures.toVoid(context.container.append(segmentName, appendData, null, TIMEOUT)));
-                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                recordAppend(segmentName, appendData, segmentContents);
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.getLength());
+                recordAppend(segmentName, appendData, segmentContents, null);
             }
         }
 
@@ -1177,7 +1193,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     public void testMetadataCleanup() throws Exception {
         final String segmentName = "segment";
         final UUID[] attributes = new UUID[]{Attributes.CREATION_TIME, Attributes.EVENT_COUNT, UUID.randomUUID()};
-        final byte[] appendData = "hello".getBytes();
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
         Map<UUID, Long> expectedAttributes = new HashMap<>();
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
@@ -1218,9 +1234,9 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // Append again, and make sure we can append at the right offset.
         val secondAppendAttributes = createAttributeUpdates(attributes);
         applyAttributes(secondAppendAttributes, expectedAttributes);
-        localContainer.append(segmentName, appendData.length, appendData, secondAppendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        localContainer.append(segmentName, appendData.getLength(), appendData, secondAppendAttributes, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
         sp = localContainer.getStreamSegmentInfo(segmentName, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
-        Assert.assertEquals("Unexpected length from segment after eviction & resurrection.", 2 * appendData.length, sp.getLength());
+        Assert.assertEquals("Unexpected length from segment after eviction & resurrection.", 2 * appendData.getLength(), sp.getLength());
         SegmentMetadataComparer.assertSameAttributes("Unexpected attributes after eviction & resurrection.", expectedAttributes, sp);
 
         // Seal.
@@ -1262,7 +1278,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Test
     public void testMetadataCleanupRecovery() throws Exception {
         final String segmentName = "segment";
-        final byte[] appendData = "hello".getBytes();
+        final ByteArraySegment appendData = new ByteArraySegment("hello".getBytes());
 
         final TestContainerConfig containerConfig = new TestContainerConfig();
         containerConfig.setSegmentMetadataExpiration(Duration.ofMillis(EVICTION_SEGMENT_EXPIRATION_MILLIS_SHORT));
@@ -1449,13 +1465,13 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
         AssertExtensions.assertSuppliedFutureThrows(
                 "Original container did not reject an append operation after being fenced out.",
-                () -> container1.append(segmentNames.get(0), new byte[1], null, TIMEOUT),
+                () -> container1.append(segmentNames.get(0), new ByteArraySegment(new byte[1]), null, TIMEOUT),
                 ex -> ex instanceof DataLogWriterNotPrimaryException      // Write fenced.
                         || ex instanceof ObjectClosedException            // Write accepted, but OperationProcessor shuts down while processing it.
                         || ex instanceof IllegalContainerStateException); // Write rejected due to Container not running.
 
         // Verify we can still write to the second container.
-        container2.append(segmentNames.get(0), 0, new byte[1], null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        container2.append(segmentNames.get(0), 0, new ByteArraySegment(new byte[1]), null, TIMEOUT).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
 
         // Verify container1 is shutting down (give it some time to complete) and that it ends up in a Failed state.
         ServiceListeners.awaitShutdown(container1, shutdownTimeout, false);
@@ -1534,10 +1550,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             val opFutures = new ArrayList<CompletableFuture<Long>>();
             for (int i = 0; i < APPENDS_PER_SEGMENT / 2; i++) {
                 for (String segmentName : segmentNames) {
-                    byte[] appendData = getAppendData(segmentName, i);
+                    RefCountByteArraySegment appendData = getAppendData(segmentName, i);
                     opFutures.add(container.append(segmentName, appendData, null, TIMEOUT));
-                    lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                    recordAppend(segmentName, appendData, segmentContents);
+                    lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.getLength());
+                    recordAppend(segmentName, appendData, segmentContents, null);
                 }
             }
 
@@ -1554,7 +1570,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
 
             AssertExtensions.assertSuppliedFutureThrows(
                     "append() worked in offline mode.",
-                    () -> container.append("foo", new byte[1], null, TIMEOUT),
+                    () -> container.append("foo", new ByteArraySegment(new byte[1]), null, TIMEOUT),
                     ex -> ex instanceof ContainerOfflineException);
             AssertExtensions.assertSuppliedFutureThrows(
                     "getStreamSegmentInfo() worked in offline mode.",
@@ -1581,10 +1597,10 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             ArrayList<CompletableFuture<Void>> opFutures = new ArrayList<>();
             for (int i = 0; i < APPENDS_PER_SEGMENT / 2; i++) {
                 for (String segmentName : segmentNames) {
-                    byte[] appendData = getAppendData(segmentName, i);
+                    RefCountByteArraySegment appendData = getAppendData(segmentName, i);
                     opFutures.add(Futures.toVoid(container.append(segmentName, appendData, null, TIMEOUT)));
-                    lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                    recordAppend(segmentName, appendData, segmentContents);
+                    lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.getLength());
+                    recordAppend(segmentName, appendData, segmentContents, null);
                 }
             }
 
@@ -1609,7 +1625,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
     @Test
     public void testExtensions() throws Exception {
         String segmentName = getSegmentName(123);
-        byte[] data = getAppendData(segmentName, 0);
+        ByteArraySegment data = getAppendData(segmentName, 0);
 
         // Configure extension.
         val operationProcessed = new CompletableFuture<SegmentOperation>();
@@ -1649,7 +1665,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         // a location in the cache. We do not have access to that cache, so we can only verify its metadata.
         val appendOp = (CachedStreamSegmentAppendOperation) rawOp;
         Assert.assertEquals("Unexpected offset.", 0, appendOp.getStreamSegmentOffset());
-        Assert.assertEquals("Unexpected data length.", data.length, appendOp.getLength());
+        Assert.assertEquals("Unexpected data length.", data.getLength(), appendOp.getLength());
         Assert.assertNull("Unexpected attribute updates.", appendOp.getAttributeUpdates());
 
         // Verify extension is closed when the SegmentContainer is closed.
@@ -1677,7 +1693,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             byte[] appendData = ("Append_" + segmentName).getBytes();
 
             val dsa = context.container.forSegment(segmentName, TIMEOUT).join();
-            dsa.append(appendData, Collections.singleton(new AttributeUpdate(attributeId1, AttributeUpdateType.None, 1L)), TIMEOUT).join();
+            dsa.append(new ByteArraySegment(appendData), Collections.singleton(new AttributeUpdate(attributeId1, AttributeUpdateType.None, 1L)), TIMEOUT).join();
             dsa.updateAttributes(Collections.singleton(new AttributeUpdate(attributeId2, AttributeUpdateType.None, 2L)), TIMEOUT).join();
             dsa.seal(TIMEOUT).join();
             dsa.truncate(1, TIMEOUT).join();
@@ -1883,28 +1899,36 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Assert.assertTrue("Segment '" + segmentName + "' still exists in Storage.", attemptsLeft >= 0);
     }
 
+    @SneakyThrows
+    private void checkAppendLeaks(Collection<RefCountByteArraySegment> appends) {
+        Assert.assertTrue("At least one append buffer has never been retained.",
+                appends.stream().allMatch(RefCountByteArraySegment::wasRetained));
+
+        AssertExtensions.assertEventuallyEquals(0, () -> (int) appends.stream().mapToInt(RefCountByteArraySegment::getRefCount).sum(), 10);
+    }
+
     private void appendToParentsAndTransactions(Collection<String> segmentNames, HashMap<String, ArrayList<String>> transactionsBySegment, HashMap<String, Long> lengths, HashMap<String, ByteArrayOutputStream> segmentContents, TestContext context) throws Exception {
         ArrayList<CompletableFuture<Long>> appendFutures = new ArrayList<>();
         for (int i = 0; i < APPENDS_PER_SEGMENT; i++) {
             for (String segmentName : segmentNames) {
-                byte[] appendData = getAppendData(segmentName, i);
+                RefCountByteArraySegment appendData = getAppendData(segmentName, i);
                 appendFutures.add(context.container.append(segmentName, appendData, null, TIMEOUT));
-                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.length);
-                recordAppend(segmentName, appendData, segmentContents);
+                lengths.put(segmentName, lengths.getOrDefault(segmentName, 0L) + appendData.getLength());
+                recordAppend(segmentName, appendData, segmentContents, null);
 
                 boolean emptyTransaction = false;
                 for (String transactionName : transactionsBySegment.get(segmentName)) {
                     if (!emptyTransaction) {
                         lengths.put(transactionName, 0L);
-                        recordAppend(transactionName, new byte[0], segmentContents);
+                        recordAppend(transactionName, new RefCountByteArraySegment(new byte[0]), segmentContents, null);
                         emptyTransaction = true;
                         continue;
                     }
 
                     appendData = getAppendData(transactionName, i);
                     appendFutures.add(context.container.append(transactionName, appendData, null, TIMEOUT));
-                    lengths.put(transactionName, lengths.getOrDefault(transactionName, 0L) + appendData.length);
-                    recordAppend(transactionName, appendData, segmentContents);
+                    lengths.put(transactionName, lengths.getOrDefault(transactionName, 0L) + appendData.getLength());
+                    recordAppend(transactionName, appendData, segmentContents, null);
                 }
             }
         }
@@ -1938,8 +1962,8 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         Futures.allOf(mergeFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    private byte[] getAppendData(String segmentName, int appendId) {
-        return String.format("%s_%d", segmentName, appendId).getBytes();
+    private RefCountByteArraySegment getAppendData(String segmentName, int appendId) {
+        return new RefCountByteArraySegment(String.format("%s_%d", segmentName, appendId).getBytes());
     }
 
     private ArrayList<String> createSegments(TestContext context) {
@@ -1977,14 +2001,17 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         return transactions;
     }
 
-    private void recordAppend(String segmentName, byte[] data, HashMap<String, ByteArrayOutputStream> segmentContents) throws Exception {
+    private void recordAppend(String segmentName, RefCountByteArraySegment data, HashMap<String, ByteArrayOutputStream> segmentContents, ArrayList<RefCountByteArraySegment> appends) throws Exception {
         ByteArrayOutputStream contents = segmentContents.getOrDefault(segmentName, null);
         if (contents == null) {
             contents = new ByteArrayOutputStream();
             segmentContents.put(segmentName, contents);
         }
 
-        contents.write(data);
+        data.copyTo(contents);
+        if (appends != null) {
+            appends.add(data);
+        }
     }
 
     private static String getSegmentName(int i) {
@@ -2073,7 +2100,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
         TimeoutTimer timer = new TimeoutTimer(TIMEOUT);
         String segmentName = "test" + System.nanoTime();
         container.createStreamSegment(segmentName, null, timer.getRemaining())
-                .thenCompose(v -> container.append(segmentName, new byte[1], null, timer.getRemaining()))
+                .thenCompose(v -> container.append(segmentName, new ByteArraySegment(new byte[1]), null, timer.getRemaining()))
                 .thenCompose(v -> container.read(segmentName, 0, 1, timer.getRemaining()))
                 .thenCompose(rr -> {
                     ReadResultEntry rre = rr.next();
@@ -2240,7 +2267,7 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             return (createSegment ? createStreamSegment(segmentName, null, TIMEOUT) : CompletableFuture.completedFuture(null))
                     .thenCompose(v -> Futures.loop(
                             canContinue,
-                            () -> Futures.toVoid(append(segmentName, appendData, null, TIMEOUT)),
+                            () -> Futures.toVoid(append(segmentName, new ByteArraySegment(appendData), null, TIMEOUT)),
                             this.executor))
                     .thenCompose(v -> createSegment ? deleteStreamSegment(segmentName, TIMEOUT) : CompletableFuture.completedFuture(null));
         }
@@ -2379,6 +2406,34 @@ public class StreamSegmentContainerTests extends ThreadPooledTestSuite {
             public void close() {
 
             }
+        }
+    }
+
+    private static class RefCountByteArraySegment extends ByteArraySegment {
+        private final AtomicInteger refCount = new AtomicInteger();
+        private final AtomicBoolean retained = new AtomicBoolean();
+
+        RefCountByteArraySegment(byte[] array) {
+            super(array);
+        }
+
+        int getRefCount() {
+            return this.refCount.get();
+        }
+
+        boolean wasRetained() {
+            return this.retained.get();
+        }
+
+        @Override
+        public void retain() {
+            this.refCount.incrementAndGet();
+            this.retained.set(true);
+        }
+
+        @Override
+        public void release() {
+            this.refCount.decrementAndGet();
         }
     }
 

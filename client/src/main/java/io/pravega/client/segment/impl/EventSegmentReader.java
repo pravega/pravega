@@ -76,7 +76,7 @@ public interface EventSegmentReader extends AutoCloseable {
      * 
      * @return A future that completes when the request to fill the buffer has returned.
      */
-    public abstract CompletableFuture<Void> fillBuffer();
+    public abstract CompletableFuture<?> fillBuffer();
     
     /**
      * Closes this reader. No further methods may be called after close.

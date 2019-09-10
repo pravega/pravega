@@ -96,7 +96,7 @@ public class CheckpointStateTest {
         state.beginNewCheckpoint("3" + SILENT, ImmutableSet.of("a"), Collections.emptyMap());
         state.beginNewCheckpoint("4", ImmutableSet.of("a"), Collections.emptyMap());
         // Silent checkpoint should not be counted as part of CheckpointState#getOutstandingCheckpoints.
-        assertEquals(3, state.getOutstandingCheckpoints());
+        assertEquals(3, state.getOutstandingCheckpoints().size());
 
         //Complete checkpoint "2"
         state.readerCheckpointed("2", "a", ImmutableMap.of(getSegment("S1"), 1L));
@@ -106,15 +106,15 @@ public class CheckpointStateTest {
         // All check points before checkpoint id "2" are completed.
         assertTrue(state.isCheckpointComplete("1"));
         // Only checkpoint "4" is outstanding as checkpoints "1" and "2" are complete and silent checkpoints are ignored.
-        assertEquals(1, state.getOutstandingCheckpoints());
+        assertEquals(1, state.getOutstandingCheckpoints().size());
 
         state.readerCheckpointed("3" + SILENT, "a", Collections.emptyMap());
         assertTrue(state.isCheckpointComplete("4" + SILENT));
-        assertEquals(1, state.getOutstandingCheckpoints()); // Checkpoint 4 is outstanding.
+        assertEquals(1, state.getOutstandingCheckpoints().size()); // Checkpoint 4 is outstanding.
 
         state.readerCheckpointed("4", "a", Collections.emptyMap());
         assertTrue(state.isCheckpointComplete("4"));
-        assertEquals(0, state.getOutstandingCheckpoints());
+        assertEquals(0, state.getOutstandingCheckpoints().size());
     }
 
     private Segment getSegment(String name) {

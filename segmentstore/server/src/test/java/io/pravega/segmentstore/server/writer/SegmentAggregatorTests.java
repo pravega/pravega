@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.io.FixedByteArrayOutputStream;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -160,7 +161,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         TestContext context = new TestContext(DEFAULT_CONFIG);
         AssertExtensions.assertThrows(
                 "add() was allowed before initialization.",
-                () -> context.segmentAggregator.add(new StreamSegmentAppendOperation(0, new byte[0], null)),
+                () -> context.segmentAggregator.add(new StreamSegmentAppendOperation(0, new ByteArraySegment(new byte[0]), null)),
                 ex -> ex instanceof IllegalStateException);
 
         AssertExtensions.assertThrows(
@@ -292,7 +293,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                     StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(
                             parentAppend1.getStreamSegmentId(),
                             parentAppend1.getStreamSegmentOffset(),
-                            new byte[(int) parentAppend1.getLength()],
+                            new ByteArraySegment(new byte[(int) parentAppend1.getLength()]),
                             null);
                     context.segmentAggregator.add(badAppend);
                 },
@@ -302,11 +303,12 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         context.segmentAggregator.add(parentAppend1);
 
         // 3b. Verify we cannot add anything beyond the DurableLogOffset (offset or offset+length).
+        val appendData = new ByteArraySegment("foo".getBytes());
         AssertExtensions.assertThrows(
                 "add() allowed an operation beyond the DurableLogOffset (offset).",
                 () -> {
                     // We have the correct offset, but we did not increase the Length.
-                    StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), null);
+                    StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
                     badAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badAppend));
                 },
@@ -317,7 +319,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                 "add() allowed an operation beyond the DurableLogOffset (offset+length).",
                 () -> {
                     // We have the correct offset, but we the append exceeds the Length by 1 byte.
-                    StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), null);
+                    StreamSegmentAppendOperation badAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
                     badAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badAppend));
                 },
@@ -327,7 +329,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "add() allowed an operation with wrong offset (too small).",
                 () -> {
-                    StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), null);
+                    StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
                     badOffsetAppend.setStreamSegmentOffset(0);
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badOffsetAppend));
                 },
@@ -336,7 +338,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "add() allowed an operation with wrong offset (too large).",
                 () -> {
-                    StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), null);
+                    StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
                     badOffsetAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength() + 1);
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badOffsetAppend));
                 },
@@ -351,7 +353,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
                     badTransactionMetadata.setLength(100);
                     badTransactionAggregator.initialize(TIMEOUT).join();
 
-                    StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), "foo".getBytes(), null);
+                    StreamSegmentAppendOperation badOffsetAppend = new StreamSegmentAppendOperation(context.segmentAggregator.getMetadata().getId(), appendData, null);
                     badOffsetAppend.setStreamSegmentOffset(1);
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badOffsetAppend));
                 },
@@ -361,7 +363,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         AssertExtensions.assertThrows(
                 "add() allowed an Append operation with wrong Segment Id.",
                 () -> {
-                    StreamSegmentAppendOperation badIdAppend = new StreamSegmentAppendOperation(Integer.MAX_VALUE, "foo".getBytes(), null);
+                    StreamSegmentAppendOperation badIdAppend = new StreamSegmentAppendOperation(Integer.MAX_VALUE, appendData, null);
                     badIdAppend.setStreamSegmentOffset(parentAppend1.getStreamSegmentOffset() + parentAppend1.getLength());
                     context.segmentAggregator.add(new CachedStreamSegmentAppendOperation(badIdAppend));
                 },
@@ -2391,7 +2393,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
 
         // Update some attributes.
         val updateOp = generateUpdateAttributesAndUpdateMetadata(segmentId, context);
-        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentId, data, updateOp.getAttributeUpdates());
+        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(data), updateOp.getAttributeUpdates());
         op.setStreamSegmentOffset(offset);
         op.setSequenceNumber(context.containerMetadata.nextOperationSequenceNumber());
 
@@ -2403,7 +2405,7 @@ public class SegmentAggregatorTests extends ThreadPooledTestSuite {
         byte[] data = "Append_Dummy".getBytes();
         UpdateableSegmentMetadata segmentMetadata = context.containerMetadata.getStreamSegmentMetadata(segmentId);
         long offset = segmentMetadata.getLength();
-        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentId, data, null);
+        StreamSegmentAppendOperation op = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(data), null);
         op.setStreamSegmentOffset(offset);
         return op;
     }
