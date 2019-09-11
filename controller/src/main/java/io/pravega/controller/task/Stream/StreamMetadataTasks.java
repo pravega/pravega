@@ -60,6 +60,7 @@ import io.pravega.controller.task.Task;
 import io.pravega.controller.task.TaskBase;
 import io.pravega.controller.util.Config;
 import io.pravega.controller.util.RetryHelper;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.ControllerEvent;
 import io.pravega.shared.controller.event.DeleteStreamEvent;
 import io.pravega.shared.controller.event.ScaleOpEvent;
@@ -711,6 +712,7 @@ public class StreamMetadataTasks extends TaskBase {
                                                            .map(x -> StreamSegmentNameUtils.computeSegmentId(x, 0))
                                                            .collect(Collectors.toList());
                         return notifyNewSegments(scope, stream, response.getConfiguration(), newSegments, this.retrieveDelegationToken(), requestId)
+                                .thenCompose(v -> createMarkStream(scope, stream, timestamp, requestId))
                                 .thenCompose(y -> {
                                     final OperationContext context = streamMetadataStore.createContext(scope, stream);
 
@@ -751,6 +753,34 @@ public class StreamMetadataTasks extends TaskBase {
                         return result;
                     }
                 });
+    }
+
+    /**
+     * Method to create mark stream linked to the base stream. Mark Stream is a special single segmented dedicated internal stream where
+     * watermarks for the said stream are stored. 
+     * @param scope scope for base stream
+     * @param baseStream name of base stream
+     * @param timestamp timestamp 
+     * @param requestId request id for stream creation. 
+     * @return Completable future which is completed successfully when the internal mark stream is created
+     */
+    private CompletableFuture<Void> createMarkStream(String scope, String baseStream, long timestamp, long requestId) {
+        String markStream = NameUtils.getMarkStreamForStream(baseStream);
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        return this.streamMetadataStore.createStream(scope, markStream, config, timestamp, null, executor)
+                                .thenCompose(response -> {
+                                    final long segmentId = StreamSegmentNameUtils.computeSegmentId(response.getStartingSegmentNumber(), 0);
+                                    return notifyNewSegment(scope, markStream, segmentId, response.getConfiguration().getScalingPolicy(),
+                                            this.retrieveDelegationToken(), requestId);
+                                })
+                                .thenCompose(v -> {
+                                    final OperationContext context = streamMetadataStore.createContext(scope, markStream);
+
+                                    return streamMetadataStore.getVersionedState(scope, markStream, context, executor)
+                                                       .thenCompose(state -> 
+                                                               Futures.toVoid(streamMetadataStore.updateVersionedState(scope, markStream, State.ACTIVE,
+                                                               state, context, executor)));
+                                });
     }
 
     private CreateStreamStatus.Status translate(CreateStreamResponse.CreateStatus status) {

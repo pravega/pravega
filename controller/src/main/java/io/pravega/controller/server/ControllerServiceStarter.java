@@ -216,7 +216,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
             PeriodicWatermarking watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
-                    streamMetadataTasks, clientConfig, watermarkingExecutor);
+                    clientConfig, watermarkingExecutor);
             watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
                     watermarkingWork::watermark, watermarkingExecutor);
 

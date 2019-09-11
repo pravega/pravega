@@ -21,9 +21,7 @@ import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
-import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
-import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -32,7 +30,6 @@ import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.records.EpochRecord;
 import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.store.stream.records.WriterMark;
-import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.SegmentWithRange;
@@ -64,28 +61,25 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.AbstractMap.SimpleEntry;
 import static java.util.Map.Entry;
 
 public class PeriodicWatermarking {
     private static final TagLogger log = new TagLogger(LoggerFactory.getLogger(PeriodicWatermarking.class));
     private static final int MAX_CACHE_SIZE = 1000;
     private final StreamMetadataStore streamMetadataStore;
-    private final StreamMetadataTasks streamMetadataTasks;
     private final BucketStore bucketStore;
     private final ScheduledExecutorService executor;
     private final LoadingCache<Stream, WatermarkClient> watermarkClientCache;
 
     public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore,
-                                StreamMetadataTasks streamMetadataTasks, ClientConfig clientConfig, ScheduledExecutorService executor) {
-        this(streamMetadataStore, bucketStore, streamMetadataTasks, stream -> new WatermarkClient(stream, clientConfig), executor);
+                                ClientConfig clientConfig, ScheduledExecutorService executor) {
+        this(streamMetadataStore, bucketStore, stream -> new WatermarkClient(stream, clientConfig), executor);
     }
 
     @VisibleForTesting
-    public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore, StreamMetadataTasks streamMetadataTasks,
+    public PeriodicWatermarking(StreamMetadataStore streamMetadataStore, BucketStore bucketStore, 
                                 Function<Stream, WatermarkClient> watermarkClientSupplier, ScheduledExecutorService executor) {
         this.streamMetadataStore = streamMetadataStore;
-        this.streamMetadataTasks = streamMetadataTasks;
         this.bucketStore = bucketStore;
         this.executor = executor;
         this.watermarkClientCache = CacheBuilder.newBuilder()
@@ -127,24 +121,9 @@ public class PeriodicWatermarking {
         CompletableFuture<Map<String, WriterMark>> allWriterMarks = Futures.exceptionallyExpecting(
                 streamMetadataStore.getAllWriterMarks(scope, streamName, context, executor),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, Collections.emptyMap());
-
-        CompletableFuture<SimpleEntry<WatermarkClient, Map<String, WriterMark>>> createStreamFuture = allWriterMarks
-                .thenCompose(writers -> {
-                    WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
-                    CompletableFuture<Void> future;
-                    if (watermarkClient.isStreamCreated()) {
-                        future = CompletableFuture.completedFuture(null);
-                    } else {
-                        // create the stream first time
-                        future = createMarkStream(scope, streamName, watermarkClient);
-                    }
-
-                    return future.thenApply(v -> new SimpleEntry<>(watermarkClient, writers));
-                });
         
-        return createStreamFuture.thenCompose(pair -> {
-            WatermarkClient watermarkClient = pair.getKey();
-            Map<String, WriterMark> writers = pair.getValue();
+        return allWriterMarks.thenCompose(writers -> {
+            WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
 
             watermarkClient.reinitialize();
             return filterWritersAndComputeWatermark(scope, streamName, context, watermarkClient, writers);
@@ -152,24 +131,6 @@ public class PeriodicWatermarking {
             log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e);
             return null;
         });
-    }
-
-    private CompletableFuture<Void> createMarkStream(String scope, String streamName, WatermarkClient watermarkClient) {
-        CompletableFuture<Void> future;
-        future = streamMetadataTasks.createStream(scope, NameUtils.getMarkStreamForStream(streamName),
-                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build(), System.currentTimeMillis())
-                    .thenAccept(status -> {
-                                        switch (status) {
-                                            case SUCCESS:
-                                            case STREAM_EXISTS:
-                                                watermarkClient.setStreamCreated();
-                                                break;
-                                            default:
-                                                throw new RuntimeException("Failed to create mark segment. " +
-                                                        "Will be retried in subsequent watermarking iteration");
-                                        }
-                                    });
-        return future;
     }
 
     private CompletionStage<Void> filterWritersAndComputeWatermark(String scope, String streamName, OperationContext context, 
@@ -400,7 +361,6 @@ public class PeriodicWatermarking {
     static class WatermarkClient {
         private static final int WINDOW_SIZE = 2;
         private final RevisionedStreamClient<Watermark> client;
-        private final AtomicBoolean streamCreated = new AtomicBoolean(false);
         
         @GuardedBy("$Lock")
         private List<Map.Entry<Revision, Watermark>> entries;
@@ -421,14 +381,6 @@ public class PeriodicWatermarking {
             windowSize = WINDOW_SIZE;
         }
 
-        private void setStreamCreated() {
-            streamCreated.set(true);    
-        }
-
-        private boolean isStreamCreated() {
-            return streamCreated.get();    
-        }
-        
         @Synchronized
         private Map.Entry<Revision, Watermark> getLatestEntry() {
             return entries.isEmpty() ? null : entries.get(entries.size() - 1);

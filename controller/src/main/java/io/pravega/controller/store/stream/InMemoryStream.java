@@ -283,6 +283,9 @@ public class InMemoryStream extends PersistentStreamBase {
     @Override
     CompletableFuture<VersionedMetadata<StreamTruncationRecord>> getTruncationData(boolean ignoreCached) {
         synchronized (lock) {
+            if (this.truncationRecord == null) {
+                return Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, getName()));
+            }
             return CompletableFuture.completedFuture(this.truncationRecord);
         }
     }
