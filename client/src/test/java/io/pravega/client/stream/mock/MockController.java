@@ -34,6 +34,7 @@ import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -129,6 +130,14 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> createStream(String scope, String streamName, StreamConfiguration streamConfig) {
+        String markStream = NameUtils.getMarkStreamForStream(streamName);
+        StreamConfiguration markStreamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+
+        return createStreamInternal(scope, markStream, markStreamConfig)
+                .thenCompose(v -> createStreamInternal(scope, streamName, streamConfig));
+    }
+
+    private CompletableFuture<Boolean> createStreamInternal(String scope, String streamName, StreamConfiguration streamConfig) {
         Stream stream = new StreamImpl(scope, streamName);
         if (createdStreams.get(stream) != null) {
             return CompletableFuture.completedFuture(false);

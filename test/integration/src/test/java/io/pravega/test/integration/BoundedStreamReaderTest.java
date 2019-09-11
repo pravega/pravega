@@ -371,9 +371,7 @@ public class BoundedStreamReaderTest {
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         val f1 = controller.createStream(SCOPE, streamName, config);
-        val f2 = controller.createStream(SCOPE, NameUtils.getMarkStreamForStream(streamName), config);
         f1.get();
-        f2.get();
     }
 
     private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {
