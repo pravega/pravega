@@ -265,7 +265,7 @@ public class WatermarkWorkflowTest {
             });
         };
 
-        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, streamMetadataTasks, supplier, executor);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStore, bucketStore, supplier, executor);
 
         String streamName = "stream";
         String scope = "scope";

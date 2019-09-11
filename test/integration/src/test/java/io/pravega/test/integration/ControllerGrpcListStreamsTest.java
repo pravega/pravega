@@ -69,7 +69,7 @@ public class ControllerGrpcListStreamsTest {
         Set<Stream> streams = listStreams(clientConfig, scopeName);
 
         // Assert
-        assertEquals(2, streams.size());
+        assertEquals(4, streams.size());
     }
 
     @Test
@@ -89,7 +89,7 @@ public class ControllerGrpcListStreamsTest {
         Set<Stream> streams = listStreams(clientConfig, scopeName);
 
         // Assert
-        assertEquals(2, streams.size());
+        assertEquals(4, streams.size());
     }
 
     @Test
@@ -147,7 +147,7 @@ public class ControllerGrpcListStreamsTest {
                     .build(), scopeName);
 
             // Assert
-            assertEquals(2, streams.size());
+            assertEquals(4, streams.size());
         } finally {
             System.clearProperty("pravega.client.auth.loadDynamic");
             System.clearProperty("pravega.client.auth.method");
