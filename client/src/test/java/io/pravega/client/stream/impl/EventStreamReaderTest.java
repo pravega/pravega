@@ -736,16 +736,21 @@ public class EventStreamReaderTest {
                                                                                       Stream stream, String readerId,
                                                                                       AtomicLong clock,
                                                                                       int numSegments) {
+        String readerGroupStream = NameUtils.getStreamForReaderGroup("readerGroup");
         StreamConfiguration streamConfig = StreamConfiguration.builder()
                                                               .scalingPolicy(ScalingPolicy.fixed(numSegments))
                                                               .build();
         controller.createScope(stream.getScope());
         controller.createStream(stream.getScope(), stream.getStreamName(), streamConfig);
+        controller.createStream(stream.getScope(), readerGroupStream, StreamConfiguration.builder()
+                                                                                         .scalingPolicy(ScalingPolicy.fixed(1)).build());
         ClientFactoryImpl clientFactory = new ClientFactoryImpl(stream.getScope(), controller, connectionFactory,
                                                                 streamFactory, streamFactory, streamFactory,
                                                                 streamFactory);
+
         ReaderGroupConfig config = ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(stream).build();
-        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(NameUtils.getStreamForReaderGroup("readerGroup"),
+
+        StateSynchronizer<ReaderGroupState> sync = clientFactory.createStateSynchronizer(readerGroupStream,
                                                                                          new ReaderGroupStateUpdatesSerializer(),
                                                                                          new ReaderGroupStateInitSerializer(),
                                                                                          SynchronizerConfig.builder()
