@@ -91,7 +91,10 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public AsyncIterator<Stream> listStreams(String scopeName) {
-        Set<Stream> collect = createdScopes.get(scopeName);
+        Set<Stream> collect = createdScopes.get(scopeName)
+                                           .stream()
+                                           .filter(s -> !s.getStreamName().startsWith(NameUtils.INTERNAL_NAME_PREFIX))
+                                           .collect(Collectors.toSet());
         return new AsyncIterator<Stream>() {
             Object lock = new Object();
             @GuardedBy("lock")

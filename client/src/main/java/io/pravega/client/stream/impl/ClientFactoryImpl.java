@@ -178,9 +178,10 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
         if (!config.isDisableTimeWindows()) {
             for (Stream stream : stateManager.getStreams()) {
-                val client = createRevisionedStreamClient(StreamSegmentNameUtils.getMarkForStream(stream.getStreamName()),
-                                                           new WatermarkSerializer(),
-                                                           SynchronizerConfig.builder().readBufferSize(4096).build());
+                String streamName = StreamSegmentNameUtils.getMarkForStream(stream.getStreamName());
+                val client = createRevisionedStreamClient(getSegmentForRevisionedClient(stream.getScope(), streamName),
+                                                          new WatermarkSerializer(),
+                                                          SynchronizerConfig.builder().readBufferSize(4096).build());
                 watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, connectionFactory.getInternalExecutor()));
             }
         }
@@ -192,7 +193,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
-        return createRevisionedStreamClient(getSegmentForRevisionedClient(streamName), serializer, config);
+        return createRevisionedStreamClient(getSegmentForRevisionedClient(scope, streamName), serializer, config);
     }
 
     private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
@@ -214,11 +215,11 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                                 SynchronizerConfig config) {
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
-        val segment = getSegmentForRevisionedClient(streamName);
+        val segment = getSegmentForRevisionedClient(scope, streamName);
         return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config));
     }
 
-    private Segment getSegmentForRevisionedClient(String streamName) {
+    private Segment getSegmentForRevisionedClient(String scope, String streamName) {
         // This validates if the stream exists and returns zero segments if the stream is sealed.
         StreamSegments currentSegments = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, streamName), InvalidStreamException::new);
         if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
