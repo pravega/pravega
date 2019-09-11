@@ -50,6 +50,8 @@ public interface ControllerServiceConfig {
      */
     boolean isControllerClusterListenerEnabled();
 
+    String getTlsEnabledForSegmentStore();
+
     /**
      * Fetches the configuration of service managing transaction timeouts.
      *

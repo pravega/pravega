@@ -66,12 +66,50 @@ public class ClientConfig implements Serializable {
      */
     private final int maxConnectionsPerSegmentStore;
 
+    /**
+     * An internal property that determines whether TLS enabled is derived from Controller URI. It cannot be set
+     * directly by the caller. It is interpreted as:
+     *
+     * false - if {@link #enableTlsToController} and/or {@link #enableTlsToSegmentStore} is/are set, and if either
+     *         of them is set to false.
+     * true - if neither {@link #enableTlsToController} or {@link #enableTlsToSegmentStore} are set, or if both are
+     *        set to true.
+     */
+    private final boolean deriveTlsEnabledFromControllerURI;
+
+    /**
+     * An optional property representing whether to enable TLS for client's communication with the Controller.
+     *
+     * If this property and {@link #enableTlsToSegmentStore} are not set, and the scheme used in {@link #controllerURI}
+     * is {@code tls} or {@code pravegas}, TLS is automatically enabled for both client-to-Controller and
+     * client-to-Segment Store communications.
+     */
+    private final boolean enableTlsToController;
+
+    /**
+     * An optional property representing whether to enable TLS for client's communication with the Controller.
+     *
+     * If this property and {@link #enableTlsToController} are not set, and the scheme used in {@link #controllerURI}
+     * is {@code tls} or {@code pravegas}, TLS is automatically enabled for both client-to-Controller and
+     * client-to-Segment Store communications.
+     */
+    private final boolean enableTlsToSegmentStore;
+
+    /**
+     * Returns whether TLS is enabled for client-to-server (Controller and Segment Store) communications.
+     *
+     * @return {@code true} if TLS is enabled, otherwise returns {@code false}
+     */
     public boolean isEnableTls() {
-        String scheme = this.controllerURI.getScheme();
-        if (scheme == null) {
-            return false;
+        if (deriveTlsEnabledFromControllerURI) {
+            String scheme = this.controllerURI.getScheme();
+            if (scheme == null) {
+                return false;
+            }
+            return scheme.equals("tls") || scheme.equals("ssl") || scheme.equals("pravegas");
+        } else {
+            return enableTlsToController && enableTlsToSegmentStore;
         }
-        return scheme.equals("tls") || scheme.equals("ssl") || scheme.equals("pravegas");
     }
 
     /**
@@ -95,6 +133,32 @@ public class ClientConfig implements Serializable {
 
         private boolean validateHostName = true;
 
+        private boolean deriveTlsEnabledFromControllerURI = true;
+
+        /**
+         * Note: by making this method private, we intend to hide the corresponding property
+         * "deriveTlsEnabledFromControllerURI".
+         *
+         * @param value the value to set
+         * @return the builder
+         */
+        private ClientConfigBuilder deriveTlsEnabledFromControllerURI(boolean value) {
+            this.deriveTlsEnabledFromControllerURI = value;
+            return this;
+        }
+
+        public ClientConfigBuilder enableTlsToController(boolean value) {
+            this.deriveTlsEnabledFromControllerURI(false);
+            this.enableTlsToController = value;
+            return this;
+        }
+
+        public ClientConfigBuilder enableTlsToSegmentStore(boolean value) {
+            this.deriveTlsEnabledFromControllerURI(false);
+            this.enableTlsToSegmentStore = value;
+            return this;
+        }
+
         public ClientConfig build() {
             if (controllerURI == null) {
                 controllerURI = URI.create("tcp://localhost:9090");
@@ -103,7 +167,8 @@ public class ClientConfig implements Serializable {
             if (maxConnectionsPerSegmentStore <= 0) {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
-            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore);
+            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
+                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore);
         }
 
         /**

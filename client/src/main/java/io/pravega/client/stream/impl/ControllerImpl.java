@@ -159,7 +159,7 @@ public class ControllerImpl implements Controller {
                                 .retryingOn(StatusRuntimeException.class)
                                 .throwingOn(Exception.class);
 
-        if (config.getClientConfig().isEnableTls()) {
+        if (config.getClientConfig().isEnableTls() || config.getClientConfig().isEnableTlsToController()) {
             SslContextBuilder sslContextBuilder;
             String trustStore = config.getClientConfig().getTrustStore();
             sslContextBuilder = GrpcSslContexts.forClient();
