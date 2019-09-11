@@ -114,7 +114,6 @@ public class ControllerWatermarkingTest {
         StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
         controller.createStream(scope, stream, config).join();
         String markStream = NameUtils.getMarkStreamForStream(stream);
-        controller.createStream(scope, markStream, config).join();
         Stream streamObj = new StreamImpl(scope, stream);
         WriterPosition pos1 = WriterPosition.builder().segments(Collections.singletonMap(new Segment(scope, stream, 0L), 10L)).build();
         WriterPosition pos2 = WriterPosition.builder().segments(Collections.singletonMap(new Segment(scope, stream, 0L), 20L)).build();
