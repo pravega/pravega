@@ -103,7 +103,7 @@ public class ClientConfig implements Serializable {
     public boolean isEnableTls() {
         if (deriveTlsEnabledFromControllerURI) {
             String scheme = this.controllerURI.getScheme();
-            if (scheme == null) {
+            if (scheme == null) { // scheme is null when URL is of the kind //<hostname>:<port>
                 return false;
             }
             return scheme.equals("tls") || scheme.equals("ssl") || scheme.equals("pravegas");

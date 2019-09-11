@@ -21,13 +21,11 @@ public class BooleanUtils {
      * a non-boolean string. Otherwise, returns {@code Optional.empty()}.
      */
     public static Optional<Boolean> extract(String value) {
-
         if (value == null || value.trim().equals("")) {
             return Optional.empty();
         }
 
         String trimmedValue = value.trim();
-
         if (trimmedValue.equalsIgnoreCase("yes")
                 || trimmedValue.equalsIgnoreCase("y")
                 || trimmedValue.equalsIgnoreCase("true")) {

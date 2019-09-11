@@ -86,4 +86,12 @@ public class ClientConfigTest {
                 .enableTlsToSegmentStore(false);
         assertFalse("TLS is enabled", builder.build().isEnableTls());
     }
+
+    @Test
+    public void testTlsIsDisabledWhenSchemeIsNull() {
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create("//hostname:9090"))
+                .build();
+        assertFalse("TLS is enabled", clientConfig.isEnableTls());
+    }
 }
