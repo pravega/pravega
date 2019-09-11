@@ -44,4 +44,12 @@ public interface CacheUtilizationProvider {
      * @return The maximum cache utilization.
      */
     double getCacheMaxUtilization();
+
+    void registerCleanupListener(CleanupListener listener);
+
+    interface CleanupListener {
+        void cacheCleanupComplete();
+
+        boolean isClosed();
+    }
 }

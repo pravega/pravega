@@ -331,6 +331,10 @@ class ThrottlerCalculator {
          */
         private final boolean maximum;
 
+        DelayResult withNewDelay(int durationMillis) {
+            return new DelayResult(this.throttlerName, durationMillis, false);
+        }
+
         @Override
         public String toString() {
             return String.format("%dms (Max=%s, Reason=%s)", this.durationMillis, this.maximum, this.throttlerName);
