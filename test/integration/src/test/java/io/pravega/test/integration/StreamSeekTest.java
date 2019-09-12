@@ -121,7 +121,7 @@ public class StreamSeekTest {
 
     @Test(timeout = 150000)
     public void testStreamSeek() throws Exception {
-
+        scheduleDump();
         createScope(SCOPE);
         createStream(STREAM1);
         createStream(STREAM2);
@@ -200,13 +200,11 @@ public class StreamSeekTest {
         Futures.delayedFuture(() -> {
             return CompletableFuture.runAsync(() -> {
                 ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
-                log.info("shivesh: deadlocked threads: {}", threadBean.findDeadlockedThreads());
-                log.info("shivesh: monitor deadlocked threads: {}", threadBean.findMonitorDeadlockedThreads());
+                log.info("shivesh:: deadlocked threads: {}", threadBean.findDeadlockedThreads());
+                log.info("shivesh:: monitor deadlocked threads: {}", threadBean.findMonitorDeadlockedThreads());
 
-                ThreadInfo[] threads = threadBean.dumpAllThreads(true, true);
-                for (ThreadInfo thread : threads) {
-                    log.info("shivesh: thread: {}", thread);
-                }
+                Thread.getAllStackTraces().forEach((key, value) ->
+                        log.info("shivesh:: Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
 
                 MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
                 memoryMXBean.setVerbose(true);
