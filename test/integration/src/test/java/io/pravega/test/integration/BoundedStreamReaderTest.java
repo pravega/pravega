@@ -126,7 +126,7 @@ public class BoundedStreamReaderTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 160000)
+    @Test(timeout = 60000)
     public void testBoundedStreamTest() throws Exception {
         scheduleDump();
         createScope(SCOPE);
@@ -183,19 +183,22 @@ public class BoundedStreamReaderTest {
     private void scheduleDump() {
         Futures.delayedFuture(() -> {
             return CompletableFuture.runAsync(() -> {
-                ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
-                log.info("shivesh:: deadlocked threads: {}", threadBean.findDeadlockedThreads());
-                log.info("shivesh:: monitor deadlocked threads: {}", threadBean.findMonitorDeadlockedThreads());
-
                 Thread.getAllStackTraces().forEach((key, value) ->
-                        log.info("shivesh:: Thread dump: Thread {} stackTrace: {} ", key.getName(), value));
+                {
+                    StringBuilder tmp = new StringBuilder();
+                    for (val x : value) {
+                        tmp.append(x);
+                        tmp.append('\n');
+                    }
+                    log.info("shivesh:: Thread dump: Thread {} stackTrace: {} ", key.getName(), tmp.toString());
+                });
 
                 MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
                 memoryMXBean.setVerbose(true);
                 log.info("shivesh:: memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
                         memoryMXBean.getNonHeapMemoryUsage());
             });
-        }, 140000, Executors.newSingleThreadScheduledExecutor());
+        }, 3000, Executors.newSingleThreadScheduledExecutor());
     }
 
     @Test(timeout = 60000)

@@ -91,7 +91,9 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -190,6 +192,10 @@ public class ControllerImpl implements Controller {
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
         this.client = client;
+        
+        if (executor instanceof ScheduledThreadPoolExecutor) {
+            log.info("shivesh::executor {}", ((ScheduledThreadPoolExecutor) executor).getPoolSize());
+        }
     }
 
     @Override
@@ -768,13 +774,15 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         long traceId = LoggerHelpers.traceEnter(log, "getCurrentSegments", scope, stream);
 
-        log.info("shivesh:: controllerimpl.getCurrentSegments called for stream {}", stream);
+        log.info("shivesh:: controllerimpl.getCurrentSegments called for stream {} traceId = {}", stream, traceId);
         final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getCurrentSegments");
             client.getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);
             return callback.getFuture();
         }, this.executor);
         return result.thenApply(ranges -> {
+            log.info("shivesh:: controllerimpl.getCurrentSegments completed for stream {} traceId = {}", stream, traceId);
+
             log.debug("Received the following data from the controller {}", ranges.getSegmentRangesList());
             NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
             for (SegmentRange r : ranges.getSegmentRangesList()) {
@@ -1101,6 +1109,7 @@ public class ControllerImpl implements Controller {
 
         @Override
         public void onCompleted() {
+            log.info("shivesh:: controllerimpl.grpc called completed {}", traceId);
 
             // gRPC interface guarantees that onNext() with the success result would have been called before this.
             future.complete(result);
