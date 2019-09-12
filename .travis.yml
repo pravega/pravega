@@ -26,7 +26,9 @@ jobs:
       script: ./gradlew :test:integration:cleanTest :test:integration:test --tests "io.pravega.test.integration.*"
       after_success:
            - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
-      after_failure: cat /home/travis/build/pravega/pravega/test/integration/build/reports/tests/test/index.html 
+
+      after_failure: 
+      cat /home/travis/build/pravega/pravega/test/integration/build/reports/tests/test/classes/io.pravega.test.integration.BoundedStreamReaderTest.html /home/travis/build/pravega/pravega/test/integration/build/reports/tests/test/classes/io.pravega.test.integration.ReadWriteTest.html /home/travis/build/pravega/pravega/test/integration/build/reports/tests/test/classes/io.pravega.test.integration.StreamSeekTest.html  
 
     - stage: snapshot
       if: branch = master AND NOT (type = pull_request)
