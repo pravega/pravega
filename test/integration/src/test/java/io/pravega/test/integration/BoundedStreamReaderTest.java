@@ -198,7 +198,7 @@ public class BoundedStreamReaderTest {
                 log.info("shivesh:: memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
                         memoryMXBean.getNonHeapMemoryUsage());
             });
-        }, 3000, Executors.newSingleThreadScheduledExecutor());
+        }, 50000, Executors.newSingleThreadScheduledExecutor());
     }
 
     @Test(timeout = 60000)
