@@ -112,7 +112,7 @@ public class StreamSeekTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 50000)
+    @Test(timeout = 150000)
     public void testStreamSeek() throws Exception {
 
         createScope(SCOPE);

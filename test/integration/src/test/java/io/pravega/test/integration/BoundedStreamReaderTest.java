@@ -119,7 +119,7 @@ public class BoundedStreamReaderTest {
         zkTestServer.close();
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 160000)
     public void testBoundedStreamTest() throws Exception {
         createScope(SCOPE);
         createStream(STREAM1);
