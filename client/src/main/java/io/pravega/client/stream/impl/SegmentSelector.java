@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
+import java.util.UUID;
 import java.util.function.Consumer;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.RequiredArgsConstructor;
@@ -113,10 +114,15 @@ public class SegmentSelector {
      *         re-sent.
      */
     public List<PendingEvent> refreshSegmentEventWriters(Consumer<Segment> segmentSealedCallBack) {
+        UUID uuid = UUID.randomUUID();
         log.info("Refreshing segments for stream {}", stream);
-        return updateSegments(Futures.getAndHandleExceptions(
+        log.info("shivesh:: Refreshing segments for stream {} with Unique id {}", stream, uuid);
+        List<PendingEvent> pendingEvents = updateSegments(Futures.getAndHandleExceptions(
                 controller.getCurrentSegments(stream.getScope(), stream.getStreamName()), RuntimeException::new),
                 segmentSealedCallBack);
+        log.info("shivesh:: Unique id request complete {}", uuid);
+
+        return pendingEvents;
     }
 
     /**
@@ -131,6 +137,8 @@ public class SegmentSelector {
     @Synchronized
     private List<PendingEvent> updateSegments(StreamSegments newSteamSegments, Consumer<Segment>
             segmentSealedCallBack) {
+        log.info("shivesh:: update segments for stream {} with segments {}", stream, newSteamSegments);
+
         currentSegments = newSteamSegments;
         createMissingWriters(segmentSealedCallBack, newSteamSegments.getDelegationToken());
         List<PendingEvent> toResend = new ArrayList<>();

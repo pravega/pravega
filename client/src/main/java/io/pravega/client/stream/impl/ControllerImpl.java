@@ -768,6 +768,7 @@ public class ControllerImpl implements Controller {
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         long traceId = LoggerHelpers.traceEnter(log, "getCurrentSegments", scope, stream);
 
+        log.info("shivesh:: controllerimpl.getCurrentSegments called for stream {}", stream);
         final CompletableFuture<SegmentRanges> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SegmentRanges> callback = new RPCAsyncCallback<>(traceId, "getCurrentSegments");
             client.getCurrentSegments(ModelHelper.createStreamInfo(scope, stream), callback);

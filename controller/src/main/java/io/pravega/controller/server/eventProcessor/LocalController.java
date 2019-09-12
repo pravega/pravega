@@ -50,8 +50,11 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
+@Slf4j
 public class LocalController implements Controller {
 
     private static final int LIST_STREAM_IN_SCOPE_LIMIT = 1000;
@@ -298,6 +301,8 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<StreamSegments> getCurrentSegments(final String scope, final String streamName) {
+        log.info("shivesh:: local controller getCurrentSegments for stream {}", streamName);
+
         return controller.getCurrentSegments(scope, streamName)
                 .thenApply(this::getStreamSegments);
     }
