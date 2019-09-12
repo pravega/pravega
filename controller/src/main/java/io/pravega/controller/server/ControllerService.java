@@ -195,10 +195,18 @@ public class ControllerService {
     public CompletableFuture<List<SegmentRange>> getCurrentSegments(final String scope, final String stream) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
+        log.info("shivesh:: getCurrentSegments completed for {}", stream);
 
         // Fetch active segments from segment store.
         return streamStore.getActiveSegments(scope, stream, null, executor)
-                .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, stream), executor);
+                .thenApplyAsync(activeSegments -> getSegmentRanges(activeSegments, scope, stream), executor)
+                          .whenComplete((r, e) -> {
+                              if (e != null) {
+                                  log.error("shivesh:: getSegmentsImmediatelyFollowing failed for {}", stream, e);
+                              } else {
+                                  log.info("shivesh:: getSegmentsImmediatelyFollowing completed for {}", stream);
+                              }
+                          });
     }
 
     public CompletableFuture<Map<SegmentId, Long>> getSegmentsAtHead(final String scope, final String stream) {
@@ -215,6 +223,7 @@ public class ControllerService {
     }
 
     public CompletableFuture<Map<SegmentRange, List<Long>>> getSegmentsImmediatelyFollowing(SegmentId segment) {
+        log.info("shivesh:: getSegmentsImmediatelyFollowing called for {}", segment);
         Preconditions.checkNotNull(segment, "segment");
         OperationContext context = streamStore.createContext(segment.getStreamInfo().getScope(), segment
                 .getStreamInfo().getStream());
@@ -229,7 +238,14 @@ public class ControllerService {
                                                 segment.getStreamInfo().getStream(), entry.getKey().segmentId(),
                                                 entry.getKey().getKeyStart(),
                                                 entry.getKey().getKeyEnd()),
-                                Map.Entry::getValue)));
+                                Map.Entry::getValue)))
+                .whenComplete((r, e) -> {
+                    if (e != null) {
+                        log.error("shivesh:: getSegmentsImmediatelyFollowing failed for {}", segment, e);
+                    } else {
+                        log.info("shivesh:: getSegmentsImmediatelyFollowing completed for {}", segment);
+                    }
+                });
     }
 
     public CompletableFuture<List<StreamSegmentRecord>> getSegmentsBetweenStreamCuts(Controller.StreamCutRange range) {

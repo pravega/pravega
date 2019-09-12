@@ -26,6 +26,7 @@ import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
@@ -36,6 +37,11 @@ import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
+
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -186,6 +193,27 @@ public class StreamSeekTest {
 
         //verify that we are at streamCut2
         readAndVerify(reader2, 3, 4, 5);
+    }
+
+
+    private void scheduleDump() {
+        Futures.delayedFuture(() -> {
+            return CompletableFuture.runAsync(() -> {
+                ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+                log.info("shivesh: deadlocked threads: {}", threadBean.findDeadlockedThreads());
+                log.info("shivesh: monitor deadlocked threads: {}", threadBean.findMonitorDeadlockedThreads());
+
+                ThreadInfo[] threads = threadBean.dumpAllThreads(true, true);
+                for (ThreadInfo thread : threads) {
+                    log.info("shivesh: thread: {}", thread);
+                }
+
+                MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+                memoryMXBean.setVerbose(true);
+                log.info("shivesh:: memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
+                        memoryMXBean.getNonHeapMemoryUsage());
+            });
+        }, 150000, Executors.newSingleThreadScheduledExecutor());
     }
 
     private void scaleStream(final String streamName, final Map<Double, Double> keyRanges) throws Exception {

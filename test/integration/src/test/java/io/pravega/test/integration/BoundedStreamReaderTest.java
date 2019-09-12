@@ -13,6 +13,10 @@ import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,12 +24,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import io.pravega.common.concurrent.Futures;
+import io.pravega.controller.util.Config;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Assert;
@@ -121,6 +128,7 @@ public class BoundedStreamReaderTest {
 
     @Test(timeout = 160000)
     public void testBoundedStreamTest() throws Exception {
+        scheduleDump();
         createScope(SCOPE);
         createStream(STREAM1);
         createStream(STREAM2);
@@ -170,6 +178,26 @@ public class BoundedStreamReaderTest {
         readAndVerify(reader, 5, 6);
         Assert.assertNull("Null is expected", reader.readNextEvent(2000).getEvent());
 
+    }
+
+    private void scheduleDump() {
+        Futures.delayedFuture(() -> {
+            return CompletableFuture.runAsync(() -> {
+                ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+                log.info("shivesh: deadlocked threads: {}", threadBean.findDeadlockedThreads());
+                log.info("shivesh: monitor deadlocked threads: {}", threadBean.findMonitorDeadlockedThreads());
+
+                ThreadInfo[] threads = threadBean.dumpAllThreads(true, true);
+                for (ThreadInfo thread : threads) {
+                    log.info("shivesh: thread: {}", thread);
+                }
+
+                MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+                memoryMXBean.setVerbose(true);
+                log.info("shivesh:: memory usage dump: Heap memory usage: {}, non heap memory usage {}", memoryMXBean.getHeapMemoryUsage(),
+                        memoryMXBean.getNonHeapMemoryUsage());
+            });
+        }, 140000, Executors.newSingleThreadScheduledExecutor());
     }
 
     @Test(timeout = 60000)

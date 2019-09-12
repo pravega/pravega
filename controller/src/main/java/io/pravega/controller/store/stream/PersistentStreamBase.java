@@ -433,6 +433,8 @@ public abstract class PersistentStreamBase implements Stream {
 
     @Override
     public CompletableFuture<Map<StreamSegmentRecord, List<Long>>> getSuccessorsWithPredecessors(final long segmentId) {
+        log.info("shivesh:: getSuccessorsWithPredecessors called for {}/{}", name, segmentId);
+
         // fetch segment sealed epoch record.
         return getSegmentSealedEpoch(segmentId)
                 .thenCompose(sealedEpoch -> {
@@ -459,6 +461,7 @@ public abstract class PersistentStreamBase implements Stream {
 
                                                 List<StreamSegmentRecord> successors = sealedEpochRecord.getSegments().stream()
                                                                                                         .filter(r -> r.overlaps(segment)).collect(Collectors.toList());
+                                                log.info("shivesh:: getSuccessorsWithPredecessors {}/{} has successors as {}", name, segmentId, successors);
 
                                                 return successors
                                                         .stream().collect(Collectors.toMap(record -> record,
