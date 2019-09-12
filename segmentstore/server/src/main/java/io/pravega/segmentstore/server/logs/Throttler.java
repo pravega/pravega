@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.logs;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.server.CacheUtilizationProvider;
@@ -24,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
- * Throttler utilities for the {@link OperationProcessor} class.
+ * Throttling utilities for the {@link OperationProcessor} class.
  */
 @Slf4j
 class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseable {
@@ -146,7 +147,7 @@ class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseab
             log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
         }
 
-        val delayFuture = Futures.delayedFuture(Duration.ofMillis(delay.getDurationMillis()), this.executor);
+        val delayFuture = createDelayFuture(delay.getDurationMillis());
         if (isInterruptible(delay.getThrottlerName())) {
             // This throttling source is eligible for interruption. Set it up so that a call to cacheCleanupComplete()
             // may find it and act on it.
@@ -165,6 +166,11 @@ class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseab
 
     private boolean isInterruptible(ThrottlerCalculator.ThrottlerName name) {
         return name == ThrottlerCalculator.ThrottlerName.Cache;
+    }
+
+    @VisibleForTesting
+    protected CompletableFuture<Void> createDelayFuture(int millis) {
+        return Futures.delayedFuture(Duration.ofMillis(millis), this.executor);
     }
 
     //endregion
