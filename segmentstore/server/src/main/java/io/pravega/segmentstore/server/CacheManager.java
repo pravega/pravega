@@ -165,7 +165,6 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     public void registerCleanupListener(@NonNull CleanupListener listener) {
         if (listener.isClosed()) {
             log.warn("{} Attempted to register a closed Cleanup Listener ({}).", TRACE_OBJECT_ID, listener);
-            System.out.println("registered closed listener");
             return;
         }
 

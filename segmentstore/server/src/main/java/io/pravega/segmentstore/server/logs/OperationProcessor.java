@@ -122,8 +122,8 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val queueProcessor = Futures
                 .loop(this::isRunning,
                         () -> this.throttler.throttle()
-                                            .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
-                                            .thenAcceptAsync(this::processOperations, this.executor),
+                                .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
+                                .thenAcceptAsync(this::processOperations, this.executor),
                         this.executor);
 
         // The CommitProcessor is responsible with the processing of those Operations that have already been committed to
