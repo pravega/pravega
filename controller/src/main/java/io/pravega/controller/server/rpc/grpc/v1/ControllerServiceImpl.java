@@ -565,6 +565,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         }
     }
 
+    private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
+                                                          final StreamObserver<T> streamObserver) {
+        authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
+    }
+    
+    @SuppressWarnings("checkstyle:ReturnCount")
     private Status getStatusFromException(Throwable cause) {
         if (cause instanceof StoreException.DataExistsException) {
             return Status.ALREADY_EXISTS;
@@ -588,11 +594,6 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
             return Status.INTERNAL;
         }
         return Status.UNKNOWN;
-    }
-
-    private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
-                                                          final StreamObserver<T> streamObserver) {
-        authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
     }
 
     private void logAndUntrackRequestTag(RequestTag requestTag) {

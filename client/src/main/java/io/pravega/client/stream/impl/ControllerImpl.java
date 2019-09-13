@@ -195,10 +195,11 @@ public class ControllerImpl implements Controller {
         this.client = client;
     }
 
+    @SuppressWarnings("checkstyle:ReturnCount")
     private RetryAndThrowConditionally createRetryConfig(final ControllerImplConfig config) {
         return Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
                                     config.getRetryAttempts(), config.getMaxBackoffMillis())
-                .retryWhen(e -> { 
+                .retryWhen(e -> {
                     Throwable cause = Exceptions.unwrap(e);
                     if (cause instanceof StatusRuntimeException) {
                         Code code = ((StatusRuntimeException) cause).getStatus().getCode();
