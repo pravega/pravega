@@ -44,13 +44,6 @@ class RocksDBCache implements Cache {
 
     private static final String FILE_PREFIX = "cache_";
     private static final String DB_LOG_DIR = "log";
-    private static final String DB_WRITE_AHEAD_LOG_DIR = "wal";
-
-    /**
-     * Max RocksDB WAL Size MB.
-     * See this for more info: https://github.com/facebook/rocksdb/wiki/Basic-Operations#purging-wal-files
-     */
-    private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
 
     /**
      * Max number of in-memory write buffers (memtables) for the cache (active and immutable).
@@ -215,11 +208,13 @@ class RocksDBCache implements Cache {
     @Override
     public void remove(Key key) {
         ensureInitializedAndNotClosed();
+        Timer timer = new Timer();
         try {
             this.database.get().delete(this.writeOptions, key.serialize());
         } catch (RocksDBException ex) {
             throw convert(ex, "remove key '%s'", key);
         }
+        RocksDBMetrics.delete(timer.getElapsedMillis());
     }
 
     //endregion
