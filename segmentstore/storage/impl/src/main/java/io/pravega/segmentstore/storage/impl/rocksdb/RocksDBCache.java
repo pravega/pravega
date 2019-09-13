@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.Env;
 import org.rocksdb.BloomFilter;
+import org.rocksdb.CompactionStyle;
 import org.rocksdb.IndexType;
 import org.rocksdb.LRUCache;
 import org.rocksdb.Options;
@@ -265,8 +266,10 @@ class RocksDBCache implements Cache {
                 .setWalSizeLimitMB(0)
                 .optimizeLevelStyleCompaction()
                 .setIncreaseParallelism(4)
-                .setMaxBackgroundCompactions(4)
                 .optimizeForPointLookup(readCacheSizeMB * 1024L * 1024L)
+                //.setCompactionStyle(CompactionStyle.LEVEL)
+                //.setMaxBackgroundCompactions(8)
+                .setDisableAutoCompactions(true)
                 .setLevelCompactionDynamicLevelBytes(true);
 
         if (this.memoryOnly) {
