@@ -58,7 +58,11 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+
+import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
+
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Supplier;
 import lombok.val;
@@ -74,6 +78,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     private final ConditionalOutputStreamFactory condFactory;
     private final SegmentMetadataClientFactory metaFactory;
     private final ConnectionFactory connectionFactory;
+    private final ScheduledExecutorService watermarkReaderThreads = newScheduledThreadPool(getThreadPoolSize(), "WatermarkReader");
 
     /**
      * Creates a new instance of ClientFactory class.
@@ -182,7 +187,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                 val client = createRevisionedStreamClient(getSegmentForRevisionedClient(stream.getScope(), streamName),
                                                           new WatermarkSerializer(),
                                                           SynchronizerConfig.builder().readBufferSize(4096).build());
-                watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, connectionFactory.getInternalExecutor()));
+                watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, watermarkReaderThreads));
             }
         }
         return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config, watermarkReaders.build());
@@ -262,6 +267,14 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public void close() {
         controller.close();
         connectionFactory.close();
+    }
+    
+    private int getThreadPoolSize() {
+        String configuredThreads = System.getProperty("pravega.client.internal.threadpool.size", null);
+        if (configuredThreads != null) {
+            return Integer.parseInt(configuredThreads);
+        }
+        return Runtime.getRuntime().availableProcessors();
     }
 
 }
