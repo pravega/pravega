@@ -206,8 +206,8 @@ public class AutoScaleProcessorTest extends ThreadPooledTestSuite {
         ClientConfig objectUnderTest = AutoScaleProcessor.prepareClientConfig(config);
 
         assertTrue(objectUnderTest.isEnableTls());
-        assertFalse(objectUnderTest.isEnableTlsToController());
-        assertFalse(objectUnderTest.isEnableTlsToSegmentStore());
+        assertTrue(objectUnderTest.isEnableTlsToController());
+        assertTrue(objectUnderTest.isEnableTlsToSegmentStore());
     }
 
 
