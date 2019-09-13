@@ -9,12 +9,37 @@
  */
 package io.pravega.client.stream.impl;
 
+import java.io.File;
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import javax.net.ssl.SSLException;
+
+import org.slf4j.LoggerFactory;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+
 import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.auth.MoreCallCredentials;
 import io.grpc.netty.GrpcSslContexts;
@@ -24,8 +49,8 @@ import io.grpc.stub.StreamObserver;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
-import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.NoSuchScopeException;
+import io.pravega.client.stream.PingFailedException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -40,6 +65,7 @@ import io.pravega.common.tracing.TagLogger;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.Retry;
+import io.pravega.common.util.Retry.RetryAndThrowConditionally;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ContinuationToken;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -52,6 +78,8 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.GetSegmentsRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.NodeUri;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveWriterRequest;
+import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveWriterResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleStatusRequest;
@@ -73,32 +101,10 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.TxnRequest;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnState;
 import io.pravega.controller.stream.api.grpc.v1.Controller.TxnStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveWriterRequest;
-import io.pravega.controller.stream.api.grpc.v1.Controller.RemoveWriterResponse;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import java.io.File;
-import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import javax.net.ssl.SSLException;
-import org.slf4j.LoggerFactory;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -112,7 +118,7 @@ public class ControllerImpl implements Controller {
     private static final long DEFAULT_KEEPALIVE_TIME_MINUTES = 6;
 
     // The internal retry object to handle RPC failures.
-    private final Retry.RetryAndThrowExceptionally<StatusRuntimeException, Exception> retryConfig;
+    private final Retry.RetryAndThrowConditionally retryConfig;
 
     // The executor supplied by the appication to handle internal retries.
     private final ScheduledExecutorService executor;
@@ -156,10 +162,7 @@ public class ControllerImpl implements Controller {
                           final ScheduledExecutorService executor) {
         Preconditions.checkNotNull(channelBuilder, "channelBuilder");
         this.executor = executor;
-        this.retryConfig = Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
-                config.getRetryAttempts(), config.getMaxBackoffMillis())
-                                .retryingOn(StatusRuntimeException.class)
-                                .throwingOn(Exception.class);
+        this.retryConfig = createRetryConfig(config);
 
         if (config.getClientConfig().isEnableTls()) {
             SslContextBuilder sslContextBuilder;
@@ -190,6 +193,39 @@ public class ControllerImpl implements Controller {
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
         }
         this.client = client;
+    }
+
+    private RetryAndThrowConditionally createRetryConfig(final ControllerImplConfig config) {
+        return Retry.withExpBackoff(config.getInitialBackoffMillis(), config.getBackoffMultiple(),
+                                    config.getRetryAttempts(), config.getMaxBackoffMillis())
+                .retryWhen(e -> { 
+                    Throwable cause = Exceptions.unwrap(e);
+                    if (cause instanceof StatusRuntimeException) {
+                        Code code = ((StatusRuntimeException) cause).getStatus().getCode();
+                        switch (code) {
+                        case ABORTED: return true;
+                        case ALREADY_EXISTS: return false;
+                        case CANCELLED: return true;
+                        case DATA_LOSS: return true;
+                        case DEADLINE_EXCEEDED: return true;
+                        case FAILED_PRECONDITION: return true;
+                        case INTERNAL: return true;
+                        case INVALID_ARGUMENT: return false;
+                        case NOT_FOUND: return false;
+                        case OK: return false;
+                        case OUT_OF_RANGE: return false;
+                        case PERMISSION_DENIED: return false;
+                        case RESOURCE_EXHAUSTED: return true;
+                        case UNAUTHENTICATED: return false;
+                        case UNAVAILABLE: return true;
+                        case UNIMPLEMENTED: return false;
+                        case UNKNOWN: return true;
+                        }
+                        return true;
+                    } else {
+                        return false;
+                    }
+                });
     }
 
     @Override
