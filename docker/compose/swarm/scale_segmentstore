@@ -24,7 +24,9 @@ try:
     zk_url = get_config("ZK_URL")
 
     existing = subprocess.check_output("docker service ls -f 'name=pravega_segmentstore_'", shell=True)
+    segments_version = subprocess.check_output("docker service ls -f 'name=pravega_segmentstore'", shell=True)
     instances = set([int(instance[1]) for instance in re.findall("(pravega_segmentstore_(\d+))", existing)])
+    tag = ((((re.search("/pravega:.*",segments_version)).group(0).strip()).split("*")[0]).split(":")[1])
     instances.add(1) # add the first service
 except Exception as e:
     print(e)
@@ -64,13 +66,14 @@ for instance in to_create:
           -e ZK_URL={zk_url} \
           -e CONTROLLER_URL=tcp://controller:9090 \
           -e JAVA_OPTS='-Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress={published_address} -Dpravegaservice.listeningPort={port} -Dpravegaservice.listeningIPAddress=0 -Dbookkeeper.bkEnsembleSize=2 -Dbookkeeper.bkAckQuorumSize=2 -Dbookkeeper.bkWriteQuorumSize=2 -Xmx900m -XX:OnError="kill -9 p%" -XX:+ExitOnOutOfMemoryError -XX:+CrashOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError' \
-          pravega/pravega segmentstore"""
+          pravega/pravega:{tag} segmentstore"""
 
     cmd = template.format(
         name=name,
         port=port,
         hdfs_url=hdfs_url,
         zk_url=zk_url,
-        published_address=published_address
+        published_address=published_address,
+        tag=tag
     )
     subprocess.call(cmd, shell=True)
