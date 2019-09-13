@@ -26,6 +26,9 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.BlockBasedTableConfig;
 import org.rocksdb.Env;
+import org.rocksdb.BloomFilter;
+import org.rocksdb.IndexType;
+import org.rocksdb.LRUCache;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
@@ -247,20 +250,29 @@ class RocksDBCache implements Cache {
         BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
                 .setBlockSize(cacheBlockSizeKB * 1024L)
                 .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
-                .setCacheIndexAndFilterBlocks(true);
+                .setBlockCache(new LRUCache(readCacheSizeMB * 1024L * 1024L, 4))
+                .setCacheIndexAndFilterBlocks(true)
+                .setIndexType(IndexType.kHashSearch)
+                .setFilter(new BloomFilter());
 
         Options options = new Options()
                 .setCreateIfMissing(true)
                 .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
-                .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
-                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
                 .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
                 .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
-                .setUseDirectReads(this.directReads);
+                .setUseDirectReads(this.directReads)
+                .setSkipStatsUpdateOnDbOpen(true)
+                .setWalBytesPerSync(0)
+                .setWalSizeLimitMB(0)
+                .optimizeLevelStyleCompaction()
+                .setIncreaseParallelism(4)
+                .setMaxBackgroundCompactions(4)
+                .optimizeForPointLookup(readCacheSizeMB * 1024L * 1024L)
+                .setLevelCompactionDynamicLevelBytes(true);
 
         if (this.memoryOnly) {
             Env env = new RocksMemEnv();

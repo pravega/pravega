@@ -21,16 +21,20 @@ import io.pravega.shared.metrics.StatsLogger;
 final class RocksDBMetrics {
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("rocksdb");
     private static final OpStatsLogger INSERT_LATENCY = STATS_LOGGER.createStats(MetricsNames.CACHE_INSERT_LATENCY);
+    private static final OpStatsLogger INSERT_SIZE = STATS_LOGGER.createStats(MetricsNames.CACHE_INSERT_SIZE);
     private static final OpStatsLogger GET_LATENCY = STATS_LOGGER.createStats(MetricsNames.CACHE_GET_LATENCY);
+    private static final OpStatsLogger GET_SIZE = STATS_LOGGER.createStats(MetricsNames.CACHE_GET_SIZE);
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
 
     static void insert(long elapsedMillis, long insertDataSize) {
         DYNAMIC_LOGGER.incCounterValue(MetricsNames.CACHE_WRITE_BYTES, insertDataSize);
         INSERT_LATENCY.reportSuccessValue(elapsedMillis);
+        INSERT_SIZE.reportSuccessValue(insertDataSize);
     }
 
     static void get(long elapsedMillis, long getDataSize) {
         DYNAMIC_LOGGER.incCounterValue(MetricsNames.CACHE_READ_BYTES, getDataSize);
         GET_LATENCY.reportSuccessValue(elapsedMillis);
+        GET_SIZE.reportSuccessValue(getDataSize);
     }
 }
