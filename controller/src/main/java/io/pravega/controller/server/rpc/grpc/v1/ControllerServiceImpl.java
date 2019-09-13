@@ -547,9 +547,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             Throwable cause = Exceptions.unwrap(ex);
                             logError(requestTag, cause);
                             String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
-                            streamObserver.onError(getStatusFromException(cause)
-                                                   .withDescription(errorDescription)
-                                                   .asRuntimeException()); 
+                            streamObserver.onError(getStatusFromException(cause).withCause(cause)
+                                                                                .withDescription(errorDescription)
+                                                                                .asRuntimeException());
                         } else if (value != null) {
                             streamObserver.onNext(value);
                             streamObserver.onCompleted();
