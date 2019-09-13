@@ -259,7 +259,7 @@ public class ConnectionPoolImpl implements ConnectionPool {
      */
     private SslContext getSslContext() {
         final SslContext sslCtx;
-        if (clientConfig.isEnableTls() || clientConfig.isEnableTlsToSegmentStore()) {
+        if (clientConfig.isEnableTlsToSegmentStore()) {
             log.debug("Setting up an SSL/TLS Context");
             try {
                 SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();

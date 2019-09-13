@@ -18,8 +18,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
+
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -75,6 +78,7 @@ public class ClientConfig implements Serializable {
      * true - if neither {@link #enableTlsToController} or {@link #enableTlsToSegmentStore} are set, or if both are
      *        set to true.
      */
+    @Getter(AccessLevel.NONE) //Omit accessor
     private final boolean deriveTlsEnabledFromControllerURI;
 
     /**
@@ -84,6 +88,7 @@ public class ClientConfig implements Serializable {
      * is {@code tls} or {@code pravegas}, TLS is automatically enabled for both client-to-Controller and
      * client-to-Segment Store communications.
      */
+    @Getter(AccessLevel.NONE) // Omit Lombok accessor as we are creating a custom one
     private final boolean enableTlsToController;
 
     /**
@@ -93,6 +98,7 @@ public class ClientConfig implements Serializable {
      * is {@code tls} or {@code pravegas}, TLS is automatically enabled for both client-to-Controller and
      * client-to-Segment Store communications.
      */
+    @Getter(AccessLevel.NONE) // Omit Lombok accessor as we are creating a custom one
     private final boolean enableTlsToSegmentStore;
 
     /**
@@ -109,6 +115,22 @@ public class ClientConfig implements Serializable {
             return scheme.equals("tls") || scheme.equals("ssl") || scheme.equals("pravegas");
         } else {
             return enableTlsToController && enableTlsToSegmentStore;
+        }
+    }
+
+    public boolean isEnableTlsToController() {
+        if (deriveTlsEnabledFromControllerURI) {
+            return this.isEnableTls();
+        } else {
+            return this.enableTlsToController;
+        }
+    }
+
+    public boolean isEnableTlsToSegmentStore() {
+        if (deriveTlsEnabledFromControllerURI) {
+            return this.isEnableTls();
+        } else {
+            return enableTlsToSegmentStore;
         }
     }
 

@@ -82,9 +82,9 @@ public class ClientConfigTest {
     public void testTlsIsDisabledWhenAllTlsDisabled() {
         ClientConfig.ClientConfigBuilder builder = ClientConfig.builder();
         builder.controllerURI(URI.create("tcp://hostname:9090"))
-                .enableTlsToController(false)
-                .enableTlsToSegmentStore(false);
-        assertFalse("TLS is enabled", builder.build().isEnableTls());
+                .enableTlsToController(true)
+                .enableTlsToSegmentStore(true);
+        assertTrue("TLS is disabled", builder.build().isEnableTls());
     }
 
     @Test

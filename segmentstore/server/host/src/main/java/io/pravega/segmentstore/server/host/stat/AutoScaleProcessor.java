@@ -174,7 +174,8 @@ public class AutoScaleProcessor implements AutoCloseable {
                     .validateHostName(configuration.isValidateHostName());
 
             if (!hasTlsEnabled(configuration.getControllerUri())) {
-                log.debug("Auto scale TLS is enabled, but Controller URI has a non-TLS scheme");
+                log.debug("Auto scale Controller URI [{}] has a non-TLS scheme, although auto scale TLS is enabled",
+                        configuration.getControllerUri());
                 clientConfigBuilder.enableTlsToSegmentStore(true);
             }
         }
