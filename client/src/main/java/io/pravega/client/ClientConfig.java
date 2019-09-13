@@ -78,7 +78,7 @@ public class ClientConfig implements Serializable {
      * true - if neither {@link #enableTlsToController} or {@link #enableTlsToSegmentStore} are set, or if both are
      *        set to true.
      */
-    @Getter(AccessLevel.NONE) //Omit accessor
+    @Getter(AccessLevel.NONE) // Omit Lombok accessor
     private final boolean deriveTlsEnabledFromControllerURI;
 
     /**
