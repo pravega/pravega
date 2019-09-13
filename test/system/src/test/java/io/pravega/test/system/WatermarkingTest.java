@@ -18,6 +18,9 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.Revision;
+import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -40,6 +43,7 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
@@ -55,18 +59,21 @@ import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertTrue;
@@ -153,54 +160,43 @@ public class WatermarkingTest extends AbstractSystemTest {
 
         @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(SCOPE, clientConfig);
-        @Cleanup
-        ReaderGroupManager watermarkingRG = new ReaderGroupManagerImpl(SCOPE, controller, syncClientFactory, connectionFactory);
-        String markRG = "watermarkingRG";
         String markStream = NameUtils.getMarkStreamForStream(STREAM);
-        watermarkingRG.createReaderGroup(markRG, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, markStream)).build());
 
-        // create reader
-        @Cleanup
-        final EventStreamReader<Watermark> markReader = clientFactory.createReader("markreader",
-                markRG,
+        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(),
-                ReaderConfig.builder().build());
-        List<Watermark> watermarks = new LinkedList<>();
+                SynchronizerConfig.builder().build());
+        
+        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+        fetchWatermarks(watermarkReader, watermarks, stopFlag);
 
-        // wait until we have generated 3 watermarks.
-        while (watermarks.size() < 2) {
-            EventRead<Watermark> eventRead = markReader.readNextEvent(30000L);
-            if (eventRead.getEvent() != null) {
-                watermarks.add(eventRead.getEvent());
-            }
-        }
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
 
         // scale down one controller instance. 
         Futures.getAndHandleExceptions(controllerInstance.scaleService(1), ExecutionException::new);
 
         // wait until at least 2 more watermarks are emitted
-        while (watermarks.size() < 4) {
-            EventRead<Watermark> eventRead = markReader.readNextEvent(30000L);
-            if (eventRead.getEvent() != null) {
-                watermarks.add(eventRead.getEvent());
-            }
-        }
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 4, 100000);
 
         stopFlag.set(true);
 
-        assertTrue(watermarks.get(0).getLowerTimeBound() < watermarks.get(0).getUpperTimeBound());
-        assertTrue(watermarks.get(1).getLowerTimeBound() < watermarks.get(1).getUpperTimeBound());
-        assertTrue(watermarks.get(2).getLowerTimeBound() < watermarks.get(2).getUpperTimeBound());
-        assertTrue(watermarks.get(3).getLowerTimeBound() < watermarks.get(3).getUpperTimeBound());
+        Watermark watermark0 = watermarks.take();
+        Watermark watermark1 = watermarks.take();
+        Watermark watermark2 = watermarks.take();
+        Watermark watermark3 = watermarks.take();
+        
+        assertTrue(watermark0.getLowerTimeBound() < watermark0.getUpperTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() < watermark1.getUpperTimeBound());
+        assertTrue(watermark2.getLowerTimeBound() < watermark2.getUpperTimeBound());
+        assertTrue(watermark3.getLowerTimeBound() < watermark3.getUpperTimeBound());
 
         // verify that watermarks are increasing in time.
-        assertTrue(watermarks.get(0).getLowerTimeBound() < watermarks.get(1).getLowerTimeBound());
-        assertTrue(watermarks.get(1).getLowerTimeBound() < watermarks.get(2).getLowerTimeBound());
-        assertTrue(watermarks.get(2).getLowerTimeBound() < watermarks.get(3).getLowerTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() < watermark2.getLowerTimeBound());
+        assertTrue(watermark2.getLowerTimeBound() < watermark3.getLowerTimeBound());
         
         // use watermark as lower and upper bounds.
-        long timeLow = watermarks.get(0).getLowerTimeBound();
-        Map<Segment, Long> positionMap0 = watermarks.get(0).getStreamCut()
+        long timeLow = watermark0.getLowerTimeBound();
+        Map<Segment, Long> positionMap0 = watermark0.getStreamCut()
                                                     .entrySet().stream()
                                                     .collect(Collectors.toMap(x ->
                                                                     new Segment(SCOPE, STREAM, x.getKey().getSegmentId()),
@@ -209,7 +205,7 @@ public class WatermarkingTest extends AbstractSystemTest {
         StreamCut streamCutStart = new StreamCutImpl(streamObj, positionMap0);
         Map<Stream, StreamCut> start = Collections.singletonMap(streamObj, streamCutStart);
 
-        Map<Segment, Long> positionMap2 = watermarks.get(2).getStreamCut()
+        Map<Segment, Long> positionMap2 = watermark2.getStreamCut()
                                                     .entrySet().stream()
                                                     .collect(Collectors.toMap(x ->
                                                                     new Segment(SCOPE, STREAM, x.getKey().getSegmentId()),
@@ -241,6 +237,20 @@ public class WatermarkingTest extends AbstractSystemTest {
             assertTrue(time >= timeLow);
             event = reader.readNextEvent(10000L);
         }
+    }
+
+    private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks, AtomicBoolean stop) throws Exception {
+        AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
+
+        Futures.loop(stop::get, () -> Futures.delayedTask(() -> {
+            Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
+            if (marks.hasNext()) {
+                Map.Entry<Revision, Watermark> next = marks.next();
+                watermarks.add(next.getValue());
+                revision.set(next.getKey());
+            }
+            return null;
+        }, Duration.ofSeconds(30), executorService), executorService);
     }
 
     private void scale(Controller controller, Stream streamObj) throws InterruptedException {

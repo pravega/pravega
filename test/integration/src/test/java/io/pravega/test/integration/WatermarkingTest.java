@@ -18,6 +18,9 @@ import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.state.Revision;
+import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -40,6 +43,7 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.watermarks.Watermark;
+import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -52,6 +56,7 @@ import org.junit.Test;
 import java.net.URI;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
@@ -160,23 +165,18 @@ public class WatermarkingTest {
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         @Cleanup
         SynchronizerClientFactory syncClientFactory = SynchronizerClientFactory.withScope(scope, clientConfig);
-        @Cleanup
-        ReaderGroupManager watermarkingRG = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionFactory);
-        String markRG = "watermarkingRG";
-        String markStream = NameUtils.getMarkStreamForStream(stream);
-        watermarkingRG.createReaderGroup(markRG, ReaderGroupConfig.builder().stream(Stream.of(scope, markStream)).build());
 
-        // create reader
-        @Cleanup
-        final EventStreamReader<Watermark> markReader = clientFactory.createReader("markreader",
-                markRG,
+        String markStream = NameUtils.getMarkStreamForStream(stream);
+        RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(),
-                ReaderConfig.builder().build());
-        EventRead<Watermark> eventRead = markReader.readNextEvent(30000L);
-        while (eventRead.getEvent() == null) {
-            eventRead = markReader.readNextEvent(30000L);
-        }
-        Watermark watermark = eventRead.getEvent();
+                SynchronizerConfig.builder().build());
+        AssertExtensions.assertEventuallyEquals(true, () -> {
+            Iterator<Map.Entry<Revision, Watermark>> watermarks = watermarkReader.readFrom(watermarkReader.fetchOldestRevision());
+            return watermarks.hasNext();
+        }, 30000);
+        Iterator<Map.Entry<Revision, Watermark>> watermarks = watermarkReader.readFrom(watermarkReader.fetchOldestRevision());
+        Watermark watermark = watermarks.next().getValue();
+        
         stopFlag.set(true);
 
         // read events from the stream
