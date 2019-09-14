@@ -32,12 +32,8 @@ import static org.junit.Assert.assertEquals;
 
 public class WatermarkReaderImplTest {
 
-    private io.pravega.shared.watermarks.SegmentWithRange convert(SegmentWithRange segment) {
-        return new io.pravega.shared.watermarks.SegmentWithRange(segment.getSegment().getSegmentId(), segment.getRange().getLow(), segment.getRange().getHigh());
-    }
-    
     private Map<io.pravega.shared.watermarks.SegmentWithRange, Long> convert(Map<SegmentWithRange, Long> in) {
-        return in.entrySet().stream().collect(Collectors.toMap(e -> convert(e.getKey()), e -> e.getValue()));
+        return in.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().convert(), e -> e.getValue()));
     }
     
     @Test

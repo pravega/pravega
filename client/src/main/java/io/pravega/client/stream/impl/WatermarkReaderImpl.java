@@ -10,8 +10,11 @@
 package io.pravega.client.stream.impl;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.Executor;
@@ -156,10 +159,10 @@ public class WatermarkReaderImpl implements AutoCloseable {
         boolean leftBelowRight = false;
         boolean leftAboveRight = false;
         for (Entry<SegmentWithRange, Long> entry : left.entrySet()) {
-            SegmentWithOffset matching = findOverlappingSegmentIn(entry.getKey(), right);
-            if (matching != null) {
+            List<SegmentWithOffset> matching = findOverlappingSegmentIn(entry.getKey(), right);
+            for (SegmentWithOffset match : matching) {
                 SegmentWithOffset leftSegment = new SegmentWithOffset(entry.getKey().getSegment(), entry.getValue());
-                int comparison = leftSegment.compareTo(matching);
+                int comparison = leftSegment.compareTo(match);
                 if (comparison > 0) {
                     leftAboveRight = true;
                 } else if (comparison < 0) {
@@ -190,17 +193,28 @@ public class WatermarkReaderImpl implements AutoCloseable {
             if (result != 0) {
                 return result;
             }
+            if (offset <= -1 && o.offset >= 0) {
+                return 1;
+            }
+            if (offset >= 0 && o.offset <= -1) {
+                return -1;
+            }
             return Long.compare(offset, o.offset);
         }
     }
     
-    private static SegmentWithOffset findOverlappingSegmentIn(SegmentWithRange segment, Map<SegmentWithRange, Long> ranges) {
+    private static List<SegmentWithOffset> findOverlappingSegmentIn(SegmentWithRange segment, Map<SegmentWithRange, Long> ranges) {
+        if (ranges.containsKey(segment)) {
+            Long offset = ranges.get(segment);
+            return Collections.singletonList(new SegmentWithOffset(segment.getSegment(), offset));
+        }
+        List<SegmentWithOffset> result = new ArrayList<>();
         for (Entry<SegmentWithRange, Long> entry : ranges.entrySet()) {
-            if (entry.getKey().getRange().overlapsWith(segment.getRange())) {
-                return new SegmentWithOffset(entry.getKey().getSegment(), entry.getValue());
+            if (segment.getRange() == null || entry.getKey().getRange().overlapsWith(segment.getRange())) {
+                result.add(new SegmentWithOffset(entry.getKey().getSegment(), entry.getValue()));
             }
         }
-        return null;
+        return result;
     }
 
     @Override

@@ -62,4 +62,8 @@ public class SegmentWithRange {
         }
     }
     
+    public io.pravega.shared.watermarks.SegmentWithRange convert() {
+        return new io.pravega.shared.watermarks.SegmentWithRange(getSegment().getSegmentId(), getRange().low, getRange().high);
+    }
+    
 }

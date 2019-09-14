@@ -296,9 +296,16 @@ public class ReaderGroupStateManager {
             log.debug("Update lag for reader {}", readerId);
             resetLagUpdateTimer();
             sync.updateStateUnconditionally(new UpdateDistanceToTail(readerId, timeLag, position.asImpl().getOwnedSegmentRangesWithOffsets()));
+            resetFetchUpdateTimer();
+            sync.fetchUpdates();
             return true;
         }
         return false;
+    }
+
+    private void resetFetchUpdateTimer() {
+        long groupRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
+        fetchStateTimer.reset(Duration.ofMillis(groupRefreshTimeMillis));
     }
 
     private void resetLagUpdateTimer() {
@@ -309,8 +316,7 @@ public class ReaderGroupStateManager {
         if (!fetchStateTimer.hasRemaining()) {
             log.debug("Update group state for reader {}", readerId);
             sync.fetchUpdates();
-            long groupRefreshTimeMillis = sync.getState().getConfig().getGroupRefreshTimeMillis();
-            fetchStateTimer.reset(Duration.ofMillis(groupRefreshTimeMillis));
+            resetFetchUpdateTimer();
             compactIfNeeded();
         }
     }

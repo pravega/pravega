@@ -202,8 +202,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             }
         } else {
             atCheckpoint = null;
-            acquireSegmentsIfNeeded(position);
-            if (groupState.updateLagIfNeeded(getLag(), position)) {
+            if (acquireSegmentsIfNeeded(position) || groupState.updateLagIfNeeded(getLag(), position)) {
                 waterMarkReaders.forEach((stream, reader) -> {
                     reader.advanceTo(groupState.getLastReadpositions(stream));
                 });
@@ -247,7 +246,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
 
     @GuardedBy("readers")
-    private void acquireSegmentsIfNeeded(PositionInternal position) throws ReaderNotInReaderGroupException {
+    private boolean acquireSegmentsIfNeeded(PositionInternal position) throws ReaderNotInReaderGroupException {
         Map<SegmentWithRange, Long> newSegments = groupState.acquireNewSegmentsIfNeeded(getLag(), position);
         if (!newSegments.isEmpty()) {
             log.info("{} acquiring segments {}", this, newSegments);
@@ -264,7 +263,9 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
                     ranges.put(segment, newSegment.getKey().getRange());
                 }
             }
+            return true;
         }
+        return false;
     }
 
     //TODO: This is broken until https://github.com/pravega/pravega/issues/191 is implemented.
