@@ -264,18 +264,20 @@ class RocksDBCache implements Cache {
                 .setSkipStatsUpdateOnDbOpen(true)
                 .setWalBytesPerSync(0)
                 .setWalSizeLimitMB(0)
-                .optimizeLevelStyleCompaction()
                 .setIncreaseParallelism(4)
                 .optimizeForPointLookup(readCacheSizeMB * 1024L * 1024L)
-                //.setCompactionStyle(CompactionStyle.LEVEL)
-                //.setMaxBackgroundCompactions(8)
-                .setDisableAutoCompactions(true)
+                .setCompactionStyle(CompactionStyle.LEVEL)
+                .setMaxBackgroundCompactions(8)
+                .setMaxBackgroundJobs(8)
+                .setCompactionReadaheadSize(1024L * 1024L)
+                .optimizeLevelStyleCompaction()
                 .setLevelCompactionDynamicLevelBytes(true);
 
         if (this.memoryOnly) {
             Env env = new RocksMemEnv();
             options.setEnv(env);
         }
+
         return options;
     }
 
