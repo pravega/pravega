@@ -56,6 +56,11 @@ class RocksDBCache implements Cache {
      */
     private static final int MIN_WRITE_BUFFER_NUMBER_TO_MERGE = 2;
 
+    /**
+     * Number of internal parallel threads that RocksDB will use for a specific task.
+     */
+    private static final int INTERNAL_ROCKSDB_PARALLELISM = 8;
+
     @Getter
     private final String id;
     private final Options databaseOptions;
@@ -255,6 +260,8 @@ class RocksDBCache implements Cache {
                 .setCreateIfMissing(true)
                 .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
+                .setWalBytesPerSync(0)
+                .setWalSizeLimitMB(0)
                 .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
                 .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
@@ -262,15 +269,12 @@ class RocksDBCache implements Cache {
                 .setOptimizeFiltersForHits(true)
                 .setUseDirectReads(this.directReads)
                 .setSkipStatsUpdateOnDbOpen(true)
-                .setWalBytesPerSync(0)
-                .setWalSizeLimitMB(0)
-                .setIncreaseParallelism(4)
                 .optimizeForPointLookup(readCacheSizeMB * 1024L * 1024L)
+                .setIncreaseParallelism(INTERNAL_ROCKSDB_PARALLELISM)
+                .setMaxBackgroundJobs(INTERNAL_ROCKSDB_PARALLELISM)
                 .setCompactionStyle(CompactionStyle.LEVEL)
-                .setMaxBackgroundCompactions(8)
-                .setMaxBackgroundJobs(8)
-                .setCompactionReadaheadSize(1024L * 1024L)
                 .optimizeLevelStyleCompaction()
+                .setMaxBackgroundCompactions(INTERNAL_ROCKSDB_PARALLELISM)
                 .setLevelCompactionDynamicLevelBytes(true);
 
         if (this.memoryOnly) {
