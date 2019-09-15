@@ -17,6 +17,7 @@ import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.Update;
 import io.pravega.client.stream.TruncatedDataException;
+import io.pravega.common.util.Retry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +35,7 @@ import lombok.extern.slf4j.Slf4j;
 public class StateSynchronizerImpl<StateT extends Revisioned>
         implements StateSynchronizer<StateT> {
 
+    private static final Retry.RetryWithBackoff RETRY_INDEFINITELY = Retry.withExpBackoff(1, 1, Integer.MAX_VALUE);
     private final RevisionedStreamClient<UpdateOrInit<StateT>> client;
     @GuardedBy("$lock")
     private StateT currentState;
@@ -90,11 +92,14 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             }
         } catch (TruncatedDataException e) {
             log.warn("{} encountered truncation on segment {}", this, segment);
-            handleTruncation();
+            RETRY_INDEFINITELY
+                 .retryingOn(TruncatedDataException.class)
+                 .throwingOn(RuntimeException.class)
+                 .run(() -> handleTruncation());
         }
     }
     
-    private void handleTruncation() {
+    private Void handleTruncation() {
         log.info(this + " Encountered truncation");
         Revision revision = getRevisionToReadFrom(false);
         log.trace("Fetching updates after {} ", revision);
@@ -115,6 +120,7 @@ public class StateSynchronizerImpl<StateT extends Revisioned>
             throw new IllegalStateException("Data was truncated but there is not init after the truncation point.");
         }
         fetchUpdates();
+        return null;
     }
 
     private void applyUpdates(Revision readRevision, List<? extends Update<StateT>> updates) {
