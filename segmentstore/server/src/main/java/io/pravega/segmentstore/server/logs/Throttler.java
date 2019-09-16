@@ -113,11 +113,11 @@ class Throttler implements CacheUtilizationProvider.CleanupListener, AutoCloseab
         if (!delay.get().isMaximum()) {
             // We are not delaying the maximum amount. We only need to do this once.
             val existingDelay = this.currentDelay.get();
-            if (existingDelay != null && existingDelay.source == delay.get().getThrottlerName()) {
-                // Looks like a previous throttle cycle was interrupted (due to cache evictions). In order to prevent
-                // endless throttling (cache evictions happen frequently and there is no guarantee that the size of the
-                // cache actually decreased in the meantime), we should only wait the minimum of the newly calculated
-                // delay and whatever was left from the previous one (if anything).
+            if (existingDelay != null) {
+                // Looks like a previous throttle cycle was interrupted. In order to prevent endless throttling (cache
+                // evictions happen frequently and there is no guarantee that the size of the cache actually decreased in
+                // the meantime), we should only wait the minimum of the newly calculated delay and whatever was left
+                // from the previous one (if anything).
                 int remaining = (int) existingDelay.remaining.getRemaining().toMillis();
                 if (remaining > 0 && remaining < delay.get().getDurationMillis()) {
                     delay.set(delay.get().withNewDelay(remaining));
