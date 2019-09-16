@@ -90,7 +90,7 @@ public class StreamMetricsTest {
         monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, tableStore,
+        this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
                 monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
                 null, null, true);
         this.server.startListening();

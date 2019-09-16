@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.rpc.grpc.v1;
 
+import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -23,6 +24,7 @@ import io.pravega.controller.server.AuthResourceRepresentation;
 import io.pravega.controller.server.ControllerService;
 import io.pravega.controller.server.rpc.auth.AuthContext;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.task.LockFailedException;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
@@ -59,6 +61,7 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -178,11 +181,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.getCurrentSegments(request.getScope(), request.getStream())
-                                       .thenApply(segmentRanges -> SegmentRanges.newBuilder()
-                                                                                .addAllSegmentRanges(segmentRanges)
-                                                                                .setDelegationToken(delegationToken)
-                                                                                .build()),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getCurrentSegments", request.getScope(), request.getStream());
+                    return controllerService.getCurrentSegments(request.getScope(), request.getStream())
+                            .thenApply(segmentRanges -> SegmentRanges.newBuilder()
+                                    .addAllSegmentRanges(segmentRanges)
+                                    .setDelegationToken(delegationToken)
+                                    .build());
+                },
                 responseObserver);
     }
 
@@ -194,19 +200,23 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthResourceRepresentation.ofStreamInScope(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
-                        request.getStreamInfo().getStream())
-                                       .thenApply(segments -> {
-                                           SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder()
-                                                                                          .setDelegationToken(delegationToken);
-                                           for (Entry<SegmentId, Long> entry : segments.entrySet()) {
-                                               builder.addSegments(SegmentLocation.newBuilder()
-                                                                                  .setSegmentId(entry.getKey())
-                                                                                  .setOffset(entry.getValue())
-                                                                                  .build());
-                                           }
-                                           return builder.build();
-                                       }),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getSegments", request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream());
+                    return controllerService.getSegmentsAtHead(request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream())
+                            .thenApply(segments -> {
+                                SegmentsAtTime.Builder builder = SegmentsAtTime.newBuilder()
+                                        .setDelegationToken(delegationToken);
+                                for (Entry<SegmentId, Long> entry : segments.entrySet()) {
+                                    builder.addSegments(SegmentLocation.newBuilder()
+                                            .setSegmentId(entry.getKey())
+                                            .setOffset(entry.getValue())
+                                            .build());
+                                }
+                                return builder.build();
+                            });
+                },
                 responseObserver);
     }
 
@@ -239,10 +249,14 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         String stream = request.getStreamInfo().getStream();
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(scope, stream), AuthHandler.Permissions.READ),
-                delegationToken -> controllerService.getSegmentsBetweenStreamCuts(request)
-                        .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
-                                segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
-                                        .collect(Collectors.toList()), delegationToken)),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getSegmentsBetween", request.getStreamInfo().getScope(),
+                            request.getStreamInfo().getStream());
+                    return controllerService.getSegmentsBetweenStreamCuts(request)
+                            .thenApply(segments -> ModelHelper.createStreamCutRangeResponse(scope, stream,
+                                    segments.stream().map(x -> ModelHelper.createSegmentId(scope, stream, x.segmentId()))
+                                            .collect(Collectors.toList()), delegationToken));
+                },
                 responseObserver);
     }
 
@@ -425,33 +439,38 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             AuthResourceRepresentation.ofScope(scopeName), result);
                         return result;
                 },
-                delegationToken -> controllerService.listStreams(scopeName, request.getContinuationToken().getToken(),
-                        listStreamsInScopeLimit)
-                        .thenApply(response -> {
-                             log.debug("response: {}", response);
-                             List<StreamInfo> streams = response.getKey().stream()
-                                     .filter(streamName -> {
-                                         String streamAuthResource =
-                                                 AuthResourceRepresentation.ofStreamInScope(scopeName, streamName);
+                delegationToken -> controllerService
+                        .listStreams(scopeName, request.getContinuationToken().getToken(), listStreamsInScopeLimit)
+                        .handle((response, ex) -> {
+                            if (ex != null) {
+                                if (Exceptions.unwrap(ex) instanceof StoreException.DataNotFoundException) {
+                                    return Controller.StreamsInScopeResponse.newBuilder().setStatus(Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND).build();
+                                } else {
+                                    throw new CompletionException(ex);
+                                }
+                            } else {
+                                log.debug("All streams in scope with continuation token: {}", response);
+                                List<StreamInfo> streams = response
+                                        .getKey().stream()
+                                        .filter(streamName -> {
+                                            String streamAuthResource =
+                                                    AuthResourceRepresentation.ofStreamInScope(scopeName, streamName);
 
-                                         boolean isAuthorized = grpcAuthHelper.isAuthorized(streamAuthResource,
-                                                 AuthHandler.Permissions.READ, ctx);
-                                         log.debug("Authorization for [{}] for READ permission was [{}]",
-                                                 streamAuthResource, isAuthorized);
-                                         return isAuthorized;
-                                     })
-                                     .map(m -> StreamInfo.newBuilder().setScope(scopeName).setStream(m).build())
-                                     .collect(Collectors.toList());
-                             return Controller.StreamsInScopeResponse.newBuilder().addAllStreams(streams)
-                                     .setContinuationToken(Controller.ContinuationToken.newBuilder().setToken(
-                                             response.getValue()).build()).build();
-                        })
-                        .exceptionally(e -> {
-                            log.error("Encountered error", e);
-                            return null;
-                        }),
-                responseObserver,
-                requestTag);
+                                            boolean isAuthorized = grpcAuthHelper.isAuthorized(streamAuthResource,
+                                                    AuthHandler.Permissions.READ, ctx);
+                                            log.debug("Authorization for [{}] for READ permission was [{}]",
+                                                    streamAuthResource, isAuthorized);
+                                            return isAuthorized;
+                                        })
+                                        .map(m -> StreamInfo.newBuilder().setScope(scopeName).setStream(m).build())
+                                        .collect(Collectors.toList());
+                                return Controller.StreamsInScopeResponse
+                                        .newBuilder().addAllStreams(streams)
+                                        .setContinuationToken(Controller.ContinuationToken.newBuilder()
+                                                                                          .setToken(response.getValue()).build())
+                                        .setStatus(Controller.StreamsInScopeResponse.Status.SUCCESS).build();
+                            }
+                        }), responseObserver, requestTag);
     }
 
     @Override
@@ -470,19 +489,28 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorizationAndCreateToken(
                 AuthResourceRepresentation.ofStreamInScope(request.getScope(), request.getStream()),
                 AuthHandler.Permissions.READ_UPDATE),
-                delegationToken -> CompletableFuture.completedFuture(Controller.DelegationToken
-                        .newBuilder()
-                        .setDelegationToken(delegationToken)
-                        .build()),
+                delegationToken -> {
+                    logIfEmpty(delegationToken, "getDelegationToken", request.getScope(), request.getStream());
+                    return CompletableFuture.completedFuture(DelegationToken
+                            .newBuilder()
+                            .setDelegationToken(delegationToken)
+                            .build());
+                },
                 responseObserver);
+    }
+
+    private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
+        if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
+            log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
+                    requestName, scopeName, streamName, delegationToken);
+        }
     }
 
     // Convert responses from CompletableFuture to gRPC's Observer pattern.
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver, RequestTag requestTag) {
         try {
-            String delegationToken;
-            delegationToken = authenticator.get();
+            String delegationToken = authenticator.get();
             CompletableFuture<T> result = call.apply(delegationToken);
             result.whenComplete(
                     (value, ex) -> {
@@ -530,5 +558,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         } else {
             log.error("Controller API call with tag {} failed with error: ", tag, cause);
         }
+    }
+
+    private boolean isAuthEnabled() {
+        return this.grpcAuthHelper.isAuthEnabled();
     }
 }
