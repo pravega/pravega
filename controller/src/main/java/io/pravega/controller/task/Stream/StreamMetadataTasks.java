@@ -665,24 +665,20 @@ public class StreamMetadataTasks extends TaskBase {
         // has succeeded, then the event will be used for processing. If the update had failed, then the event
         // will be discarded. We will throw the exception that we received from running futureSupplier or return the
         // successful value
-        AtomicReference<Throwable> toThrow = new AtomicReference<>();
+        AtomicReference<CompletableFuture<T>> futureRef = new AtomicReference<>();
         return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event)
-                           .thenCompose(v -> Futures.exceptionallyExpecting(futureSupplier.get(), 
-                                   e -> {
-                                       toThrow.set(e);
-                                       return Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
-                                               Exceptions.unwrap(e) instanceof StoreException.WriteConflictException;
-                                   }, null))
+                           .thenCompose(v -> {
+                               futureRef.set(futureSupplier.get());
+                               return Futures.exceptionallyExpecting(futureRef.get(), 
+                                       e -> {
+                                           return Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
+                                                   Exceptions.unwrap(e) instanceof StoreException.WriteConflictException;
+                                       }, null);
+                           })
                            .thenCompose(t -> RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event),
                                    e -> log.warn("writing event failed with {}", e.getMessage()), executor)
                                                         .thenCompose(v -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
-                                                        .thenApply(v -> {
-                                                            if (toThrow.get() != null) {
-                                                                throw new CompletionException(toThrow.get());
-                                                            } else {
-                                                                return t;
-                                                            }
-                                                        }));
+                                                        .thenCombine(futureRef.get(), (v, res) -> res));
     }
     
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
