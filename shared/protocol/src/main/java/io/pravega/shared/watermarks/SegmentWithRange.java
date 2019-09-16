@@ -9,15 +9,16 @@
  */
 package io.pravega.shared.watermarks;
 
+import java.io.IOException;
+
 import com.google.common.base.Preconditions;
+
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
-
-import java.io.IOException;
 
 /**
  * A serializable representation of a segment with id and range information.  

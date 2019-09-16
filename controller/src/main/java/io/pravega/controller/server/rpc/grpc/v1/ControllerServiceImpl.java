@@ -547,10 +547,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             Throwable cause = Exceptions.unwrap(ex);
                             logError(requestTag, cause);
                             String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
-                            streamObserver.onError(Status.INTERNAL
-                                    .withCause(cause)
-                                    .withDescription(errorDescription)
-                                    .asRuntimeException());
+                            streamObserver.onError(getStatusFromException(cause).withCause(cause)
+                                                                                .withDescription(errorDescription)
+                                                                                .asRuntimeException());
                         } else if (value != null) {
                             streamObserver.onNext(value);
                             streamObserver.onCompleted();
@@ -569,6 +568,32 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver) {
         authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
+    }
+    
+    @SuppressWarnings("checkstyle:ReturnCount")
+    private Status getStatusFromException(Throwable cause) {
+        if (cause instanceof StoreException.DataExistsException) {
+            return Status.ALREADY_EXISTS;
+        }
+        if (cause instanceof StoreException.DataNotFoundException) {
+            return Status.NOT_FOUND;
+        }
+        if (cause instanceof StoreException.DataNotEmptyException) {
+            return Status.FAILED_PRECONDITION;
+        }
+        if (cause instanceof StoreException.WriteConflictException) {
+            return Status.FAILED_PRECONDITION;
+        }
+        if (cause instanceof StoreException.IllegalStateException) {
+            return Status.INTERNAL;
+        }
+        if (cause instanceof StoreException.OperationNotAllowedException) {
+            return Status.PERMISSION_DENIED;
+        }
+        if (cause instanceof StoreException.StoreConnectionException) {
+            return Status.INTERNAL;
+        }
+        return Status.UNKNOWN;
     }
 
     private void logAndUntrackRequestTag(RequestTag requestTag) {

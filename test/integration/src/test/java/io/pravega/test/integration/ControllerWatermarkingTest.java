@@ -9,16 +9,25 @@
  */
 package io.pravega.test.integration;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map.Entry;
+
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import io.pravega.client.ClientConfig;
-import io.pravega.client.admin.ReaderGroupManager;
-import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
-import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.ReaderConfig;
-import io.pravega.client.stream.ReaderGroupConfig;
+import io.pravega.client.state.Revision;
+import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -40,16 +49,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.util.Collections;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import lombok.Cleanup;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
@@ -120,27 +120,21 @@ public class ControllerWatermarkingTest {
         
         controller.noteTimestampFromWriter("1", streamObj, 1L, pos1).join();
         controller.noteTimestampFromWriter("2", streamObj, 2L, pos2).join();
-
+        
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-         ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
-         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory);
-        String readerGroup = "rg";
-        readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(Stream.of(scope, markStream)).build());
-
-        // read from the watermark segment stream using regular reader
-        final EventStreamReader<Watermark> reader = clientFactory.createReader("myreader",
-                readerGroup,
-                new WatermarkSerializer(),
-                ReaderConfig.builder().build());
-
-        EventRead<Watermark> watermark = reader.readNextEvent(30000L);
-        if (watermark.getEvent() == null) {
-            // we are getting first event as null for some reason
-            watermark = reader.readNextEvent(30000L);
-        }
-        assertNotNull(watermark.getEvent());
-        assertEquals(watermark.getEvent().getLowerTimeBound(), 1L);
-        assertTrue(watermark.getEvent().getStreamCut().entrySet().stream().anyMatch(x -> x.getKey().getSegmentId() == 0L && x.getValue() ==  20L));
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+        RevisionedStreamClient<Watermark> reader = clientFactory.createRevisionedStreamClient(markStream,
+                                                                                              new WatermarkSerializer(),
+                                                                                              SynchronizerConfig.builder().build());
+        AssertExtensions.assertEventuallyEquals(true, () -> {
+            Iterator<Entry<Revision, Watermark>> watermarks = reader.readFrom(reader.fetchOldestRevision());
+            return watermarks.hasNext();
+        }, 30000);
+        Iterator<Entry<Revision, Watermark>> watermarks = reader.readFrom(reader.fetchOldestRevision());
+        Watermark watermark = watermarks.next().getValue();
+        assertEquals(watermark.getLowerTimeBound(), 1L);
+        assertTrue(watermark.getStreamCut().entrySet().stream().anyMatch(x -> x.getKey().getSegmentId() == 0L && x.getValue() ==  20L));
 
         controller.sealStream(scope, stream).join();
         controller.deleteStream(scope, stream).join();

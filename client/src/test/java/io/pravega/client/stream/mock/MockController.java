@@ -34,6 +34,7 @@ import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.AsyncIterator;
+import io.pravega.shared.NameUtils;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -90,7 +91,10 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public AsyncIterator<Stream> listStreams(String scopeName) {
-        Set<Stream> collect = createdScopes.get(scopeName);
+        Set<Stream> collect = createdScopes.get(scopeName)
+                                           .stream()
+                                           .filter(s -> !s.getStreamName().startsWith(NameUtils.INTERNAL_NAME_PREFIX))
+                                           .collect(Collectors.toSet());
         return new AsyncIterator<Stream>() {
             Object lock = new Object();
             @GuardedBy("lock")
@@ -129,6 +133,14 @@ public class MockController implements Controller {
     @Override
     @Synchronized
     public CompletableFuture<Boolean> createStream(String scope, String streamName, StreamConfiguration streamConfig) {
+        String markStream = NameUtils.getMarkStreamForStream(streamName);
+        StreamConfiguration markStreamConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+
+        return createStreamInternal(scope, markStream, markStreamConfig)
+                .thenCompose(v -> createStreamInternal(scope, streamName, streamConfig));
+    }
+
+    private CompletableFuture<Boolean> createStreamInternal(String scope, String streamName, StreamConfiguration streamConfig) {
         Stream stream = new StreamImpl(scope, streamName);
         if (createdStreams.get(stream) != null) {
             return CompletableFuture.completedFuture(false);
@@ -149,7 +161,7 @@ public class MockController implements Controller {
     @Synchronized
     List<Segment> getSegmentsForStream(Stream stream) {
         StreamConfiguration config = createdStreams.get(stream);
-        Preconditions.checkArgument(config != null, "Stream must be created first");
+        Preconditions.checkArgument(config != null, "Stream " + stream.getScopedName() + " must be created first");
         ScalingPolicy scalingPolicy = config.getScalingPolicy();
         if (scalingPolicy.getScaleType() != ScalingPolicy.ScaleType.FIXED_NUM_SEGMENTS) {
             throw new IllegalArgumentException("Dynamic scaling not supported with a mock controller");

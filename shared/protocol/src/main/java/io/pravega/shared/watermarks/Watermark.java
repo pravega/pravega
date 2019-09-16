@@ -15,14 +15,15 @@ import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
-import lombok.Builder;
-import lombok.Data;
-import lombok.SneakyThrows;
-
+import io.pravega.common.util.ByteArraySegment;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Map;
+import lombok.Builder;
+import lombok.Data;
+import lombok.SneakyThrows;
 
 /**
  * Represents a serializable Watermark. 
@@ -40,10 +41,10 @@ public class Watermark {
     public static final Watermark EMPTY = new Watermark(Long.MIN_VALUE, Long.MIN_VALUE, ImmutableMap.of());
     private final long lowerTimeBound;
     private final long upperTimeBound;
-    private final ImmutableMap<SegmentWithRange, Long> streamCut;
+    private final Map<SegmentWithRange, Long> streamCut;
 
     @Builder
-    public Watermark(long lowerTimeBound, long upperTimeBound, ImmutableMap<SegmentWithRange, Long> streamCut) {
+    public Watermark(long lowerTimeBound, long upperTimeBound, Map<SegmentWithRange, Long> streamCut) {
         Preconditions.checkArgument(upperTimeBound >= lowerTimeBound);
         this.lowerTimeBound = lowerTimeBound;
         this.upperTimeBound = upperTimeBound;
@@ -56,12 +57,13 @@ public class Watermark {
     
     @SneakyThrows(IOException.class)
     public static Watermark fromByteBuf(final ByteBuffer data) {
-        return SERIALIZER.deserialize(data.array());
+        return SERIALIZER.deserialize(new ByteArraySegment(data));
     }
 
     @SneakyThrows(IOException.class)
     public ByteBuffer toByteBuf() {
-        return ByteBuffer.wrap(SERIALIZER.serialize(this).getCopy());
+        ByteArraySegment serialized = SERIALIZER.serialize(this);
+        return ByteBuffer.wrap(serialized.array(), serialized.arrayOffset(), serialized.getLength());
     }
 
     private static class WatermarkSerializer
@@ -80,7 +82,6 @@ public class Watermark {
                             Watermark.WatermarkBuilder builder) throws IOException {
             builder.lowerTimeBound(revisionDataInput.readLong());
             builder.upperTimeBound(revisionDataInput.readLong());
-
             ImmutableMap.Builder<SegmentWithRange, Long> mapBuilder = ImmutableMap.builder();
             revisionDataInput.readMap(SegmentWithRange.SERIALIZER::deserialize, DataInput::readLong, mapBuilder);
             builder.streamCut(mapBuilder.build());
