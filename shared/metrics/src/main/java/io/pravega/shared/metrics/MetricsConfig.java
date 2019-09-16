@@ -107,7 +107,7 @@ public class MetricsConfig {
      * The password of user account accessing InfluxDB.
      */
     @Getter
-    private final String influxDBPassword;
+    private final char[] influxDBPassword;
 
     /**
      * The retention policy of InfluxDB, e.g. "2h", "52w".
@@ -147,7 +147,7 @@ public class MetricsConfig {
         this.influxDBUri = properties.get(INFLUXDB_URI);
         this.influxDBName = properties.get(INFLUXDB_NAME);
         this.influxDBUserName = properties.get(INFLUXDB_USERNAME);
-        this.influxDBPassword = properties.get(INFLUXDB_PASSWORD);
+        this.influxDBPassword = properties.get(INFLUXDB_PASSWORD).toCharArray();
         this.influxDBRetention = properties.get(INFLUXDB_RETENTION_POLICY);
         this.enableInfluxDBReporter = properties.getBoolean(ENABLE_INFLUXDB_REPORTER);
         this.enableStatsDReporter = properties.getBoolean(ENABLE_STATSD_REPORTER);
