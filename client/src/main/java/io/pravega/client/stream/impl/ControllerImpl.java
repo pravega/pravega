@@ -963,7 +963,7 @@ public class ControllerImpl implements Controller {
                 return null;
             }
             log.info("Unable to commit " + txnStatus + " because of " + txnStatus.getStatus());
-            throw Exceptions.sneakyThrow(new TxnFailedException("Commit transaction failed with status: "+ txnStatus.getStatus()));
+            throw Exceptions.sneakyThrow(new TxnFailedException("Commit transaction failed with status: " + txnStatus.getStatus()));
         });
     }
 
@@ -996,7 +996,7 @@ public class ControllerImpl implements Controller {
                 return null;
             }
             log.info("Unable to abort " + txnStatus + " because of " + txnStatus.getStatus());
-            throw new RuntimeException("Error aborting transaction: "+ txnStatus.getStatus());
+            throw new RuntimeException("Error aborting transaction: " + txnStatus.getStatus());
         });
     }
 
