@@ -54,6 +54,8 @@ import static org.junit.Assert.assertTrue;
 @Slf4j
 public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
 
+    private final JavaSerializer<String> serializer = new JavaSerializer<>();
+
     @Override
     protected int getThreadPoolSize() {
         return 1;
@@ -104,6 +106,52 @@ public class EndToEndReaderGroupTest extends AbstractEndToEndTest {
         writer.writeEvent("0", "data2").get();
 
         eventRead = reader2.readNextEvent(10000);
+        assertEquals("data1", eventRead.getEvent());
+    }
+
+    @Test(timeout = 30000)
+    public void testDeleteReaderGroup() throws Exception {
+        StreamConfiguration config = getStreamConfig();
+        LocalController controller = (LocalController) controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope("test").get();
+        controller.createStream("test", "test", config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                                    .controllerURI(URI.create("tcp://" + serviceHost))
+                                                                                    .build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+
+        @Cleanup
+        ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory,
+                                                                     connectionFactory);
+        // Create a ReaderGroup
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                                 .stream("test/test").build());
+        // Create a Reader
+        EventStreamReader<String> reader = clientFactory.createReader("reader1", "group", serializer, ReaderConfig.builder().build());
+
+        // Write events into the stream.
+        @Cleanup
+        EventStreamWriter<String> writer = clientFactory.createEventWriter("test", serializer, EventWriterConfig.builder().build());
+        writer.writeEvent("0", "data1").get();
+
+        EventRead<String> eventRead = reader.readNextEvent(10000);
+        assertEquals("data1", eventRead.getEvent());
+
+        // Close the reader, this internally invokes ReaderGroup#readerOffline
+        reader.close();
+
+        //delete the readerGroup.
+        groupManager.deleteReaderGroup("group");
+
+        // create a new readerGroup with the same name.
+        groupManager.createReaderGroup("group", ReaderGroupConfig.builder().disableAutomaticCheckpoints()
+                                                                 .stream("test/test").build());
+
+        reader = clientFactory.createReader("reader1", "group", new JavaSerializer<>(),
+                                                                       ReaderConfig.builder().build());
+        eventRead = reader.readNextEvent(10000);
         assertEquals("data1", eventRead.getEvent());
     }
 
