@@ -26,6 +26,7 @@ public class RocksDBConfig {
     public static final Property<Integer> READ_CACHE_SIZE_MB = Property.named("readCacheSizeMB", 8);
     public static final Property<Integer> CACHE_BLOCK_SIZE_KB = Property.named("cacheBlockSizeKB", 32);
     public static final Property<Boolean> DIRECT_READS = Property.named("directReads", false);
+    public static final Property<Boolean> MEM_ONLY = Property.named("memoryOnly", false);
     private static final String COMPONENT_CODE = "rocksdb";
 
     //endregion
@@ -69,6 +70,13 @@ public class RocksDBConfig {
     @Getter
     private final boolean directReads;
 
+    /**
+     * Enabling memory only will let RocksDB write everything into memory instead of disks. This is supposed to provide
+     * very high performance since there is not disk IO incurred.
+     */
+    @Getter
+    private final boolean memoryOnly;
+
     //endregion
 
     //region Constructor
@@ -84,6 +92,7 @@ public class RocksDBConfig {
         this.readCacheSizeMB = properties.getInt(READ_CACHE_SIZE_MB);
         this.cacheBlockSizeKB = properties.getInt(CACHE_BLOCK_SIZE_KB);
         this.directReads = properties.getBoolean(DIRECT_READS);
+        this.memoryOnly = properties.getBoolean(MEM_ONLY);
     }
 
     /**
