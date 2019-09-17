@@ -250,7 +250,7 @@ public class WatermarkingTest extends AbstractSystemTest {
                 revision.set(next.getKey());
             }
             return null;
-        }, Duration.ofSeconds(30), executorService), executorService);
+        }, Duration.ofSeconds(10), executorService), executorService);
     }
 
     private void scale(Controller controller, Stream streamObj) throws InterruptedException {
