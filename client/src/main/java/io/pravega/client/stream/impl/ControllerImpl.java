@@ -164,7 +164,8 @@ public class ControllerImpl implements Controller {
         this.executor = executor;
         this.retryConfig = createRetryConfig(config);
 
-        if (config.getClientConfig().isEnableTls()) {
+        if (config.getClientConfig().isEnableTlsToController()) {
+            log.debug("Setting up a SSL/TLS channel builder");
             SslContextBuilder sslContextBuilder;
             String trustStore = config.getClientConfig().getTrustStore();
             sslContextBuilder = GrpcSslContexts.forClient();
@@ -178,6 +179,7 @@ public class ControllerImpl implements Controller {
                 throw new CompletionException(e);
             }
         } else {
+            log.debug("Using a plaintext channel builder");
             channelBuilder = ((NettyChannelBuilder) channelBuilder).negotiationType(NegotiationType.PLAINTEXT);
         }
 

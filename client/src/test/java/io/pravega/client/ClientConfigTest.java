@@ -16,15 +16,13 @@ import org.junit.Test;
 import java.net.URI;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ClientConfigTest {
 
     private static final String USERNAME = "username";
     private static final String PASSWORD = "password";
-
-    @Test
-    public void isEnableTls() {
-    }
 
     @Test
     public void serializable() {
@@ -47,5 +45,53 @@ public class ClientConfigTest {
         assertEquals(ClientConfig.DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE, config1.getMaxConnectionsPerSegmentStore());
         ClientConfig config2 = ClientConfig.builder().maxConnectionsPerSegmentStore(1).build();
         assertEquals(1, config2.getMaxConnectionsPerSegmentStore());
+    }
+
+    @Test
+    public void testTlsIsEnabledForControllerURIContainingSchemeTls() {
+        ClientConfig.ClientConfigBuilder builder = ClientConfig.builder();
+        builder.controllerURI(URI.create("tls://hostname:9090"));
+        assertTrue("TLS is disabled", builder.build().isEnableTls());
+    }
+
+    @Test
+    public void testTlsIsDisabledForControllerURIContainingSchemeTcp() {
+        ClientConfig.ClientConfigBuilder builder = ClientConfig.builder();
+        builder.controllerURI(URI.create("tcp://hostname:9090"));
+        assertFalse("TLS is enabled", builder.build().isEnableTls());
+    }
+
+    @Test
+    public void testTlsIsDisabledWhenTlsIsPartiallySet() {
+        ClientConfig.ClientConfigBuilder builder = ClientConfig.builder();
+        builder.controllerURI(URI.create("tcp://hostname:9090"))
+                .enableTlsToController(true);
+        assertFalse("TLS is enabled", builder.build().isEnableTls());
+    }
+
+    @Test
+    public void testTlsIsEnabledWhenAllTlsEnabled() {
+        ClientConfig.ClientConfigBuilder builder = ClientConfig.builder();
+        builder.controllerURI(URI.create("tcp://hostname:9090"))
+                .enableTlsToController(true)
+                .enableTlsToSegmentStore(true);
+        assertTrue("TLS is disabled", builder.build().isEnableTls());
+    }
+
+    @Test
+    public void testTlsIsDisabledWhenAllTlsDisabled() {
+        ClientConfig.ClientConfigBuilder builder = ClientConfig.builder();
+        builder.controllerURI(URI.create("tcp://hostname:9090"))
+                .enableTlsToController(true)
+                .enableTlsToSegmentStore(true);
+        assertTrue("TLS is disabled", builder.build().isEnableTls());
+    }
+
+    @Test
+    public void testTlsIsDisabledWhenSchemeIsNull() {
+        ClientConfig clientConfig = ClientConfig.builder()
+                .controllerURI(URI.create("//hostname:9090"))
+                .build();
+        assertFalse("TLS is enabled", clientConfig.isEnableTls());
     }
 }

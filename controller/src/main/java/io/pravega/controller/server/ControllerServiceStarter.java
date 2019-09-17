@@ -21,6 +21,7 @@ import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.tracing.RequestTracker;
+import io.pravega.common.util.BooleanUtils;
 import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
@@ -59,6 +60,7 @@ import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
@@ -181,20 +183,25 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
-            ClientConfig clientConfig = ClientConfig.builder()
-                                                    .controllerURI(URI.create((grpcServerConfig.isTlsEnabled() ?
-                                                                          "tls://" : "tcp://") + "localhost:" + grpcServerConfig.getPort()))
-                                                    .trustStore(grpcServerConfig.getTlsTrustStore())
-                                                    .validateHostName(false)
-                                                    .build();
+            // This client config is used by the segment store helper (SegmentHelper) to connect to the segment store.
+            ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
+                    .controllerURI(URI.create((grpcServerConfig.isTlsEnabled() ?
+                            "tls://" : "tcp://") + "localhost:" + grpcServerConfig.getPort()))
+                    .trustStore(grpcServerConfig.getTlsTrustStore())
+                    .validateHostName(false);
 
+            Optional<Boolean> tlsEnabledForSegmentStore = BooleanUtils.extract(serviceConfig.getTlsEnabledForSegmentStore());
+            if (tlsEnabledForSegmentStore.isPresent()) {
+                clientConfigBuilder.enableTlsToSegmentStore(tlsEnabledForSegmentStore.get());
+            }
+            ClientConfig clientConfig = clientConfigBuilder.build();
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
             segmentHelperRef.compareAndSet(null, new SegmentHelper(connectionFactory, hostStore));
 
             GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey(),
-                    serviceConfig.getGRPCServerConfig().get().getAccessTokenTTLInSeconds());
-            
+                                                           grpcServerConfig.getTokenSigningKey(),
+                                                           grpcServerConfig.getAccessTokenTTLInSeconds());
+
             SegmentHelper segmentHelper = segmentHelperRef.get();
             log.info("Creating the stream store");
             streamStore = StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor);
@@ -203,10 +210,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
                     segmentHelper, controllerExecutor, host.getHostId(), authHelper, requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
-            
+
             BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
-            
             Duration executionDurationRetention = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
+
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
             retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
 

@@ -20,6 +20,7 @@ import io.pravega.client.state.StateSynchronizer;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.state.Update;
 import io.pravega.client.state.examples.SetSynchronizer;
+import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
@@ -581,6 +582,37 @@ public class SynchronizerTest {
                                                                                                                 new JavaSerializer<>(),
                                                                                                                 new JavaSerializer<>(),
                                                                                                                 SynchronizerConfig.builder().build()));
+    }
+
+    @Test(timeout = 20000)
+    @SuppressWarnings("unchecked")
+    public void testFetchUpdatesWithMultipleTruncation() {
+        String streamName = "streamName";
+        String scope = "scope";
+
+        RevisionedStreamClient<UpdateOrInit<RevisionedImpl>> revisionedClient =
+                (RevisionedStreamClient<UpdateOrInit<RevisionedImpl>>) mock(RevisionedStreamClient.class);
+        final Segment segment = new Segment(scope, streamName, 0L);
+        StateSynchronizerImpl<RevisionedImpl> syncA = new StateSynchronizerImpl<>(segment, revisionedClient);
+
+        Revision firstMark = new RevisionImpl(segment, 10L, 1);
+        Revision secondMark = new RevisionImpl(segment, 20L, 2);
+        final AbstractMap.SimpleImmutableEntry<Revision, UpdateOrInit<RevisionedImpl>> entry =
+                new AbstractMap.SimpleImmutableEntry<>(secondMark, new UpdateOrInit<>(new RegularUpdate("x")));
+        Iterator<Entry<Revision, UpdateOrInit<RevisionedImpl>>> iterator =
+                Collections.<Entry<Revision, UpdateOrInit<RevisionedImpl>>>singletonList(entry).iterator();
+
+        // Setup Mock
+        when(revisionedClient.getMark()).thenReturn(firstMark);
+        when(revisionedClient.readFrom(firstMark))
+                // simulate multiple TruncatedDataExceptions.
+                .thenThrow(new TruncatedDataException())
+                .thenThrow(new TruncatedDataException())
+                .thenReturn(iterator);
+        when(revisionedClient.readFrom(secondMark)).thenReturn(iterator);
+
+        syncA.fetchUpdates(); // invoke fetchUpdates which will encounter TruncatedDataException from RevisionedStreamClient.
+        assertEquals("x", syncA.getState().getValue());
     }
 
     private void createScopeAndStream(String streamName, String scope, Controller controller) {
