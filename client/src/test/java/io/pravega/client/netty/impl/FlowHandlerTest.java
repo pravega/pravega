@@ -220,6 +220,10 @@ public class FlowHandlerTest {
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, Assert::assertNotNull);
         clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
+        
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        flowHandler.completeWhenRegistered(result);
+        assertEquals(true, result.isCompletedExceptionally());
     }
 
     @Test
