@@ -9,33 +9,9 @@
  */
 package io.pravega.client.stream.impl;
 
-import java.io.File;
-import java.util.AbstractMap;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import javax.net.ssl.SSLException;
-
-import org.slf4j.LoggerFactory;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
-
 import io.grpc.LoadBalancerRegistry;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -105,6 +81,26 @@ import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
+import java.io.File;
+import java.util.AbstractMap;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import javax.net.ssl.SSLException;
+import org.slf4j.LoggerFactory;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -941,8 +937,6 @@ public class ControllerImpl implements Controller {
 
     @Override
     public CompletableFuture<Void> commitTransaction(final Stream stream, final String writerId, final Long timestamp, final UUID txId) {
-        //TODO watermarking: Pass data over the wire to the controller.
-        
         Exceptions.checkNotClosed(closed.get(), this);
         Preconditions.checkNotNull(stream, "stream");
         Preconditions.checkNotNull(txId, "txId");
@@ -950,22 +944,29 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<TxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<TxnStatus> callback = new RPCAsyncCallback<>(traceId, "commitTransaction");
-            client.commitTransaction(TxnRequest.newBuilder()
-                            .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
-                                    stream.getStreamName()))
-                            .setTxnId(ModelHelper.decode(txId))
-                            .build(),
-                    callback);
+            TxnRequest.Builder txnRequest = TxnRequest.newBuilder()
+                                                      .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
+                                                                                                  stream.getStreamName()))
+                                                      .setTxnId(ModelHelper.decode(txId));
+            if (timestamp != null) {
+                txnRequest.setTimestamp(timestamp);
+            }
+            client.commitTransaction(txnRequest.build(), callback);
             return callback.getFuture();
         }, this.executor);
-        return Futures.toVoidExpecting(result,
-                TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
-                      .whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn("commitTransaction failed: ", e);
-                    }
-                    LoggerHelpers.traceLeave(log, "commitTransaction", traceId);
-                });
+        return result.thenApply(txnStatus -> {
+            if (txnStatus.getStatus().equals(TxnStatus.Status.STREAM_NOT_FOUND)) {
+                throw new InvalidStreamException("Stream no longer exists: " + stream);
+            }
+            if (txnStatus.getStatus().equals(TxnStatus.Status.TRANSACTION_NOT_FOUND)) {
+                throw Exceptions.sneakyThrow(new TxnFailedException("Transaction was already either committed or aborted"));
+            }
+            if (txnStatus.getStatus().equals(TxnStatus.Status.SUCCESS)) {                
+                return null;
+            }
+            log.info("Unable to commit " + txnStatus + " because of " + txnStatus.getStatus());
+            throw Exceptions.sneakyThrow(new TxnFailedException("Commit transaction failed with status: " + txnStatus.getStatus()));
+        });
     }
 
     @Override
@@ -985,14 +986,20 @@ public class ControllerImpl implements Controller {
                     callback);
             return callback.getFuture();
         }, this.executor);
-        return Futures.toVoidExpecting(result,
-                TxnStatus.newBuilder().setStatus(TxnStatus.Status.SUCCESS).build(), TxnFailedException::new)
-                      .whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn("abortTransaction failed: ", e);
-                    }
-                    LoggerHelpers.traceLeave(log, "abortTransaction", traceId);
-                });
+        return result.thenApply(txnStatus -> {
+            LoggerHelpers.traceLeave(log, "abortTransaction", traceId);
+            if (txnStatus.getStatus().equals(TxnStatus.Status.STREAM_NOT_FOUND)) {
+                throw new InvalidStreamException("Stream no longer exists: " + stream);
+            }
+            if (txnStatus.getStatus().equals(TxnStatus.Status.TRANSACTION_NOT_FOUND)) {
+                throw Exceptions.sneakyThrow(new TxnFailedException("Transaction was already either committed or aborted"));
+            }
+            if (txnStatus.getStatus().equals(TxnStatus.Status.SUCCESS)) {                
+                return null;
+            }
+            log.info("Unable to abort " + txnStatus + " because of " + txnStatus.getStatus());
+            throw new RuntimeException("Error aborting transaction: " + txnStatus.getStatus());
+        });
     }
 
     @Override
@@ -1039,17 +1046,15 @@ public class ControllerImpl implements Controller {
                                            callback);
             return callback.getFuture();
         }, this.executor);
-        return Futures.toVoidExpecting(result,
-                                       TimestampResponse.newBuilder()
-                                                        .setResult(TimestampResponse.Status.SUCCESS)
-                                                        .build(),
-                                       RuntimeException::new)
-                      .whenComplete((x, e) -> {
-                          if (e != null) {
-                              log.warn("noteTimestampFromWriter failed: ", e);
-                          }
-                          LoggerHelpers.traceLeave(log, "noteTimestampFromWriter", traceId);
-                      });
+        return result.thenApply(response -> {
+            LoggerHelpers.traceLeave(log, "noteTimestampFromWriter", traceId);
+            if (response.getResult().equals(TimestampResponse.Status.SUCCESS)) {
+                return null;
+            }
+            log.warn("Writer " + writer + " failed to note time because: " + response.getResult()
+                    + " time was: " + timestamp + " position=" + lastWrittenPosition);
+            throw new RuntimeException("failed to note time because: " + response.getResult());
+        });
     }
 
     @Override
@@ -1068,17 +1073,14 @@ public class ControllerImpl implements Controller {
                                   callback);
             return callback.getFuture();
         }, this.executor);
-        return Futures.toVoidExpecting(result,
-                                       RemoveWriterResponse.newBuilder()
-                                                             .setResult(RemoveWriterResponse.Status.SUCCESS)
-                                                             .build(),
-                                       RuntimeException::new)
-                      .whenComplete((x, e) -> {
-                          if (e != null) {
-                              log.warn("writerShutdown failed: ", e);
-                          }
-                          LoggerHelpers.traceLeave(log, "writerShutdown", traceId);
-                      });
+        return result.thenApply(response -> {
+            LoggerHelpers.traceLeave(log, "writerShutdown", traceId);
+            if (response.getResult().equals(RemoveWriterResponse.Status.SUCCESS)) {
+                return null;
+            }
+            log.warn("Notifying the controller of writer shutdown failed for writer: " + writerId + " because of " + response.getResult());
+            throw new RuntimeException("Unable to remove writer due to: " + response.getResult());
+        });
     }
 
     @Override
