@@ -31,6 +31,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
@@ -76,6 +77,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -195,7 +198,6 @@ public class WatermarkingTest extends AbstractSystemTest {
         assertTrue(watermark2.getLowerTimeBound() < watermark3.getLowerTimeBound());
         
         // use watermark as lower and upper bounds.
-        long timeLow = watermark0.getLowerTimeBound();
         Map<Segment, Long> positionMap0 = watermark0.getStreamCut()
                                                     .entrySet().stream()
                                                     .collect(Collectors.toMap(x ->
@@ -232,10 +234,19 @@ public class WatermarkingTest extends AbstractSystemTest {
         // read events from the reader. 
         // verify that events read belong to the bound
         EventRead<Long> event = reader.readNextEvent(10000L);
+        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        assertNotNull(currentTimeWindow);
+        assertNotNull(currentTimeWindow.getLowerTimeBound());
+        assertNotNull(currentTimeWindow.getUpperTimeBound());
+        
         while (event.getEvent() != null) {
             Long time = event.getEvent();
-            assertTrue(time >= timeLow);
+            assertTrue(time >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(time <= currentTimeWindow.getUpperTimeBound());
             event = reader.readNextEvent(10000L);
+            if (event.isCheckpoint()) {
+                event = reader.readNextEvent(10000L);
+            }
         }
     }
 
@@ -270,10 +281,10 @@ public class WatermarkingTest extends AbstractSystemTest {
         }
     }
 
-    private CompletableFuture<Void> writeEvents(EventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
+    private void writeEvents(EventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
         AtomicInteger count = new AtomicInteger(0);
         AtomicLong currentTime = new AtomicLong();
-        return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
+        Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
             currentTime.set(System.currentTimeMillis());
             return writer.writeEvent(count.toString(), currentTime.get())
                          .thenAccept(v -> {
@@ -283,5 +294,4 @@ public class WatermarkingTest extends AbstractSystemTest {
                          });
         }, 1000L, executorService), executorService);
     }
-
 }

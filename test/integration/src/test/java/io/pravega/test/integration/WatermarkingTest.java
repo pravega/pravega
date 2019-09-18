@@ -31,6 +31,7 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
+import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamCutImpl;
@@ -48,29 +49,36 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
 import lombok.Cleanup;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
  * Collection of tests to validate controller bootstrap sequence.
  */
+@Slf4j
 public class WatermarkingTest {
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
@@ -125,7 +133,7 @@ public class WatermarkingTest {
         executorService.shutdown();
     }
 
-    @Test(timeout = 60000)
+    @Test(timeout = 120000)
     public void watermarkTest() throws Exception {
         Controller controller = controllerWrapper.getController();
         String scope = "scope";
@@ -136,8 +144,6 @@ public class WatermarkingTest {
         StreamManager streamManager = StreamManager.create(controllerUri);
         streamManager.createScope(scope);
         streamManager.createStream(scope, stream, config);
-        StreamConfiguration markConfig = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
-        controller.createStream(scope, NameUtils.getMarkStreamForStream(stream), markConfig).join();
 
         Stream streamObj = Stream.of(scope, stream);
 
@@ -155,8 +161,8 @@ public class WatermarkingTest {
 
         AtomicBoolean stopFlag = new AtomicBoolean(false);
         // write events
-        writeEvents(writer1, stopFlag);
-        writeEvents(writer2, stopFlag);
+        CompletableFuture<Void> writer1Future = writeEvents(writer1, stopFlag);
+        CompletableFuture<Void> writer2Future = writeEvents(writer2, stopFlag);
 
         // scale the stream several times so that we get complex positions
         scale(controller, streamObj, config);
@@ -170,45 +176,67 @@ public class WatermarkingTest {
         RevisionedStreamClient<Watermark> watermarkReader = syncClientFactory.createRevisionedStreamClient(markStream,
                 new WatermarkSerializer(),
                 SynchronizerConfig.builder().build());
-        AssertExtensions.assertEventuallyEquals(true, () -> {
-            Iterator<Map.Entry<Revision, Watermark>> watermarks = watermarkReader.readFrom(watermarkReader.fetchOldestRevision());
-            return watermarks.hasNext();
-        }, 30000);
-        Iterator<Map.Entry<Revision, Watermark>> watermarks = watermarkReader.readFrom(watermarkReader.fetchOldestRevision());
-        Watermark watermark = watermarks.next().getValue();
-        
+
+        LinkedBlockingQueue<Watermark> watermarks = new LinkedBlockingQueue<>();
+        fetchWatermarks(watermarkReader, watermarks, stopFlag);
+
+        AssertExtensions.assertEventuallyEquals(true, () -> watermarks.size() >= 2, 100000);
+
         stopFlag.set(true);
 
+        writer1Future.join();
+        writer2Future.join();
+        
         // read events from the stream
         @Cleanup
         ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, syncClientFactory, connectionFactory);
-        String readerGroup = "rg";
-
-        long timeLow = watermark.getLowerTimeBound();
-        Map<Segment, Long> positionMap0 = watermark.getStreamCut()
-                                                   .entrySet().stream().collect(Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()),
-                        Map.Entry::getValue));
-
-        StreamCut streamCutStart = new StreamCutImpl(streamObj, positionMap0);
-        Map<Stream, StreamCut> start = Collections.singletonMap(streamObj, streamCutStart);
         
-        readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
-                                                                           .startingStreamCuts(start).build());
+        Watermark watermark0 = watermarks.take();
+        Watermark watermark1 = watermarks.take();
+        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
 
-        // create reader on the stream
+        Map<Segment, Long> positionMap0 = watermark0.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
+        Map<Segment, Long> positionMap1 = watermark1.getStreamCut().entrySet().stream().collect(
+                Collectors.toMap(x -> new Segment(scope, stream, x.getKey().getSegmentId()), Map.Entry::getValue));
+
+        StreamCut streamCutFirst = new StreamCutImpl(streamObj, positionMap0);
+        StreamCut streamCutSecond = new StreamCutImpl(streamObj, positionMap1);
+        Map<Stream, StreamCut> firstMarkStreamCut = Collections.singletonMap(streamObj, streamCutFirst);
+        Map<Stream, StreamCut> secondMarkStreamCut = Collections.singletonMap(streamObj, streamCutSecond);
+        
+        // read from stream cut of first watermark
+        String readerGroup = "rg";
+        readerGroupManager.createReaderGroup(readerGroup, ReaderGroupConfig.builder().stream(streamObj)
+                                                                                         .startingStreamCuts(firstMarkStreamCut)
+                                                                                         .endingStreamCuts(secondMarkStreamCut)
+                                                                                         .build());
+
         @Cleanup
         final EventStreamReader<Long> reader = clientFactory.createReader("myreader",
                 readerGroup,
                 javaSerializer,
                 ReaderConfig.builder().build());
-        
-        // read events from the reader. 
-        // verify that events read belong to the bound
+
         EventRead<Long> event = reader.readNextEvent(10000L);
+        TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+
+        assertNotNull(currentTimeWindow.getLowerTimeBound());
+        assertNotNull(currentTimeWindow.getUpperTimeBound());
+
+        // read all events and verify that all events are below the bounds
         while (event.getEvent() != null) {
             Long time = event.getEvent();
-            assertTrue(time >= timeLow);
+            log.info("timewindow = {} event = {}", currentTimeWindow, time);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || time >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || time <= currentTimeWindow.getUpperTimeBound());
+
             event = reader.readNextEvent(10000L);
+            if (event.isCheckpoint()) {
+                event = reader.readNextEvent(10000L);
+            }
         }
     }
 
@@ -228,11 +256,13 @@ public class WatermarkingTest {
         }
     }
 
+    AtomicLong timer = new AtomicLong();
+    
     private CompletableFuture<Void> writeEvents(EventStreamWriter<Long> writer, AtomicBoolean stopFlag) {
         AtomicInteger count = new AtomicInteger(0);
         AtomicLong currentTime = new AtomicLong();
         return Futures.loop(() -> !stopFlag.get(), () -> Futures.delayedFuture(() -> {
-            currentTime.set(System.currentTimeMillis());
+            currentTime.set(timer.incrementAndGet());
             return writer.writeEvent(count.toString(), currentTime.get())
                          .thenAccept(v -> {
                              if (count.incrementAndGet() % 10 == 0) {
@@ -241,4 +271,21 @@ public class WatermarkingTest {
                          });
         }, 1000L, executorService), executorService);
     }
+
+    private void fetchWatermarks(RevisionedStreamClient<Watermark> watermarkReader, LinkedBlockingQueue<Watermark> watermarks, AtomicBoolean stop) throws Exception {
+        AtomicReference<Revision> revision = new AtomicReference<>(watermarkReader.fetchOldestRevision());
+
+        Futures.loop(() -> !stop.get(), () -> Futures.delayedTask(() -> {
+            Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
+            if (marks.hasNext()) {
+                Map.Entry<Revision, Watermark> next = marks.next();
+                log.info("watermark = {}", next.getValue());
+
+                watermarks.add(next.getValue());
+                revision.set(next.getKey());
+            }
+            return null;
+        }, Duration.ofSeconds(10), executorService), executorService);
+    }
+
 }
