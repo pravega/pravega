@@ -295,7 +295,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
         starter.notifySessionExpiration();
 
         AssertExtensions.assertThrows(IllegalStateException.class, starter::awaitRunning);
-        assertTrue(Exceptions.unwrap(starter.failureCause()) instanceof SessionExpirationException);
+        assertTrue(Exceptions.unwrap(starter.failureCause()) instanceof ZkSessionExpirationException);
         assertEquals(starter.state(), Service.State.FAILED);
     }
 }

@@ -10,10 +10,10 @@
 package io.pravega.controller.server;
 
 /**
- * Base class for exceptions thrown from controller server code base.
+ * Zookeeper Session expiration exception.
  */
-public class SessionExpirationException extends Exception {
-    public SessionExpirationException(String message) {
+public class ZkSessionExpirationException extends Exception {
+    public ZkSessionExpirationException(String message) {
         super(message);
     }
 }

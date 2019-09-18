@@ -446,7 +446,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     void notifySessionExpiration() {
         assert storeClient.getType().equals(StoreType.Zookeeper) || storeClient.getType().equals(StoreType.PravegaTable);
-        storeClientFailureFuture.completeExceptionally(new SessionExpirationException("Zookeeper Session Expired"));
+        storeClientFailureFuture.completeExceptionally(new ZkSessionExpirationException("Zookeeper Session Expired"));
     }
 
     @VisibleForTesting
