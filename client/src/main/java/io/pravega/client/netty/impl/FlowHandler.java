@@ -198,7 +198,6 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
      */
     @Override
     public void channelUnregistered(ChannelHandlerContext ctx) throws Exception {
-        registeredFutureLatch.reset();
         ScheduledFuture<?> future = keepAliveFuture.get();
         if (future != null) {
             future.cancel(false);
@@ -214,6 +213,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
                 log.warn("Encountered exception invoking ReplyProcessor for flow id {}", flowId, e);
             }
         });
+        registeredFutureLatch.releaseExceptionally(new ConnectionClosedException());
         super.channelUnregistered(ctx);
     }
 
