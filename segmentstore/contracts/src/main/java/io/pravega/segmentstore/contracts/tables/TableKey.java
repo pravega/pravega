@@ -47,6 +47,8 @@ public class TableKey {
      * Creates a new instance of the TableKey class with no desired version.
      *
      * @param key The Key.
+     *
+     * @return new TableKey instance that is unversioned
      */
     public static TableKey unversioned(@NonNull ArrayView key) {
         return new TableKey(key, NO_VERSION);
@@ -56,6 +58,9 @@ public class TableKey {
      * Creates a new instance of the TableKey class that indicates the Key must not previously exist.
      *
      * @param key The Key.
+     *
+     * @return new instance of Table Key as long as key does not already exist
+     *
      */
     public static TableKey notExists(@NonNull ArrayView key) {
         return new TableKey(key, NOT_EXISTS);
@@ -66,6 +71,8 @@ public class TableKey {
      *
      * @param key     The Key.
      * @param version The desired version.
+     *
+     * @return new TableKey with specified version
      */
     public static TableKey versioned(@NonNull ArrayView key, long version) {
         Preconditions.checkArgument(version >= 0 || version == NOT_EXISTS || version == NO_VERSION, "Version must be a non-negative number.");

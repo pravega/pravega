@@ -9,6 +9,7 @@
  */
 package io.pravega.client.tables.impl;
 
+import io.pravega.common.util.ByteBufferUtils;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
@@ -20,7 +21,6 @@ public interface KeyVersion extends Serializable {
     /**
      * A special KeyVersion which indicates the Key must not exist when performing Conditional Updates.
      */
-
     KeyVersion NOT_EXISTS = new KeyVersion() {
         private static final long serialVersionUID = 1L;
 
@@ -31,7 +31,7 @@ public interface KeyVersion extends Serializable {
 
         @Override
         public ByteBuffer toBytes() {
-            return ByteBuffer.allocate(0);
+            return ByteBufferUtils.EMPTY;
         }
 
         @Override
@@ -45,12 +45,19 @@ public interface KeyVersion extends Serializable {
     };
 
     /**
+     * A special KeyVersion which indicates that no versioning is required.
+     */
+    KeyVersion NO_VERSION = new KeyVersionImpl(Long.MIN_VALUE);
+
+    /**
      * Gets a value representing the internal version inside the Table Segment for this Key.
+     * @return Segment version.
      */
     long getSegmentVersion();
 
     /**
      * Serializes the KeyVersion instance to a compact byte array.
+     * @return byte representation.
      */
     ByteBuffer toBytes();
 

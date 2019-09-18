@@ -18,11 +18,13 @@ package io.pravega.client.tables.impl;
 public interface TableEntry<KeyT, ValueT> {
     /**
      * The Key.
+     * @return {@link TableKey}
      */
     TableKey<KeyT> getKey();
 
     /**
      * The Value.
+     * @return Value.
      */
     ValueT getValue();
 }

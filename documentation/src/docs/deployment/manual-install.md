@@ -15,8 +15,8 @@ This page describes the prerequisites and installation steps to deploy Pravega i
 
 ### HDFS
 
-Setup an HDFS storage cluster running **HDFS version 2.7+**. HDFS is used as Tier 2 storage and must have
-sufficient capacity to store contents of all streams. The storage cluster is recommended to be run
+Setup a HDFS storage cluster running **HDFS version 2.7+**. HDFS is used as Tier 2 Storage and must have
+sufficient capacity to store the contents of all the streams. The storage cluster is recommended to be run
 alongside Pravega on separate nodes.
 
 ### Java
@@ -26,20 +26,20 @@ for all major operating systems.
 
 ### Zookeeper
 
-Pravega requires **Zookeeper 3.5.1-alpha+**. At least 3 Zookeeper nodes are recommended for a quorum. No special configuration is required for Zookeeper but it is recommended to use a dedicated cluster for Pravega.
+Pravega requires **Zookeeper 3.5.4-beta**. At least 3 Zookeeper nodes are recommended for a quorum. No special configuration is required for Zookeeper but it is recommended to use a dedicated cluster for Pravega.
 
-This specific version of Zookeeper can be downloaded from Apache at [zookeeper-3.5.1-alpha.tar.gz](https://archive.apache.org/dist/zookeeper/zookeeper-3.5.1-alpha/zookeeper-3.5.1-alpha.tar.gz).
+This specific version of Zookeeper can be downloaded from Apache at [zookeeper-3.5.4-beta.tar.gz](https://archive.apache.org/dist/zookeeper/zookeeper-3.5.4-beta/zookeeper-3.5.4-beta.tar.gz).
 
-For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache.org/doc/r3.5.1-alpha/zookeeperStarted.html).
+For installing Zookeeper see the [Getting Started Guide](http://zookeeper.apache.org/doc/r3.5.4-beta/zookeeperStarted.html).
 
 ### Bookkeeper
 
-Pravega requires **Bookkeeper 4.4.0+**. At least 3 Bookkeeper servers are recommended for a quorum.
+Pravega requires **Bookkeeper 4.7.3**. At least 3 Bookkeeper servers are recommended for a quorum.
 
-This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.4.0-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.4.0//bookkeeper-server-4.4.0-bin.tar.gz).
+This specific version of Bookkeeper can be downloaded from Apache at [bookkeeper-server-4.7.3-bin.tar.gz](https://archive.apache.org/dist/bookkeeper/bookkeeper-4.7.3//bookkeeper-server-4.7.3-bin.tar.gz).
 
-For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/r4.4.0/bookkeeperStarted.html).
-Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.4.0` directory.
+For installing Bookkeeper see the [Getting Started Guide](http://bookkeeper.apache.org/docs/4.7.3/getting-started).
+Some specific Pravega instructions are shown below. All sets are assumed to be run from the `bookkeeper-server-4.7.3` directory.
 
 #### Bookkeeper Configuration
 
@@ -56,7 +56,7 @@ indexDirectories=/bk/index
 
 ### Initializing Zookeeper paths
 
-The following paths need to be created in Zookeeper. Open the `zookeeper-3.5.1-alpha` directory on the Zookeeper servers and run the following paths:
+The following paths need to be created in Zookeeper. Open the `zookeeper-3.5.4-beta` directory on the Zookeeper servers and run the following paths:
 
 ```
 bin/zkCli.sh -server $ZK_URL create /pravega
@@ -83,13 +83,15 @@ Apache BookKeeper can be deployed with TLS enabled. Details can be found [here](
 ---
 # Installing Pravega
 
-For non-production systems, the containers can be used that are provided by the [docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
+For non-production systems, the containers can be used that are provided by the [Docker](docker-swarm.md) installation to run non-production HDFS, Zookeeper or Bookkeeper.
 
 The following two key components of Pravega needs to be run:
-- Controller: The Control plane for Pravega. Installation requires at least one controller. \(Two or more are recommended for HA\).
-- Segment Store: The Storage node for Pravega. Installation requires at least one segment store.
 
-Before we start, the latest Pravega release needs to be downloaded from the [github releases page](https://github.com/pravega/pravega/releases).
+- **Controller**: The Control plane for Pravega. Installation requires at least one Controller. \(Two or more are recommended for HA\).
+
+- **Segment Store**: The Storage node for Pravega. Installation requires at least one Segment Store.
+
+Before we start, the latest Pravega release needs to be downloaded from the [GitHub Releases page](https://github.com/pravega/pravega/releases).
 
 ## Recommendations
 
@@ -107,8 +109,8 @@ _For a simple 3 node cluster, the following table depicts on layout of the servi
 On each node, extract the distribution package to the desired directory as follows:
 
 ```
-tar xfvz pravega-0.1.0.tgz
-cd pravega-0.1.0
+tar xfvz pravega-<version>.tgz
+cd pravega-<version>
 ```
 
 ## Installation of the Controller
@@ -153,6 +155,10 @@ After making the configuration changes, the segment store can be run using the f
 ```
 bin/pravega-segmentstore
 ```
-## Running Pravega Controller and Segment Store with security enabled
-Here are the details for configurations for [Pravega controller](../security/pravega-security-configurations.md#pravega-controller) and [Pravega Segment store](../security/pravega-security-configurations.md#pravega-segment-store).
-These parameters can be changed to represent required security configurations.
+## Running a Pravega Cluster with Security enabled
+
+Steps for securing a distributed mode cluster can be found [here](../security/securing-distributed-mode-cluster.md).
+
+For detailed information about security configuration parameters for [Controller](../security/pravega-security-configurations.md#pravega-controller))
+and [Segment Store](../security/pravega-security-configurations.md#pravega-segment-store),
+see [this]((../security/pravega-security-configurations.md) document.

@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import javax.annotation.concurrent.NotThreadSafe;
 import lombok.Getter;
 
@@ -125,12 +126,17 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
 
     @Override
     public boolean isActive() {
-        throw new UnsupportedOperationException("isActive() is not supported on " + getClass().getName());
+        return true;
     }
 
     @Override
     public SegmentProperties getSnapshot() {
         throw new UnsupportedOperationException("getSnapshot() is not supported on " + getClass().getName());
+    }
+
+    @Override
+    public Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+        throw new UnsupportedOperationException("getAttributes(BiPredicate) is not supported on " + getClass().getName());
     }
 
     @Override
@@ -506,7 +512,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                             this.length, operation.getStreamSegmentOffset()));
         }
 
-        this.length += operation.getData().length;
+        this.length += operation.getData().getLength();
         acceptAttributes(operation.getAttributeUpdates());
         this.isChanged = true;
     }

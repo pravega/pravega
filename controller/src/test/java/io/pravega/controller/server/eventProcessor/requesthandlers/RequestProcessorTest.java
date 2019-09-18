@@ -27,6 +27,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
 
@@ -69,11 +74,31 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         }
     }
 
+    @Data
+    public static class FailingEvent implements ControllerEvent {
+        private final String scope;
+        private final String stream;
+        private final CompletableFuture<Boolean> hasStartedFuture;
+        private final CompletableFuture<Void> executeFuture;
+        
+        @Override
+        public String getKey() {
+            return scope + stream;
+        }
+
+        @Override
+        public CompletableFuture<Void> process(RequestProcessor processor) {
+            return ((FailingRequestProcessor) processor).testProcess(this);
+        }
+    }
+
     public static class TestRequestProcessor1 extends AbstractRequestProcessor<TestEvent1> implements StreamTask<TestEvent1> {
         private final BlockingQueue<TestEvent1> queue;
+        private boolean ignoreStarted;
         public TestRequestProcessor1(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor, BlockingQueue<TestEvent1> queue) {
             super(streamMetadataStore, executor);
             this.queue = queue;
+            this.ignoreStarted = false;
         }
 
         public CompletableFuture<Void> testProcess(TestEvent1 event) {
@@ -90,10 +115,16 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
             queue.add(event);
             return CompletableFuture.completedFuture(null);
         }
+
+        @Override
+        public CompletableFuture<Boolean> hasTaskStarted(TestEvent1 event) {
+            return CompletableFuture.completedFuture(ignoreStarted);
+        }
     }
 
     public static class TestRequestProcessor2 extends AbstractRequestProcessor<TestEvent2> implements StreamTask<TestEvent2> {
         private final BlockingQueue<TestEvent2> queue;
+
         public TestRequestProcessor2(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor, BlockingQueue<TestEvent2> queue) {
             super(streamMetadataStore, executor);
             this.queue = queue;
@@ -112,6 +143,36 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         public CompletableFuture<Void> writeBack(TestEvent2 event) {
             queue.add(event);
             return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Boolean> hasTaskStarted(TestEvent2 event) {
+            return CompletableFuture.completedFuture(false);
+        }
+    }
+
+    public static class FailingRequestProcessor extends AbstractRequestProcessor<FailingEvent> implements StreamTask<FailingEvent> {
+        public FailingRequestProcessor(StreamMetadataStore streamMetadataStore, ScheduledExecutorService executor) {
+            super(streamMetadataStore, executor);
+        }
+
+        public CompletableFuture<Void> testProcess(FailingEvent event) {
+            return withCompletion(this, event, event.scope, event.stream, e -> true);
+        }
+
+        @Override
+        public CompletableFuture<Void> execute(FailingEvent event) {
+            return event.executeFuture;
+        }
+
+        @Override
+        public CompletableFuture<Void> writeBack(FailingEvent event) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletableFuture<Boolean> hasTaskStarted(FailingEvent event) {
+            return event.hasStartedFuture;
         }
     }
 
@@ -194,4 +255,91 @@ public abstract class RequestProcessorTest extends ThreadPooledTestSuite {
         assertEquals(null, waitingProcessor);
     }
 
+    @Test(timeout = 30000)
+    public void testCompleteStartedTasks() throws InterruptedException {
+        BlockingQueue<TestEvent1> queue1 = new LinkedBlockingQueue<>();
+        TestRequestProcessor1 requestProcessor1 = new TestRequestProcessor1(getStore(), executorService(), queue1);
+
+        BlockingQueue<TestEvent2> queue2 = new LinkedBlockingQueue<>();
+        TestRequestProcessor2 requestProcessor2 = new TestRequestProcessor2(getStore(), executorService(), queue2);
+
+        String stream = "test";
+        String scope = "test";
+        CompletableFuture<Void> started1 = new CompletableFuture<>();
+        CompletableFuture<Void> waitForIt1 = new CompletableFuture<>();
+
+        TestEvent1 event1 = new TestEvent1(scope, stream, () -> {
+            started1.complete(null);
+            return waitForIt1;
+        });
+
+        TestEvent2 event2 = new TestEvent2(scope, stream, () -> Futures.failedFuture(StoreException.create(StoreException.Type.OPERATION_NOT_ALLOWED, "Failing processing")));
+
+        // 1. start test event1 processing on processor 1. Don't let this complete.
+        CompletableFuture<Void> processing11 = requestProcessor1.process(event1);
+        // wait to ensure it is started.
+        started1.join();
+
+        // 2. start test event2 processing on processor 2. Make this fail with OperationNotAllowed and verify that it gets postponed.
+        AssertExtensions.assertFutureThrows("Fail first processing with operation not allowed", requestProcessor2.process(event2),
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        // also verify that store has set the processor name of processor 2.
+        String waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
+        assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
+        TestEvent2 taken2 = requestProcessor2.queue.take();
+        assertEquals(taken2, event2);
+
+        // 3. Fail processing on processor 1 
+        waitForIt1.completeExceptionally(new RuntimeException());
+
+        // processing11 should complete successfully.
+        AssertExtensions.assertFutureThrows("", processing11, e -> Exceptions.unwrap(e) instanceof RuntimeException); 
+
+        // set ignore started to true
+        requestProcessor1.ignoreStarted = true;
+        // 4. re submit processing for processor1. this should get be picked while we ignore started.
+        event1 = new TestEvent1(scope, stream, () -> CompletableFuture.completedFuture(null));
+
+        requestProcessor1.process(event1).join();
+        assertTrue(requestProcessor1.queue.isEmpty());
+
+        // 5. verify that wait processor name is still set to processor 2
+        waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
+        assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
+
+        // 6. now set ignore started to false. The processing of event 1 should be disallowed because of started
+        requestProcessor1.ignoreStarted = false;
+        // we should get operation not allowed exception
+        AssertExtensions.assertFutureThrows("", requestProcessor1.process(event1), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.OperationNotAllowedException);
+        // event should be posted back
+        assertEquals(requestProcessor1.queue.take(), event1);
+
+        // waiting processor should not change.
+        waitingProcessor = getStore().getWaitingRequestProcessor(scope, stream, null, executorService()).join();
+        assertEquals(TestRequestProcessor2.class.getSimpleName(), waitingProcessor);
+    }
+    
+    @Test(timeout = 10000)
+    public void testFailingProcessor() {
+        FailingRequestProcessor processor = spy(new FailingRequestProcessor(getStore(), executorService()));
+        FailingEvent event1 = new FailingEvent("scope", "stream", 
+                Futures.failedFuture(new RuntimeException("hasStarted")), CompletableFuture.completedFuture(null));
+
+        AssertExtensions.assertFutureThrows("exception should be thrown after has started", processor.process(event1),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("hasStarted"));
+
+        verify(processor, times(1)).hasTaskStarted(event1);
+        verify(processor, never()).writeBack(event1);
+        verify(processor, never()).execute(event1);
+        
+        FailingEvent event2 = new FailingEvent("scope", "stream", 
+                CompletableFuture.completedFuture(true), Futures.failedFuture(new RuntimeException("execute")));
+
+        AssertExtensions.assertFutureThrows("exception should be thrown after execute", processor.process(event2),
+                e -> Exceptions.unwrap(e) instanceof RuntimeException && Exceptions.unwrap(e).getMessage().equals("execute"));
+        verify(processor, times(1)).writeBack(event2);
+        verify(processor, times(1)).hasTaskStarted(event2);
+        verify(processor, times(1)).execute(event2);
+    }
 }

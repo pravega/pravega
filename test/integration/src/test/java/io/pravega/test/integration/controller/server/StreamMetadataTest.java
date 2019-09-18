@@ -33,7 +33,6 @@ import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 public class StreamMetadataTest {
 
@@ -46,8 +45,10 @@ public class StreamMetadataTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         int servicePort = TestUtils.getAvailableListenPort();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
         int controllerPort = TestUtils.getAvailableListenPort();
         @Cleanup

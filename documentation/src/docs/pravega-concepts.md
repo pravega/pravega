@@ -9,6 +9,27 @@ You may obtain a copy of the License at
 -->
 # Pravega Concepts
 
+   * [Introduction](#introduction)
+   * [Streams](#streams)
+   * [Events](#events)
+   * [Writers Readers Reader Groups](#writers-readers-reader-groups)
+   * [Stream Segments](#stream-segments)
+      - [Events in a Stream Segment](#events-in-a-stream-segment)
+      - [Stream Segments and Connection Pooling](#stream-segments-and-connection-pooling)
+      - [Elastic Streams Auto Scaling](#elastic-streams-auto-scaling)
+      - [Events Stream Segments and Auto scaling](#events-stream-segments-and-auto-scaling)
+      - [Stream Segments and Reader Groups](#stream-segments-and-reader-groups)
+      - [Ordering Guarantees](#ordering-guarantees)
+      - [Reader Group Checkpoints](#reader-group-checkpoints)
+   * [Transactions](#transactions)
+   * [State Synchronizers](#state-synchronizers)
+   * [Architecture](#architecture)
+   * [Putting the Concepts Together](#putting-the-concepts-together)
+   * [A Note on Tiered Storage](#a-note-on-tiered-storage)
+      - [Stream Retention Policies](#stream-retention-policies)
+
+## Introduction
+
 Pravega is an open source storage system implementing **Streams** as first-class primitive for storing/serving continuous and unbounded data.
 
 Next, we overview the key concepts in Pravega. For a concise definition of key terms of Pravega concepts, please see [Terminology](terminology.md).
@@ -93,6 +114,11 @@ Stream Segments. Event Routing Keys are hashed to form a "key space". The key
 space is then divided into a number of partitions, corresponding to the number
 of Stream Segments. Consistent hashing determines of Events to Stream Segments.
 
+### Stream Segments and Connection pooling
+
+Event is written to one of the Stream Segments by the Pravega Client based on the Event Routing Key in the Stream. The Stream Segments are managed by the different [Segment Store](segment-store-service.md) Service instances in the Stream. A new connection to a Segment Store is created even when multiple Segments are owned by the same Segment Store. Every Segment being read by the Pravega client maps to a new connection.
+The number of connections created increases if the user is writing and reading from multiple Streams.
+The goal of **connection pooling** is to ensure a common pool of connections between the client process and the Segment Stores, which does not require a linear growth of the number of connections with the number of Segments.
 
 ### Elastic Streams: Auto Scaling
 
@@ -133,7 +159,7 @@ determines how a Stream handles the varying changes in its load. Pravega has thr
 
 3.  **Event-based**: Similar to the data-based scaling policy, but it uses number of Events instead of bytes.
 
-### Events, Stream Segments and AutoScaling
+### Events, Stream Segments and Auto Scaling
 
 
 As mentioned earlier in this section, that an Event is written into one of the Stream Segments. By considering Auto Scaling, Stream Segments performs bucketing of Events based on Routing Key and time. It is obvious that, at any given time, Events published to a Stream with a given value of Routing Key will appear in the same Stream Segment.
@@ -153,12 +179,9 @@ Stream Segments play a major role in understanding the way Reader Groups work.
 Pravega assigns _zero_ _or_ _more_ Stream Segments to each Reader in a Reader Group. Pravega tries to balances the number of Stream Segments assigned to each Reader. In the figure above, **Reader B1** reads from two Stream Segments (**Segment 0** and **Segment 3**), while the other Reader Group (**Reader B2**, **Reader B3**) have only only one Stream Segment to read from. Pravega makes sure that each Stream Segment is read exactly by one Reader in any Reader Group configured with that Stream. Irrespective of  Readers being added to the Reader Group or removed from the Reader Group due to crash, Pravega reassigns Stream Segments to maintain balance among the Readers.
 
 The number of Stream Segments in a Stream determines the upper bound of
-parallelism of readers within a Reader Group. If there are more Stream Segments, different Reader Groups and many parallel sets of Readers can effectively consume the Stream. In the
-above figure, **Stream 1** has four Stream Segments. The largest effective Reader Group would contain four Readers. **Reader Group B** in the above figure is not quite optimal. If one more Reader was added to the Reader Group, each Reader would have one Stream Segment to process, thus maximizing read
+parallelism of readers within a Reader Group. If there are more Stream Segments, different Reader Groups and many parallel sets of Readers can effectively consume the Stream. In the above figure, **Stream 1** has four Stream Segments. The largest effective Reader Group would contain four Readers. **Reader Group B** in the above figure is not quite optimal. If one more Reader was added to the Reader Group, each Reader would have one Stream Segment to process, thus maximizing read
 parallelism. However, the number of Readers in the Reader Group increases beyond
 4, at least one of the Readers will not be assigned a Stream Segment.
-
-
 
 If **Stream 1** in the figure above experienced a **Scale-Down** event, by reducing the
 number of Stream Segments to three, then the **Reader Group B**  will have an

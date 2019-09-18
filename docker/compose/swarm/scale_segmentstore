@@ -17,7 +17,7 @@ try:
         "docker service inspect pravega_segmentstore --format='{{.Spec.TaskTemplate.ContainerSpec.Env}}'", shell=True)
 
     def get_config(name):
-        return re.findall(name + "=(.+?)( |])", env)[0][0]
+        return re.findall(name + "=(.+//)?(.+?)( |]|\r\n|\n)", env)[0][1]
 
     published_address = get_config("publishedIPAddress")
     hdfs_url = get_config("HDFS_URL")
@@ -59,6 +59,8 @@ for instance in to_create:
           --label com.docker.stack.namespace='pravega' \
           -p '{port}:{port}' \
           -e HDFS_URL={hdfs_url} \
+          -e TIER2_STORAGE=HDFS \
+          -e HDFS_REPLICATION=1 \
           -e ZK_URL={zk_url} \
           -e CONTROLLER_URL=tcp://controller:9090 \
           -e JAVA_OPTS='-Dmetrics.enableCSVReporter=false -Dpravegaservice.publishedIPAddress={published_address} -Dpravegaservice.listeningPort={port} -Dpravegaservice.listeningIPAddress=0 -Dbookkeeper.bkEnsembleSize=2 -Dbookkeeper.bkAckQuorumSize=2 -Dbookkeeper.bkWriteQuorumSize=2 -Xmx900m -XX:OnError="kill -9 p%" -XX:+ExitOnOutOfMemoryError -XX:+CrashOnOutOfMemoryError -XX:+HeapDumpOnOutOfMemoryError' \

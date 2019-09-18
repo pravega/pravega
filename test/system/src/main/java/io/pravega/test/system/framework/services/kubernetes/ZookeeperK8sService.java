@@ -31,6 +31,7 @@ import io.kubernetes.client.models.V1beta1CustomResourceDefinition;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionBuilder;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionNamesBuilder;
 import io.kubernetes.client.models.V1beta1CustomResourceDefinitionSpecBuilder;
+import io.kubernetes.client.models.V1beta1CustomResourceDefinitionStatus;
 import io.kubernetes.client.models.V1beta1PolicyRuleBuilder;
 import io.kubernetes.client.models.V1beta1RoleRefBuilder;
 import io.kubernetes.client.models.V1beta1SubjectBuilder;
@@ -58,6 +59,8 @@ public class ZookeeperK8sService extends AbstractService {
     private static final String CUSTOM_RESOURCE_KIND = "ZookeeperCluster";
     private static final String OPERATOR_ID = "zookeeper-operator";
     private static final int DEFAULT_INSTANCE_COUNT = 1; // number of zk instances.
+    private static final String ZOOKEEPER_IMAGE_NAME = System.getProperty("zookeeperImageName", "zookeeper");
+    private static final String PRAVEGA_ZOOKEEPER_IMAGE_VERSION = System.getProperty("zookeeperImageVersion", "latest");
 
     public ZookeeperK8sService(String id) {
         super(id);
@@ -161,6 +164,9 @@ public class ZookeeperK8sService extends AbstractService {
                                                      .build())
                                   .withScope("Namespaced")
                                   .withVersion(CUSTOM_RESOURCE_VERSION)
+                                  .withNewSubresources()
+                                  .withStatus(new V1beta1CustomResourceDefinitionStatus())
+                                  .endSubresources()
                                   .build())
                 .build();
 
@@ -193,7 +199,7 @@ public class ZookeeperK8sService extends AbstractService {
 
     private V1Deployment getDeployment() {
         V1Container container = new V1ContainerBuilder().withName("zookeeper-operator")
-                                                        .withImage("pravega/zookeeper-operator:latest")
+                                                        .withImage(ZOOKEEPER_OPERATOR_IMAGE)
                                                         .withPorts(new V1ContainerPortBuilder().withContainerPort(60000).build())
                                                         .withCommand("zookeeper-operator")
                                                         .withImagePullPolicy(IMAGE_PULL_POLICY)
@@ -232,7 +238,9 @@ public class ZookeeperK8sService extends AbstractService {
                 .put("apiVersion", "zookeeper.pravega.io/v1beta1")
                 .put("kind", CUSTOM_RESOURCE_KIND)
                 .put("metadata", ImmutableMap.of("name", deploymentName))
-                .put("spec", ImmutableMap.of("size", clusterSize))
+                .put("spec", ImmutableMap.builder().put("image",  getImageSpec(DOCKER_REGISTRY + PREFIX + "/" + ZOOKEEPER_IMAGE_NAME, PRAVEGA_ZOOKEEPER_IMAGE_VERSION))
+                                         .put("size", clusterSize)
+                                         .build())
                 .build();
     }
 }

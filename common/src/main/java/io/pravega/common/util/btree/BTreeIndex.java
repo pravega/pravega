@@ -267,7 +267,7 @@ public class BTreeIndex {
     }
 
     /**
-     * Inserts, updates or removes the given Page Entries into the index. If {@link PageEntry#getValue()} is null, then
+     * Inserts, updates or removes the given Page Entries into the index. If {@link PageEntry#value} is null, then
      * the page entry is removed, otherwise it is added.
      *
      * @param entries A Collection of Page Entries to insert. The collection need not be sorted.

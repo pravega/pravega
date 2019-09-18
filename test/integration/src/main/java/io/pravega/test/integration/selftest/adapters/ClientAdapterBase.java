@@ -23,6 +23,7 @@ import io.pravega.client.stream.impl.ByteArraySerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamingException;
@@ -34,6 +35,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -110,6 +112,10 @@ abstract class ClientAdapterBase extends StoreAdapter {
         this.transactionalWriters.clear();
     }
 
+    //endregion
+
+    //region Stream Operations
+
     @Override
     public CompletableFuture<Void> createStream(String streamName, Duration timeout) {
         ensureRunning();
@@ -143,7 +149,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> delete(String streamName, Duration timeout) {
+    public CompletableFuture<Void> deleteStream(String streamName, Duration timeout) {
         ensureRunning();
         String parentName = StreamSegmentNameUtils.getParentStreamSegmentName(streamName);
         if (isTransaction(streamName, parentName)) {
@@ -188,7 +194,7 @@ abstract class ClientAdapterBase extends StoreAdapter {
     }
 
     @Override
-    public CompletableFuture<Void> seal(String streamName, Duration timeout) {
+    public CompletableFuture<Void> sealStream(String streamName, Duration timeout) {
         ensureRunning();
         return CompletableFuture.runAsync(() -> {
             if (getStreamManager().sealStream(SCOPE, streamName)) {
@@ -258,6 +264,40 @@ abstract class ClientAdapterBase extends StoreAdapter {
     @Override
     public ExecutorServiceHelpers.Snapshot getStorePoolSnapshot() {
         return null;
+    }
+
+    //endregion
+
+    //region Table Operations
+
+    @Override
+    public CompletableFuture<Void> createTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteTable(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Long> updateTableEntry(String tableName, ArrayView key, ArrayView value, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
+    }
+
+    @Override
+    public CompletableFuture<Void> removeTableEntry(String tableName, ArrayView key, Long compareVersion, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
+    }
+
+    @Override
+    public CompletableFuture<List<ArrayView>> getTableEntries(String tableName, List<ArrayView> key, Duration timeout) {
+        throw new UnsupportedOperationException("Table operations not yet implemented.");
+    }
+
+    @Override
+    public CompletableFuture<AsyncIterator<List<Map.Entry<ArrayView, ArrayView>>>> iterateTableEntries(String tableName, Duration timeout) {
+        throw new UnsupportedOperationException();
     }
 
     //endregion

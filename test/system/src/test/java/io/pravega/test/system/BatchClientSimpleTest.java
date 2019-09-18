@@ -90,7 +90,8 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
-        streamManager = StreamManager.create(controllerURI);
+
+        streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
@@ -112,22 +113,24 @@ public class BatchClientSimpleTest extends AbstractReadWriteTest {
         final int offsetEvents = RG_PARALLELISM * 20;
         final int batchIterations = 4;
         final Stream stream = Stream.of(SCOPE, STREAM);
-        final ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerURI).build();
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                                                                             connectionFactory.getInternalExecutor());
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
         @Cleanup
         BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
         log.info("Invoking batchClientSimpleTest test with Controller URI: {}", controllerURI);
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                       .stream(SCOPE + "/" + STREAM).build());
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
 
+        log.info("Writing events to stream");
         // Write events to the Stream.
         writeEvents(clientFactory, STREAM, totalEvents);
 

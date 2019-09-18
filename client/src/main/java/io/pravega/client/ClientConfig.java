@@ -18,8 +18,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
+
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -33,7 +36,9 @@ import lombok.extern.slf4j.Slf4j;
 @Builder(toBuilder = true)
 public class ClientConfig implements Serializable {
 
+    static final int DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE = 10;
     private static final long serialVersionUID = 1L;
+
 
     /** controllerURI The controller rpc URI. This can be of 2 types
      1. tcp://ip1:port1,ip2:port2,...
@@ -57,14 +62,76 @@ public class ClientConfig implements Serializable {
     /**
      * If the flag {@link #isEnableTls()}  is set, this flag decides whether to enable host name validation or not.
      */
-    private boolean validateHostName;
+    private final boolean validateHostName;
 
+    /**
+     * Maximum number of connections per Segment store to be used by connection pooling.
+     */
+    private final int maxConnectionsPerSegmentStore;
+
+    /**
+     * An internal property that determines whether TLS enabled is derived from Controller URI. It cannot be set
+     * directly by the caller. It is interpreted as:
+     *
+     * false - if {@link #enableTlsToController} and/or {@link #enableTlsToSegmentStore} is/are set, and if either
+     *         of them is set to false.
+     * true - if neither {@link #enableTlsToController} or {@link #enableTlsToSegmentStore} are set, or if both are
+     *        set to true.
+     */
+    @Getter(AccessLevel.NONE) // Omit Lombok accessor
+    private final boolean deriveTlsEnabledFromControllerURI;
+
+    /**
+     * An optional property representing whether to enable TLS for client's communication with the Controller.
+     *
+     * If this property and {@link #enableTlsToSegmentStore} are not set, and the scheme used in {@link #controllerURI}
+     * is {@code tls} or {@code pravegas}, TLS is automatically enabled for both client-to-Controller and
+     * client-to-Segment Store communications.
+     */
+    @Getter(AccessLevel.NONE) // Omit Lombok accessor as we are creating a custom one
+    private final boolean enableTlsToController;
+
+    /**
+     * An optional property representing whether to enable TLS for client's communication with the Controller.
+     *
+     * If this property and {@link #enableTlsToController} are not set, and the scheme used in {@link #controllerURI}
+     * is {@code tls} or {@code pravegas}, TLS is automatically enabled for both client-to-Controller and
+     * client-to-Segment Store communications.
+     */
+    @Getter(AccessLevel.NONE) // Omit Lombok accessor as we are creating a custom one
+    private final boolean enableTlsToSegmentStore;
+
+    /**
+     * Returns whether TLS is enabled for client-to-server (Controller and Segment Store) communications.
+     *
+     * @return {@code true} if TLS is enabled, otherwise returns {@code false}
+     */
     public boolean isEnableTls() {
-        String scheme = this.controllerURI.getScheme();
-        if (scheme == null) {
-            return false;
+        if (deriveTlsEnabledFromControllerURI) {
+            String scheme = this.controllerURI.getScheme();
+            if (scheme == null) { // scheme is null when URL is of the kind //<hostname>:<port>
+                return false;
+            }
+            return scheme.equals("tls") || scheme.equals("ssl") || scheme.equals("pravegas");
+        } else {
+            return enableTlsToController && enableTlsToSegmentStore;
         }
-        return scheme.equals("tls") || scheme.equals("ssl") || scheme.equals("pravegas");
+    }
+
+    public boolean isEnableTlsToController() {
+        if (deriveTlsEnabledFromControllerURI) {
+            return this.isEnableTls();
+        } else {
+            return this.enableTlsToController;
+        }
+    }
+
+    public boolean isEnableTlsToSegmentStore() {
+        if (deriveTlsEnabledFromControllerURI) {
+            return this.isEnableTls();
+        } else {
+            return enableTlsToSegmentStore;
+        }
     }
 
     /**
@@ -84,20 +151,46 @@ public class ClientConfig implements Serializable {
         private static final String AUTH_METHOD = "method";
         private static final String AUTH_METHOD_LOAD_DYNAMIC = "loadDynamic";
         private static final String AUTH_TOKEN = "token";
-
         private static final String AUTH_PROPS_PREFIX_ENV = "pravega_client_auth_";
 
         private boolean validateHostName = true;
+
+        private boolean deriveTlsEnabledFromControllerURI = true;
+
+        /**
+         * Note: by making this method private, we intend to hide the corresponding property
+         * "deriveTlsEnabledFromControllerURI".
+         *
+         * @param value the value to set
+         * @return the builder
+         */
+        private ClientConfigBuilder deriveTlsEnabledFromControllerURI(boolean value) {
+            this.deriveTlsEnabledFromControllerURI = value;
+            return this;
+        }
+
+        public ClientConfigBuilder enableTlsToController(boolean value) {
+            this.deriveTlsEnabledFromControllerURI(false);
+            this.enableTlsToController = value;
+            return this;
+        }
+
+        public ClientConfigBuilder enableTlsToSegmentStore(boolean value) {
+            this.deriveTlsEnabledFromControllerURI(false);
+            this.enableTlsToSegmentStore = value;
+            return this;
+        }
 
         public ClientConfig build() {
             if (controllerURI == null) {
                 controllerURI = URI.create("tcp://localhost:9090");
             }
             extractCredentials();
-            if (credentials == null) {
-                log.warn("The credentials are not specified or could not be extracted.");
+            if (maxConnectionsPerSegmentStore <= 0) {
+                maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
-            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName);
+            return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
+                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore);
         }
 
         /**
@@ -116,12 +209,24 @@ public class ClientConfig implements Serializable {
         @VisibleForTesting
         ClientConfigBuilder extractCredentials(Properties properties, Map<String, String> env) {
             if (credentials != null) {
+                log.info("Client credentials were extracted using the explicitly supplied credentials object.");
                 return this;
             }
-
-            credentials = extractCredentialsFromProperties(properties);
-            if (credentials == null) {
+            if (properties != null) {
+                credentials = extractCredentialsFromProperties(properties);
+                if (credentials != null) {
+                    log.info("Client credentials were extracted from system properties. {}",
+                            "They weren't explicitly supplied as a Credentials object.");
+                    return this;
+                }
+            }
+            if (env != null) {
                 credentials = extractCredentialsFromEnv(env);
+                if (credentials != null) {
+                    log.info("Client credentials were extracted from environment variables. {}",
+                            "They weren't explicitly supplied as a Credentials object or system properties.");
+                    return this;
+                }
             }
             return this;
         }

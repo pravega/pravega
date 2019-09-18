@@ -9,20 +9,10 @@
  */
 package io.pravega.shared.metrics;
 
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricRegistry;
-import com.google.common.annotations.VisibleForTesting;
-
 public class MetricsProvider {
 
-    static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
     private static final StatsProviderProxy STATS_PROVIDER = new StatsProviderProxy();
     private static final DynamicLoggerProxy DYNAMIC_LOGGER = new DynamicLoggerProxy(STATS_PROVIDER.createDynamicLogger());
-
-    @VisibleForTesting
-    public static Metric getMetric(String name) {
-        return  METRIC_REGISTRY.getMetrics().getOrDefault(name, null);
-    }
 
     public synchronized static void initialize(MetricsConfig config) {
         STATS_PROVIDER.setProvider(config);

@@ -85,7 +85,7 @@ class TableMetadataStore extends MetadataStore {
         return submitAssignment(SegmentInfo.newSegment(this.metadataSegmentName, attributes), true, timeout)
                 .thenAccept(segmentId -> {
                     this.initialized.set(true);
-                    log.info("{}: Metadata Segment pinned. Name = '{}', Id = '{}'", this.metadataSegmentName, segmentId);
+                    log.info("{}: Metadata Segment pinned. Name = '{}', Id = '{}'", this.traceObjectId, this.metadataSegmentName, segmentId);
                 });
     }
 

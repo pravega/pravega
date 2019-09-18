@@ -12,6 +12,8 @@ package io.pravega.common.util;
 import java.nio.ByteBuffer;
 
 public class ByteBufferUtils {
+    
+    public static final ByteBuffer EMPTY = ByteBuffer.allocate(0);
 
     public static ByteBuffer slice(ByteBuffer orig, int begin, int length) {
         int pos = orig.position();

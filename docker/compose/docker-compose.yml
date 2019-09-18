@@ -32,6 +32,7 @@ services:
     image: pravega/bookkeeper
     ports:
       - "3181:3181"
+    restart: always
     environment:
       ZK_URL: zookeeper:2181
       bookiePort: 3181
@@ -42,6 +43,7 @@ services:
       image: pravega/bookkeeper
       ports:
         - "3182:3182"
+      restart: always
       environment:
         ZK_URL: zookeeper:2181
         bookiePort: 3182
@@ -52,6 +54,7 @@ services:
       image: pravega/bookkeeper
       ports:
         - "3183:3183"
+      restart: always
       environment:
         ZK_URL: zookeeper:2181
         bookiePort: 3183
@@ -66,10 +69,10 @@ services:
     command: controller
     environment:
       WAIT_FOR: zookeeper:2181
-      REST_SERVER_PORT: 10080
-      CONTROLLER_SERVER_PORT: 9090
       ZK_URL: zookeeper:2181
+      REST_SERVER_PORT: 10080
       JAVA_OPTS: |
+        -Dcontroller.service.port=9090
         -Dconfig.controller.metricenableCSVReporter=false
         -Xmx512m
         -XX:OnError="kill -9 p%"

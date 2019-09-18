@@ -9,14 +9,15 @@
  */
 package io.pravega.controller.store.stream;
 
+import com.google.common.base.Strings;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.lang.Int96;
 import io.pravega.controller.store.stream.records.EpochTransitionRecord;
 import io.pravega.controller.store.task.TxnResource;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.test.common.AssertExtensions;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
@@ -31,15 +32,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static io.pravega.controller.store.stream.ZKStreamMetadataStore.COUNTER_PATH;
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 /**
  * Zookeeper based stream metadata store tests.
@@ -50,7 +50,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     private CuratorFramework cli;
 
     @Override
-    public void setupTaskStore() throws Exception {
+    public void setupStore() throws Exception {
         zkServer = new TestingServerStarter().start();
         zkServer.start();
         int sessionTimeout = 8000;
@@ -62,105 +62,10 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
     }
 
     @Override
-    public void cleanupTaskStore() throws Exception {
+    public void cleanupStore() throws Exception {
+        store.close();
         cli.close();
         zkServer.close();
-    }
-
-    @Test
-    public void testCounter() throws Exception {
-        ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
-        storeHelper.createZNodeIfNotExist("/store/scope").join();
-
-        ZKStreamMetadataStore zkStore = spy((ZKStreamMetadataStore) this.store);
-        zkStore.setStoreHelperForTesting(storeHelper);
-
-        // first call should get the new range from store
-        Int96 counter = zkStore.getNextCounter().join();
-
-        // verify that the generated counter is from new range
-        assertEquals(0, counter.getMsb());
-        assertEquals(1L, counter.getLsb());
-        assertEquals(zkStore.getCounterForTesting(), counter);
-        Int96 limit = zkStore.getLimitForTesting();
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE, limit.getLsb());
-
-        // update the local counter to the end of the current range (limit - 1)
-        zkStore.setCounterAndLimitForTesting(limit.getMsb(), limit.getLsb() - 1, limit.getMsb(), limit.getLsb());
-        // now call three getNextCounters concurrently.. first one to execute should increment the counter to limit.
-        // other two will result in refresh being called.
-        CompletableFuture<Int96> future1 = zkStore.getNextCounter();
-        CompletableFuture<Int96> future2 = zkStore.getNextCounter();
-        CompletableFuture<Int96> future3 = zkStore.getNextCounter();
-
-        List<Int96> values = Futures.allOfWithResults(Arrays.asList(future1, future2, future3)).join();
-
-        // second and third should result in refresh being called. Verify method call count is 3, twice for now and
-        // once for first time when counter is set
-        verify(zkStore, times(3)).refreshRangeIfNeeded();
-
-        verify(zkStore, times(2)).getRefreshFuture();
-
-        assertTrue(values.stream().anyMatch(x -> x.compareTo(new Int96(limit.getMsb(), limit.getLsb())) == 0));
-        assertTrue(values.stream().anyMatch(x -> x.compareTo(new Int96(0, limit.getLsb() + 1)) == 0));
-        assertTrue(values.stream().anyMatch(x -> x.compareTo(new Int96(0, limit.getLsb() + 2)) == 0));
-
-        // verify that counter and limits are increased
-        Int96 newCounter = zkStore.getCounterForTesting();
-        Int96 newLimit = zkStore.getLimitForTesting();
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 2, newLimit.getLsb());
-        assertEquals(0, newLimit.getMsb());
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE + 2, newCounter.getLsb());
-        assertEquals(0, newCounter.getMsb());
-
-        // set range in store to have lsb = Long.Max - 100
-        Data data = new Data(new Int96(0, Long.MAX_VALUE - 100).toBytes(), null);
-        doReturn(CompletableFuture.completedFuture(data)).when(storeHelper).getData(COUNTER_PATH);
-        // set local limit to {msb, Long.Max - 100}
-        zkStore.setCounterAndLimitForTesting(0, Long.MAX_VALUE - 100, 0, Long.MAX_VALUE - 100);
-        // now the call to getNextCounter should result in another refresh
-        zkStore.getNextCounter().join();
-        // verify that post refresh counter and limit have different msb
-        Int96 newCounter2 = zkStore.getCounterForTesting();
-        Int96 newLimit2 = zkStore.getLimitForTesting();
-
-        assertEquals(1, newLimit2.getMsb());
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE - 100, newLimit2.getLsb());
-        assertEquals(0, newCounter2.getMsb());
-        assertEquals(Long.MAX_VALUE - 99, newCounter2.getLsb());
-    }
-
-    @Test
-    public void testCounterConcurrentUpdates() {
-        ZKStoreHelper storeHelper = spy(new ZKStoreHelper(cli, executor));
-        storeHelper.createZNodeIfNotExist("/store/scope").join();
-
-        ZKStreamMetadataStore zkStore = spy((ZKStreamMetadataStore) this.store);
-        ZKStreamMetadataStore zkStore2 = spy((ZKStreamMetadataStore) this.store);
-        ZKStreamMetadataStore zkStore3 = spy((ZKStreamMetadataStore) this.store);
-        zkStore.setStoreHelperForTesting(storeHelper);
-
-        // first call should get the new range from store
-        Int96 counter = zkStore.getNextCounter().join();
-
-        // verify that the generated counter is from new range
-        assertEquals(0, counter.getMsb());
-        assertEquals(1L, counter.getLsb());
-        assertEquals(zkStore.getCounterForTesting(), counter);
-        Int96 limit = zkStore.getLimitForTesting();
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE, limit.getLsb());
-
-        zkStore3.getRefreshFuture().join();
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE, zkStore3.getCounterForTesting().getLsb());
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 2, zkStore3.getLimitForTesting().getLsb());
-
-        zkStore2.getRefreshFuture().join();
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 2, zkStore2.getCounterForTesting().getLsb());
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 3, zkStore2.getLimitForTesting().getLsb());
-
-        zkStore.getRefreshFuture().join();
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 3, zkStore.getCounterForTesting().getLsb());
-        assertEquals(ZKStreamMetadataStore.COUNTER_RANGE * 4, zkStore.getLimitForTesting().getLsb());
     }
 
     @Test
@@ -176,6 +81,99 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         assertEquals("List streams in scope", 2, streamInScope.size());
         assertTrue("List streams in scope", streamInScope.containsKey(stream1));
         assertTrue("List streams in scope", streamInScope.containsKey(stream2));
+    }
+
+    @Test
+    public void listStreamsInScopes() throws Exception {
+        // list stream in scope
+        String scope = "scopeList";
+        ZKStreamMetadataStore zkStore = spy((ZKStreamMetadataStore) store);
+        
+        store.createScope(scope).get();
+
+        LinkedBlockingQueue<Integer> nextPositionList = new LinkedBlockingQueue<>();
+        nextPositionList.put(0);
+        nextPositionList.put(2);
+        nextPositionList.put(10000);
+        nextPositionList.put((int) Math.pow(10, 8));
+        nextPositionList.put((int) Math.pow(10, 9));
+        ZKScope myScope = spy((ZKScope) zkStore.getScope(scope));
+        doAnswer(x -> CompletableFuture.completedFuture(nextPositionList.poll())).when(myScope).getNextStreamPosition();
+        doAnswer(x -> myScope).when(zkStore).getScope(scope);
+        
+        String stream1 = "stream1";
+        String stream2 = "stream2";
+        String stream3 = "stream3";
+        String stream4 = "stream4";
+        String stream5 = "stream5";
+
+        // add three streams and then list them. We should get 2 + 1 + 0
+        zkStore.createStream(scope, stream1, configuration1, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream1, State.ACTIVE, null, executor).get();
+        zkStore.createStream(scope, stream2, configuration2, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream2, State.ACTIVE, null, executor).get();
+        zkStore.createStream(scope, stream3, configuration2, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream3, State.ACTIVE, null, executor).get();
+        
+        Pair<List<String>, String> streamInScope = store.listStream(scope, "", 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream1));
+        assertTrue(streamInScope.getKey().contains(stream2));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream3));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 0, streamInScope.getKey().size());
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        // add 4th stream
+        zkStore.createStream(scope, stream4, configuration2, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream4, State.ACTIVE, null, executor).get();
+
+        // list on previous token we should get 1 entry
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream4));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+ 
+        // add 5th stream
+        zkStore.createStream(scope, stream5, configuration2, System.currentTimeMillis(), null, executor).get();
+        zkStore.setState(scope, stream5, State.ACTIVE, null, executor).get();
+
+        // delete stream 1
+        store.deleteStream(scope, stream1, null, executor).join();
+
+        // start listing with empty/default continuation token
+        streamInScope = store.listStream(scope, "", 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream2));
+        assertTrue(streamInScope.getKey().contains(stream3));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream4));
+        assertTrue(streamInScope.getKey().contains(stream5));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        // delete stream 3
+        store.deleteStream(scope, stream3, null, executor).join();
+        
+        // start listing with empty/default continuation token
+        streamInScope = store.listStream(scope, "", 2, executor).get();
+        assertEquals("List streams in scope", 2, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream2));
+        assertTrue(streamInScope.getKey().contains(stream4));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
+
+        streamInScope = store.listStream(scope, streamInScope.getValue(), 2, executor).get();
+        assertEquals("List streams in scope", 1, streamInScope.getKey().size());
+        assertTrue(streamInScope.getKey().contains(stream5));
+        assertFalse(Strings.isNullOrEmpty(streamInScope.getValue()));
     }
 
     @Test
@@ -215,8 +213,6 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         AssertExtensions.assertFutureThrows("Remove txn fails", store.removeTxnFromIndex(host, txn, true), checker);
         AssertExtensions.assertFutureThrows("Remove host fails", store.removeHostFromIndex(host), checker);
         AssertExtensions.assertFutureThrows("Get txn version fails", store.getTxnVersionFromIndex(host, txn), checker);
-        AssertExtensions.assertFutureThrows("Get random txn fails", store.getRandomTxnFromIndex(host), checker);
-        AssertExtensions.assertFutureThrows("List hosts fails", store.listHostsOwningTxn(), checker);
     }
 
     @Test
@@ -412,7 +408,7 @@ public class ZKStreamMetadataStoreTest extends StreamMetadataStoreTest {
         return store.createTransaction(scope, stream, txnId, 100, 100, null, executor)
              .thenCompose(x -> store.setState(scope, stream, State.COMMITTING_TXN, null, executor))
              .thenCompose(x -> store.sealTransaction(scope, stream, txnId, true, Optional.empty(), null, executor))
-             .thenCompose(x -> store.commitTransaction(scope, stream, txnId, null, executor));
+             .thenCompose(x -> ((AbstractStreamMetadataStore) store).commitTransaction(scope, stream, txnId, null, executor));
     }
 
     private SimpleEntry<Long, Long> findSplitsAndMerges(String scope, String stream) throws InterruptedException, java.util.concurrent.ExecutionException {

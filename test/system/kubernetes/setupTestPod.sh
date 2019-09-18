@@ -47,13 +47,15 @@ fi
 echo "Logging the details of Kubernetes cluster"
 kubectl cluster-info  # any error here will cause the script to terminate.
 
-# Step 4: Verify if tier2 PVC has been created.
-tier2Size="$(kubectl get pvc -o jsonpath='{.items[?(@.metadata.name == "pravega-tier2")].status.capacity.storage}')"
-if [ -z "$tier2Size" ];then
+# Step 4: Verify if tier2 PVC has been created for NFS.
+if [ $tier2Type = "nfs" ]; then
+  tier2Size="$(kubectl get pvc -o jsonpath='{.items[?(@.metadata.name == "pravega-tier2")].status.capacity.storage}')"
+  if [ -z "$tier2Size" ];then
         echo "Tier2 PVC pravega-tier2 is not present. Please create it before running the tests."
         exit 1
-else
+  else
     echo "Size of Tier2 is $tier2Size"
+  fi
 fi
 
 # Step 5: Create a dynamic PVC, if already created the error is ignored.
@@ -83,14 +85,14 @@ spec:
        claimName: task-pv-claim
   containers:
     - name: task-pv-container
-      image: openjdk:8-jre-alpine
+      image: openjdk:8u181-jre-alpine
       command: ["/bin/sh"]
       args: ["-c", "sleep 60000"]
       volumeMounts:
         - mountPath: "/data"
           name: task-pv-storage
 EOF
-kubectl wait --for=condition=Ready pod/task-pv-pod
+kubectl wait --timeout=1m --for=condition=Ready pod/task-pv-pod
 
 #Step 7: Compute the checksum of the local test artifact and the artifact on the persistent volume. Copy test artifact only if required.
 checksum="$(kubectl exec task-pv-pod md5sum '/data/test-collection.jar' | awk '{ print $1 }' || true)"

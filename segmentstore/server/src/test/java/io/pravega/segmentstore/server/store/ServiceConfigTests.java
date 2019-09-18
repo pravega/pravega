@@ -14,6 +14,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+
 /**
  * Tests for the ServiceConfig class
  */
@@ -54,4 +57,38 @@ public class ServiceConfigTests {
                         && cfg3.getListeningPort() != cfg3.getPublishedPort());
     }
 
+    @Test
+    public void testDefaultSecurityConfigValues() {
+        ServiceConfig config = ServiceConfig.builder()
+                .with(ServiceConfig.CONTAINER_COUNT, 1)
+                .build();
+
+        assertFalse(config.isEnableTls());
+        assertFalse(config.isEnableTlsReload());
+        assertEquals("", config.getCertFile());
+        assertEquals("", config.getKeyFile());
+    }
+
+    // region Tests that verify the toString() method.
+
+    @Test
+    public void testToStringIsSuccessfulWithAllNonDefaultConfigSpecified() {
+        ServiceConfig config = ServiceConfig.builder()
+                .with(ServiceConfig.CONTAINER_COUNT, 1)
+                .with(ServiceConfig.LISTENING_IP_ADDRESS, "localhost")
+                .with(ServiceConfig.PUBLISHED_PORT, 4000)
+                .with(ServiceConfig.LISTENING_IP_ADDRESS, "1.2.3.4")
+                .with(ServiceConfig.PUBLISHED_IP_ADDRESS, "1.2.3.4")
+                .with(ServiceConfig.ZK_TRUSTSTORE_LOCATION, "/zkTruststorePath")
+                .with(ServiceConfig.ZK_TRUST_STORE_PASSWORD_PATH, "/zkTruststorePasswordPath")
+                .with(ServiceConfig.CERT_FILE, "/cert.pem")
+                .with(ServiceConfig.KEY_FILE, "/key.pem")
+                .with(ServiceConfig.INSTANCE_ID, "1234")
+                .with(ServiceConfig.ENABLE_TLS_RELOAD, true)
+                .build();
+        Assert.assertNotNull(config.toString());
+    }
+
+
+    // endregion
 }

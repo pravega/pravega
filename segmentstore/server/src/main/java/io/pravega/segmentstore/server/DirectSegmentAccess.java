@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
@@ -35,7 +36,7 @@ public interface DirectSegmentAccess {
      * Appends a range of bytes at the end of the Segment and atomically updates the given attributes. The byte range
      * will be appended as a contiguous block, however there is no guarantee of ordering between different calls to this
      * method.
-     * @see StreamSegmentStore#append(String, byte[], Collection, Duration).
+     * @see io.pravega.segmentstore.contracts.StreamSegmentStore#append(String, byte[], Collection, Duration)
      *
      * @param data             The data to add.
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
@@ -48,11 +49,12 @@ public interface DirectSegmentAccess {
      *                                  check if the Segment does not exist - that exception will be set in the
      *                                  returned CompletableFuture).
      */
-    CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
+    CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout);
 
     /**
      * Performs an attribute update operation on the Segment.
-     * @see StreamSegmentStore#updateAttributes(String, Collection, Duration).
+     *
+     *  @see StreamSegmentStore#append(String, byte[], Collection, Duration).
      *
      * @param attributeUpdates A Collection of Attribute-Values to set or update. May be null (which indicates no updates).
      *                         See Notes about AttributeUpdates in the interface Javadoc.

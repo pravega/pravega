@@ -65,9 +65,12 @@ class SegmentAttributeIterator implements AttributeIterator {
         this.indexIterator = indexIterator;
 
         // Collect eligible attributes from the Metadata into a Dequeue (we need to be able to peek).
+        // We need to use SegmentMetadata.getAttributes(BiPredicate) since that will perform the filtering while holding
+        // the SegmentMetadata's lock, thus ensuring a correct iteration. SegmentMetadata.getAttributes() provides a simple
+        // read-only view that cannot be used for safe iteration in this case.
         this.metadataAttributes = metadata
-                .getAttributes().entrySet().stream()
-                .filter(e -> fromId.compareTo(e.getKey()) <= 0 && toId.compareTo(e.getKey()) >= 0)
+                .getAttributes((key, value) -> fromId.compareTo(key) <= 0 && toId.compareTo(key) >= 0)
+                .entrySet().stream()
                 .sorted(Comparator.comparing(Map.Entry::getKey, UUID::compareTo))
                 .collect(Collectors.toCollection(ArrayDeque::new));
         this.fromId = fromId;

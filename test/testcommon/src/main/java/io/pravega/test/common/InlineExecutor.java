@@ -14,12 +14,17 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
+
+import static java.util.concurrent.CompletableFuture.completedFuture;
 
 /**
  * An Executor that runs commands that don't have a delay inline when they are submitted.
@@ -65,7 +70,7 @@ public class InlineExecutor implements ScheduledExecutorService {
     @Override
     public <T> Future<T> submit(Callable<T> task) {
         try {
-            return CompletableFuture.completedFuture(task.call());
+            return completedFuture(task.call());
         } catch (Exception e) {
             return failedFuture(e);
         }
@@ -75,7 +80,7 @@ public class InlineExecutor implements ScheduledExecutorService {
     public <T> Future<T> submit(Runnable task, T result) {
         try {
             task.run();
-            return CompletableFuture.completedFuture(result);
+            return completedFuture(result);
         } catch (Exception e) {
             return failedFuture(e);
         }
@@ -85,7 +90,7 @@ public class InlineExecutor implements ScheduledExecutorService {
     public Future<?> submit(Runnable task) {
         try {
             task.run();
-            return CompletableFuture.completedFuture(null);
+            return completedFuture(null);
         } catch (Exception e) {
             return failedFuture(e);
         }
@@ -126,21 +131,54 @@ public class InlineExecutor implements ScheduledExecutorService {
 
     @Override
     public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        return delayedExecutor.schedule(command, delay, unit);
+        if (delay == 0) {
+            try {
+                command.run();
+                return new NonScheduledFuture<>(completedFuture(null));
+            } catch (Exception e) {
+                return new NonScheduledFuture<>(failedFuture(e));
+            }
+        } else {
+            return delayedExecutor.schedule(command, delay, unit);
+        }
     }
 
     @Override
     public <V> ScheduledFuture<V> schedule(Callable<V> callable, long delay, TimeUnit unit) {
-        return delayedExecutor.schedule(callable, delay, unit);
+        if (delay == 0) {
+            try {
+                return new NonScheduledFuture<>(completedFuture(callable.call()));
+            } catch (Exception e) {
+                return new NonScheduledFuture<>(failedFuture(e));
+            }
+        } else {
+            return delayedExecutor.schedule(callable, delay, unit);
+        }
     }
 
     @Override
     public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+        if (initialDelay == 0) {
+            try {
+                command.run();
+                initialDelay = period;
+            } catch (Exception e) {
+                return new NonScheduledFuture<>(failedFuture(e));
+            }
+        }
         return delayedExecutor.scheduleAtFixedRate(command, initialDelay, period, unit);
     }
 
     @Override
     public ScheduledFuture<?> scheduleWithFixedDelay(Runnable command, long initialDelay, long delay, TimeUnit unit) {
+        if (initialDelay == 0) {
+            try {
+                command.run();
+                initialDelay = delay;
+            } catch (Exception e) {
+                return new NonScheduledFuture<>(failedFuture(e));
+            }
+        }
         return delayedExecutor.scheduleWithFixedDelay(command, initialDelay, delay, unit);
     }
 
@@ -149,4 +187,46 @@ public class InlineExecutor implements ScheduledExecutorService {
         result.completeExceptionally(exception);
         return result;
     }
+    
+    @RequiredArgsConstructor
+    @EqualsAndHashCode
+    private static class NonScheduledFuture<T> implements ScheduledFuture<T> {
+        private final CompletableFuture<T> wrappedFuture;
+
+        @Override
+        public long getDelay(TimeUnit unit) {
+            return 0;
+        }
+
+        @Override
+        public int compareTo(Delayed o) {
+            return Long.compare(0, o.getDelay(TimeUnit.MILLISECONDS));
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            return false;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
+
+        @Override
+        public boolean isDone() {
+            return wrappedFuture.isDone();
+        }
+
+        @Override
+        public T get() throws InterruptedException, ExecutionException {
+            return wrappedFuture.get();
+        }
+
+        @Override
+        public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+            return wrappedFuture.get(timeout, unit);
+        }
+    }
 }
+

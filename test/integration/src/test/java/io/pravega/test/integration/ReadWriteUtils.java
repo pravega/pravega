@@ -16,7 +16,7 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.TruncatedDataException;
-import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.RetriesExhaustedException;
 import java.util.ArrayList;
@@ -37,10 +37,14 @@ public final class ReadWriteUtils {
     public static List<CompletableFuture<Integer>> readEvents(EventStreamClientFactory client, String rGroup, int numReaders, int limit) {
         List<EventStreamReader<String>> readers = new ArrayList<>();
         for (int i = 0; i < numReaders; i++) {
-            readers.add(client.createReader(String.valueOf(i), rGroup, new JavaSerializer<>(), ReaderConfig.builder().build()));
+            readers.add(client.createReader(String.valueOf(i), rGroup, new UTF8StringSerializer(), ReaderConfig.builder().build()));
         }
 
-        return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit))).collect(toList());
+        return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> {
+            int count = readEvents(r, limit, 50);
+            r.close();
+            return count;
+        })).collect(toList());
     }
 
     public static List<CompletableFuture<Integer>> readEvents(EventStreamClientFactory clientFactory, String readerGroup, int numReaders) {
@@ -48,9 +52,8 @@ public final class ReadWriteUtils {
     }
 
     @SneakyThrows
-    private static <T> int readEvents(EventStreamReader<T> reader, int limit) {
+    public static <T> int readEvents(EventStreamReader<T> reader, int limit,  final int interReadWait) {
         final int timeout = 1000;
-        final int interReadWait = 50;
         EventRead<T> event;
         int validEvents = 0;
         try {
@@ -61,10 +64,7 @@ public final class ReadWriteUtils {
                     validEvents++;
                 }
             } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
-
-            reader.close();
         } catch (TruncatedDataException e) {
-            reader.close();
             throw new TruncatedDataException(e.getCause());
         } catch (RuntimeException e) {
             if (e.getCause() instanceof RetriesExhaustedException) {
@@ -73,13 +73,12 @@ public final class ReadWriteUtils {
                 throw e;
             }
         }
-
         return validEvents;
     }
 
     public static void writeEvents(EventStreamClientFactory clientFactory, String streamName, int totalEvents, int offset) {
         @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new UTF8StringSerializer(),
                 EventWriterConfig.builder().build());
         for (int i = offset; i < totalEvents; i++) {
             writer.writeEvent(String.valueOf(i)).join();

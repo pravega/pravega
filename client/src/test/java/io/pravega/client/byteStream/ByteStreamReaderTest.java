@@ -11,7 +11,6 @@ package io.pravega.client.byteStream;
 
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
-import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
@@ -19,15 +18,10 @@ import io.pravega.client.stream.mock.MockController;
 import io.pravega.client.stream.mock.MockSegmentStreamFactory;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
-import io.pravega.shared.protocol.netty.WireCommands.SegmentCreated;
 import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -44,19 +38,7 @@ public class ByteStreamReaderTest {
     public void setup() throws ConnectionFailedException {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", 0);
         connectionFactory = new MockConnectionFactoryImpl();
-        ClientConnection connection = Mockito.mock(ClientConnection.class);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                CreateSegment request = (CreateSegment) invocation.getArgument(0);
-                connectionFactory.getProcessor(endpoint)
-                                 .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
-                return null;
-            }
-        }).when(connection).sendAsync(Mockito.any(CreateSegment.class),
-                                      Mockito.any(ClientConnection.CompletedCallback.class));
-        connectionFactory.provideConnection(endpoint, connection);
-        controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, false);
         controller.createScope(SCOPE);
         controller.createStream(SCOPE, STREAM, StreamConfiguration.builder()
                                                    .scalingPolicy(ScalingPolicy.fixed(1))

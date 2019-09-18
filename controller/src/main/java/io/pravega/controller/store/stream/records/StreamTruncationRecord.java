@@ -18,6 +18,7 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -25,9 +26,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 
 /**
  * Data class for storing information about stream's truncation point.
@@ -43,7 +41,7 @@ public class StreamTruncationRecord {
     /**
      * Stream cut that is applied as part of this truncation.
      */
-    private final Map<Long, Long> streamCut;
+    private final ImmutableMap<Long, Long> streamCut;
 
     /**
      * If a stream cut spans across multiple epochs then this map captures mapping of segments from the stream cut to
@@ -60,13 +58,13 @@ public class StreamTruncationRecord {
      * applied on it to find segments that are available for consumption.
      * Refer to TableHelper.getActiveSegmentsAt
      */
-    private final Map<StreamSegmentRecord, Integer> span;
+    private final ImmutableMap<StreamSegmentRecord, Integer> span;
     private final int spanEpochLow;
     private final int spanEpochHigh;
     /**
      * All segments that have been deleted for this stream so far.
      */
-    private final Set<Long> deletedSegments;
+    private final ImmutableSet<Long> deletedSegments;
     /**
      * Segments to delete as part of this truncation.
      * This is non empty while truncation is ongoing.
@@ -81,18 +79,19 @@ public class StreamTruncationRecord {
     private final boolean updating;
 
     @Builder
-    public StreamTruncationRecord(Map<Long, Long> streamCut, Map<StreamSegmentRecord, Integer> span,
-                                  Set<Long> deletedSegments, Set<Long> toDelete, long sizeTill, boolean updating) {
-        this.streamCut = ImmutableMap.copyOf(streamCut);
-        this.span = ImmutableMap.copyOf(span);
-        this.deletedSegments = ImmutableSet.copyOf(deletedSegments);
-        this.toDelete = ImmutableSet.copyOf(toDelete);
+    public StreamTruncationRecord(@NonNull ImmutableMap<Long, Long> streamCut, @NonNull ImmutableMap<StreamSegmentRecord, Integer> span,
+                                  @NonNull ImmutableSet<Long> deletedSegments, @NonNull ImmutableSet<Long> toDelete, 
+                                  long sizeTill, boolean updating) {
+        this.streamCut = streamCut;
+        this.span = span;
+        this.deletedSegments = deletedSegments;
+        this.toDelete = toDelete;
         this.sizeTill = sizeTill;
         this.updating = updating;
         this.spanEpochLow = span.values().stream().min(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
         this.spanEpochHigh = span.values().stream().max(Comparator.naturalOrder()).orElse(Integer.MIN_VALUE);
     }
-
+    
     /**
      * Method to complete a given ongoing truncation record by setting updating flag to false and merging toDelete in deletedSegments. 
      * @param toComplete record to complete
@@ -100,20 +99,22 @@ public class StreamTruncationRecord {
      */
     public static StreamTruncationRecord complete(StreamTruncationRecord toComplete) {
         Preconditions.checkState(toComplete.updating);
-        Set<Long> deleted = new HashSet<>(toComplete.deletedSegments);
-        deleted.addAll(toComplete.toDelete);
+        ImmutableSet.Builder<Long> builder = ImmutableSet.builder();
+        
+        builder.addAll(toComplete.deletedSegments);
+        builder.addAll(toComplete.toDelete);
 
         return StreamTruncationRecord.builder()
                                      .updating(false)
                                      .span(toComplete.span)
                                      .streamCut(toComplete.streamCut)
-                                     .deletedSegments(deleted)
+                                     .deletedSegments(builder.build())
                                      .toDelete(ImmutableSet.of())
                                      .sizeTill(toComplete.sizeTill)
                                      .build();
     }
 
-    public static class StreamTruncationRecordBuilder implements ObjectBuilder<StreamTruncationRecord> {
+    private static class StreamTruncationRecordBuilder implements ObjectBuilder<StreamTruncationRecord> {
 
     }
 
@@ -142,11 +143,21 @@ public class StreamTruncationRecord {
         private void read00(RevisionDataInput revisionDataInput,
                             StreamTruncationRecordBuilder truncationRecordBuilder)
                 throws IOException {
+            ImmutableMap.Builder<Long, Long> streamCutBuilder = ImmutableMap.builder();
+            revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, streamCutBuilder);
             truncationRecordBuilder
-                    .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong))
-                    .span(revisionDataInput.readMap(StreamSegmentRecord.SERIALIZER::deserialize, DataInput::readInt))
-                    .deletedSegments(new HashSet<>(revisionDataInput.readCollection(DataInput::readLong)))
-                    .toDelete(new HashSet<>(revisionDataInput.readCollection(DataInput::readLong)))
+                    .streamCut(streamCutBuilder.build());
+            ImmutableMap.Builder<StreamSegmentRecord, Integer> spanBuilder = ImmutableMap.builder();
+            revisionDataInput.readMap(StreamSegmentRecord.SERIALIZER::deserialize, DataInput::readInt, spanBuilder);
+            truncationRecordBuilder.span(spanBuilder.build());
+            ImmutableSet.Builder<Long> deletedSegmentsBuilder = ImmutableSet.builder();
+            revisionDataInput.readCollection(DataInput::readLong, deletedSegmentsBuilder);
+            truncationRecordBuilder.deletedSegments(deletedSegmentsBuilder.build());
+
+            ImmutableSet.Builder<Long> toDeleteBuilder = ImmutableSet.builder();
+            revisionDataInput.readCollection(DataInput::readLong, toDeleteBuilder);
+            truncationRecordBuilder.toDelete(toDeleteBuilder.build());
+            truncationRecordBuilder
                     .sizeTill(revisionDataInput.readLong())
                     .updating(revisionDataInput.readBoolean());
         }

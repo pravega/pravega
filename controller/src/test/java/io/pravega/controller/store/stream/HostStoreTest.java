@@ -10,6 +10,8 @@
 package io.pravega.controller.store.stream;
 
 import io.pravega.common.cluster.Host;
+import io.pravega.controller.store.host.ZKHostStore;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientConfig;
@@ -27,7 +29,12 @@ import org.apache.curator.test.TestingServer;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import static org.junit.Assert.assertEquals;
 
 /**
  * Host store tests.
@@ -59,40 +66,53 @@ public class HostStoreTest {
         validateStore(hostStore);
     }
 
-    @Test
-    public void zkHostStoreTests() {
-        try {
-            @Cleanup
-            TestingServer zkTestServer = new TestingServerStarter().start();
+    @Test(timeout = 10000L)
+    public void zkHostStoreTests() throws Exception {
+        @Cleanup
+        TestingServer zkTestServer = new TestingServerStarter().start();
 
-            ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkTestServer.getConnectString())
-                    .initialSleepInterval(2000)
-                    .maxRetries(1)
-                    .sessionTimeoutMs(10 * 1000)
-                    .namespace("hostStoreTest/" + UUID.randomUUID())
-                    .build();
-            StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
+        ZKClientConfig zkClientConfig = ZKClientConfigImpl.builder().connectionString(zkTestServer.getConnectString())
+                .initialSleepInterval(2000)
+                .maxRetries(1)
+                .sessionTimeoutMs(10 * 1000)
+                .namespace("hostStoreTest/" + UUID.randomUUID())
+                .build();
+        StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
 
-            @Cleanup
-            StoreClient storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
+        @Cleanup
+        StoreClient storeClient = StoreClientFactory.createStoreClient(storeClientConfig);
 
-            HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
-                    .hostMonitorEnabled(true)
-                    .hostMonitorMinRebalanceInterval(10)
-                    .containerCount(containerCount)
-                    .build();
+        HostMonitorConfig hostMonitorConfig = HostMonitorConfigImpl.builder()
+                .hostMonitorEnabled(true)
+                .hostMonitorMinRebalanceInterval(10)
+                .containerCount(containerCount)
+                .build();
 
-            // Create ZK based host store.
-            HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
+        // Update host store map.
+        Map<Host, Set<Integer>> hostContainerMap = HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount);
 
-            // Update host store map.
-            hostStore.updateHostContainersMap(HostMonitorConfigImpl.getHostContainerMap(host, controllerPort, containerCount));
+        // Create ZK based host store.
+        HostControllerStore hostStore = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
+        CompletableFuture<Void> latch1 = new CompletableFuture<>();
+        CompletableFuture<Void> latch2 = new CompletableFuture<>();
+        ((ZKHostStore) hostStore).addListener(() -> {
+            // With the addition of updateMap() in tryInit(), this listener is actually called twice, and we need to
+            // wait for the second operation to complete (related to updateHostContainersMap()).
+            if (latch1.isDone()) {
+                latch2.complete(null);
+            }
+            latch1.complete(null);
+        });
+        hostStore.updateHostContainersMap(hostContainerMap);
+        latch1.join();
+        latch2.join();
+        validateStore(hostStore);
 
-            validateStore(hostStore);
-        } catch (Exception e) {
-            log.error("Unexpected error", e);
-            Assert.fail();
-        }
+        // verify that a new hostStore is initialized with map set by previous host store.
+        HostControllerStore hostStore2 = HostStoreFactory.createStore(hostMonitorConfig, storeClient);
+
+        Map<Host, Set<Integer>> map = hostStore2.getHostContainersMap();
+        assertEquals(hostContainerMap, map);
     }
 
     private void validateStore(HostControllerStore hostStore) {
@@ -100,6 +120,10 @@ public class HostStoreTest {
         Assert.assertEquals(containerCount, hostStore.getContainerCount());
         Host hostObj = hostStore.getHostForSegment("dummyScope", "dummyStream",
                 (int) Math.floor(containerCount * Math.random()));
+        Assert.assertEquals(controllerPort, hostObj.getPort());
+        Assert.assertEquals(host, hostObj.getIpAddr());
+
+        hostObj = hostStore.getHostForTableSegment(StreamSegmentNameUtils.getQualifiedTableName("scope", "stream", "table", "id"));
         Assert.assertEquals(controllerPort, hostObj.getPort());
         Assert.assertEquals(host, hostObj.getIpAddr());
     }

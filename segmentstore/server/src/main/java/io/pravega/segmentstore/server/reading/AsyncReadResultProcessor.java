@@ -9,17 +9,25 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
 import io.pravega.segmentstore.contracts.ReadResultEntryType;
-import com.google.common.base.Preconditions;
-
+import java.io.InputStream;
+import java.io.SequenceInputStream;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * An Asynchronous processor for ReadResult objects. Attaches to a ReadResult and executes a callback using an Executor
@@ -78,6 +86,21 @@ public class AsyncReadResultProcessor implements AutoCloseable {
         AsyncReadResultProcessor processor = new AsyncReadResultProcessor(readResult, entryHandler);
         processor.processResult(executor);
         return processor;
+    }
+
+    /**
+     * Processes the given {@link ReadResult} and returns the contents as an {@link InputStream}.
+     *
+     * @param readResult            The {@link ReadResult} to process.
+     * @param executor              An Executor to run asynchronous tasks on.
+     * @param requestContentTimeout Timeout for each call to {@link ReadResultEntry#requestContent(Duration)}, for those
+     *                              {@link ReadResultEntry} instances that are not already cached in memory.
+     * @return A CompletableFuture that, when completed, will contain an {@link InputStream} with the requested data.
+     */
+    public static CompletableFuture<InputStream> processAll(ReadResult readResult, Executor executor, Duration requestContentTimeout) {
+        ProcessAllHandler handler = new ProcessAllHandler(requestContentTimeout);
+        process(readResult, handler, executor);
+        return handler.result;
     }
 
     //endregion
@@ -148,5 +171,34 @@ public class AsyncReadResultProcessor implements AutoCloseable {
     }
 
     //endregion
+
+    @RequiredArgsConstructor
+    private static class ProcessAllHandler implements AsyncReadResultHandler {
+        @Getter
+        private final Duration requestContentTimeout;
+        private final List<InputStream> parts = Collections.synchronizedList(new ArrayList<>());
+        private final CompletableFuture<InputStream> result = new CompletableFuture<>();
+
+        @Override
+        public boolean shouldRequestContents(ReadResultEntryType entryType, long streamSegmentOffset) {
+            return true;
+        }
+
+        @Override
+        public boolean processEntry(ReadResultEntry entry) {
+            this.parts.add(entry.getContent().join().getData());
+            return true;
+        }
+
+        @Override
+        public void processError(Throwable cause) {
+            this.result.completeExceptionally(cause);
+        }
+
+        @Override
+        public void processResultComplete() {
+            this.result.complete(new SequenceInputStream(Iterators.asEnumeration(this.parts.iterator())));
+        }
+    }
 }
 

@@ -14,7 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.io.FileHelpers;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheException;
 import java.io.File;
@@ -25,9 +25,11 @@ import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.BlockBasedTableConfig;
+import org.rocksdb.Env;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksMemEnv;
 import org.rocksdb.WriteOptions;
 
 /**
@@ -69,6 +71,8 @@ class RocksDBCache implements Cache {
     private final int writeBufferSizeMB;
     private final int readCacheSizeMB;
     private final int cacheBlockSizeKB;
+    private final boolean directReads;
+    private final boolean memoryOnly;
 
     //endregion
 
@@ -95,6 +99,8 @@ class RocksDBCache implements Cache {
         this.writeBufferSizeMB = config.getWriteBufferSizeMB() / MAX_WRITE_BUFFER_NUMBER;
         this.readCacheSizeMB = config.getReadCacheSizeMB();
         this.cacheBlockSizeKB = config.getCacheBlockSizeKB();
+        this.directReads = config.isDirectReads();
+        this.memoryOnly = config.isMemoryOnly();
         try {
             this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
@@ -183,7 +189,7 @@ class RocksDBCache implements Cache {
     }
 
     @Override
-    public void insert(Key key, ByteArraySegment data) {
+    public void insert(Key key, BufferView data) {
         insert(key, data.getCopy());
     }
 
@@ -243,7 +249,7 @@ class RocksDBCache implements Cache {
                 .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
                 .setCacheIndexAndFilterBlocks(true);
 
-        return new Options()
+        Options options = new Options()
                 .setCreateIfMissing(true)
                 .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
                 .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
@@ -254,7 +260,13 @@ class RocksDBCache implements Cache {
                 .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
                 .setTableFormatConfig(tableFormatConfig)
                 .setOptimizeFiltersForHits(true)
-                .setUseDirectReads(true);
+                .setUseDirectReads(this.directReads);
+
+        if (this.memoryOnly) {
+            Env env = new RocksMemEnv();
+            options.setEnv(env);
+        }
+        return options;
     }
 
     private void clear(boolean recreateDirectory) {

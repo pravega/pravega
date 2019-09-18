@@ -23,6 +23,7 @@ public class EventWriterConfig implements Serializable {
     private final int maxBackoffMillis;
     private final int retryAttempts;
     private final int backoffMultiple;
+    private final boolean enableConnectionPooling;
     /*
      * The transaction timeout parameter corresponds to the lease renewal period.
      * In every period, the client must send at least one ping to keep the txn alive.
@@ -38,7 +39,7 @@ public class EventWriterConfig implements Serializable {
      *
      * The maximum allowed lease time by default is 120s, see:
      *
-     * controller/src/main/resources/reference.conf
+     * {@link io.pravega.controller.util.Config.PROPERTY_TXN_MAX_LEASE}
      *
      * The maximum allowed lease time is a configuration parameter of the controller
      * and can be changed accordingly. Note that being a controller-wide parameter,
@@ -51,6 +52,8 @@ public class EventWriterConfig implements Serializable {
         private int maxBackoffMillis = 20000;
         private int retryAttempts = 10;
         private int backoffMultiple = 10;
-        private long transactionTimeoutTime = 30 * 1000 - 1;
+        private long transactionTimeoutTime = 90 * 1000 - 1;
+        // connection pooling for event writers is enabled by default.
+        private boolean enableConnectionPooling = true;
     }
 }

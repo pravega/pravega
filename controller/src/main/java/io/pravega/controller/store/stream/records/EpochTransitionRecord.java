@@ -17,24 +17,22 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.AbstractMap;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Transient record that is created while epoch transition takes place and captures the transition. This record is deleted
  * once transition completes.
  */
 @Data
-@Builder
 public class EpochTransitionRecord {
     public static final EpochTransitionRecordSerializer SERIALIZER = new EpochTransitionRecordSerializer();
     public static final EpochTransitionRecord EMPTY = new EpochTransitionRecord(Integer.MIN_VALUE, Long.MIN_VALUE, ImmutableSet.of(), ImmutableMap.of());
@@ -50,21 +48,23 @@ public class EpochTransitionRecord {
     /**
      * Segments to be sealed.
      */
-    final Set<Long> segmentsToSeal;
+    final ImmutableSet<Long> segmentsToSeal;
     /**
      * Key ranges for new segments to be created.
      */
-    final Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange;
+    final ImmutableMap<Long, Map.Entry<Double, Double>> newSegmentsWithRange;
 
-    public static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
+    private static class EpochTransitionRecordBuilder implements ObjectBuilder<EpochTransitionRecord> {
 
     }
 
-    public EpochTransitionRecord(int activeEpoch, long time, Set<Long> segmentsToSeal, Map<Long, Map.Entry<Double, Double>> newSegmentsWithRange) {
+    @Builder
+    public EpochTransitionRecord(int activeEpoch, long time, @NonNull ImmutableSet<Long> segmentsToSeal,
+                                 @NonNull ImmutableMap<Long, Map.Entry<Double, Double>> newSegmentsWithRange) {
         this.activeEpoch = activeEpoch;
         this.time = time;
-        this.segmentsToSeal = ImmutableSet.copyOf(segmentsToSeal);
-        this.newSegmentsWithRange = ImmutableMap.copyOf(newSegmentsWithRange);
+        this.segmentsToSeal = segmentsToSeal;
+        this.newSegmentsWithRange = newSegmentsWithRange;
     }
 
     public int getNewEpoch() {
@@ -98,13 +98,14 @@ public class EpochTransitionRecord {
             epochTransitionRecordBuilder.activeEpoch(revisionDataInput.readInt())
                                         .time(revisionDataInput.readLong());
 
-            ArrayList<Long> ts = revisionDataInput.readCollection(DataInput::readLong, ArrayList::new);
-            Map<Long, Map.Entry<Double, Double>> kvMap = revisionDataInput.readMap(DataInput::readLong, this::readValue);
-
+            ImmutableSet.Builder<Long> segmentsToSealBuilder = ImmutableSet.builder();
+            revisionDataInput.readCollection(DataInput::readLong, segmentsToSealBuilder);
             epochTransitionRecordBuilder
-                    .segmentsToSeal(ImmutableSet.copyOf(ts))
-                    .newSegmentsWithRange(ImmutableMap.copyOf(kvMap))
-                    .build();
+                    .segmentsToSeal(segmentsToSealBuilder.build());
+
+            ImmutableMap.Builder<Long, Map.Entry<Double, Double>> builder = ImmutableMap.builder();
+            revisionDataInput.readMap(DataInput::readLong, this::readValue, builder);
+            epochTransitionRecordBuilder.newSegmentsWithRange(builder.build()).build();
         }
 
         private Map.Entry<Double, Double> readValue(RevisionDataInput revisionDataInput) throws IOException {

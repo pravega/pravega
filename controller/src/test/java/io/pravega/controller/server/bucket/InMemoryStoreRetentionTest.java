@@ -13,12 +13,12 @@ import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
 
 public class InMemoryStoreRetentionTest extends BucketServiceTest {
 
     @Override
-    public StreamMetadataStore createStreamStore(Executor executor) {
+    public StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
         return StreamStoreFactory.createInMemoryStore(executor);
     }
 

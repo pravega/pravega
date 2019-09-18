@@ -27,7 +27,6 @@ import static io.pravega.test.system.framework.Utils.EXECUTOR_TYPE;
  */
 @Slf4j
 abstract class AbstractSystemTest {
-
     static final Predicate<URI> ISGRPC = uri -> {
         switch (EXECUTOR_TYPE) {
             case REMOTE_SEQUENTIAL:
@@ -50,6 +49,10 @@ abstract class AbstractSystemTest {
 
     static void startBookkeeperInstances(final URI zkUri) {
         Service bkService = Utils.createBookkeeperService(zkUri);
+        startBkService(bkService);
+    }
+
+    private static void startBkService(Service bkService) {
         if (!bkService.isRunning()) {
             bkService.start(true);
         }
@@ -59,6 +62,10 @@ abstract class AbstractSystemTest {
 
     static URI ensureControllerRunning(final URI zkUri) {
         Service conService = Utils.createPravegaControllerService(zkUri);
+        return startControllerService(conService);
+    }
+
+    private static URI startControllerService(Service conService) {
         if (!conService.isRunning()) {
             conService.start(true);
         }
@@ -70,6 +77,10 @@ abstract class AbstractSystemTest {
 
     static List<URI> ensureSegmentStoreRunning(final URI zkUri, final URI controllerURI) {
         Service segService = Utils.createPravegaSegmentStoreService(zkUri, controllerURI);
+        return startSegmentStoreService(segService);
+    }
+
+    private static List<URI> startSegmentStoreService(Service segService) {
         if (!segService.isRunning()) {
             segService.start(true);
         }

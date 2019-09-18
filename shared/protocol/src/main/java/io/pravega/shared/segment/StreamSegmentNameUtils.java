@@ -66,6 +66,11 @@ public final class StreamSegmentNameUtils {
      */
     private static final String FULL_HEX_FORMAT = "%0" + TRANSACTION_PART_LENGTH + "x";
 
+    /**
+     * This is used in composing table names as `scope`/_tables
+     */
+    private static final String TABLES = "_tables";
+
     //endregion
 
     /**
@@ -303,4 +308,62 @@ public final class StreamSegmentNameUtils {
         sb.append(streamName);
         return sb;
     }
+    
+    // region table names
+
+    /**
+     * Method to generate Fully Qualified table name using scope, and other tokens to be used to compose the table name.
+     * The composed name has following format \<scope\>/_tables/\<tokens[0]\>/\<tokens[1]\>...
+     * 
+     * @param scope scope in which table segment to create
+     * @param tokens tokens used for composing table segment name
+     * @return Fully qualified table segment name composed of supplied tokens.
+     */
+    public static String getQualifiedTableName(String scope, String... tokens) {
+        Preconditions.checkArgument(tokens != null && tokens.length > 0);
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("%s/%s", scope, TABLES));
+        for (String token : tokens) {
+            sb.append('/');
+            sb.append(token);
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Method to extract tokens that were used to compose fully qualified table segment name using method getQualifiedTableName.
+     * 
+     * The first token in the returned list corresponds to scope. Remainder tokens correspond to tokens used to compose tableName.
+     *
+     * @param qualifiedName fully qualified table name
+     * @return tokens capturing different components of table segment name. First element in the list represents scope 
+     */
+    public static List<String> extractTableSegmentTokens(String qualifiedName) {
+        Preconditions.checkNotNull(qualifiedName);
+        List<String> retVal = new LinkedList<>();
+        String[] tokens = qualifiedName.split("[/]");
+        Preconditions.checkArgument(tokens.length > 2);
+        Preconditions.checkArgument(tokens[1].equals(TABLES));
+        // add scope
+        retVal.add(tokens[0]);
+        for (int i = 2; i < tokens.length; i++) {
+            retVal.add(tokens[i]);
+        }
+        
+        return retVal;
+    }
+
+    /**
+     * Method to check if given segment name is a table name generated using getQualifiedTableName.
+     * @param qualifiedName qualified table name
+     * @return true if the name is generated using getQualifiedTableName. False otherwise
+     */
+    public static boolean isTableSegment(String qualifiedName) {
+        Preconditions.checkNotNull(qualifiedName);
+        String[] tokens = qualifiedName.split("[/]");
+        Preconditions.checkArgument(tokens.length > 2);
+
+        return tokens[1].equals(TABLES);
+    }
+    // endregion
 }

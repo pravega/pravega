@@ -90,20 +90,40 @@ public class RollingStorageTests extends RollingStorageTestBase {
         @Cleanup
         val s = new RollingStorage(baseStorage, DEFAULT_ROLLING_POLICY);
         s.initialize(1);
-        s.create(SEGMENT_NAME);
-        val h1 = s.openWrite(SEGMENT_NAME);
-        val h2 = s.openWrite(SEGMENT_NAME); // Open now, before writing, so we force a refresh.
 
+        // We use this handle for writing.
+        val wh1 = s.create(SEGMENT_NAME);
+
+        // We use these handles for attempting to write in parallel or read. Open them now, before writing, so we force refresh.
+        val wh2 = s.openWrite(SEGMENT_NAME); // We use this to write in parallel.
+        val wh3 = s.openWrite(SEGMENT_NAME); // We use this to read using a Write Handle.
+        val rh1 = s.openRead(SEGMENT_NAME); // We use this to read using a Read Handle.
+
+        // Write data.
         byte[] data = "data".getBytes();
-        s.write(h1, 0, new ByteArrayInputStream(data), data.length);
-        s.write(h2, data.length, new ByteArrayInputStream(data), data.length);
+        s.write(wh1, 0, new ByteArrayInputStream(data), data.length);
+        s.write(wh2, data.length, new ByteArrayInputStream(data), data.length);
 
         // Check that no file has exceeded its maximum length.
         byte[] expectedData = new byte[data.length * 2];
         System.arraycopy(data, 0, expectedData, 0, data.length);
         System.arraycopy(data, 0, expectedData, data.length, data.length);
 
-        checkWrittenData(expectedData, h2, s);
+        // Read using the handle we just used for writing.
+        checkWrittenData(expectedData, wh2, s);
+
+        // Read using an out-of-date read handle.
+        checkWrittenData(expectedData, rh1, s);
+
+        // Read using an out-of-date write handle.
+        checkWrittenData(expectedData, wh3, s);
+
+        // And then verify we can still use that write handle for additional writing.
+        s.write(wh3, expectedData.length, new ByteArrayInputStream(data), data.length);
+        byte[] finalExpectedData = new byte[expectedData.length + data.length];
+        System.arraycopy(expectedData, 0, finalExpectedData, 0, expectedData.length);
+        System.arraycopy(data, 0, finalExpectedData, expectedData.length, data.length);
+        checkWrittenData(finalExpectedData, wh3, s);
     }
 
     /**

@@ -131,7 +131,7 @@ public class AppendTest {
         assertEquals(uuid, setup.getWriterId());
 
         DataAppended ack = (DataAppended) sendRequest(channel,
-                                                      new Append(segment, uuid, data.readableBytes(), new Event(data)));
+                                                      new Append(segment, uuid, data.readableBytes(), new Event(data), 1L));
         assertEquals(uuid, ack.getWriterId());
         assertEquals(data.readableBytes(), ack.getEventNumber());
         assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
@@ -156,13 +156,13 @@ public class AppendTest {
 
         data.retain();
         DataAppended ack = (DataAppended) sendRequest(channel,
-                new Append(segment, uuid, 1, new Event(data)));
+                new Append(segment, uuid, 1, new Event(data), 1L));
         assertEquals(uuid, ack.getWriterId());
         assertEquals(1, ack.getEventNumber());
         assertEquals(Long.MIN_VALUE, ack.getPreviousEventNumber());
 
         DataAppended ack2 = (DataAppended) sendRequest(channel,
-                new Append(segment, uuid, 2, new Event(data)));
+                new Append(segment, uuid, 2, new Event(data), 1L));
         assertEquals(uuid, ack2.getWriterId());
         assertEquals(2, ack2.getEventNumber());
         assertEquals(1, ack2.getPreviousEventNumber());
@@ -213,7 +213,7 @@ public class AppendTest {
 
         @Cleanup
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        Controller controller = new MockController(endpoint, port, clientCF, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
@@ -242,7 +242,7 @@ public class AppendTest {
 
         @Cleanup
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        Controller controller = new MockController(endpoint, port, clientCF, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 

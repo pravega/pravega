@@ -18,7 +18,7 @@ import java.io.IOException;
 /**
  * Base Log Operation for any operation wishing to store a checkpoint.
  */
-abstract class CheckpointOperationBase extends MetadataOperation {
+public abstract class CheckpointOperationBase extends MetadataOperation {
     //region Members
 
     private ByteArraySegment contents;
@@ -28,7 +28,7 @@ abstract class CheckpointOperationBase extends MetadataOperation {
     //region CheckpointOperationBase Implementation
 
     /**
-     * Sets the Contents of this MetadataCheckpointOperation.
+     * Sets the Contents of this Checkpoint Operation.
      *
      * @param contents The contents to set.
      */
@@ -39,8 +39,16 @@ abstract class CheckpointOperationBase extends MetadataOperation {
     }
 
     /**
-     * Gets the contents of this CheckpointOperationBase.
-     * @return the contents of this CheckpointOperationBase.
+     * Clears the Contents of this Checkpoint Operation. This should only be invoked after this Operation has been serialized
+     * and/or processed, otherwise all information stored in it will be lost.
+     */
+    public void clearContents() {
+        this.contents = null;
+    }
+
+    /**
+     * Gets the contents of this Checkpoint Operation.
+     * @return the contents of this Checkpoint Operation.
      */
     public ByteArraySegment getContents() {
         return this.contents;

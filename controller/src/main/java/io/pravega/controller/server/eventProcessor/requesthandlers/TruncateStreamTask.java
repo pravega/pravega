@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 import org.slf4j.LoggerFactory;
 
 import static io.pravega.shared.MetricsNames.TRUNCATED_SIZE;
-import static io.pravega.shared.MetricsNames.nameFromStream;
+import static io.pravega.shared.MetricsTags.streamTags;
 
 /**
  * Request handler for performing truncation operations received from requeststream.
@@ -86,8 +86,8 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
         return Futures.toVoid(streamMetadataStore.updateVersionedState(scope, stream, State.TRUNCATING, versionedState, context, executor)
                 .thenCompose(update -> notifyTruncateSegments(scope, stream, truncationRecord.getStreamCut(), delegationToken, requestId)
                         .thenCompose(x -> notifyDeleteSegments(scope, stream, truncationRecord.getToDelete(), delegationToken, requestId))
-                        .thenAccept(x -> DYNAMIC_LOGGER.reportGaugeValue(nameFromStream(TRUNCATED_SIZE, scope, stream), 
-                                versionedTruncationRecord.getObject().getSizeTill()))
+                        .thenAccept(x -> DYNAMIC_LOGGER.reportGaugeValue(TRUNCATED_SIZE,
+                                versionedTruncationRecord.getObject().getSizeTill(), streamTags(scope, stream)))
                         .thenCompose(deleted -> streamMetadataStore.completeTruncation(scope, stream, versionedTruncationRecord, context, executor))
                         .thenCompose(x -> streamMetadataStore.updateVersionedState(scope, stream, State.ACTIVE, update, context, executor))));
     }
@@ -113,5 +113,11 @@ public class TruncateStreamTask implements StreamTask<TruncateStreamEvent> {
     @Override
     public CompletableFuture<Void> writeBack(TruncateStreamEvent event) {
         return streamMetadataTasks.writeEvent(event);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> hasTaskStarted(TruncateStreamEvent event) {
+        return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
+                                  .thenApply(state -> state.equals(State.TRUNCATING));
     }
 }

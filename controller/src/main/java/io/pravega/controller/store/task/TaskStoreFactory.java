@@ -24,6 +24,7 @@ public class TaskStoreFactory {
     public static TaskMetadataStore createStore(StoreClient storeClient, ScheduledExecutorService executor) {
         switch (storeClient.getType()) {
             case Zookeeper:
+            case PravegaTable:
                 return new ZKTaskMetadataStore((CuratorFramework) storeClient.getClient(), executor);
             case InMemory:
                 return new InMemoryTaskMetadataStore(executor);

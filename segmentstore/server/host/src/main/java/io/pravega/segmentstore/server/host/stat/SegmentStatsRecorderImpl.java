@@ -40,7 +40,7 @@ import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
 import static io.pravega.shared.MetricsNames.globalMetricName;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
+import static io.pravega.shared.MetricsTags.segmentTags;
 
 @Slf4j
 class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
@@ -148,16 +148,22 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     }
 
     @Override
-    public void deleteSegment(String segmentName) {
-        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, segmentName));
-        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, segmentName));
-        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_READ_BYTES, segmentName));
+    public void deleteSegment(String streamSegmentName) {
+        // Do not close the counter of parent segment when deleting transaction segment.
+        if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
+            getDynamicLogger().freezeCounter(SEGMENT_READ_BYTES, segmentTags(streamSegmentName));
+        }
     }
 
     @Override
     public void sealSegment(String streamSegmentName) {
-        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName));
-        getDynamicLogger().freezeCounter(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName));
+        // Do not close the counter of parent segment when sealing transaction segment.
+        if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_BYTES, segmentTags(streamSegmentName));
+            getDynamicLogger().freezeCounter(SEGMENT_WRITE_EVENTS, segmentTags(streamSegmentName));
+        }
         if (getSegmentAggregate(streamSegmentName) != null) {
             cache.invalidate(streamSegmentName);
             reporter.notifySealed(streamSegmentName);
@@ -197,8 +203,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
         if (!StreamSegmentNameUtils.isTransactionSegment(streamSegmentName)) {
             //Don't report segment specific metrics if segment is a transaction
             //The parent segment metrics will be updated once the transaction is merged
-            dl.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), dataLength);
-            dl.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), numOfEvents);
+            dl.incCounterValue(SEGMENT_WRITE_BYTES, dataLength, segmentTags(streamSegmentName));
+            dl.incCounterValue(SEGMENT_WRITE_EVENTS, numOfEvents, segmentTags(streamSegmentName));
             try {
                 SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
                 // Note: we could get stats for a transaction segment. We will simply ignore this as we
@@ -224,8 +230,8 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
      */
     @Override
     public void merge(String streamSegmentName, long dataLength, int numOfEvents, long txnCreationTime) {
-        getDynamicLogger().incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, streamSegmentName), dataLength);
-        getDynamicLogger().incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, streamSegmentName), numOfEvents);
+        getDynamicLogger().incCounterValue(SEGMENT_WRITE_BYTES, dataLength, segmentTags(streamSegmentName));
+        getDynamicLogger().incCounterValue(SEGMENT_WRITE_EVENTS, numOfEvents, segmentTags(streamSegmentName));
 
         SegmentAggregates aggregates = getSegmentAggregate(streamSegmentName);
         if (aggregates != null && aggregates.updateTx(dataLength, numOfEvents, txnCreationTime)) {
@@ -241,7 +247,7 @@ class SegmentStatsRecorderImpl implements SegmentStatsRecorder {
     @Override
     public void read(String segment, int length) {
         getDynamicLogger().incCounterValue(globalMetricName(SEGMENT_READ_BYTES), length);
-        getDynamicLogger().incCounterValue(nameFromSegment(SEGMENT_READ_BYTES, segment), length);
+        getDynamicLogger().incCounterValue(SEGMENT_READ_BYTES, length, segmentTags(segment));
     }
 
     private void report(String streamSegmentName, SegmentAggregates aggregates) {

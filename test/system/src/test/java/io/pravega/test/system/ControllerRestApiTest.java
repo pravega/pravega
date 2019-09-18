@@ -41,6 +41,7 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
@@ -51,6 +52,8 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import org.glassfish.jersey.client.authentication.HttpAuthenticationFeature;
+
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
@@ -68,6 +71,7 @@ import static javax.ws.rs.core.Response.Status.OK;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class ControllerRestApiTest extends AbstractSystemTest {
@@ -81,9 +85,16 @@ public class ControllerRestApiTest extends AbstractSystemTest {
     private String resourceURl;
 
     public ControllerRestApiTest() {
+
         org.glassfish.jersey.client.ClientConfig clientConfig = new org.glassfish.jersey.client.ClientConfig();
         clientConfig.register(JacksonJsonProvider.class);
         clientConfig.property("sun.net.http.allowRestrictedHeaders", "true");
+
+        if (Utils.AUTH_ENABLED) {
+            HttpAuthenticationFeature feature = HttpAuthenticationFeature.basic("admin", "1111_aaaa");
+            clientConfig.register(feature);
+        }
+
         client = ClientBuilder.newClient(clientConfig);
     }
 
@@ -128,6 +139,7 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         // TEST CreateScope POST http://controllerURI:Port/v1/scopes
         resourceURl = new StringBuilder(restServerURI).append("/v1/scopes").toString();
         webTarget = client.target(resourceURl);
+
         final CreateScopeRequest createScopeRequest = new CreateScopeRequest();
         createScopeRequest.setScopeName(scope1);
         builder = webTarget.request(MediaType.APPLICATION_JSON_TYPE);
@@ -248,7 +260,10 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         final String testStream1 = RandomStringUtils.randomAlphanumeric(10);
         final String testStream2 = RandomStringUtils.randomAlphanumeric(10);
         URI controllerUri = ctlURIs.get(0);
-        try (StreamManager streamManager = new StreamManagerImpl(ClientConfig.builder().controllerURI(controllerUri).build())) {
+
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerUri);
+
+        try (StreamManager streamManager = new StreamManagerImpl(clientConfig)) {
             log.info("Creating scope: {}", testScope);
             streamManager.createScope(testScope);
 
@@ -265,14 +280,14 @@ public class ControllerRestApiTest extends AbstractSystemTest {
         final String readerGroupName2 = RandomStringUtils.randomAlphanumeric(10);
         final String reader1 = RandomStringUtils.randomAlphanumeric(10);
         final String reader2 = RandomStringUtils.randomAlphanumeric(10);
+        
         @Cleanup("shutdown")
         InlineExecutor executor = new InlineExecutor();
         Controller controller = new ControllerImpl(ControllerImplConfig.builder()
-                                     .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
+                                     .clientConfig(clientConfig)
                                      .build(), executor);
         try (ClientFactoryImpl clientFactory = new ClientFactoryImpl(testScope, controller);
-             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope,
-                     ClientConfig.builder().controllerURI(controllerUri).build())) {
+             ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(testScope, clientConfig)) {
             final ReaderGroupConfig config = ReaderGroupConfig.builder()
                                                        .stream(Stream.of(testScope, testStream1))
                                                        .stream(Stream.of(testScope, testStream2))

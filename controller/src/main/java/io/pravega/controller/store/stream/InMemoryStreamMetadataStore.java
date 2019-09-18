@@ -22,6 +22,7 @@ import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -55,7 +56,7 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     private final Executor executor;
 
     InMemoryStreamMetadataStore(Executor executor) {
-        super(new InMemoryHostIndex());
+        super(new InMemoryHostIndex(), new InMemoryHostIndex());
         this.executor = executor;
         this.counter = new AtomicInt96();
     }
@@ -73,6 +74,12 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     @Override
     CompletableFuture<Int96> getNextCounter() {
         return CompletableFuture.completedFuture(counter.incrementAndGet());
+    }
+
+    @Override
+    @Synchronized
+    CompletableFuture<Boolean> checkScopeExists(String scope) {
+        return CompletableFuture.completedFuture(scopes.containsKey(scope));
     }
 
     @Override
@@ -106,10 +113,9 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
             InMemoryStream stream = (InMemoryStream) getStream(scopeName, streamName, context);
             return getSafeStartingSegmentNumberFor(scopeName, streamName)
                     .thenCompose(startingSegmentNumber -> stream.create(configuration, timeStamp, startingSegmentNumber)
-                    .thenApply(x -> {
+                    .thenCompose(status -> {
                         streams.put(scopedStreamName(scopeName, streamName), stream);
-                        scopes.get(scopeName).addStreamToScope(streamName);
-                        return x;
+                        return scopes.get(scopeName).addStreamToScope(streamName).thenApply(v -> status);
                     }));
         } else {
             return Futures.
@@ -139,8 +145,9 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
         String scopedStreamName = scopedStreamName(scopeName, streamName);
         if (scopes.containsKey(scopeName) && streams.containsKey(scopedStreamName)) {
             streams.remove(scopedStreamName);
-            scopes.get(scopeName).removeStreamFromScope(streamName);
-            return super.deleteStream(scopeName, streamName, context, executor);
+            return getCreationTime(scopeName, streamName, context, executor)
+                    .thenCompose(time -> scopes.get(scopeName).removeStreamFromScope(streamName))
+                    .thenCompose(v -> super.deleteStream(scopeName, streamName, context, executor));
         } else {
             return Futures.
                     failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, streamName));
@@ -258,5 +265,10 @@ class InMemoryStreamMetadataStore extends AbstractStreamMetadataStore {
     
     private String scopedStreamName(final String scopeName, final String streamName) {
         return new StringBuilder(scopeName).append("/").append(streamName).toString();
+    }
+
+    @Override
+    public void close() throws IOException {
+        
     }
 }

@@ -41,6 +41,17 @@ public class TableAttributes extends Attributes {
     public static final UUID TOTAL_ENTRY_COUNT = new UUID(CORE_ATTRIBUTE_ID_PREFIX, TABLE_ATTRIBUTES_START_OFFSET + 3);
 
     /**
+     * Defines an attribute that is used to store the offset of a (Table) Segment where compaction has last run at.
+     */
+    public static final UUID COMPACTION_OFFSET = new UUID(CORE_ATTRIBUTE_ID_PREFIX, TABLE_ATTRIBUTES_START_OFFSET + 4);
+
+    /**
+     * Defines an attribute that is used to set the minimum utilization (as a percentage of {@link #ENTRY_COUNT} out of
+     * {@link #TOTAL_ENTRY_COUNT}) of a Table Segment below which a Table Compaction is triggered.
+     */
+    public static final UUID MIN_UTILIZATION = new UUID(CORE_ATTRIBUTE_ID_PREFIX, TABLE_ATTRIBUTES_START_OFFSET + 5);
+
+    /**
      * Defines a Map that contains all Table Attributes along with their default values.
      */
     public static final Map<UUID, Long> DEFAULT_VALUES = Collections.unmodifiableMap(

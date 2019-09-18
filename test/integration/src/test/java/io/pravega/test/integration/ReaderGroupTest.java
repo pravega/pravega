@@ -32,8 +32,6 @@ import lombok.Cleanup;
 import lombok.Data;
 import org.junit.Test;
 
-import static org.mockito.Mockito.mock;
-
 public class ReaderGroupTest {
 
     private static final String SCOPE = "scope";
@@ -77,8 +75,9 @@ public class ReaderGroupTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 
         @Cleanup
@@ -122,8 +121,10 @@ public class ReaderGroupTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 
         @Cleanup

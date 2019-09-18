@@ -9,6 +9,7 @@
  */
 package io.pravega.test.integration;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
@@ -53,6 +54,7 @@ import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.ReadSegment;
 import io.pravega.shared.protocol.netty.WireCommands.SegmentRead;
@@ -75,8 +77,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.mockito.Mockito.mock;
 
 public class ReadTest {
 
@@ -148,8 +148,7 @@ public class ReadTest {
 
         ByteBuffer actual = ByteBuffer.allocate(entries * data.length);
         while (actual.position() < actual.capacity()) {
-            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.position(), 10000, ""));
-
+            SegmentRead result = (SegmentRead) AppendTest.sendRequest(channel, new ReadSegment(segmentName, actual.position(), 10000, "", 1L));
             assertEquals(segmentName, result.getSegment());
             assertEquals(result.getOffset(), actual.position());
             assertTrue(result.isAtTail());
@@ -180,11 +179,12 @@ public class ReadTest {
         int port = TestUtils.getAvailableListenPort();
         String testString = "Hello world\n";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        Controller controller = new MockController(endpoint, port, clientCF, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
 
@@ -222,11 +222,13 @@ public class ReadTest {
         int port = TestUtils.getAvailableListenPort();
         byte[] testString = "Hello world\n".getBytes();
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         ConnectionFactory clientCF = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        Controller controller = new MockController(endpoint, port, clientCF);
+        Controller controller = new MockController(endpoint, port, clientCF, true);
         controller.createScope(scope);
         controller.createStream(scope, stream, StreamConfiguration.builder().build());
         
@@ -263,13 +265,14 @@ public class ReadTest {
         String testString = "Hello world\n";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
         MockClientFactory clientFactory = streamManager.getClientFactory();
-        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).build();
+        ReaderGroupConfig groupConfig = ReaderGroupConfig.builder().stream(Stream.of(scope, streamName)).disableAutomaticCheckpoints().build();
         streamManager.createScope(scope);
         streamManager.createStream(scope, streamName, null);
         streamManager.createReaderGroup(readerGroup, groupConfig);
@@ -287,7 +290,7 @@ public class ReadTest {
     }
 
     @Test(timeout = 10000)
-    public void testEventPointer() throws ReinitializationRequiredException {
+    public void testEventPointer() throws ReinitializationRequiredException, NoSuchEventException {
         String endpoint = "localhost";
         String streamName = "abc";
         String readerName = "reader";
@@ -296,8 +299,9 @@ public class ReadTest {
         String testString = "Hello world ";
         String scope = "Scope1";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, mock(TableStore.class));
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager(scope, endpoint, port);
@@ -315,21 +319,12 @@ public class ReadTest {
         producer.flush();
 
         @Cleanup
-        EventStreamReader<String> reader = clientFactory
-                .createReader(readerName, readerGroup, serializer, ReaderConfig.builder().build());
-        try {
-            EventPointer pointer;
-            String read;
-
-            for (int i = 0; i < 100; i++) {
-                pointer = reader.readNextEvent(5000).getEventPointer();
-                read = reader.fetchEvent(pointer);
-                assertEquals(testString + i, read);
-            }
-        } catch (NoSuchEventException e) {
-            fail("Failed to read event using event pointer");
+        EventStreamReader<String> reader = clientFactory.createReader(readerName, readerGroup, serializer, ReaderConfig.builder().build());
+        for (int i = 0; i < 100; i++) {
+            EventPointer pointer = reader.readNextEvent(5000).getEventPointer();
+            String read = reader.fetchEvent(pointer);
+            assertEquals(testString + i, read);
         }
-
     }
 
     private void fillStoreForSegment(String segmentName, UUID clientId, byte[] data, int numEntries,
@@ -337,7 +332,7 @@ public class ReadTest {
         try {
             segmentStore.createStreamSegment(segmentName, null, Duration.ZERO).get();
             for (int eventNumber = 1; eventNumber <= numEntries; eventNumber++) {
-                segmentStore.append(segmentName, data, null, Duration.ZERO).get();
+                segmentStore.append(segmentName, new ByteBufWrapper(Unpooled.wrappedBuffer(data)), null, Duration.ZERO).get();
             }
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);

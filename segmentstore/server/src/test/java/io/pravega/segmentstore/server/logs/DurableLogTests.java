@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.Service;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -32,6 +33,8 @@ import io.pravega.segmentstore.server.TestDurableDataLogFactory;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentContainerMetadata;
+import io.pravega.segmentstore.server.logs.operations.CachedStreamSegmentAppendOperation;
+import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
@@ -55,6 +58,7 @@ import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ErrorInjector;
 import io.pravega.test.common.IntentionalException;
+import io.pravega.test.common.TestUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
@@ -476,7 +480,7 @@ public class DurableLogTests extends OperationLogTestBase {
         // Add one operation at at time, and each time, verify that the correct Read got activated.
         OperationComparer operationComparer = new OperationComparer(true);
         for (int appendId = 0; appendId < operationCount; appendId++) {
-            Operation operation = new StreamSegmentAppendOperation(segmentId, ("foo" + Integer.toString(appendId)).getBytes(), null);
+            Operation operation = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(("foo" + Integer.toString(appendId)).getBytes()), null);
             durableLog.add(operation, TIMEOUT).join();
             for (int readId = 0; readId < readFutures.size(); readId++) {
                 val readFuture = readFutures.get(readId);
@@ -1031,6 +1035,68 @@ public class DurableLogTests extends OperationLogTestBase {
         }
     }
 
+    /**
+     * Tests the ability of the DurableLog properly recover from situations where operations were split across multiple
+     * DataFrames, but were not persisted in their entirety. These operations should be ignored as they are incomplete
+     * and were never acknowledged to the upstream callers.
+     */
+    @Test
+    public void testRecoveryPartialOperations() {
+        // Setup the first Durable Log and create the segment.
+        @Cleanup
+        ContainerSetup setup = new ContainerSetup(executorService());
+        @Cleanup
+        DurableLog dl1 = setup.createDurableLog();
+        dl1.startAsync().awaitRunning();
+        Assert.assertNotNull("Internal error: could not grab a pointer to the created TestDurableDataLog.", setup.dataLog.get());
+        val segmentId = createStreamSegmentsWithOperations(1, dl1).stream().findFirst().orElse(-1L);
+
+        // Part of this operation should fail.
+        ErrorInjector<Exception> asyncErrorInjector = new ErrorInjector<>(
+                count -> count == 1,
+                () -> new DurableDataLogException("intentional"));
+        setup.dataLog.get().setAppendErrorInjectors(null, asyncErrorInjector);
+        val append1 = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[MAX_DATA_LOG_APPEND_SIZE]), null);
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Expected the operation to have failed.",
+                () -> dl1.add(append1, TIMEOUT),
+                ex -> ex instanceof DurableDataLogException);
+
+        AssertExtensions.assertThrows(
+                "Expected the DurableLog to have failed after failed operation.",
+                dl1::awaitTerminated,
+                ex -> ex instanceof IllegalStateException);
+        dl1.close();
+        setup.dataLog.get().setAppendErrorInjectors(null, null);
+
+        // Setup the second Durable Log. Ensure the recovery succeeds and that we don't see that failed operation.
+        @Cleanup
+        val dl2 = setup.createDurableLog();
+        dl2.startAsync().awaitRunning();
+        val ops2 = dl2.read(0, 10, TIMEOUT).join();
+        Assert.assertTrue("Expected first operation to be a checkpoint.", ops2.hasNext() && ops2.next() instanceof MetadataCheckpointOperation);
+        Assert.assertTrue("Expected second operation to be a segment map.", ops2.hasNext() && ops2.next() instanceof StreamSegmentMapOperation);
+        Assert.assertFalse("Not expecting any other operations.", ops2.hasNext());
+
+        // Add a new operation. This one should succeed.
+        val append2 = new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[10]), null);
+        dl2.add(append2, TIMEOUT).join();
+        dl2.stopAsync().awaitTerminated();
+        dl2.close();
+
+        // Setup the third Durable Log. Ensure the recovery succeeds that we only see the operations we care about.
+        @Cleanup
+        val dl3 = setup.createDurableLog();
+        dl3.startAsync().awaitRunning();
+        val ops3 = dl3.read(0, 10, TIMEOUT).join();
+        Assert.assertTrue("Expected first operation to be a checkpoint.", ops3.hasNext() && ops3.next() instanceof MetadataCheckpointOperation);
+        Assert.assertTrue("Expected second operation to be a segment map.", ops3.hasNext() && ops3.next() instanceof StreamSegmentMapOperation);
+        Assert.assertTrue("Expected third operation to be an append.", ops3.hasNext() && ops3.next() instanceof CachedStreamSegmentAppendOperation);
+        Assert.assertFalse("Not expecting any other operations.", ops3.hasNext());
+        dl2.stopAsync().awaitTerminated();
+        dl3.close();
+    }
+
     //endregion
 
     //region Truncation
@@ -1039,7 +1105,7 @@ public class DurableLogTests extends OperationLogTestBase {
      * Tests the truncate() method without doing any recovery.
      */
     @Test
-    public void testTruncateWithoutRecovery() {
+    public void testTruncateWithoutRecovery() throws Exception {
         int streamSegmentCount = 50;
         int appendsPerStreamSegment = 20;
 
@@ -1071,10 +1137,12 @@ public class DurableLogTests extends OperationLogTestBase {
             // recovery, it wipes away all existing metadata).
             Set<Long> streamSegmentIds = createStreamSegmentsWithOperations(streamSegmentCount, durableLog);
             List<Operation> queuedOperations = generateOperations(streamSegmentIds, new HashMap<>(), appendsPerStreamSegment, METADATA_CHECKPOINT_EVERY, false, false);
-            queuedOperations.add(new MetadataCheckpointOperation()); // Add one of these at the end to ensure we can truncate everything.
+            val lastOp = new MetadataCheckpointOperation();
+            queuedOperations.add(lastOp); // Add one of these at the end to ensure we can truncate everything.
 
             List<OperationWithCompletion> completionFutures = processOperations(queuedOperations, durableLog);
             OperationWithCompletion.allOf(completionFutures).join();
+            awaitLastOperationAdded(durableLog, metadata);
 
             // Get a list of all the operations, before truncation.
             List<Operation> originalOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
@@ -1094,6 +1162,7 @@ public class DurableLogTests extends OperationLogTestBase {
 
                     // Perform the truncation.
                     durableLog.truncate(currentOperation.getSequenceNumber(), TIMEOUT).join();
+                    awaitLastOperationAdded(durableLog, metadata);
                     if (!isTruncationPointFirstOperation) {
                         Assert.assertTrue("No truncation occurred even though a valid Truncation Point was passed: " + currentOperation.getSequenceNumber(), truncationOccurred.get());
                     }
@@ -1133,10 +1202,12 @@ public class DurableLogTests extends OperationLogTestBase {
                 // We were not able to do a full truncation before. Do one now, since we are guaranteed to have a new DataFrame available.
                 MetadataCheckpointOperation lastCheckpoint = new MetadataCheckpointOperation();
                 durableLog.add(lastCheckpoint, TIMEOUT).join();
+                awaitLastOperationAdded(durableLog, metadata);
                 durableLog.truncate(lastCheckpoint.getSequenceNumber(), TIMEOUT).join();
             }
 
             durableLog.add(newOp, TIMEOUT).join();
+            awaitLastOperationAdded(durableLog, metadata);
             final int expectedOperationCount = 3; // Full Checkpoint + Storage Checkpoint (auto-added)+ new op
             List<Operation> newOperations = readUpToSequenceNumber(durableLog, metadata.getOperationSequenceNumber());
             Assert.assertEquals("Unexpected number of operations added after full truncation.", expectedOperationCount, newOperations.size());
@@ -1417,10 +1488,35 @@ public class DurableLogTests extends OperationLogTestBase {
         for (int i = 0; i < expected.size(); i++) {
             Operation expectedItem = expected.get(i);
             Operation actualItem = actual.get(i);
-            OperationComparer.DEFAULT.assertEquals(
-                    String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
-                    expectedItem, actualItem);
+            if (expectedItem instanceof CheckpointOperationBase) {
+                Assert.assertNull("Recovered Checkpoint Operation did not have contents cleared up.", ((CheckpointOperationBase) actualItem).getContents());
+                Assert.assertEquals(" Unexpected Sequence Number", expectedItem.getSequenceNumber(), actualItem.getSequenceNumber());
+            } else {
+                OperationComparer.DEFAULT.assertEquals(
+                        String.format("Recovered operations do not match original ones. Elements at index %d differ. Expected '%s', found '%s'.", i, expectedItem, actualItem),
+                        expectedItem, actualItem);
+            }
         }
+    }
+
+    /**
+     * Blocks synchronously until an operation with a Sequence Number of at least
+     * {@link UpdateableContainerMetadata#getOperationSequenceNumber()} is present in the given {@link OperationLog}'s
+     * operations.
+     *
+     * This is helpful if we want to make sure that all the background async operations have completed before moving on
+     * to a next step. The {@link OperationProcessor} (inside {@link DurableLog}) acknowledges operations before adding
+     * them to the internal memory structures, so it is possible that we act on an ack before an operation that we need
+     * is present in the {@link DurableLog}.
+     */
+    @SneakyThrows(TimeoutException.class)
+    private void awaitLastOperationAdded(OperationLog durableLog, UpdateableContainerMetadata metadata) {
+        long sn = metadata.getOperationSequenceNumber();
+        TestUtils.await(
+                () -> {
+                    val allOps = readUpToSequenceNumber(durableLog, sn);
+                    return allOps.size() > 0 && allOps.get(allOps.size() - 1).getSequenceNumber() >= sn;
+                }, 10, TIMEOUT.toMillis());
     }
 
     //endregion

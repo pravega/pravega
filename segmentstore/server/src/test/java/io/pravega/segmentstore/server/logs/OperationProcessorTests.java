@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.ByteArraySegment;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.SequencedItemList;
 import io.pravega.segmentstore.contracts.StreamSegmentException;
@@ -26,6 +27,7 @@ import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.segmentstore.server.TestDurableDataLog;
 import io.pravega.segmentstore.server.TruncationMarkerRepository;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
+import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.Operation;
 import io.pravega.segmentstore.server.logs.operations.OperationComparer;
 import io.pravega.segmentstore.server.logs.operations.OperationSerializer;
@@ -453,7 +455,7 @@ public class OperationProcessorTests extends OperationLogTestBase {
 
         // Generate some test data.
         val segmentId = createStreamSegmentsInMetadata(1, context.metadata).stream().findFirst().orElse(-1L);
-        List<Operation> operations = Collections.singletonList(new StreamSegmentAppendOperation(segmentId, new byte[1], null));
+        List<Operation> operations = Collections.singletonList(new StreamSegmentAppendOperation(segmentId, new ByteArraySegment(new byte[1]), null));
 
         CompletableFuture<LogAddress> appendCallback = new CompletableFuture<>();
 
@@ -530,25 +532,41 @@ public class OperationProcessorTests extends OperationLogTestBase {
             Assert.assertNotNull("No more items left to read from DataLog. Expected: " + expectedOp, dataFrameRecord);
 
             // We are reading the raw operation from the DataFrame, so expect different objects (but same contents).
-            OperationComparer.DEFAULT.assertEquals(expectedOp, dataFrameRecord.getItem());
+            if (expectedOp instanceof CheckpointOperationBase) {
+                // Checkpoint operations are different. While they do serialize their contents, we do not hold on to that
+                // since they may be pretty big and serve no purpose after serialization. There are other tests in this suite
+                // and in ContainerMetadataUpdateTransactionTests and DurableLogTests that verify we can properly read
+                // their contents during recovery.
+                val actualEntry = (CheckpointOperationBase) dataFrameRecord.getItem();
+                Assert.assertNull("Expected in-memory checkpoint operation to not have contents set.", ((CheckpointOperationBase) expectedOp).getContents());
+                Assert.assertNotNull("Expected serialized checkpoint operation to have contents set.", actualEntry.getContents());
+                Assert.assertEquals(" Unexpected Sequence Number", expectedOp.getSequenceNumber(), actualEntry.getSequenceNumber());
+            } else {
+                // All other operations.
+                OperationComparer.DEFAULT.assertEquals(expectedOp, dataFrameRecord.getItem());
+            }
 
             // Check truncation markers if this is the last Operation to be written.
-            LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
             if (dataFrameRecord.getLastFullDataFrameAddress() != null
                     && dataFrameRecord.getLastFullDataFrameAddress().getSequence() != dataFrameRecord.getLastUsedDataFrameAddress().getSequence()) {
                 // This operation spans multiple DataFrames. The TruncationMarker should be set on the last DataFrame
                 // that ends with a part of it.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.",
-                        dataFrameRecord.getLastFullDataFrameAddress(), dataFrameAddress);
+                AssertExtensions.assertEventuallyEquals(
+                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it spans multiple DataFrames.",
+                        dataFrameRecord.getLastFullDataFrameAddress(),
+                        () -> truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber()), 100, TIMEOUT.toMillis());
             } else if (dataFrameRecord.isLastFrameEntry()) {
                 // The operation was the last one in the frame. This is a Truncation Marker.
-                Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.",
-                        dataFrameRecord.getLastUsedDataFrameAddress(), dataFrameAddress);
+                AssertExtensions.assertEventuallyEquals(
+                        "Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is the last entry in a DataFrame.",
+                        dataFrameRecord.getLastUsedDataFrameAddress(),
+                        () -> truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber()), 100, TIMEOUT.toMillis());
             } else {
                 // The operation is not the last in the frame, and it doesn't span multiple frames either.
                 // There could be data after it that is not safe to truncate. The correct Truncation Marker is the
                 // same as the one for the previous operation.
                 LogAddress expectedTruncationMarker = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber() - 1);
+                LogAddress dataFrameAddress = truncationMarkers.getClosestTruncationMarker(expectedOp.getSequenceNumber());
                 Assert.assertEquals("Unexpected truncation marker for Operation SeqNo " + expectedOp.getSequenceNumber() + " when it is in the middle of a DataFrame.",
                         expectedTruncationMarker, dataFrameAddress);
             }

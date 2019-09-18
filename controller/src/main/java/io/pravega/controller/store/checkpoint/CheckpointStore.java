@@ -17,8 +17,8 @@ import java.util.Set;
 
 /**
  * Store maintains the following two mappings
- * 1. ProcessId -> ReaderGroupName, which maps ProcessId to all the reader groups within it.
- * 2. (ProcessId, ReaderGroupName) -> List (readerId, position), which maps the pair
+ * 1. ProcessId -{@literal >} ReaderGroupName, which maps ProcessId to all the reader groups within it.
+ * 2. (ProcessId, ReaderGroupName) -{@literal >} List (readerId, position), which maps the pair
  * (ProcessId, ReaderGroupName) to the readers participating in the reader group and running
  * within the process.
  *

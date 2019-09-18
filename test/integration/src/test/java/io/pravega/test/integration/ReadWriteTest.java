@@ -56,7 +56,6 @@ import org.junit.Test;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class ReadWriteTest {
@@ -90,8 +89,9 @@ public class ReadWriteTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, servicePort, store, mock(TableStore.class));
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         this.server.startListening();
 
         // 3. Start Pravega Controller service

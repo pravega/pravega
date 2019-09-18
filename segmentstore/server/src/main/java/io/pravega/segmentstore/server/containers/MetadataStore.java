@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectBuilder;
+import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.SerializationException;
@@ -61,7 +62,7 @@ import lombok.val;
  */
 @Slf4j
 @ThreadSafe
-public abstract class MetadataStore {
+public abstract class MetadataStore implements AutoCloseable {
     //region Members
 
     protected final String traceObjectId;
@@ -86,6 +87,20 @@ public abstract class MetadataStore {
         this.connector = connector;
         this.executor = executor;
         this.pendingRequests = new HashMap<>();
+    }
+
+    @Override
+    public void close() {
+        // Even though all pending requests should be cancelled from any components that they may be waiting upon, cancel
+        // them anyway to ensure the caller will get notified.
+        ArrayList<PendingRequest> toCancel;
+        synchronized (this.pendingRequests) {
+            toCancel = new ArrayList<>(this.pendingRequests.values());
+            this.pendingRequests.clear();
+        }
+
+        val ex = new ObjectClosedException(this);
+        toCancel.forEach(r -> r.completeExceptionally(ex));
     }
 
     /**
@@ -373,17 +388,23 @@ public abstract class MetadataStore {
 
     /**
      * Attempts to map a Segment to an Id, by first trying to retrieve an existing id, and, should that not exist,
-     * assign a new one.
+     * assign a new one. If the operation failed, either synchronously, or asynchronously, the segment assignment will be
+     * failed with the causing exception.
      *
      * @param segmentName The name of the Segment to assign id for.
      * @param timeout     Timeout for the operation.
      */
     private void assignSegmentId(String segmentName, Duration timeout) {
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        Futures.exceptionListener(
-                getSegmentInfoInternal(segmentName, timer.getRemaining())
-                        .thenComposeAsync(si -> submitAssignmentWithRetry(SegmentInfo.deserialize(si), timer.getRemaining()), this.executor),
-                ex -> failAssignment(segmentName, ex));
+        try {
+            TimeoutTimer timer = new TimeoutTimer(timeout);
+            Futures.exceptionListener(
+                    getSegmentInfoInternal(segmentName, timer.getRemaining())
+                            .thenComposeAsync(si -> submitAssignmentWithRetry(SegmentInfo.deserialize(si), timer.getRemaining()), this.executor),
+                    ex -> failAssignment(segmentName, ex));
+        } catch (Throwable ex) {
+            log.warn("{}: Unable to assign Id for segment '{}'.", this.traceObjectId, segmentName, ex);
+            failAssignment(segmentName, ex);
+        }
     }
 
     /**

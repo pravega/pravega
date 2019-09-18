@@ -14,6 +14,7 @@ import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.OperationContext;
+import io.pravega.controller.store.stream.State;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
@@ -96,5 +97,11 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
     @Override
     public CompletableFuture<Void> writeBack(DeleteStreamEvent event) {
         return streamMetadataTasks.writeEvent(event);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> hasTaskStarted(DeleteStreamEvent event) {
+        return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
+                                  .thenApply(state -> state.equals(State.SEALED));
     }
 }

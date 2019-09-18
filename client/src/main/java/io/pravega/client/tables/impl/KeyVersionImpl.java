@@ -69,11 +69,11 @@ public class KeyVersionImpl implements KeyVersion {
         }
 
         private void read00(RevisionDataInput revisionDataInput, KeyVersionBuilder builder) throws IOException {
-            builder.segmentVersion(revisionDataInput.readCompactLong());
+            builder.segmentVersion(revisionDataInput.readLong());
         }
 
         private void write00(KeyVersionImpl version, RevisionDataOutput revisionDataOutput) throws IOException {
-            revisionDataOutput.writeCompactLong(version.getSegmentVersion());
+            revisionDataOutput.writeLong(version.getSegmentVersion());
         }
     }
 

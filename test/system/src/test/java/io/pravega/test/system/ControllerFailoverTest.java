@@ -12,14 +12,13 @@ package io.pravega.test.system;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.StreamConfiguration;
-import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerImpl;
 import io.pravega.client.stream.impl.ControllerImplConfig;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegments;
-import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
@@ -37,6 +36,7 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -55,14 +55,15 @@ public class ControllerFailoverTest extends AbstractSystemTest {
     public Timeout globalTimeout = Timeout.seconds(3 * 60);
 
     private final ScheduledExecutorService executorService = Executors.newScheduledThreadPool(5);
-    private Service controllerService1 = null;
+    private Service controllerService = null;
+    private Service segmentStoreService = null;
     private URI controllerURIDirect = null;
 
     @Environment
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri, 2);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 1);
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
@@ -73,36 +74,44 @@ public class ControllerFailoverTest extends AbstractSystemTest {
         List<URI> zkUris = zkService.getServiceDetails();
         log.info("zookeeper service details: {}", zkUris);
 
-        controllerService1 = Utils.createPravegaControllerService(zkUris.get(0));
-        if (!controllerService1.isRunning()) {
-            controllerService1.start(true);
+        controllerService = Utils.createPravegaControllerService(zkUris.get(0));
+        if (!controllerService.isRunning()) {
+            controllerService.start(true);
         }
 
-        List<URI> conUris = controllerService1.getServiceDetails();
-        log.info("conuris {} {}", conUris.get(0), conUris.get(1));
-        log.debug("Pravega Controller service  details: {}", conUris);
+        List<URI> controllerUris = controllerService.getServiceDetails();
+        log.info("Controller uris: {} {}", controllerUris.get(0), controllerUris.get(1));
+        log.debug("Pravega Controller service  details: {}", controllerUris);
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
+
+        segmentStoreService = Utils.createPravegaSegmentStoreService(zkUris.get(0), controllerUris.get(0));
+    }
+
+    @After
+    public void cleanup() {
+        // This test scales the controller instances to 0.
+        // Scale down the segment store instances to 0 to ensure the next tests starts with a clean slate.
+        segmentStoreService.scaleService(0);
     }
 
     @Test
     public void failoverTest() throws InterruptedException, ExecutionException {
         String scope = "testFailoverScope" + RandomStringUtils.randomAlphabetic(5);
         String stream = "testFailoverStream" + RandomStringUtils.randomAlphabetic(5);
-        int initialSegments = 2;
+        int initialSegments = 1;
         List<Long> segmentsToSeal = Collections.singletonList(0L);
         Map<Double, Double> newRangesToCreate = new HashMap<>();
-        newRangesToCreate.put(0.0, 0.25);
-        newRangesToCreate.put(0.25, 0.5);
-        long lease = 29000;
+        newRangesToCreate.put(0.0, 1.0);
 
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerURIDirect);
         // Connect with first controller instance.
         final Controller controller1 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .clientConfig(clientConfig)
                                     .build(), executorService);
 
         // Create scope, stream, and a transaction with high timeout value.
@@ -114,64 +123,53 @@ public class ControllerFailoverTest extends AbstractSystemTest {
 
         long txnCreationTimestamp = System.nanoTime();
         StreamImpl stream1 = new StreamImpl(scope, stream);
-        TxnSegments txnSegments = controller1.createTransaction(
-                stream1, lease).join();
-        log.info("Transaction {} created successfully, beginTime={}", txnSegments.getTxnId(), txnCreationTimestamp);
 
         // Initiate scale operation. It will block until ongoing transaction is complete.
         controller1.startScale(stream1, segmentsToSeal, newRangesToCreate).join();
 
-        // Ensure that scale is not yet done.
-        boolean scaleStatus = controller1.checkScaleStatus(stream1, 0).join();
-        log.info("Status of scale operation isDone={}", scaleStatus);
-        Assert.assertTrue(!scaleStatus);
-
         // Now stop the controller instance executing scale operation.
-        Futures.getAndHandleExceptions(controllerService1.scaleService(1), ExecutionException::new);
+        Futures.getAndHandleExceptions(controllerService.scaleService(0), ExecutionException::new);
         log.info("Successfully stopped one instance of controller service");
 
-        List<URI> conUris = controllerService1.getServiceDetails();
+        // restart controller service
+        Futures.getAndHandleExceptions(controllerService.scaleService(1), ExecutionException::new);
+        log.info("Successfully stopped one instance of controller service");
+
+        List<URI> controllerUris = controllerService.getServiceDetails();
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conUris.stream().filter(ISGRPC).map(URI::getAuthority)
+        final List<String> uris = controllerUris.stream().filter(ISGRPC).map(URI::getAuthority)
                 .collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
 
+        ClientConfig clientConf = Utils.buildClientConfig(controllerURIDirect);
         // Connect to another controller instance.
         @Cleanup
         final Controller controller2 = new ControllerImpl(
                 ControllerImplConfig.builder()
-                                    .clientConfig(ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                    .clientConfig(clientConf)
                                     .build(), executorService);
 
-        // Fetch status of transaction.
-        log.info("Fetching status of transaction {}, time elapsed since its creation={}",
-                txnSegments.getTxnId(), System.nanoTime() - txnCreationTimestamp);
-        Transaction.Status status = controller2.checkTransactionStatus(stream1,
-                txnSegments.getTxnId()).join();
-        log.info("Transaction {} status={}", txnSegments.getTxnId(), status);
-
-        if (status == Transaction.Status.OPEN) {
-            // Abort the ongoing transaction.
-            log.info("Trying to abort transaction {}, by sending request to controller at {}", txnSegments.getTxnId(),
-                    controllerURIDirect);
-            controller2.abortTransaction(stream1, txnSegments.getTxnId()).join();
-        }
-
-        // Scale operation should now complete on the second controller instance.
-        // Note: if scale does not complete within desired time, test will timeout. 
+        // Note: if scale does not complete within desired time, test will timeout.
+        boolean scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
         while (!scaleStatus) {
             scaleStatus = controller2.checkScaleStatus(stream1, 0).join();
             Thread.sleep(30000);
         }
 
-        // Ensure that the stream has 3 segments now.
+        segmentsToSeal = Collections.singletonList(StreamSegmentNameUtils.computeSegmentId(1, 1));
+
+        newRangesToCreate = new HashMap<>();
+        newRangesToCreate.put(0.0, 0.5);
+        newRangesToCreate.put(0.5, 1.0);
+
+        controller2.scaleStream(stream1, segmentsToSeal, newRangesToCreate, executorService).getFuture().join();
+
         log.info("Checking whether scale operation succeeded by fetching current segments");
         StreamSegments streamSegments = controller2.getCurrentSegments(scope, stream).join();
-        log.info("Current segment count=", streamSegments.getSegments().size());
-        Assert.assertEquals(initialSegments - segmentsToSeal.size() + newRangesToCreate.size(),
-                streamSegments.getSegments().size());
+        log.info("Current segment count= {}", streamSegments.getSegments().size());
+        Assert.assertEquals(2, streamSegments.getSegments().size());
     }
 
     private void createStream(Controller controller, String scope, String stream, ScalingPolicy scalingPolicy) {

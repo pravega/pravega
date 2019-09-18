@@ -42,7 +42,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.mock;
 
 @Slf4j
 public class ByteStreamTest {
@@ -66,7 +65,9 @@ public class ByteStreamTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-        this.server = new PravegaConnectionListener(false, servicePort, store,  mock(TableStore.class));
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
+        this.server = new PravegaConnectionListener(false, servicePort, store,  tableStore);
         this.server.startListening();
 
         // 3. Start Pravega Controller service

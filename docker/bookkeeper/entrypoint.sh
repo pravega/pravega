@@ -8,68 +8,55 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+set -e
 
-set -eo pipefail
-
-ZK_HOME=/opt/zookeeper
-BK_HOME=/opt/bookkeeper
-
-PORT0=${PORT0:-$bookiePort}
-PORT0=${PORT0:-3181}
-ZK_URL=${ZK_URL:-127.0.0.1:2181}
-ZK_URL=$(echo "${ZK_URL}" | sed -r 's/,/;/g')
-USE_MOUNT=${USE_MOUNT:-0}
+BOOKIE_PORT=${bookiePort:-${BOOKIE_PORT}}
+BOOKIE_PORT=${BOOKIE_PORT:-3181}
+BK_zkServers=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/;/,/g')
+ZK_URL=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/,/;/g')
 PRAVEGA_PATH=${PRAVEGA_PATH:-"pravega"}
 PRAVEGA_CLUSTER_NAME=${PRAVEGA_CLUSTER_NAME:-"pravega-cluster"}
 BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
-BK_AUTORECOVERY=${BK_AUTORECOVERY:-"false"}
-BK_useHostNameAsBookieID=${BK_useHostNameAsBookieID:-"false"}
-
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
+BK_DIR="/bk"
 
-if [ $USE_MOUNT -eq 0 ]; then
-    BK_DIR="/bk"
-else
-    BK_DIR=$MESOS_SANDBOX
-fi
+export BOOKIE_PORT=${BOOKIE_PORT}
+export BK_zkServers=${BK_zkServers}
+export BK_metadataServiceUri=zk://${ZK_URL}${BK_LEDGERS_PATH}
+export BK_journalDirectory=${BK_DIR}/journal
+export BK_ledgerDirectories=${BK_DIR}/ledgers
+export BK_indexDirectories=${BK_DIR}/index
+export BK_CLUSTER_ROOT_PATH=/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}
 
-echo "bookie service port0 is $PORT0 "
-echo "ZK_URL is $ZK_URL"
-echo "BK_DIR is $BK_DIR"
-echo "BK_LEDGERS_PATH is $BK_LEDGERS_PATH"
-
-sed -i "s|bookiePort=.*\$|bookiePort=${PORT0}|" ${BK_HOME}/conf/bk_server.conf
-sed -i "s|metadataServiceUri=.*\$|metadataServiceUri=zk://${ZK_URL}${BK_LEDGERS_PATH}|" ${BK_HOME}/conf/bk_server.conf
-sed -i "/zkServers=.*/d" ${BK_HOME}/conf/bk_server.conf
-sed -i "s|journalDirectory=.*\$|journalDirectory=${BK_DIR}/journal|" ${BK_HOME}/conf/bk_server.conf
-sed -i "s|ledgerDirectories=.*\$|ledgerDirectories=${BK_DIR}/ledgers|" ${BK_HOME}/conf/bk_server.conf
-sed -i "s|indexDirectories=.*\$|indexDirectories=${BK_DIR}/index|" ${BK_HOME}/conf/bk_server.conf
-sed -i "s|# autoRecoveryDaemonEnabled=.*\$|autoRecoveryDaemonEnabled=${BK_AUTORECOVERY}|" ${BK_HOME}/conf/bk_server.conf
-sed -i "s|# useHostNameAsBookieID=.*\$|useHostNameAsBookieID=${BK_useHostNameAsBookieID}|" ${BK_HOME}/conf/bk_server.conf
-
-echo "
-tlsProvider=OpenSSL
-# key store
-tlsKeyStoreType=JKS
-tlsKeyStore=/var/private/tls/bookie.keystore.jks
-tlsKeyStorePasswordPath=/var/private/tls/bookie.keystore.passwd
-# trust store
-tlsTrustStoreType=JKS
-tlsTrustStore=/var/private/tls/bookie.truststore.jks
-tlsTrustStorePasswordPath=/var/private/tls/bookie.truststore.passwd" >> ${BK_HOME}/conf/bk_server.conf
+export BK_tlsProvider=OpenSSL
+export BK_tlsKeyStoreType=JKS
+export BK_tlsKeyStore=/var/private/tls/bookie.keystore.jks
+export BK_tlsKeyStorePasswordPath=/var/private/tls/bookie.keystore.passwd
+export BK_tlsTrustStoreType=JKS
+export BK_tlsTrustStore=/var/private/tls/bookie.truststore.jks
+export BK_tlsTrustStorePasswordPath=/var/private/tls/bookie.truststore.passwd
 
 echo "wait for zookeeper"
-until ${ZK_HOME}/bin/zkCli.sh -server $ZK_URL ls /; do sleep 2; done
+until zk-shell --run-once "ls /" ${BK_zkServers}; do sleep 5; done
 
-echo "create the zk root"
-# Silence exit codes with "|| :" as the commands can safely fail with a "Node already exists" error
-${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH} || :
-${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME} || :
-${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME} || :
+# We need to update the metadata endpoint and Bookie ID before attempting to delete the cookie
+sed -i "s|.*metadataServiceUri=.*\$|metadataServiceUri=${BK_metadataServiceUri}|" /opt/bookkeeper/conf/bk_server.conf
+if [ ! -z "$BK_useHostNameAsBookieID" ]; then
+  sed -i "s|.*useHostNameAsBookieID=.*\$|useHostNameAsBookieID=${BK_useHostNameAsBookieID}|" ${BK_HOME}/conf/bk_server.conf
+fi
 
-echo "format the bookie"
-# Silence exit codes with "|| :" as the command can safely fail if another instance has already formatted the bookie
-BOOKIE_CONF=${BK_HOME}/conf/bk_server.conf ${BK_HOME}/bin/bookkeeper shell metaformat -nonInteractive || :
+if [ `find $BK_journalDirectory $BK_ledgerDirectories $BK_indexDirectories -type f 2> /dev/null | wc -l` -gt 0 ]; then
+  # The container already contains data in BK directories. This is probably because
+  # the container has been restarted; or, if running on Kubernetes, it has probably been
+  # updated or evacuated without losing its persistent volumes.
+  echo "data available in bookkeeper directories; not formatting the bookie"
+else
+  # The container does not contain any BK data, it is probably a new
+  # bookie. We will format any pre-existent data and metadata before starting
+  # the bookie to avoid potential conflicts.
+  echo "format bookie data and metadata"
+  /opt/bookkeeper/bin/bookkeeper shell bookieformat -nonInteractive -force -deleteCookie
+fi
 
-echo "start a new bookie"
-SERVICE_PORT=$PORT0 ${BK_HOME}/bin/bookkeeper bookie --conf ${BK_HOME}/conf/bk_server.conf
+echo "start bookie"
+/opt/bookkeeper/scripts/entrypoint.sh bookie

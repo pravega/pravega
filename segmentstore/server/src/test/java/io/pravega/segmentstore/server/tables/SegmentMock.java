@@ -10,6 +10,8 @@
 package io.pravega.segmentstore.server.tables;
 
 import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.util.ArrayView;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ByteArraySegment;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -21,6 +23,7 @@ import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
@@ -78,14 +82,18 @@ class SegmentMock implements DirectSegmentAccess {
     }
 
     @Override
-    public CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return CompletableFuture.supplyAsync(() -> {
             // Note that this append is not atomic (data & attributes) - but for testing purposes it does not matter as
             // this method should only be used for constructing the test data.
             long offset;
             synchronized (this) {
                 offset = this.contents.size();
-                this.contents.write(data);
+                try {
+                    data.copyTo(this.contents);
+                } catch (IOException ex) {
+                    throw new CompletionException(ex);
+                }
                 if (attributeUpdates != null) {
                     val updatedValues = new HashMap<UUID, Long>();
                     attributeUpdates.forEach(update -> collectAttributeValue(update, updatedValues));
@@ -108,7 +116,16 @@ class SegmentMock implements DirectSegmentAccess {
         }
 
         // We get a slice of the data view, and return a ReadResultMock with entry lengths of 3.
-        return new ReadResultMock(offset, dataView.subSegment((int) offset, dataView.getLength() - (int) offset), maxLength, 3);
+        return new TruncateableReadResultMock(offset, dataView.subSegment((int) offset, dataView.getLength() - (int) offset), maxLength, 3);
+    }
+
+    @Override
+    public CompletableFuture<Void> truncate(long offset, Duration timeout) {
+        return CompletableFuture.runAsync(() -> {
+            synchronized (this) {
+                this.metadata.setStartOffset(offset);
+            }
+        }, this.executor);
     }
 
     @Override
@@ -135,6 +152,11 @@ class SegmentMock implements DirectSegmentAccess {
 
     synchronized void updateAttributes(Map<UUID, Long> attributeValues) {
         this.metadata.updateAttributes(attributeValues);
+    }
+
+    @Override
+    public CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
+        return CompletableFuture.supplyAsync(() -> new AttributeIteratorImpl(this.metadata, fromId, toId), this.executor);
     }
 
     @GuardedBy("this")
@@ -184,7 +206,6 @@ class SegmentMock implements DirectSegmentAccess {
         values.put(update.getAttributeId(), update.getValue());
     }
 
-
     //region Unimplemented methods
 
     @Override
@@ -200,16 +221,6 @@ class SegmentMock implements DirectSegmentAccess {
     @Override
     public CompletableFuture<Long> seal(Duration timeout) {
         throw new UnsupportedOperationException("seal");
-    }
-
-    @Override
-    public CompletableFuture<Void> truncate(long offset, Duration timeout) {
-        throw new UnsupportedOperationException("offset");
-    }
-
-    @Override
-    public CompletableFuture<AttributeIterator> attributeIterator(UUID fromId, UUID toId, Duration timeout) {
-        return CompletableFuture.supplyAsync(() -> new AttributeIteratorImpl(this.metadata, fromId, toId), this.executor);
     }
 
     //endregion
@@ -241,6 +252,23 @@ class SegmentMock implements DirectSegmentAccess {
                     return result.isEmpty() ? null : result;
                 }
             }, executor);
+        }
+    }
+
+    //endregion
+
+    //region TruncateableReadResultMock
+
+    private class TruncateableReadResultMock extends ReadResultMock {
+        TruncateableReadResultMock(long streamSegmentStartOffset, ArrayView data, int maxResultLength, int entryLength) {
+            super(streamSegmentStartOffset, data, maxResultLength, entryLength);
+        }
+
+        @Override
+        protected long getSegmentStartOffset() {
+            synchronized (SegmentMock.this) {
+                return SegmentMock.this.metadata.getStartOffset();
+            }
         }
     }
 

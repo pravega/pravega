@@ -19,6 +19,7 @@ import io.pravega.common.ObjectClosedException;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryAndThrowConditionally;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
@@ -181,6 +182,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     @Override
     public void close() {
         if (this.closed.compareAndSet(false, true)) {
+            this.metadataStore.close();
             this.extensions.values().forEach(SegmentContainerExtension::close);
             Futures.await(Services.stopAsync(this, this.executor));
             this.metadataCleaner.close();
@@ -206,7 +208,6 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
                     if (ex == null) {
                         // We are started and ready to accept requests when DurableLog starts. All other (secondary) services
                         // are not required for accepting new operations and can still start in the background.
-                        log.info("{}: DurableLog Started ({}).", this.traceObjectId, isOffline() ? "OFFLINE" : "Online");
                         notifyStarted();
                     } else {
                         doStop(ex);
@@ -220,6 +221,7 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         if (this.durableLog.isOffline()) {
             // Attach a listener to the DurableLog's awaitOnline() Future and initiate the services' startup when that
             // completes successfully.
+            log.info("{}: DurableLog is OFFLINE. Not starting secondary services yet.", this.traceObjectId);
             isReady = CompletableFuture.completedFuture(null);
             delayedStart = this.durableLog.awaitOnline()
                     .thenComposeAsync(v -> initializeSecondaryServices(), this.executor);
@@ -340,31 +342,25 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     //region StreamSegmentStore Implementation
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        logRequest("append", streamSegmentName, data.length);
+        logRequest("append", streamSegmentName, data.getLength());
         this.metrics.append();
         return this.metadataStore.getOrAssignSegmentId(streamSegmentName, timer.getRemaining(),
-                streamSegmentId -> {
-                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates);
-                    return processAttributeUpdaterOperation(operation, timer);
-                });
+                streamSegmentId -> processAppend(new StreamSegmentAppendOperation(streamSegmentId, data, attributeUpdates), timer));
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Void> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         ensureRunning();
 
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        logRequest("appendWithOffset", streamSegmentName, data.length);
+        logRequest("appendWithOffset", streamSegmentName, data.getLength());
         this.metrics.appendWithOffset();
         return this.metadataStore.getOrAssignSegmentId(streamSegmentName, timer.getRemaining(),
-                streamSegmentId -> {
-                    StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates);
-                    return processAttributeUpdaterOperation(operation, timer);
-                });
+                streamSegmentId -> processAppend(new StreamSegmentAppendOperation(streamSegmentId, offset, data, attributeUpdates), timer));
     }
 
     @Override
@@ -622,6 +618,22 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     /**
+     * Processes the given {@link StreamSegmentAppendOperation} and ensures that the {@link StreamSegmentAppendOperation#close()}
+     * is invoked in case the operation failed to process (for whatever reason). If the operation completed successfully,
+     * the {@link OperationLog} will close it internall when it finished any async processing with it.
+     *
+     * @param appendOperation The Operation to process.
+     * @param timer           Timer for the operation.
+     * @return A CompletableFuture that, when completed normally, will indicate that the Operation has been successfully
+     * processed. If it failed, it will be completed with an appropriate exception.
+     */
+    private CompletableFuture<Void> processAppend(StreamSegmentAppendOperation appendOperation, TimeoutTimer timer) {
+        CompletableFuture<Void> result = processAttributeUpdaterOperation(appendOperation, timer);
+        Futures.exceptionListener(result, ex -> appendOperation.close());
+        return result;
+    }
+
+    /**
      * Processes the given AttributeUpdateOperation with exactly one retry in case it was rejected because of an attribute
      * update failure due to the attribute value missing from the in-memory cache.
      *
@@ -818,11 +830,13 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
     }
 
     private CompletableFuture<Void> deleteSegmentImmediate(String segmentName, Duration timeout) {
-        TimeoutTimer timer = new TimeoutTimer(timeout);
-        return this.storage
-                .openWrite(segmentName)
-                .thenComposeAsync(handle -> this.storage.delete(handle, timer.getRemaining()), this.executor)
-                .thenComposeAsync(v -> this.attributeIndex.delete(segmentName, timer.getRemaining()), this.executor);
+        // Delete both the Segment and its Attribute Index in parallel. This handles the case when the segment file does
+        // not exist (no data appended) but it does have attributes.
+        return CompletableFuture.allOf(
+                this.storage
+                        .openWrite(segmentName)
+                        .thenComposeAsync(handle -> this.storage.delete(handle, timeout), this.executor),
+                this.attributeIndex.delete(segmentName, timeout));
     }
 
     private CompletableFuture<Void> deleteSegmentDelayed(long segmentId, Duration timeout) {
@@ -842,11 +856,11 @@ class StreamSegmentContainer extends AbstractService implements SegmentContainer
         private final long segmentId;
 
         @Override
-        public CompletableFuture<Long> append(byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             ensureRunning();
-            logRequest("append", this.segmentId, data.length);
+            logRequest("append", this.segmentId, data.getLength());
             StreamSegmentAppendOperation operation = new StreamSegmentAppendOperation(this.segmentId, data, attributeUpdates);
-            return processAttributeUpdaterOperation(operation, new TimeoutTimer(timeout))
+            return processAppend(operation, new TimeoutTimer(timeout))
                     .thenApply(v -> operation.getStreamSegmentOffset());
         }
 

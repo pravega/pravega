@@ -105,6 +105,26 @@ class IndexReader {
     }
 
     /**
+     * Gets the index in the Segment until which compaction has previously run.
+     *
+     * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
+     * @return The index.
+     */
+    long getCompactionOffset(SegmentProperties segmentInfo) {
+        return segmentInfo.getAttributes().getOrDefault(TableAttributes.COMPACTION_OFFSET, 0L);
+    }
+
+    /**
+     * Gets the Segment Utilization (as a percentage) under which a compaction may be required.
+     *
+     * @param segmentInfo A {@link SegmentProperties} from which to extract the information.
+     * @return The result.
+     */
+    long getCompactionUtilizationThreshold(SegmentProperties segmentInfo) {
+        return segmentInfo.getAttributes().getOrDefault(TableAttributes.MIN_UTILIZATION, 0L);
+    }
+
+    /**
      * Locates the {@link TableBucket}s for the given Key Hashes in the given Segment's Extended Attribute Index.
      *
      * @param segment   A {@link DirectSegmentAccess} providing access to the Segment to look into.

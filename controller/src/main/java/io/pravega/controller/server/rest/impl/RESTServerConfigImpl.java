@@ -39,4 +39,21 @@ public class RESTServerConfigImpl implements RESTServerConfig {
         this.keyFilePath = keyFilePath;
         this.keyFilePasswordPath = keyFilePasswordPath;
     }
+
+    @Override
+    public String toString() {
+        // Note: We don't use Lombok @ToString to automatically generate an implementation of this method,
+        // in order to avoid returning a string containing sensitive security configuration.
+
+        return new StringBuilder(String.format("%s(", getClass().getSimpleName()))
+                .append(String.format("host: %s, ", host))
+                .append(String.format("port: %d, ", port))
+                .append(String.format("tlsEnabled: %b, ", tlsEnabled))
+                .append(String.format("keyFilePath is %s, ",
+                        Strings.isNullOrEmpty(keyFilePath) ? "unspecified" : "specified"))
+                .append(String.format("keyFilePasswordPath is %s",
+                        Strings.isNullOrEmpty(keyFilePasswordPath) ? "unspecified" : "specified"))
+                .append(")")
+                .toString();
+    }
 }

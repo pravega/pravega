@@ -13,7 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import io.netty.buffer.ByteBuf;
-import io.pravega.auth.AuthenticationException;
+import io.pravega.auth.TokenException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -43,9 +43,11 @@ import io.pravega.segmentstore.contracts.tables.TableEntry;
 import io.pravega.segmentstore.contracts.tables.TableKey;
 import io.pravega.segmentstore.contracts.tables.TableSegmentNotEmptyException;
 import io.pravega.segmentstore.contracts.tables.TableStore;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.shared.protocol.netty.FailingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -91,6 +93,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -111,7 +114,6 @@ import static io.pravega.segmentstore.contracts.ReadResultEntryType.Cache;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.EndOfStreamSegment;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Future;
 import static io.pravega.segmentstore.contracts.ReadResultEntryType.Truncated;
-import static io.pravega.segmentstore.contracts.tables.TableEntry.versioned;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -133,6 +135,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     private final TableStore tableStore;
     private final ServerConnection connection;
     private final SegmentStatsRecorder statsRecorder;
+    private final TableSegmentStatsRecorder tableStatsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
 
@@ -149,7 +152,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      */
     @VisibleForTesting
     public PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection) {
-        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
+        this(segmentStore, tableStore, connection, SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), new PassingTokenVerifier(), false);
     }
 
     /**
@@ -158,18 +161,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
      * @param segmentStore  The StreamSegmentStore to attach to (and issue requests to).
      * @param tableStore    The TableStore to attach to (and issue requests to).
      * @param connection    The ServerConnection to attach to (and send responses to).
-     * @param statsRecorder A StatsRecorder for Metrics.
+     * @param statsRecorder A StatsRecorder for Metrics for Stream Segments.
+     * @param tableStatsRecorder A TableSegmentStatsRecorder for Metrics for Table Segments.
      * @param tokenVerifier  Verifier class that verifies delegation token.
      * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
     PravegaRequestProcessor(StreamSegmentStore segmentStore, TableStore tableStore, ServerConnection connection,
-                            SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier,
-                            boolean replyWithStackTraceOnError) {
+                            SegmentStatsRecorder statsRecorder, TableSegmentStatsRecorder tableStatsRecorder,
+                            DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
         this.segmentStore = Preconditions.checkNotNull(segmentStore, "segmentStore");
         this.tableStore = Preconditions.checkNotNull(tableStore, "tableStore");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.tokenVerifier = Preconditions.checkNotNull(tokenVerifier, "tokenVerifier");
         this.statsRecorder = Preconditions.checkNotNull(statsRecorder, "statsRecorder");
+        this.tableStatsRecorder = Preconditions.checkNotNull(tableStatsRecorder, "tableStatsRecorder");
         this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
@@ -190,21 +195,24 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final int readSize = min(MAX_READ_SIZE, max(TYPE_PLUS_LENGTH_SIZE, readSegment.getSuggestedLength()));
         long trace = LoggerHelpers.traceEnter(log, operation, readSegment);
         segmentStore.read(segment, readSegment.getOffset(), readSize, TIMEOUT)
-                .thenAccept(readResult -> {
-                    LoggerHelpers.traceLeave(log, operation, trace, readResult);
-                    handleReadResult(readSegment, readResult);
-                    this.statsRecorder.readComplete(timer.getElapsed());
-                })
-                .exceptionally(ex -> handleException(readSegment.getOffset(), segment, operation, wrapCancellationException(ex)));
+                    .thenAccept(readResult -> {
+                        LoggerHelpers.traceLeave(log, operation, trace, readResult);
+                        handleReadResult(readSegment, readResult);
+                        this.statsRecorder.readComplete(timer.getElapsed());
+                    })
+                    .exceptionally(ex -> handleException(readSegment.getRequestId(), segment, readSegment.getOffset(), operation,
+                                                         wrapCancellationException(ex)));
     }
 
     private boolean verifyToken(String segment, long requestId, String delegationToken, String operation) {
-        if (!tokenVerifier.verifyToken(segment, delegationToken, READ)) {
-            log.warn(requestId, "Delegation token verification failed.");
-            handleException(requestId, segment, operation, new AuthenticationException("Token verification failed"));
-            return false;
+        boolean isTokenValid = false;
+        try {
+            tokenVerifier.verifyToken(segment, delegationToken, READ);
+            isTokenValid = true;
+        } catch (TokenException e) {
+            handleException(requestId, segment, operation, e);
         }
-        return true;
+        return isTokenValid;
     }
 
     /**
@@ -227,7 +235,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         if (!cachedEntries.isEmpty() || endOfSegment) {
             // We managed to collect some data. Send it.
             ByteBuffer data = copyData(cachedEntries);
-            SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data);
+            SegmentRead reply = new SegmentRead(segment, request.getOffset(), atTail, endOfSegment, data, request.getRequestId());
             connection.send(reply);
             this.statsRecorder.read(segment, reply.getData().array().length);
         } else if (truncated) {
@@ -235,15 +243,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             // Determine the current Start Offset and send that back.
             segmentStore.getStreamSegmentInfo(segment, TIMEOUT)
                     .thenAccept(info ->
-                            connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment, info.getStartOffset(), EMPTY_STACK_TRACE)))
-                    .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, operation, wrapCancellationException(e)));
+                            connection.send(new SegmentIsTruncated(request.getRequestId(), segment,
+                                                                   info.getStartOffset(), EMPTY_STACK_TRACE, nonCachedEntry.getStreamSegmentOffset())))
+                    .exceptionally(e -> handleException(request.getRequestId(), segment, nonCachedEntry.getStreamSegmentOffset(), operation,
+                                                        wrapCancellationException(e)));
         } else {
             Preconditions.checkState(nonCachedEntry != null, "No ReadResultEntries returned from read!?");
             nonCachedEntry.requestContent(TIMEOUT);
             nonCachedEntry.getContent()
                     .thenAccept(contents -> {
                         ByteBuffer data = copyData(Collections.singletonList(contents));
-                        SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(), false, endOfSegment, data);
+                        SegmentRead reply = new SegmentRead(segment, nonCachedEntry.getStreamSegmentOffset(),
+                                                            false, endOfSegment,
+                                                            data, request.getRequestId());
                         connection.send(reply);
                         this.statsRecorder.read(segment, reply.getData().array().length);
                     })
@@ -252,14 +264,17 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                             // The Segment may have been truncated in Storage after we got this entry but before we managed
                             // to make a read. In that case, send the appropriate error back.
                             final String clientReplyStackTrace = replyWithStackTraceOnError ? e.getMessage() : EMPTY_STACK_TRACE;
-                            connection.send(new SegmentIsTruncated(nonCachedEntry.getStreamSegmentOffset(), segment,
-                                    nonCachedEntry.getStreamSegmentOffset(), clientReplyStackTrace));
+                            connection.send(new SegmentIsTruncated(request.getRequestId(), segment,
+                                                                   nonCachedEntry.getStreamSegmentOffset(), clientReplyStackTrace,
+                                                                   nonCachedEntry.getStreamSegmentOffset()));
                         } else {
-                            handleException(nonCachedEntry.getStreamSegmentOffset(), segment, operation, wrapCancellationException(e));
+                            handleException(request.getRequestId(), segment, nonCachedEntry.getStreamSegmentOffset(), operation,
+                                            wrapCancellationException(e));
                         }
                         return null;
                     })
-                    .exceptionally(e -> handleException(nonCachedEntry.getStreamSegmentOffset(), segment, operation, wrapCancellationException(e)));
+                    .exceptionally(e -> handleException(request.getRequestId(), segment, nonCachedEntry.getStreamSegmentOffset(), operation,
+                                                        wrapCancellationException(e)));
         }
     }
 
@@ -367,7 +382,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 .thenAccept(properties -> {
                     LoggerHelpers.traceLeave(log, operation, trace, properties);
                     if (properties == null) {
-                        connection.send(new NoSuchSegment(requestId, segmentName, EMPTY_STACK_TRACE));
+                        connection.send(new NoSuchSegment(requestId, segmentName, EMPTY_STACK_TRACE, -1L));
                     } else {
                         Map<UUID, Long> attributes = properties.getAttributes();
                         Long value = attributes.get(attributeId);
@@ -494,7 +509,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                 segment, offset);
         segmentStore.truncateStreamSegment(segment, offset, TIMEOUT)
                 .thenAccept(v -> connection.send(new SegmentTruncated(truncateSegment.getRequestId(), segment)))
-                .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, operation, e));
+                .exceptionally(e -> handleException(truncateSegment.getRequestId(), segment, offset, operation, e));
     }
 
     @Override
@@ -550,8 +565,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(createTableSegment.getRequestId(), "Creating table segment {}.", createTableSegment);
+        val timer = new Timer();
         tableStore.createSegment(createTableSegment.getSegment(), TIMEOUT)
-                  .thenAccept(v -> connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment())))
+                  .thenAccept(v -> {
+                      connection.send(new SegmentCreated(createTableSegment.getRequestId(), createTableSegment.getSegment()));
+                      this.tableStatsRecorder.createTableSegment(createTableSegment.getSegment(), timer.getElapsed());
+                  })
                   .exceptionally(e -> handleException(createTableSegment.getRequestId(), createTableSegment.getSegment(), operation, e));
     }
 
@@ -565,8 +584,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(deleteTableSegment.getRequestId(), "Deleting table segment {}.", deleteTableSegment);
+        val timer = new Timer();
         tableStore.deleteSegment(segment, deleteTableSegment.isMustBeEmpty(), TIMEOUT)
-                  .thenRun(() -> connection.send(new SegmentDeleted(deleteTableSegment.getRequestId(), segment)))
+                  .thenRun(() -> {
+                      connection.send(new SegmentDeleted(deleteTableSegment.getRequestId(), segment));
+                      this.tableStatsRecorder.deleteTableSegment(segment, timer.getElapsed());
+                  })
                   .exceptionally(e -> handleException(deleteTableSegment.getRequestId(), segment, operation, e));
     }
 
@@ -611,14 +634,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(updateTableEntries.getRequestId(), "Updating table segment {}.", updateTableEntries);
-        List<TableEntry> entries = updateTableEntries.getTableEntries().getEntries().stream()
-                                                     .map(e -> versioned(getArrayView(e.getKey().getData()),
-                                                                         getArrayView(e.getValue().getData()),
-                                                                         e.getKey().getKeyVersion()))
-                                                     .collect(Collectors.toList());
+        val entries = new ArrayList<TableEntry>(updateTableEntries.getTableEntries().getEntries().size());
+        val conditional = new AtomicBoolean(false);
+        for (val e : updateTableEntries.getTableEntries().getEntries()) {
+            val v = TableEntry.versioned(getArrayView(e.getKey().getData()), getArrayView(e.getValue().getData()), e.getKey().getKeyVersion());
+            entries.add(v);
+            if (v.getKey().hasVersion()) {
+                conditional.set(true);
+            }
+        }
+
+        val timer = new Timer();
         tableStore.put(segment, entries, TIMEOUT)
-                  .thenAccept(versions -> connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions)))
-                  .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e));
+                .thenAccept(versions -> {
+                    connection.send(new WireCommands.TableEntriesUpdated(updateTableEntries.getRequestId(), versions));
+                    this.tableStatsRecorder.updateEntries(updateTableEntries.getSegment(), entries.size(), conditional.get(), timer.getElapsed());
+                })
+                .exceptionally(e -> handleException(updateTableEntries.getRequestId(), segment, operation, e));
     }
 
     @Override
@@ -631,13 +663,23 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
 
         log.info(removeTableKeys.getRequestId(), "Removing table keys {}.", removeTableKeys);
+        val keys = new ArrayList<TableKey>(removeTableKeys.getKeys().size());
+        val conditional = new AtomicBoolean(false);
+        for (val k : removeTableKeys.getKeys()) {
+            val v = TableKey.versioned(getArrayView(k.getData()), k.getKeyVersion());
+            keys.add(v);
+            if (v.hasVersion()) {
+                conditional.set(true);
+            }
+        }
 
-        List<TableKey> keys = removeTableKeys.getKeys().stream()
-                                                .map(k -> TableKey.versioned(getArrayView(k.getData()), k.getKeyVersion()))
-                                                .collect(Collectors.toList());
+        val timer = new Timer();
         tableStore.remove(segment, keys, TIMEOUT)
-                  .thenRun(() -> connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment)))
-                  .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e));
+                .thenRun(() -> {
+                    connection.send(new WireCommands.TableKeysRemoved(removeTableKeys.getRequestId(), segment));
+                    this.tableStatsRecorder.removeKeys(removeTableKeys.getSegment(), keys.size(), conditional.get(), timer.getElapsed());
+                })
+                .exceptionally(e -> handleException(removeTableKeys.getRequestId(), segment, operation, e));
     }
 
     @Override
@@ -652,12 +694,15 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         log.info(readTable.getRequestId(), "Reading from table {}.", readTable);
 
         final List<ArrayView> keys = readTable.getKeys().stream()
-                                              .map(k -> new ByteArraySegment(k.getData().array()))
+                                              .map(k -> getArrayView(k.getData()))
                                               .collect(Collectors.toList());
+        val timer = new Timer();
         tableStore.get(segment, keys, TIMEOUT)
-                  .thenAccept(values -> connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment,
-                                                                                   getTableEntriesCommand(keys, values))))
-                  .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e));
+                .thenAccept(values -> {
+                    connection.send(new WireCommands.TableRead(readTable.getRequestId(), segment, getTableEntriesCommand(keys, values)));
+                    this.tableStatsRecorder.getKeys(readTable.getSegment(), keys.size(), timer.getElapsed());
+                })
+                .exceptionally(e -> handleException(readTable.getRequestId(), segment, operation, e));
     }
 
     @Override
@@ -683,6 +728,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
         final List<TableKey> keys = new ArrayList<>();
 
+        val timer = new Timer();
         tableStore.keyIterator(segment, state, TIMEOUT)
                   .thenCompose(itr -> itr.collectRemaining(
                           e -> {
@@ -717,6 +763,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                                                 .collect(toList());
                       }
                       connection.send(new WireCommands.TableKeysRead(readTableKeys.getRequestId(), segment, wireCommandKeys, continuationToken.get()));
+                      this.tableStatsRecorder.iterateKeys(readTableKeys.getSegment(), keys.size(), timer.getElapsed());
                   }).exceptionally(e -> handleException(readTableKeys.getRequestId(), segment, operation, e));
     }
 
@@ -742,6 +789,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         final AtomicInteger msgSize = new AtomicInteger(0);
         final AtomicReference<ByteBuf> continuationToken = new AtomicReference<>(EMPTY_BUFFER);
         final List<TableEntry> entries = new ArrayList<>();
+        val timer = new Timer();
         tableStore.entryIterator(segment, state, TIMEOUT)
                   .thenCompose(itr -> itr.collectRemaining(
                           e -> {
@@ -783,6 +831,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                       connection.send(new WireCommands.TableEntriesRead(readTableEntries.getRequestId(), segment,
                                                                         new WireCommands.TableEntries(wireCommandEntries),
                                                                         continuationToken.get()));
+                      this.tableStatsRecorder.iterateEntries(readTableEntries.getSegment(), entries.size(), timer.getElapsed());
                   }).exceptionally(e -> handleException(readTableEntries.getRequestId(), segment, operation, e));
     }
 
@@ -804,7 +853,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         return headerLength + segmentLength + dataLength + continuationTokenLength;
     }
 
-    private ArrayView getArrayView(ByteBuf buf ) {
+    private ArrayView getArrayView(ByteBuf buf) {
         final int length = buf.readableBytes();
         if (buf.hasArray()) {
             return new ByteArraySegment(buf.array(), buf.readerIndex(), length);
@@ -826,7 +875,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                              if (resultTableEntry == null) { // no entry for key at index i.
                                  ArrayView k = inputKeys.get(i); // key for which the read result was null.
                                  val keyWireCommand = new WireCommands.TableKey(wrappedBuffer(k.array(), k.arrayOffset(), k.getLength()),
-                                                                                TableKey.NO_VERSION);
+                                                                                TableKey.NOT_EXISTS);
                                  return new AbstractMap.SimpleImmutableEntry<>(keyWireCommand, WireCommands.TableValue.EMPTY);
                              } else {
                                  TableEntry te = resultEntries.get(i);
@@ -847,6 +896,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
     //endregion
 
     private Void handleException(long requestId, String segment, String operation, Throwable u) {
+        // use offset as -1L to handle exceptions when offset data is not available.
+        return handleException(requestId, segment, -1L, operation, u);
+    }
+
+    private Void handleException(long requestId, String segment, long offset, String operation, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
             log.error(requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, exception);
@@ -868,11 +922,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof StreamSegmentNotExistsException) {
             log.warn(requestId, "Segment '{}' does not exist and cannot perform operation '{}'.",
                      segment, operation);
-            invokeSafely(connection::send, new NoSuchSegment(requestId, segment, clientReplyStackTrace), failureHandler);
+            invokeSafely(connection::send, new NoSuchSegment(requestId, segment, clientReplyStackTrace, offset), failureHandler);
         } else if (u instanceof StreamSegmentSealedException) {
             log.info(requestId, "Segment '{}' is sealed and cannot perform operation '{}'.",
                      segment, operation);
-            invokeSafely(connection::send, new SegmentIsSealed(requestId, segment, clientReplyStackTrace), failureHandler);
+            invokeSafely(connection::send, new SegmentIsSealed(requestId, segment, clientReplyStackTrace, offset), failureHandler);
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
             log.warn(requestId, "Wrong host. Segment = '{}' (Container {}) is not owned. Operation = '{}').",
@@ -881,21 +935,22 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         } else if (u instanceof ReadCancellationException) {
             log.info(requestId, "Closing connection {} while reading segment {} due to CancellationException.",
                      connection, segment);
-            invokeSafely(connection::send, new SegmentRead(segment, requestId, true, false, EMPTY_BYTE_BUFFER), failureHandler);
+            invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BYTE_BUFFER, requestId), failureHandler);
         } else if (u instanceof CancellationException) {
             log.info(requestId, "Closing connection {} while performing {} due to {}.",
-                     connection, operation, u.getMessage());
+                     connection, operation, u.toString());
             connection.close();
-        } else if (u instanceof AuthenticationException) {
-            log.warn(requestId, "Authentication error during '{}'.", operation);
+        } else if (u instanceof TokenException) {
+            log.warn(requestId, "Token verification failed during '{}'.", operation);
             invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace), failureHandler);
-            connection.close();
         } else if (u instanceof UnsupportedOperationException) {
             log.warn(requestId, "Unsupported Operation '{}'.", operation, u);
             invokeSafely(connection::send, new OperationUnsupported(requestId, operation, clientReplyStackTrace), failureHandler);
         } else if (u instanceof BadOffsetException) {
             BadOffsetException badOffset = (BadOffsetException) u;
-            invokeSafely(connection::send, new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset(), clientReplyStackTrace), failureHandler);
+            log.info(requestId, "Segment '{}' is truncated and cannot perform operation '{}' at offset '{}'", segment, operation, offset);
+            invokeSafely(connection::send, new SegmentIsTruncated(requestId, segment, badOffset.getExpectedOffset(),
+                                                                  clientReplyStackTrace, offset), failureHandler);
         } else if (u instanceof TableSegmentNotEmptyException) {
             log.warn(requestId, "Table segment '{}' is not empty to perform '{}'.", segment, operation);
             invokeSafely(connection::send, new TableSegmentNotEmpty(requestId, segment, clientReplyStackTrace), failureHandler);
@@ -906,12 +961,20 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             log.warn(requestId, "Conditional update on Table segment '{}' failed due to bad key version.", segment);
             invokeSafely(connection::send, new WireCommands.TableKeyBadVersion(requestId, segment, clientReplyStackTrace), failureHandler);
         } else {
-            log.error(requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, u);
+            logError(requestId, segment, operation, u);
             connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
             throw new IllegalStateException("Unknown exception.", u);
         }
 
         return null;
+    }
+
+    private void logError(long requestId, String segment, String operation, Throwable u) {
+        if (u instanceof IllegalContainerStateException) {
+            log.warn(requestId, "Error (Segment = '{}', Operation = '{}'): {}", segment, operation, u.toString());
+        } else {
+            log.error(requestId, "Error (Segment = '{}', Operation = '{}')", segment, operation, u);
+        }
     }
 
     private void recordStatForTransaction(SegmentProperties sourceInfo, String targetSegmentName) {

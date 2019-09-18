@@ -9,20 +9,19 @@
  */
 package io.pravega.controller.store.stream;
 
-import java.io.IOException;
-
 /**
  * In-memory stream metadata store tests.
  */
 public class InMemoryStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     @Override
-    public void setupTaskStore() throws Exception {
+    public void setupStore() throws Exception {
         store = StreamStoreFactory.createInMemoryStore(executor);
         bucketStore = StreamStoreFactory.createInMemoryBucketStore(1);
     }
 
     @Override
-    public void cleanupTaskStore() throws IOException {
+    public void cleanupStore() throws Exception {
+        store.close();
     }
 }

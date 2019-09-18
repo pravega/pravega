@@ -11,7 +11,6 @@ package io.pravega.controller.store.stream.records;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
@@ -19,46 +18,44 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import io.pravega.common.util.CollectionHelpers;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-@Slf4j
-@Builder
-@Data
 /**
  * Data class to capture a retention set. This contains a sorted (by recording time) list of retention set records.
  */
+@Slf4j
+@Data
 public class RetentionSet {
     public static final RetentionSetSerializer SERIALIZER = new RetentionSetSerializer();
 
-    @Getter
-    private final List<StreamCutReferenceRecord> retentionRecords;
+    private final ImmutableList<StreamCutReferenceRecord> retentionRecords;
 
-    RetentionSet(List<StreamCutReferenceRecord> streamCutReferenceRecords) {
-        this.retentionRecords = ImmutableList.copyOf(streamCutReferenceRecords);
+    @Builder
+    public RetentionSet(@NonNull ImmutableList<StreamCutReferenceRecord> retentionRecords) {
+        this.retentionRecords = retentionRecords;
     }
 
     /**
-     * This method adds a reference to retentionStreamCutRecord in the retentionSet.  
+     * This method adds a reference to retentionStreamCutRecord in the retentionSet.
      * @param retentionSet record
-     * @param cut stream cut for which the reference has to be added. 
+     * @param cut stream cut for which the reference has to be added.
      * @return updated retentionSet
      */
     public static RetentionSet addReferenceToStreamCutIfLatest(RetentionSet retentionSet, StreamCutRecord cut) {
         // add only if cut.recordingTime is newer than any previous cut
         List<StreamCutReferenceRecord> retentionRecords = retentionSet.retentionRecords;
         if (retentionRecords.isEmpty() || retentionRecords.get(retentionRecords.size() - 1).getRecordingTime() < cut.getRecordingTime()) {
-            List<StreamCutReferenceRecord> list = Lists.newArrayList(retentionRecords);
+            ImmutableList.Builder<StreamCutReferenceRecord> builder = ImmutableList.builder();
+            builder.addAll(retentionRecords);
 
-            list.add(new StreamCutReferenceRecord(cut.getRecordingTime(), cut.getRecordingSize()));
-            return new RetentionSet(list);
+            builder.add(new StreamCutReferenceRecord(cut.getRecordingTime(), cut.getRecordingSize()));
+            return new RetentionSet(builder.build());
         }
         return retentionSet;
     }
@@ -99,12 +96,12 @@ public class RetentionSet {
     public List<StreamCutReferenceRecord> retentionRecordsBefore(StreamCutReferenceRecord record) {
         Preconditions.checkNotNull(record);
         int beforeIndex = getGreatestLowerBound(this, record.getRecordingTime(), StreamCutReferenceRecord::getRecordingTime);
-        
+
         return retentionRecords.subList(0, beforeIndex + 1);
     }
 
     /**
-     * Creates a new retention set object by removing all records on or before given record. 
+     * Creates a new retention set object by removing all records on or before given record.
      * @param set retention set to update
      * @param record reference record
      * @return updated retention set record after removing all elements before given reference record.
@@ -114,13 +111,13 @@ public class RetentionSet {
         // remove all stream cuts with recordingTime before supplied cut
         int beforeIndex = getGreatestLowerBound(set, record.getRecordingTime(), StreamCutReferenceRecord::getRecordingTime);
         if (beforeIndex < 0) {
-            return set;            
+            return set;
         }
-        
+
         if (beforeIndex + 1 == set.retentionRecords.size()) {
-            return new RetentionSet(Collections.emptyList());
+            return new RetentionSet(ImmutableList.of());
         }
-        
+
         return new RetentionSet(set.retentionRecords.subList(beforeIndex + 1, set.retentionRecords.size()));
     }
 
@@ -135,7 +132,7 @@ public class RetentionSet {
         return retentionRecords.get(retentionRecords.size() - 1);
     }
 
-    public static class RetentionSetBuilder implements ObjectBuilder<RetentionSet> {
+    private static class RetentionSetBuilder implements ObjectBuilder<RetentionSet> {
     }
 
     @SneakyThrows(IOException.class)
@@ -147,7 +144,7 @@ public class RetentionSet {
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
-    
+
     private static class RetentionSetSerializer
             extends VersionedSerializer.WithBuilder<RetentionSet, RetentionSet.RetentionSetBuilder> {
         @Override
@@ -162,8 +159,9 @@ public class RetentionSet {
 
         private void read00(RevisionDataInput revisionDataInput, RetentionSet.RetentionSetBuilder retentionRecordBuilder)
                 throws IOException {
-            retentionRecordBuilder.retentionRecords(revisionDataInput.readCollection(StreamCutReferenceRecord.SERIALIZER::deserialize,
-                    ArrayList::new));
+            ImmutableList.Builder<StreamCutReferenceRecord> builder = ImmutableList.builder();
+            revisionDataInput.readCollection(StreamCutReferenceRecord.SERIALIZER::deserialize, builder);
+            retentionRecordBuilder.retentionRecords(builder.build());
         }
 
         private void write00(RetentionSet retentionRecord, RevisionDataOutput revisionDataOutput) throws IOException {

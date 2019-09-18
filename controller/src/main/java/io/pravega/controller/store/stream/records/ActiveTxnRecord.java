@@ -21,20 +21,63 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.Optional;
 
 @Data
 @Builder
 @AllArgsConstructor
 @Slf4j
 public class ActiveTxnRecord {
+    public static final ActiveTxnRecord EMPTY = ActiveTxnRecord.builder().txCreationTimestamp(Long.MIN_VALUE)
+            .leaseExpiryTime(Long.MIN_VALUE).maxExecutionExpiryTime(Long.MIN_VALUE).txnStatus(TxnStatus.UNKNOWN)
+            .writerId(Optional.empty()).commitTime(Optional.empty()).build();
+    
     public static final ActiveTxnRecordSerializer SERIALIZER = new ActiveTxnRecordSerializer();
 
     private final long txCreationTimestamp;
     private final long leaseExpiryTime;
     private final long maxExecutionExpiryTime;
     private final TxnStatus txnStatus;
+    private final Optional<String> writerId;
+    private final Optional<Long> commitTime;
+    private final Optional<Long> commitOrder;
+
+    public ActiveTxnRecord(long txCreationTimestamp, long leaseExpiryTime, long maxExecutionExpiryTime, TxnStatus txnStatus) {
+        this.txCreationTimestamp = txCreationTimestamp;
+        this.leaseExpiryTime = leaseExpiryTime;
+        this.maxExecutionExpiryTime = maxExecutionExpiryTime;
+        this.txnStatus = txnStatus;
+        this.writerId = Optional.empty();
+        this.commitTime = Optional.empty();
+        this.commitOrder = Optional.empty();
+    }
+
+    public ActiveTxnRecord(long txCreationTimestamp, long leaseExpiryTime, long maxExecutionExpiryTime, TxnStatus txnStatus, 
+                           String writerId, long commitTime, long commitOrder) {
+        this.txCreationTimestamp = txCreationTimestamp;
+        this.leaseExpiryTime = leaseExpiryTime;
+        this.maxExecutionExpiryTime = maxExecutionExpiryTime;
+        this.txnStatus = txnStatus;
+        this.writerId = Optional.ofNullable(writerId);
+        this.commitTime = Optional.of(commitTime);
+        this.commitOrder = Optional.of(commitOrder);
+    }
+
+    public String getWriterId() {
+        return writerId.orElse("");
+    }
+
+    public long getCommitTime() {
+        return commitTime.orElse(Long.MIN_VALUE);
+    }
+    
+    public long getCommitOrder() {
+        return commitOrder.orElse(Long.MIN_VALUE);
+    }
 
     public static class ActiveTxnRecordBuilder implements ObjectBuilder<ActiveTxnRecord> {
+        private Optional<String> writerId = Optional.empty();
+        private Optional<Long> commitTime = Optional.empty();
 
     }
 
@@ -57,7 +100,7 @@ public class ActiveTxnRecord {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00);
+            version(0).revision(0, this::write00, this::read00).revision(1, this::write01, this::read01);
         }
 
         private void read00(RevisionDataInput revisionDataInput, ActiveTxnRecord.ActiveTxnRecordBuilder activeTxnRecordBuilder)
@@ -73,6 +116,19 @@ public class ActiveTxnRecord {
             revisionDataOutput.writeLong(activeTxnRecord.getLeaseExpiryTime());
             revisionDataOutput.writeLong(activeTxnRecord.getMaxExecutionExpiryTime());
             revisionDataOutput.writeCompactInt(activeTxnRecord.getTxnStatus().ordinal());
+        }
+
+        private void read01(RevisionDataInput revisionDataInput, ActiveTxnRecord.ActiveTxnRecordBuilder activeTxnRecordBuilder)
+                throws IOException {
+            activeTxnRecordBuilder.writerId(Optional.of(revisionDataInput.readUTF()))
+                                  .commitTime(Optional.of(revisionDataInput.readLong()))
+                                  .commitOrder(Optional.of(revisionDataInput.readLong()));
+        }
+
+        private void write01(ActiveTxnRecord activeTxnRecord, RevisionDataOutput revisionDataOutput) throws IOException {
+            revisionDataOutput.writeUTF(activeTxnRecord.getWriterId());
+            revisionDataOutput.writeLong(activeTxnRecord.getCommitTime());
+            revisionDataOutput.writeLong(activeTxnRecord.getCommitOrder());
         }
 
         @Override

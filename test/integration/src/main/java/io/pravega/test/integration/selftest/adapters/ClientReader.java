@@ -23,6 +23,7 @@ import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.Exceptions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.concurrent.CancellationToken;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ByteArraySegment;
@@ -153,7 +154,7 @@ class ClientReader implements StoreReader, AutoCloseable {
             this.readerId = UUID.randomUUID().toString().replace("-", "");
             try (ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(ClientAdapterBase.SCOPE,
                     ClientConfig.builder().controllerURI(ClientReader.this.controllerUri)
-                            .trustStore("../../config/cert.pem")
+                            .trustStore(String.format("../../config/%s", SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME))
                             .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                             .validateHostName(false).build())) {
                 readerGroupManager.createReaderGroup(this.readerGroup, ReaderGroupConfig.builder()

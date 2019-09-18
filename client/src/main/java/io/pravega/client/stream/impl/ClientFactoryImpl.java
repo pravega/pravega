@@ -32,7 +32,6 @@ import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactoryImpl;
-import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
@@ -56,7 +55,6 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -131,9 +129,9 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         log.info("Creating writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
-        ThreadPoolExecutor executor = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
+        ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());
-        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, executor);
+        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, retransmitPool, connectionFactory.getInternalExecutor());
     }
     
     @Override
@@ -141,7 +139,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         log.info("Creating transactional writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
-        return new TransactionalEventStreamWriterImpl<T>(stream, controller, outFactory, s, config);
+        return new TransactionalEventStreamWriterImpl<T>(stream, controller, outFactory, s, config, connectionFactory.getInternalExecutor());
     }
 
     @Override
@@ -172,19 +170,17 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
-        Segment segment = new Segment(scope, streamName, 0);
+        return createRevisionedStreamClient(getSegmentForRevisionedClient(streamName), serializer, config);
+    }
+
+    private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
+                                                                       SynchronizerConfig config) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment);
-        // Segment sealed is not expected for Revisioned Stream Client.
-        Consumer<Segment> segmentSealedCallBack = s -> {
-            throw new IllegalStateException("RevisionedClient: Segmentsealed exception observed for segment:" + s);
-        };
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                segment.getStreamName()), RuntimeException::new);
-        SegmentOutputStream out = outFactory.createOutputStreamForSegment(segment, segmentSealedCallBack,
-                config.getEventWriterConfig(), delegationToken);
+                                                                                                          segment.getStreamName()), RuntimeException::new);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationToken);
-        return new RevisionedStreamClientImpl<>(segment, in, out, cond, meta, serializer);
+        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationToken);
     }
 
     @Override
@@ -195,14 +191,20 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                                 Serializer<InitT> initialSerializer,
                                 SynchronizerConfig config) {
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
-        Segment segment = new Segment(scope, streamName, 0);
-        if (!Futures.getAndHandleExceptions(controller.isSegmentOpen(segment), InvalidStreamException::new)) {
-            throw new InvalidStreamException("Segment does not exist: " + segment);
-        }
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
-        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(streamName, serializer, config));
+        val segment = getSegmentForRevisionedClient(streamName);
+        return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config));
     }
-    
+
+    private Segment getSegmentForRevisionedClient(String streamName) {
+        // This validates if the stream exists and returns zero segments if the stream is sealed.
+        StreamSegments currentSegments = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, streamName), InvalidStreamException::new);
+        if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
+            throw new InvalidStreamException("Stream does not exist: " + streamName);
+        }
+        return currentSegments.getSegmentForKey(0.0);
+    }
+
     /**
      * Create a new batch client. A batch client can be used to perform bulk unordered reads without
      * the need to create a reader group.

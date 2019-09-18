@@ -10,35 +10,33 @@
 package io.pravega.controller.store.stream.records;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import io.pravega.common.ObjectBuilder;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
 
-@Data
 /**
  * This class stores chunks of the history time series.
  * Each chunk is of fixed size and contains list of epochs in form of HistoryTimeSeriesRecord.
  */
+@Data
 public class HistoryTimeSeries {
     public static final HistoryTimeSeriesSerializer SERIALIZER = new HistoryTimeSeriesSerializer();
     public static final int HISTORY_CHUNK_SIZE = 1000;
 
-    private final List<HistoryTimeSeriesRecord> historyRecords;
+    private final ImmutableList<HistoryTimeSeriesRecord> historyRecords;
 
     @Builder
-    HistoryTimeSeries(List<HistoryTimeSeriesRecord> historyRecords) {
-        this.historyRecords = ImmutableList.copyOf(historyRecords);
+    public HistoryTimeSeries(@NonNull ImmutableList<HistoryTimeSeriesRecord> historyRecords) {
+        this.historyRecords = historyRecords;
     }
 
     @SneakyThrows(IOException.class)
@@ -52,27 +50,29 @@ public class HistoryTimeSeries {
         return SERIALIZER.deserialize(inputStream);
     }
 
-    public static class HistoryTimeSeriesBuilder implements ObjectBuilder<HistoryTimeSeries> {
+    private static class HistoryTimeSeriesBuilder implements ObjectBuilder<HistoryTimeSeries> {
 
     }
-    
+
     public HistoryTimeSeriesRecord getLatestRecord() {
         return historyRecords.get(historyRecords.size() - 1);
     }
 
     public static HistoryTimeSeries addHistoryRecord(HistoryTimeSeries series, HistoryTimeSeriesRecord record) {
-        List<HistoryTimeSeriesRecord> list = Lists.newArrayList(series.historyRecords);
+        ImmutableList.Builder<HistoryTimeSeriesRecord> listBuilder = ImmutableList.builder();
+        ImmutableList<HistoryTimeSeriesRecord> list = series.historyRecords;
+        listBuilder.addAll(list);
 
         // add only if epoch is immediate epoch following the highest epoch in the series
         if (list.get(list.size() - 1).getEpoch() == record.getEpoch() - 1) {
-            list.add(record);
+            listBuilder.add(record);
         } else if (list.get(list.size() - 1).getEpoch() != record.getEpoch()) {
             throw new IllegalArgumentException("new epoch record is not continuous");
-        } 
+        }
 
-        return new HistoryTimeSeries(list);
+        return new HistoryTimeSeries(listBuilder.build());
     }
-    
+
     private static class HistoryTimeSeriesSerializer extends
             VersionedSerializer.WithBuilder<HistoryTimeSeries, HistoryTimeSeries.HistoryTimeSeriesBuilder> {
         @Override
@@ -86,8 +86,9 @@ public class HistoryTimeSeries {
         }
 
         private void read00(RevisionDataInput revisionDataInput, HistoryTimeSeries.HistoryTimeSeriesBuilder builder) throws IOException {
-            builder.historyRecords(revisionDataInput.readCollection(HistoryTimeSeriesRecord.SERIALIZER::deserialize,
-                    ArrayList::new));
+            ImmutableList.Builder<HistoryTimeSeriesRecord> historyBuilder = ImmutableList.builder();
+            revisionDataInput.readCollection(HistoryTimeSeriesRecord.SERIALIZER::deserialize, historyBuilder);
+            builder.historyRecords(historyBuilder.build());
         }
 
         private void write00(HistoryTimeSeries history, RevisionDataOutput revisionDataOutput) throws IOException {

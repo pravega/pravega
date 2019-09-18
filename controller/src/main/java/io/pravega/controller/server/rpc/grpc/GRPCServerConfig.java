@@ -88,6 +88,14 @@ public interface GRPCServerConfig extends ServerConfig {
     String getTokenSigningKey();
 
     /**
+     * Returns the delegation token time-to-live (TTL) value. The TTL in turn determines the time at which the
+     * delegation token expires.
+     *
+     * @return time-to-live value of the access token in seconds.
+     */
+    Integer getAccessTokenTTLInSeconds();
+
+    /**
      * Returns whether the controller should send back to the client a full stack trace describing an error upon a
      * failed request or not. This may ease debugging tasks just inspecting client logs at the cost of exposing server-
      * side information to the client side, which may be sensitive.

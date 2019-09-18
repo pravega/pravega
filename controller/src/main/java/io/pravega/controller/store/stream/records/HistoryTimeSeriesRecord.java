@@ -18,20 +18,19 @@ import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
 
-@Data
 /**
  * Each HistoryTimeSeriesRecord captures delta between two consecutive epoch records.
  * To compute an epoch record from this time series, we need at least one complete epoch record and then we can
  * apply deltas on it iteratively until we reach the desired epoch record.
  */
+@Data
 public class HistoryTimeSeriesRecord {
     public static final HistoryTimeSeriesRecordSerializer SERIALIZER = new HistoryTimeSeriesRecordSerializer();
 
@@ -39,21 +38,19 @@ public class HistoryTimeSeriesRecord {
     private final int epoch;
     @Getter
     private final int referenceEpoch;
-    @Getter
-    private final List<StreamSegmentRecord> segmentsSealed;
-    @Getter
-    private final List<StreamSegmentRecord> segmentsCreated;
+    private final ImmutableList<StreamSegmentRecord> segmentsSealed;
+    private final ImmutableList<StreamSegmentRecord> segmentsCreated;
     @Getter
     private final long scaleTime;
 
     @Builder
-    HistoryTimeSeriesRecord(int epoch, int referenceEpoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated,
-                            long creationTime) {
+    public HistoryTimeSeriesRecord(int epoch, int referenceEpoch, @NonNull ImmutableList<StreamSegmentRecord> segmentsSealed,
+                                    @NonNull ImmutableList<StreamSegmentRecord> segmentsCreated, long creationTime) {
         if (epoch == referenceEpoch) {
             if (epoch != 0) {
                 Exceptions.checkNotNullOrEmpty(segmentsSealed, "segments sealed");
             }
-            
+
             Exceptions.checkNotNullOrEmpty(segmentsCreated, "segments created");
         } else {
             Exceptions.checkArgument(segmentsSealed == null || segmentsSealed.isEmpty(), "sealed segments", "should be null for duplicate epoch");
@@ -61,14 +58,13 @@ public class HistoryTimeSeriesRecord {
         }
         this.epoch = epoch;
         this.referenceEpoch = referenceEpoch;
-        this.segmentsSealed = segmentsSealed == null ? null : ImmutableList.copyOf(segmentsSealed);
-        this.segmentsCreated = segmentsCreated == null ? null : ImmutableList.copyOf(segmentsCreated);
+        this.segmentsSealed = segmentsSealed;
+        this.segmentsCreated = segmentsCreated;
         this.scaleTime = creationTime;
     }
 
-    @Builder
-    HistoryTimeSeriesRecord(int epoch, List<StreamSegmentRecord> segmentsSealed, List<StreamSegmentRecord> segmentsCreated, long creationTime) {
-        this(epoch, epoch, segmentsSealed, segmentsCreated, creationTime);
+    HistoryTimeSeriesRecord(int epoch, int referenceEpoch, long creationTime) {
+        this(epoch, referenceEpoch, ImmutableList.of(), ImmutableList.of(), creationTime);
     }
 
     public boolean isDuplicate() {
@@ -79,17 +75,17 @@ public class HistoryTimeSeriesRecord {
     public byte[] toBytes() {
         return SERIALIZER.serialize(this).getCopy();
     }
-    
+
     @SneakyThrows(IOException.class)
     public static HistoryTimeSeriesRecord fromBytes(final byte[] record) {
         InputStream inputStream = new ByteArrayInputStream(record, 0, record.length);
         return SERIALIZER.deserialize(inputStream);
     }
 
-    public static class HistoryTimeSeriesRecordBuilder implements ObjectBuilder<HistoryTimeSeriesRecord> {
+    private static class HistoryTimeSeriesRecordBuilder implements ObjectBuilder<HistoryTimeSeriesRecord> {
 
     }
-    
+
     static class HistoryTimeSeriesRecordSerializer extends
             VersionedSerializer.WithBuilder<HistoryTimeSeriesRecord, HistoryTimeSeriesRecord.HistoryTimeSeriesRecordBuilder> {
         @Override
@@ -104,10 +100,17 @@ public class HistoryTimeSeriesRecord {
 
         private void read00(RevisionDataInput revisionDataInput, HistoryTimeSeriesRecord.HistoryTimeSeriesRecordBuilder builder) throws IOException {
             builder.epoch(revisionDataInput.readInt())
-                   .referenceEpoch(revisionDataInput.readInt())
-                   .segmentsSealed(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
-                   .segmentsCreated(revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, ArrayList::new))
-                   .creationTime(revisionDataInput.readLong());
+                   .referenceEpoch(revisionDataInput.readInt());
+
+            ImmutableList.Builder<StreamSegmentRecord> sealedSegmentsBuilders = ImmutableList.builder();
+            revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, sealedSegmentsBuilders);
+            builder.segmentsSealed(sealedSegmentsBuilders.build());
+
+            ImmutableList.Builder<StreamSegmentRecord> segmentsCreatedBuilder = ImmutableList.builder();
+            revisionDataInput.readCollection(StreamSegmentRecord.SERIALIZER::deserialize, segmentsCreatedBuilder);
+            builder.segmentsCreated(segmentsCreatedBuilder.build());
+
+            builder.creationTime(revisionDataInput.readLong());
         }
 
         private void write00(HistoryTimeSeriesRecord history, RevisionDataOutput revisionDataOutput) throws IOException {

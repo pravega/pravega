@@ -12,6 +12,7 @@ package io.pravega.client.stream.mock;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import io.pravega.auth.AuthenticationException;
+import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.segment.impl.Segment;
@@ -31,9 +32,11 @@ import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.Request;
 import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.shared.protocol.netty.WireCommands.CreateSegment;
@@ -44,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,7 +55,6 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -70,7 +73,8 @@ public class MockController implements Controller {
     private final Map<String, Set<Stream>> createdScopes = new HashMap<>();
     @GuardedBy("$lock")
     private final Map<Stream, StreamConfiguration> createdStreams = new HashMap<>();
-    private final Supplier<Long> idGenerator = new AtomicLong(0)::incrementAndGet;
+    private final Supplier<Long> idGenerator = () -> Flow.create().asLong();
+    private final boolean callServer;
     
     @Override
     @Synchronized
@@ -80,6 +84,30 @@ public class MockController implements Controller {
         }
         createdScopes.put(scopeName, new HashSet<>());
         return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    @Synchronized
+    public AsyncIterator<Stream> listStreams(String scopeName) {
+        Set<Stream> collect = createdScopes.get(scopeName);
+        return new AsyncIterator<Stream>() {
+            Object lock = new Object();
+            @GuardedBy("lock")
+            Iterator<Stream> iterator = collect.iterator();
+            @Override
+            public CompletableFuture<Stream> getNext() {
+                Stream next;
+                synchronized (lock) {
+                    if (!iterator.hasNext()) {
+                        next = null;
+                    } else {
+                        next = iterator.next();
+                    }
+                }
+
+                return CompletableFuture.completedFuture(next);
+            }
+        };
     }
 
     @Override
@@ -179,6 +207,9 @@ public class MockController implements Controller {
     }
 
     private boolean createSegment(String name) {
+        if (!callServer) {
+            return true;
+        }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -218,6 +249,9 @@ public class MockController implements Controller {
     }
     
     private boolean deleteSegment(String name) {
+        if (!callServer) {
+            return true;
+        }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
@@ -285,6 +319,10 @@ public class MockController implements Controller {
     
     private CompletableFuture<Void> commitTxSegment(UUID txId, Segment segment) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        if (!callServer) {
+            result.complete(null);
+            return result;
+        }
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -333,6 +371,10 @@ public class MockController implements Controller {
     
     private CompletableFuture<Void> abortTxSegment(UUID txId, Segment segment) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        if (!callServer) {
+            result.complete(null);
+            return result;
+        }
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -388,6 +430,10 @@ public class MockController implements Controller {
 
     private CompletableFuture<Void> createSegmentTx(UUID txId, Segment segment) {
         CompletableFuture<Void> result = new CompletableFuture<>();
+        if (!callServer) {
+            result.complete(null);
+            return result;
+        }
         FailingReplyProcessor replyProcessor = new FailingReplyProcessor() {
 
             @Override
@@ -422,7 +468,7 @@ public class MockController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+    public CompletableFuture<Transaction.PingStatus> pingTransaction(Stream stream, UUID txId, long lease) {
         throw new UnsupportedOperationException();
     }
 
@@ -466,7 +512,8 @@ public class MockController implements Controller {
 
     private <T> void sendRequestOverNewConnection(WireCommand request, ReplyProcessor replyProcessor, CompletableFuture<T> resultFuture) {
         ClientConnection connection = getAndHandleExceptions(connectionFactory
-            .establishConnection(new PravegaNodeUri(endpoint, port), replyProcessor), RuntimeException::new);
+            .establishConnection(Flow.from(((Request) request).getRequestId()), new PravegaNodeUri(endpoint, port), replyProcessor),
+                                                             RuntimeException::new);
         resultFuture.whenComplete((result, e) -> {
             connection.close();
         });

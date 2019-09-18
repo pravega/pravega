@@ -24,7 +24,9 @@ service ControllerService {
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
+    /* Deprecated RPC: https://github.com/pravega/pravega/issues/3760 */
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
+    rpc getSegmentsImmediatelyFollowing(SegmentId) returns(SuccessorResponse);
     rpc getSegmentsBetween(StreamCutRange) returns (StreamCutRangeResponse);
     rpc scale(ScaleRequest) returns (ScaleResponse);
     rpc checkScale(ScaleStatusRequest) returns (ScaleStatusResponse);
@@ -37,6 +39,7 @@ service ControllerService {
     rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
+    rpc listStreamsInScope(StreamsInScopeRequest) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
 }
@@ -116,6 +119,9 @@ message PingTxnStatus {
         MAX_EXECUTION_TIME_EXCEEDED = 2;
         SCALE_GRACE_TIME_EXCEEDED = 3 [deprecated=true];
         DISCONNECTED = 4;
+        COMMITTED = 5;
+        ABORTED = 6;
+        UNKNOWN = 7;
     }
     Status status = 1;
 }
@@ -135,6 +141,26 @@ message TxnState {
 message ScopeInfo {
     string scope = 1;
 }
+
+message ContinuationToken {
+    string token = 1;
+}
+
+ message StreamsInScopeRequest {
+     ScopeInfo scope = 1;
+     ContinuationToken continuationToken = 2;
+}
+
+ message StreamsInScopeResponse {
+    repeated StreamInfo streams = 1;
+    ContinuationToken continuationToken = 2;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+    }
+    Status status = 3;
+ }
 
 message StreamInfo {
     string scope = 1;

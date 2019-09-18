@@ -18,6 +18,7 @@ import java.util.Map;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.when;
 
@@ -145,11 +146,18 @@ public class ReaderGroupConfigTest {
                          .build();
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testInvalidStartAndEndStreamCuts() {
-        ReaderGroupConfig.builder()
-                         .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", 15L), getStreamCut("s1", 10L))
-                         .build();
+        assertThrows("Overlapping segments: Start segment offset cannot be greater than end segment offset",
+                     () ->  ReaderGroupConfig.builder()
+                                             .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", 15L), getStreamCut("s1", 10L))
+                                             .build(),
+                     t -> t instanceof IllegalArgumentException);
+        assertThrows("Overlapping segments: End segment offset cannot be any value other than -1L in case the segment is completed in start StreaCut",
+                     () ->  ReaderGroupConfig.builder()
+                                             .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", -1L), getStreamCut("s1", 10L))
+                                             .build(),
+                     t -> t instanceof IllegalArgumentException);
     }
 
     @Test
@@ -157,6 +165,11 @@ public class ReaderGroupConfigTest {
         ReaderGroupConfig.builder()
                          .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", 10L), getStreamCut("s1", 15L))
                          .build();
+        // both start and end StreamCut point to a completed Segment -1L
+        ReaderGroupConfig.builder()
+                         .stream(Stream.of(SCOPE, "s1"), getStreamCut("s1", -1L), getStreamCut("s1", -1L))
+                         .build();
+
     }
 
     @Test(expected = IllegalArgumentException.class)

@@ -12,7 +12,6 @@ import io.netty.buffer.Unpooled;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
-import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
@@ -33,13 +32,15 @@ import static org.junit.Assert.assertTrue;
 
 public class RawClientTest {
 
+    private final long requestId = 1L;
+
     @Test
-    public void testHello() throws ConnectionFailedException {
+    public void testHello() {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
         RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
@@ -52,28 +53,46 @@ public class RawClientTest {
     }
 
     @Test
-    public void testRequestReply() throws ConnectionFailedException, InterruptedException, ExecutionException {
+    public void testRequestReply() throws InterruptedException, ExecutionException {
         PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
         @Cleanup
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         @Cleanup
-        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory);
+        MockController controller = new MockController(endpoint.getEndpoint(), endpoint.getPort(), connectionFactory, true);
         ClientConnection connection = Mockito.mock(ClientConnection.class);
         connectionFactory.provideConnection(endpoint, connection);
         @Cleanup
         RawClient rawClient = new RawClient(controller, connectionFactory, new Segment("scope", "testHello", 0));
 
         UUID id = UUID.randomUUID();
-        ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER));
+        ConditionalAppend request = new ConditionalAppend(id, 1, 0, new Event(Unpooled.EMPTY_BUFFER), requestId);
         CompletableFuture<Reply> future = rawClient.sendRequest(1, request);
         Mockito.verify(connection).sendAsync(Mockito.eq(request),
                                              Mockito.any(ClientConnection.CompletedCallback.class));
         assertFalse(future.isDone());
         ReplyProcessor processor = connectionFactory.getProcessor(endpoint);
-        DataAppended reply = new DataAppended(id, 1, 0);
+        DataAppended reply = new DataAppended(requestId, id, 1, 0);
         processor.process(reply);
         assertTrue(future.isDone());
         assertEquals(reply, future.get());
+    }
+
+    @Test
+    public void testOverloadConstructor() {
+        PravegaNodeUri endpoint = new PravegaNodeUri("localhost", -1);
+        @Cleanup
+        MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
+
+        ClientConnection connection = Mockito.mock(ClientConnection.class);
+        connectionFactory.provideConnection(endpoint, connection);
+
+        RawClient rawClient = new RawClient(endpoint, connectionFactory);
+
+        rawClient.sendRequest(1, new WireCommands.Hello(0, 0));
+        Mockito.verify(connection).sendAsync(Mockito.eq(new WireCommands.Hello(0, 0)),
+                Mockito.any(ClientConnection.CompletedCallback.class));
+        rawClient.close();
+        Mockito.verify(connection).close();
     }
 
 }

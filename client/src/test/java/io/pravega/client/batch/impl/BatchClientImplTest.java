@@ -51,7 +51,7 @@ public class BatchClientImplTest {
 
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
-        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
         Stream stream = createStream(SCOPE, STREAM, 3, mockController);
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, connectionFactory);
 
@@ -70,7 +70,7 @@ public class BatchClientImplTest {
 
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
-        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
         Stream stream = createStream(SCOPE, STREAM, 3, mockController);
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, connectionFactory);
 
@@ -89,7 +89,7 @@ public class BatchClientImplTest {
 
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);
         MockConnectionFactoryImpl connectionFactory = getMockConnectionFactory(location);
-        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory);
+        MockController mockController = new MockController(location.getEndpoint(), location.getPort(), connectionFactory, false);
         Stream stream = createStream(SCOPE, STREAM, 3, mockController);
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, connectionFactory);
 
@@ -137,7 +137,7 @@ public class BatchClientImplTest {
                                       Mockito.any(ClientConnection.CompletedCallback.class));
         connectionFactory.provideConnection(location, connection);
         MockController mockController = new MockController(location.getEndpoint(), location.getPort(),
-                connectionFactory);
+                connectionFactory, false);
         BatchClientFactoryImpl client = new BatchClientFactoryImpl(mockController, connectionFactory);
 
         mockController.createScope(scope);
@@ -171,16 +171,6 @@ public class BatchClientImplTest {
     private MockConnectionFactoryImpl getMockConnectionFactory(PravegaNodeUri location) throws ConnectionFailedException {
         MockConnectionFactoryImpl connectionFactory = new MockConnectionFactoryImpl();
         ClientConnection connection = mock(ClientConnection.class);
-        Mockito.doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocation) throws Throwable {
-                CreateSegment request = (CreateSegment) invocation.getArgument(0);
-                connectionFactory.getProcessor(location)
-                                 .process(new SegmentCreated(request.getRequestId(), request.getSegment()));
-                return null;
-            }
-        }).when(connection).sendAsync(Mockito.any(CreateSegment.class),
-                                      Mockito.any(ClientConnection.CompletedCallback.class));
         Mockito.doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {

@@ -16,12 +16,14 @@ import io.pravega.common.io.serialization.RevisionDataOutput;
 import io.pravega.common.io.serialization.VersionedSerializer;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NonNull;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -30,7 +32,6 @@ import java.util.Map;
  * This record is indexed in retentionSet using the recording time and recording size.
  */
 @Data
-@Builder
 @Slf4j
 public class StreamCutRecord {
     public static final RetentionStreamCutRecordSerializer SERIALIZER = new RetentionStreamCutRecordSerializer();
@@ -46,19 +47,24 @@ public class StreamCutRecord {
     /**
      * Actual Stream cut.
      */
-    final Map<Long, Long> streamCut;
+    final ImmutableMap<Long, Long> streamCut;
 
-    public StreamCutRecord(long recordingTime, long recordingSize, Map<Long, Long> streamCut) {
+    @Builder
+    public StreamCutRecord(long recordingTime, long recordingSize, @NonNull ImmutableMap<Long, Long> streamCut) {
         this.recordingTime = recordingTime;
         this.recordingSize = recordingSize;
-        this.streamCut = ImmutableMap.copyOf(streamCut);
+        this.streamCut = streamCut;
     }
 
     public StreamCutReferenceRecord getReferenceRecord() {
         return new StreamCutReferenceRecord(recordingTime, recordingSize);
     }
 
-    public static class StreamCutRecordBuilder implements ObjectBuilder<StreamCutRecord> {
+    public Map<Long, Long> getStreamCut() {
+        return Collections.unmodifiableMap(streamCut);
+    }
+
+    private static class StreamCutRecordBuilder implements ObjectBuilder<StreamCutRecord> {
 
     }
 
@@ -87,8 +93,10 @@ public class StreamCutRecord {
         private void read00(RevisionDataInput revisionDataInput, StreamCutRecordBuilder streamCutRecordBuilder)
                 throws IOException {
             streamCutRecordBuilder.recordingTime(revisionDataInput.readLong())
-                                  .recordingSize(revisionDataInput.readLong())
-                                  .streamCut(revisionDataInput.readMap(DataInput::readLong, DataInput::readLong));
+                                  .recordingSize(revisionDataInput.readLong());
+            ImmutableMap.Builder<Long, Long> streamCutBuilder = ImmutableMap.builder();
+            revisionDataInput.readMap(DataInput::readLong, DataInput::readLong, streamCutBuilder);
+            streamCutRecordBuilder.streamCut(streamCutBuilder.build());
         }
 
         private void write00(StreamCutRecord streamCutRecord, RevisionDataOutput revisionDataOutput) throws IOException {

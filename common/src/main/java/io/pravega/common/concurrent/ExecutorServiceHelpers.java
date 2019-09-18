@@ -13,7 +13,9 @@ import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.function.RunnableWithException;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -28,18 +30,32 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Getter;
 import lombok.val;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Helper methods for ExecutorService.
  */
+@Slf4j
 public final class ExecutorServiceHelpers {
     
+    @Data
     private static class CallerRuns implements RejectedExecutionHandler {
+        private final String poolName;
+
         @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+            log.debug("Caller to executor: " + poolName + " rejected and run in the caller.");
             r.run();
+        }
+    }
+
+    private static final class LogUncaughtExceptions implements UncaughtExceptionHandler {
+        @Override
+        public void uncaughtException(Thread t, Throwable e) {
+            log.error("Exception thrown out of root of thread: " + t.getName(), e);
         }
     }
     
@@ -56,6 +72,7 @@ public final class ExecutorServiceHelpers {
             @Override
             public Thread newThread(Runnable r) {
                 Thread thread = new Thread(r, groupName + "-" + threadCount.incrementAndGet());
+                thread.setUncaughtExceptionHandler(new LogUncaughtExceptions());
                 thread.setDaemon(true);
                 return thread;
             }
@@ -70,7 +87,7 @@ public final class ExecutorServiceHelpers {
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
         // Caller runs only occurs after shutdown, as queue size is unbounded.
-        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns());
+        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns(poolName));
 
         // Do not execute any periodic tasks after shutdown.
         result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
@@ -112,7 +129,7 @@ public final class ExecutorServiceHelpers {
      */
     public static ThreadPoolExecutor getShrinkingExecutor(int maxThreadCount, int threadTimeout, String poolName) {
         return new ThreadPoolExecutor(0, maxThreadCount, threadTimeout, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
-                getThreadFactory(poolName), new CallerRuns()); // Caller runs only occurs after shutdown, as queue size is unbounded.
+                getThreadFactory(poolName), new CallerRuns(poolName)); // Caller runs only occurs after shutdown, as queue size is unbounded.
     }
 
     /**
@@ -194,7 +211,12 @@ public final class ExecutorServiceHelpers {
                 if (!pool.awaitTermination(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS)) {
                     // Cancel currently executing tasks and wait for them to respond to being cancelled.
                     pool.shutdownNow();
-                    pool.awaitTermination(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS);
+                    if (!pool.awaitTermination(timer.getRemaining().toMillis(), TimeUnit.MILLISECONDS)) {
+                        List<Runnable> remainingTasks = pool.shutdownNow();
+                        log.warn("One or more threads from pool " + pool
+                                + " did not shutdown properly. Waiting tasks: " + remainingTasks);
+
+                    }
                 }
             } catch (InterruptedException ie) {
                 pool.shutdownNow();

@@ -1,3 +1,5 @@
+import org.gradle.internal.jvm.Jvm
+
 /**
  * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
@@ -10,6 +12,9 @@
  */
 // Apply the java plugin to add support for Java
 buildscript {
+
+    // log the current JVM version.
+    println "Build JVM Version is : " + Jvm.current()
     repositories {
         jcenter()
         maven {
@@ -72,8 +77,8 @@ allprojects {
 
     gradle.projectsEvaluated {
         tasks.withType(JavaCompile) {
-            sourceCompatibility = "8"
-            targetCompatibility = "8"
+            sourceCompatibility = JavaVersion.VERSION_1_8
+            targetCompatibility = JavaVersion.VERSION_1_8
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
@@ -117,12 +122,11 @@ project('common') {
         failOnError = false
         source {
             project(':common').sourceSets.main.java
-            project(':shared:protocol').sourceSets.main.java
+
         }
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion   
+            compile 'org.projectlombok:lombok:' + lombokVersion  
         }
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -144,7 +148,33 @@ project('shared:authplugin') {
             sourceSets.main.java
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
+        options.addBooleanOption("Xdoclint:none", true)
+    }
+}
+
+project('shared:security') {
+    dependencies {
+        compile project(':common')
+        compile project(':shared:authplugin')
+        compile group: 'io.jsonwebtoken', name: 'jjwt', version: jjwtVersion
+
+        // Adding JAXB API and the reference implementation as a dependency here, since they are not available
+        // in newer Java SE versions (9 and newer).
+        compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
+        compile group: 'org.glassfish.jaxb', name: 'jaxb-runtime', version: jaxbVersion
+
+        testCompile project(':test:testcommon')
+    }
+
+    javadoc {
+        exclude 'io/pravega/shared/*'
+        dependencies {
+            compile 'org.projectlombok:lombok:' + lombokVersion
+        }
+        source {
+            sourceSets.main.java
+        }
+        failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -164,24 +194,18 @@ project ('shared:cluster') {
             compile 'org.projectlombok:lombok:' + lombokVersion   
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
 
 project ('shared:metrics') {
     dependencies {
-        compile group: 'com.readytalk', name :'metrics3-statsd', version : metrics3StatsdVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-core
-        compile group: 'io.dropwizard.metrics', name: 'metrics-core', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-jvm
-        compile group: 'io.dropwizard.metrics', name: 'metrics-jvm', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-graphite
-        compile group: 'io.dropwizard.metrics', name: 'metrics-graphite', version: metricsVersion
-        // https://mvnrepository.com/artifact/io.dropwizard.metrics/metrics-ganglia
-        compile group: 'io.dropwizard.metrics', name: 'metrics-ganglia', version: metricsVersion
-        // https://mvnrepository.com/artifact/info.ganglia.gmetric4j/gmetric4j
-        compile group: 'info.ganglia.gmetric4j', name: 'gmetric4j', version: metricsGangliaVersion
+        compile group: 'io.micrometer', name: 'micrometer-core', version: micrometerVersion
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-core/<micrometerVersion>
+        compile group: 'io.micrometer', name: 'micrometer-registry-statsd', version: micrometerVersion
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-statsd/<micrometerVersion>
+        compile group: 'io.micrometer', name: 'micrometer-registry-influx', version: micrometerVersion
+        // https://mvnrepository.com/artifact/io.micrometer/micrometer-registry-influx/<micrometerVersion>
         compile project(':common')
     }
 
@@ -191,7 +215,6 @@ project ('shared:metrics') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -203,6 +226,7 @@ project('shared:protocol') {
         compile group: 'io.netty', name: 'netty-handler', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
+     
     }
 }
 
@@ -223,7 +247,6 @@ project('client') {
         title = "Pravega Client API"
         failOnError = false
         exclude "**/impl/**";
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
@@ -242,7 +265,6 @@ project('test:testcommon') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -257,7 +279,6 @@ project('segmentstore:contracts') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:all,-reference", true)
     }
 }
@@ -275,7 +296,6 @@ project('segmentstore:storage') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -296,7 +316,6 @@ project('segmentstore:storage:impl') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -326,7 +345,6 @@ project ('bindings') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -344,7 +362,6 @@ project('segmentstore:server') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
     }
 }
@@ -377,6 +394,7 @@ project('segmentstore:server:host') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(":shared:security")
         compile project(':shared:cluster')
         compile project(':segmentstore:contracts')
         compile project(':client')
@@ -384,7 +402,6 @@ project('segmentstore:server:host') {
         compile project(':segmentstore:storage:impl')
         compile project(':bindings')
         compile project(':segmentstore:server')
-        compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
@@ -524,11 +541,9 @@ project('shared:controller-api') {
 
     dependencies {
         compile project(':common')
-
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
         compile group: 'io.netty', name: 'netty-all', version: nettyVersion
-
         compile "io.grpc:grpc-netty:" + grpcVersion
         compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
@@ -544,7 +559,6 @@ project('shared:controller-api') {
             compile 'org.projectlombok:lombok:' + lombokVersion            
         }
         failOnError = false
-        options.addBooleanOption('html5', true)
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -559,7 +573,7 @@ project('controller') {
     applicationName = "pravega-controller"
     mainClassName = "io.pravega.controller.server.Main"
     applicationDefaultJvmArgs = ["-server", "-Xms128m", "-XX:+HeapDumpOnOutOfMemoryError",
-                                 "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
+                                 "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.config.properties",
                                  "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                                  "-Dlog.name=controller"]
@@ -589,6 +603,7 @@ project('controller') {
     dependencies {
         compile project(':common')
         compile project(":shared:authplugin")
+        compile project(":shared:security")
         compile project(":shared:controller-api")
         compile project(':shared:cluster')
         compile project(":client")
@@ -598,7 +613,6 @@ project('controller') {
         compile(group: 'io.swagger', name : 'swagger-jersey2-jaxrs', version :swaggerJersey2JaxrsVersion) {
             exclude group: 'com.google.guava', module: 'guava'
         }
-        compile group: 'com.typesafe', name: 'config', version: typesafeConfigVersion
         compile group: 'org.apache.curator', name: 'curator-framework', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-recipes', version: apacheCuratorVersion
         compile group: 'org.apache.curator', name: 'curator-client', version: apacheCuratorVersion
@@ -608,7 +622,6 @@ project('controller') {
         compile group: 'org.glassfish.jersey.media', name: 'jersey-media-json-jackson', version: jerseyVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion
-        compile 'io.jsonwebtoken:jjwt:0.9.0'
         compile group: 'io.netty', name: 'netty-tcnative-boringssl-static', version: nettyBoringSSLVersion
         // since Java 10 JAXB is not more bundled with the JRE
         compile group: 'javax.xml.bind', name: 'jaxb-api', version: jaxbVersion
@@ -622,7 +635,7 @@ project('controller') {
                           "-XX:+PrintGCDetails", "-XX:+PrintGCDateStamps",
                           "-Xloggc:PRAVEGA_APP_HOME/logs/gc.log", "-XX:+UseGCLogFileRotation",
                           "-XX:NumberOfGCLogFiles=2", "-XX:GCLogFileSize=64m",
-                          "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.conf",
+                          "-Dconfig.file=PRAVEGA_APP_HOME/conf/controller.config.properties",
                           "-Dlogback.configurationFile=PRAVEGA_APP_HOME/conf/logback.xml",
                           "-Dlog.dir=PRAVEGA_APP_HOME/logs",
                           "-Dlog.name=controller"]
@@ -801,6 +814,7 @@ project('test:system') {
     }
 
     task startK8SystemTests(type: Test) {
+        tasks.withType(Exec) { environment "tier2Type", System.getProperty("tier2Type", "nfs") }
         dependsOn 'copyTestsToK8sCluster' // ensure test artifacts are copied to the cluster.
 
         description 'Used to invoke K8s based System Tests, example usage: gradle startK8SystemTests'
@@ -809,22 +823,37 @@ project('test:system') {
 
         ext.repoUrl = project.hasProperty("repoUrl") ? project.repoUrl : ""
         systemProperty "execType", "KUBERNETES"
-        systemProperty "pravegaOperatorVersion", System.getProperty("pravegaOperatorVersion", "latest") // default value is "latest"
+        systemProperty "pravegaOperatorImage", System.getProperty("pravegaOperatorImage", "pravega/pravega-operator:latest")
+        systemProperty "zookeeperOperatorImage", System.getProperty("zookeeperOperatorImage", "pravega/zookeeper-operator:latest")
         // The below properties are used to to specify the pravega docker image properties
         // e.g: private-docker-repo/pravega-prefix/pravega:version
         if (System.getProperty("dockerRegistryUrl") != null) { // docker images are pulled from dockerhub if dockerRegistryUrl is not specified.
             systemProperty "dockerRegistryUrl", System.getProperty("dockerRegistryUrl") + "/"
         }
         systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
+        systemProperty "pravegaImageName", System.getProperty("pravegaImageName", "pravega") // pravega image name
+        systemProperty "bookkeeperImageName", System.getProperty("bookkeeperImageName", "bookkeeper") // bookkeeper image name
+        systemProperty "zookeeperImageName", System.getProperty("zookeeperImageName", "zookeeper") // zookkeeper image name
+        systemProperty "zookeeperImageVersion", System.getProperty("zookeeperImageVersion", "latest") // zookeeper image version
         systemProperty "imageVersion", System.getProperty("imageVersion") // pravega version.
         // bookkeeper version defaults to pravega version.
         systemProperty "pravegaBookkeeperVersion", System.getProperty("pravegaBookkeeperVersion", System.getProperty("imageVersion"))
-        systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
+
+        // tier2Type , default is NFS.
+        systemProperty "tier2Type", System.getProperty("tier2Type", "nfs")
+        // tier2 Configuration, specified as comma seperated key values k1=v1,k2=v2
+        systemProperty "tier2Config", System.getProperty("tier2Config")
+
+        //testPodImage , default is openjdk:8u181-jre-alpine
+        systemProperty "testPodImage", System.getProperty("testPodImage", "openjdk:8u181-jre-alpine")
 
         if (System.getProperty("imageVersion") == null) {
             systemProperty "imageVersion", "INVALID_IMAGE_VERSION"
         }
-
+        
+        systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
+        systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
+       
         maxParallelForks = 1
     }
 
@@ -835,7 +864,7 @@ project('test:system') {
         if(ext.getProperty('awsExecution').toString().equals("true")) {
             commandLine './aws/preTestScript.sh'
             args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch"
-        } else {
+        } else if (project.hasProperty('CLUSTER_NAME')) {
             commandLine "./preTestScript.sh"
             args "$CLUSTER_NAME", "$MASTER", "$NUM_SLAVES"
         }
@@ -887,6 +916,11 @@ project('test:system') {
         systemProperty "skipServiceInstallation", System.getProperty("skipServiceInstallation")
         systemProperty "segmentStoreExtraEnv", System.getProperty("segmentStoreExtraEnv")
         systemProperty "awsExec", System.getProperty("awsExec")
+        systemProperty "pravegaImageName", System.getProperty("pravegaImageName", "pravega") // pravega image name
+        systemProperty "bookkeeperImageName", System.getProperty("bookkeeperImageName", "bookkeeper") // bookkeeper image name
+        systemProperty "zookeeperImageName", System.getProperty("zookeeperImageName", "zookeeper") // zookkeeper image name
+        systemProperty "zookeeperImageVersion", System.getProperty("zookeeperImageVersion", "latest") // zookeeper image version
+        systemProperty "imagePrefix", System.getProperty("imagePrefix", "pravega")  // the default value of imagePrefix is pravega.
 
         if (System.getProperty("execType") == null) {
             systemProperty "execType", "DOCKER"
@@ -906,18 +940,21 @@ project('test:system') {
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
+        systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
     }
 
     task collectSystemTestLogsFromAws(type: Exec) {
-        commandLine './aws/postTestScript.sh'
-        args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch", "$travis_commit"
+        if (project.hasProperty('aws_secret_key')) {
+            commandLine './aws/postTestScript.sh'
+            args "$aws_access_key", "$aws_secret_key", "$aws_region", "$aws_key_name", "$cred_path", "$config_path", "$pravega_org", "$pravega_branch", "$travis_commit"
+        }
     }
 }
 
 def getProjectVersion() {
     String ver = pravegaVersion
-    if (ver.contains("-SNAPSHOT")) {
+    if (grgit && ver.contains("-SNAPSHOT")) {
         String versionLabel = ver.substring(0, ver.indexOf("-SNAPSHOT"))
         def count = grgit.log(includes:['HEAD']).size()
         def commitId = "${grgit.head().abbreviatedId}"
@@ -935,6 +972,7 @@ task publishAllJars() {
     dependsOn ':client:publish'
     dependsOn ':common:publish'
     dependsOn ':shared:publish'
+    dependsOn ':shared:security'
     dependsOn ':shared:protocol:publish'
     dependsOn ':segmentstore:contracts:publish'
     dependsOn ':segmentstore:storage:publish'
@@ -1034,11 +1072,17 @@ task preparePravegaImage(type: Copy) {
 task buildPravegaImage(type: DockerBuildTask, dependsOn: preparePravegaImage) {
     baseTag = pravegaBaseTag
     dockerDir = preparePravegaImage.destinationDir.absolutePath
+    if (JavaVersion.current().isJava11Compatible()) {
+        dockerFile = "${dockerDir}/Dockerfile-java-11"
+    } else {
+        dockerFile = "${dockerDir}/Dockerfile"
+    }
 }
 
 task buildBookkeeperImage(type: DockerBuildTask) {
     baseTag = bookkeeperBaseTag
     dockerDir = "docker/bookkeeper"
+    dockerFile = "${dockerDir}/Dockerfile"
 }
 
 task docker(dependsOn: [buildPravegaImage, buildBookkeeperImage]) {
@@ -1065,12 +1109,14 @@ task distribution(dependsOn: [assembleDist, assembleClientDist, assembleJavadocD
     description = "Builds a distribution package"
 }
 
+
 /**
  * Task for building a docker image
  */
 class DockerBuildTask extends Exec {
     String baseTag
     String dockerDir
+    String dockerFile
 
     DockerBuildTask() {
         executable project.dockerExecutable
@@ -1078,6 +1124,7 @@ class DockerBuildTask extends Exec {
         args "--pull"
         args "-t", "${->baseTag}:${project.version}"
         args "-t", "${->baseTag}:latest"
+        args "-f", "${->dockerFile}"
         args "${->dockerDir}"
     }
 }

@@ -14,13 +14,15 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageDecoder;
-import java.io.ByteArrayOutputStream;
+import io.pravega.common.io.EnhancedByteArrayOutputStream;
+import io.pravega.common.util.ByteArraySegment;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.UUID;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 
@@ -33,6 +35,7 @@ import static io.netty.buffer.Unpooled.wrappedBuffer;
  *
  * @see CommandEncoder For details about handling of PartialEvents
  */
+@Slf4j
 public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
 
     private final HashMap<UUID, Segment> appendingSegments = new HashMap<>();
@@ -61,6 +64,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
     @VisibleForTesting
     public Request processCommand(WireCommand command) throws Exception {
         if (currentBlock != null && command.getType() != WireCommandType.APPEND_BLOCK_END) {
+            log.warn("Invalid message received {}. CurrentBlock {}", command, currentBlock);
             throw new InvalidMessageException("Unexpected " + command.getType() + " following a append block.");
         }
         Request result;
@@ -81,42 +85,59 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 throw new InvalidMessageException("Last event number went backwards.");
             }
             segment.lastEventNumber = ca.getEventNumber();
-            ByteArrayOutputStream bout = new ByteArrayOutputStream();
+            EnhancedByteArrayOutputStream bout = new EnhancedByteArrayOutputStream();
             ca.getEvent().writeFields(new DataOutputStream(bout));
-            byte[] data = bout.toByteArray(); 
+            ByteArraySegment data = bout.getData();
             result = new Append(segment.getName(),
                     ca.getWriterId(),
                     ca.getEventNumber(),
                     1,
-                    Unpooled.wrappedBuffer(data),
-                    ca.getExpectedOffset());
+                    Unpooled.wrappedBuffer(data.array(), data.arrayOffset(), data.getLength()),
+                    ca.getExpectedOffset(), ca.getRequestId());
             break;
         case APPEND_BLOCK:
-            getSegment(((WireCommands.AppendBlock) command).getWriterId());
             currentBlock = (WireCommands.AppendBlock) command;
+            getSegment(currentBlock.getWriterId());
             result = null;
             break;
         case APPEND_BLOCK_END:
             WireCommands.AppendBlockEnd blockEnd = (WireCommands.AppendBlockEnd) command;
-            if (currentBlock == null) {
-                throw new InvalidMessageException("AppendBlockEnd without AppendBlock.");
-            }
             UUID writerId = blockEnd.getWriterId();
-            if (!writerId.equals(currentBlock.getWriterId())) {
-                throw new InvalidMessageException("AppendBlockEnd for wrong connection.");
-            }
             segment = getSegment(writerId);
-            if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
-                throw new InvalidMessageException("Last event number went backwards.");
-            }
             int sizeOfWholeEventsInBlock = blockEnd.getSizeOfWholeEvents();
-            if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
-                throw new InvalidMessageException("Invalid SizeOfWholeEvents in block");
+            ByteBuf appendDataBuf;
+            if (blockEnd.numEvents <= 0) {
+                throw new InvalidMessageException("Invalid number of events in block. numEvents : " + blockEnd.numEvents);
             }
-            ByteBuf appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
+            if (blockEnd.getLastEventNumber() < segment.lastEventNumber) {
+                throw new InvalidMessageException(
+                        String.format("Last event number went backwards, " +
+                                "Segment last Event number : %d , Append block End Event number : %d," +
+                                "for writer ID: %s and Segment Name: %s", segment.lastEventNumber,
+                                blockEnd.getLastEventNumber(), writerId, segment.name));
+            }
+            if (currentBlock != null) {
+               if (!currentBlock.getWriterId().equals(writerId)) {
+                   throw new InvalidMessageException(
+                           String.format("Writer ID mismatch between Append Block and Append block End, " +
+                                   "Append block Writer ID : %s, Append block End Writer ID: %s",
+                                   currentBlock.getWriterId(), writerId));
+               }
+               if (sizeOfWholeEventsInBlock > currentBlock.getData().readableBytes() || sizeOfWholeEventsInBlock < 0) {
+                    throw new InvalidMessageException(
+                            String.format("Invalid SizeOfWholeEvents in block : %d, Append block data bytes : %d",
+                                    sizeOfWholeEventsInBlock, currentBlock.getData().readableBytes()));
+               }
+               appendDataBuf = getAppendDataBuf(blockEnd, sizeOfWholeEventsInBlock);
+            } else {
+               appendDataBuf = blockEnd.getData();
+            }
+            if (appendDataBuf == null) {
+               throw new InvalidMessageException("Invalid data in block");
+            }
             segment.lastEventNumber = blockEnd.getLastEventNumber();
             currentBlock = null;
-            result = new Append(segment.name, writerId, segment.lastEventNumber, blockEnd.numEvents, appendDataBuf, null);
+            result = new Append(segment.name, writerId, segment.lastEventNumber, blockEnd.numEvents, appendDataBuf, null, blockEnd.getRequestId());
             break;
             //$CASES-OMITTED$
         default:
@@ -127,7 +148,7 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
 
     private ByteBuf getAppendDataBuf(WireCommands.AppendBlockEnd blockEnd, int sizeOfWholeEventsInBlock) throws IOException {
         ByteBuf appendDataBuf = currentBlock.getData().slice(0, sizeOfWholeEventsInBlock);
-        int remaining = currentBlock.getData().readableBytes() - sizeOfWholeEventsInBlock;
+        final int remaining = currentBlock.getData().readableBytes() - sizeOfWholeEventsInBlock;
         if (remaining > 0) {
             ByteBuf dataRemainingInBlock = currentBlock.getData().slice(sizeOfWholeEventsInBlock, remaining);
             WireCommand cmd = CommandDecoder.parseCommand(dataRemainingInBlock);
@@ -143,13 +164,21 @@ public class AppendDecoder extends MessageToMessageDecoder<WireCommand> {
                 // See https://github.com/netty/netty/issues/5597
                 if (appendDataBuf.readableBytes() == 0) {
                     appendDataBuf.release();
-                    return wrappedBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
+                    appendDataBuf = wrappedBuffer(((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 } else {
-                    return wrappedBuffer(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
+                    appendDataBuf = wrappedBuffer(appendDataBuf, ((WireCommands.PartialEvent) cmd).getData(), blockEnd.getData());
                 }
             }
         }
-        return appendDataBuf;
+
+        // Make a copy of the ByteBuf as the readable bytes of the result may be significantly less than the total allocated
+        // memory for this buffer. This problem is exacerbated with connection pooling where we may have a good amount of
+        // padding around each append. Since this Append ByteBuf is expected to live for as long as the Segment Store
+        // needs to process it, we need to compact this so that we don't use an excessive amount of heap memory which could
+        // lead to out-of-memory situations.
+        ByteBuf result = appendDataBuf.copy();
+        appendDataBuf.release();
+        return result;
     }
 
     private Segment getSegment(UUID writerId) {

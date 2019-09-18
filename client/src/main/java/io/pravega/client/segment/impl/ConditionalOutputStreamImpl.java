@@ -53,7 +53,6 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     private final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
     private final RetryWithBackoff retrySchedule;
     
-
     @Override
     public String getScopedSegmentName() {
         return segmentId.getScopedName();
@@ -68,7 +67,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                     .run(() -> {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionFactory, segmentId);
-                            long requestId = requestIdGenerator.get();
+                            long requestId = client.getFlow().getNextSequenceNumber();
                             log.debug("Setting up append on segment: {}", segmentId);
                             SetupAppend setup = new SetupAppend(requestId, writerId,
                                                                 segmentId.getScopedName(),
@@ -79,9 +78,10 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                                 return true;
                             }
                         }
+                        long requestId = client.getFlow().getNextSequenceNumber();
                         val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
-                                                            new Event(Unpooled.wrappedBuffer(data)));
-                        val reply = client.sendRequest(appendSequence, request);
+                                                            new Event(Unpooled.wrappedBuffer(data)), requestId);
+                        val reply = client.sendRequest(requestId, request);
                         return transformDataAppended(reply.join());
                     });
         } 

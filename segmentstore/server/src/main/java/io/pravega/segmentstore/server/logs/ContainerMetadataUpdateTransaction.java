@@ -27,6 +27,7 @@ import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
 import io.pravega.segmentstore.server.containers.StreamSegmentMetadata;
+import io.pravega.segmentstore.server.logs.operations.CheckpointOperationBase;
 import io.pravega.segmentstore.server.logs.operations.DeleteSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MergeSegmentOperation;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
@@ -370,9 +371,15 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
             }
         }
 
-        if (operation instanceof MetadataCheckpointOperation) {
-            // A MetadataCheckpointOperation represents a valid truncation point. Record it as such.
-            this.newTruncationPoints.add(operation.getSequenceNumber());
+        if (operation instanceof CheckpointOperationBase) {
+            if (operation instanceof MetadataCheckpointOperation) {
+                // A MetadataCheckpointOperation represents a valid truncation point. Record it as such.
+                this.newTruncationPoints.add(operation.getSequenceNumber());
+            }
+
+            // Checkpoint operation has been serialized and we no longer need its contents. Clear it and release any
+            // memory it used.
+            ((CheckpointOperationBase) operation).clearContents();
         } else if (operation instanceof StreamSegmentMapOperation) {
             acceptMetadataOperation((StreamSegmentMapOperation) operation);
         }
@@ -395,7 +402,7 @@ class ContainerMetadataUpdateTransaction implements ContainerMetadata {
                     // But we can (should) only process at most one MetadataCheckpoint per recovery. Any additional
                     // ones are redundant (used just for Truncation purposes) and contain the same information as
                     // if we processed every operation in order, up to them.
-                    log.info("{}: Skipping recovering MetadataCheckpointOperation with SequenceNumber {} because we already have metadata changes.", this.traceObjectId, operation.getSequenceNumber());
+                    log.debug("{}: Skipping MetadataCheckpointOperation with SequenceNumber {} because we already have metadata changes.", this.traceObjectId, operation.getSequenceNumber());
                     return;
                 }
 

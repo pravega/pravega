@@ -18,6 +18,7 @@ public class InMemoryStreamTest extends StreamTestBase {
 
     @Override
     public void tearDown() throws Exception {
+        store.close();
     }
 
     @Override

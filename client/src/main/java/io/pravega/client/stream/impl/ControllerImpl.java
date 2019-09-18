@@ -25,6 +25,7 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.PingFailedException;
+import io.pravega.client.stream.NoSuchScopeException;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
@@ -36,6 +37,8 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
+import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.common.util.Retry;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -67,9 +70,13 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc;
 import io.pravega.controller.stream.api.grpc.v1.ControllerServiceGrpc.ControllerServiceStub;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamCutRangeResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeResponse;
+import io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest;
 import io.pravega.shared.controller.tracing.RPCTracingHelpers;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.io.File;
+import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -82,10 +89,14 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLException;
+
 import org.slf4j.LoggerFactory;
+
+import static io.pravega.controller.stream.api.grpc.v1.Controller.ContinuationToken;
 
 /**
  * RPC based client implementation of Stream Controller V1 API.
@@ -148,7 +159,8 @@ public class ControllerImpl implements Controller {
                                 .retryingOn(StatusRuntimeException.class)
                                 .throwingOn(Exception.class);
 
-        if (config.getClientConfig().isEnableTls()) {
+        if (config.getClientConfig().isEnableTlsToController()) {
+            log.debug("Setting up a SSL/TLS channel builder");
             SslContextBuilder sslContextBuilder;
             String trustStore = config.getClientConfig().getTrustStore();
             sslContextBuilder = GrpcSslContexts.forClient();
@@ -162,6 +174,7 @@ public class ControllerImpl implements Controller {
                 throw new CompletionException(e);
             }
         } else {
+            log.debug("Using a plaintext channel builder");
             channelBuilder = ((NettyChannelBuilder) channelBuilder).negotiationType(NegotiationType.PLAINTEXT);
         }
 
@@ -216,6 +229,44 @@ public class ControllerImpl implements Controller {
                 }
                 LoggerHelpers.traceLeave(log, "createScope", traceId, scopeName, requestId);
             });
+    }
+
+    @Override
+    public AsyncIterator<Stream> listStreams(String scopeName) {
+        Exceptions.checkNotClosed(closed.get(), this);
+        long traceId = LoggerHelpers.traceEnter(log, "listStreams", scopeName);
+        long requestId = requestIdGenerator.get();
+        try {
+            final Function<ContinuationToken, CompletableFuture<Map.Entry<ContinuationToken, Collection<Stream>>>> function =
+                    token -> this.retryConfig.runAsync(() -> {
+                        RPCAsyncCallback<StreamsInScopeResponse> callback = new RPCAsyncCallback<>(requestId, "listStreams");
+                        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(scopeName).build();
+                        new ControllerClientTagger(client).withTag(requestId, "listStreams", scopeName)
+                                                          .listStreamsInScope(StreamsInScopeRequest
+                                                                  .newBuilder().setScope(scopeInfo).setContinuationToken(token).build(), callback);
+                        return callback.getFuture()
+                                       .thenApply(x -> {
+                                           switch (x.getStatus()) {
+                                               case SCOPE_NOT_FOUND:
+                                                   log.warn(requestId, "Scope not found: {}", scopeName);
+                                                   throw new NoSuchScopeException();
+                                               case FAILURE:
+                                                   log.warn(requestId, "Internal Server Error while trying to list streams in scope: {}", scopeName);
+                                                   throw new RuntimeException("Failure while trying to list streams");
+                                               case SUCCESS:
+                                               // we will treat all other case as success for backward 
+                                               // compatibility reasons
+                                               default: 
+                                                   List<Stream> result = x.getStreamsList().stream()
+                                                                          .map(y -> new StreamImpl(y.getScope(), y.getStream())).collect(Collectors.toList());
+                                                   return new AbstractMap.SimpleEntry<>(x.getContinuationToken(), result);
+                                           }
+                                       });
+                    }, this.executor);
+            return new ContinuationTokenAsyncIterator<>(function, ContinuationToken.newBuilder().build());
+        } finally {
+            LoggerHelpers.traceLeave(log, "listStreams", traceId);
+        }
     }
 
     @Override
@@ -631,7 +682,7 @@ public class ControllerImpl implements Controller {
 
         final CompletableFuture<SuccessorResponse> resultFuture = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<SuccessorResponse> callback = new RPCAsyncCallback<>(traceId, "getSuccessors");
-            client.getSegmentsImmediatlyFollowing(ModelHelper.decode(segment), callback);
+            client.getSegmentsImmediatelyFollowing(ModelHelper.decode(segment), callback);
             return callback.getFuture();
         }, this.executor);
         return resultFuture.thenApply(successors -> {
@@ -823,28 +874,30 @@ public class ControllerImpl implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
+    public CompletableFuture<Transaction.PingStatus> pingTransaction(final Stream stream, final UUID txId, final long lease) {
         Exceptions.checkNotClosed(closed.get(), this);
         long traceId = LoggerHelpers.traceEnter(log, "pingTransaction", stream, txId, lease);
 
         final CompletableFuture<PingTxnStatus> result = this.retryConfig.runAsync(() -> {
             RPCAsyncCallback<PingTxnStatus> callback = new RPCAsyncCallback<>(traceId, "pingTransaction");
-            client.pingTransaction(PingTxnRequest.newBuilder().setStreamInfo(
-                    ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
-                            .setTxnId(ModelHelper.decode(txId))
-                            .setLease(lease).build(),
-                    callback);
+            client.pingTransaction(PingTxnRequest.newBuilder()
+                                                 .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(), stream.getStreamName()))
+                                                 .setTxnId(ModelHelper.decode(txId))
+                                                 .setLease(lease).build(), callback);
             return callback.getFuture();
         }, this.executor);
-        return Futures.toVoidExpecting(result,
-                                             PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
-                                             PingFailedException::new)
-                      .whenComplete((x, e) -> {
-                    if (e != null) {
-                        log.warn("pingTransaction failed: ", e);
-                    }
-                    LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
-                });
+        return result.thenApply(status -> {
+            try {
+                return ModelHelper.encode(status.getStatus(), stream + " " + txId);
+            } catch (PingFailedException ex) {
+                throw new CompletionException(ex);
+            }
+        }).whenComplete((s, e) -> {
+            if (e != null) {
+                log.warn("Ping Transaction failed:", e);
+            }
+            LoggerHelpers.traceLeave(log, "pingTransaction", traceId);
+        });
     }
 
     @Override
@@ -1028,6 +1081,11 @@ public class ControllerImpl implements Controller {
 
         public void createScope(ScopeInfo scopeInfo, RPCAsyncCallback<CreateScopeStatus> callback) {
             clientStub.createScope(scopeInfo, callback);
+        }
+
+        public void listStreamsInScope(io.pravega.controller.stream.api.grpc.v1.Controller.StreamsInScopeRequest request, 
+                                       RPCAsyncCallback<StreamsInScopeResponse> callback) {
+            clientStub.listStreamsInScope(request, callback);
         }
 
         public void deleteScope(ScopeInfo scopeInfo, RPCAsyncCallback<DeleteScopeStatus> callback) {

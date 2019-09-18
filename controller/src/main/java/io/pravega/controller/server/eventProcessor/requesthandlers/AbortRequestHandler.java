@@ -13,8 +13,8 @@ import com.google.common.annotations.VisibleForTesting;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.eventProcessor.impl.SerializedRequestHandler;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StreamMetadataStore;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.shared.controller.event.AbortEvent;
 import java.util.UUID;
@@ -71,7 +71,7 @@ public class AbortRequestHandler extends SerializedRequestHandler<AbortEvent> {
         log.debug("Aborting transaction {} on stream {}/{}", event.getTxid(), event.getScope(), event.getStream());
 
         return Futures.toVoid(streamMetadataStore.getSegmentsInEpoch(event.getScope(), event.getStream(), epoch, context, executor)
-                                                 .thenApply(segments -> segments.stream().map(Segment::segmentId)
+                                                 .thenApply(segments -> segments.stream().map(StreamSegmentRecord::segmentId)
                                                                         .collect(Collectors.toList()))
                 .thenCompose(segments -> streamMetadataTasks.notifyTxnAbort(scope, stream, segments, txId))
                 .thenCompose(x -> streamMetadataStore.abortTransaction(scope, stream, txId, context, executor))

@@ -14,11 +14,11 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.TagLogger;
 import io.pravega.controller.store.stream.OperationContext;
-import io.pravega.controller.store.stream.Segment;
 import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.TxnStatus;
 import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.shared.controller.event.SealStreamEvent;
@@ -153,8 +153,8 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
                 });
     }
 
-    private CompletionStage<Void> notifySealed(String scope, String stream, OperationContext context, List<Segment> activeSegments, long requestId) {
-        List<Long> segmentsToBeSealed = activeSegments.stream().map(Segment::segmentId).
+    private CompletionStage<Void> notifySealed(String scope, String stream, OperationContext context, List<StreamSegmentRecord> activeSegments, long requestId) {
+        List<Long> segmentsToBeSealed = activeSegments.stream().map(StreamSegmentRecord::segmentId).
                 collect(Collectors.toList());
         log.debug(requestId, "Sending notification to segment store to seal segments for stream {}/{}", scope, stream);
         return streamMetadataTasks.notifySealedSegments(scope, stream, segmentsToBeSealed, this.streamMetadataTasks.retrieveDelegationToken(), requestId)
@@ -168,5 +168,11 @@ public class SealStreamTask implements StreamTask<SealStreamEvent> {
     @Override
     public CompletableFuture<Void> writeBack(SealStreamEvent event) {
         return streamMetadataTasks.writeEvent(event);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> hasTaskStarted(SealStreamEvent event) {
+        return streamMetadataStore.getState(event.getScope(), event.getStream(), true, null, executor)
+                                  .thenApply(state -> state.equals(State.SEALING));
     }
 }

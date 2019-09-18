@@ -10,7 +10,8 @@
 package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
-import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.server.rpc.auth.StrongPasswordProcessor;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
@@ -33,16 +34,23 @@ public class SecureStreamMetaDataTests extends  StreamMetaDataTests {
 
         try (FileWriter writer = new FileWriter(file.getAbsolutePath())) {
             String passwd = passwordEncryptor.encryptPassword("1111_aaaa");
+
+            // Admin has READ_WRITE permission to everything
             writer.write("admin:" + passwd + ":*,READ_UPDATE\n");
-            writer.write("user1:" + passwd + ":/,READ;scope1,READ_UPDATE;scope2,READ_UPDATE;\n");
+
+            // User "user1" can:
+            //    - list, create and delete scopes
+            //    - Create and delete streams within scopes "scope1" and "scope2". Also if "user1" lists scopes,
+            //      she'll see those scopes, but not "scope3".
+            writer.write("user1:" + passwd + ":/,READ_UPDATE;scope1,READ_UPDATE;scope1/*,READ_UPDATE;scope2,READ_UPDATE;scope2/*,READ_UPDATE;\n");
+
             writer.write("user2:" + passwd + ":/,READ;scope3,READ_UPDATE;\n");
-            writer.close();
         }
 
-        this.authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
+        this.authManager = new AuthHandlerManager(GRPCServerConfigImpl.builder()
                                                                       .authorizationEnabled(true)
-                                                                      .tlsCertFile("../config/cert.pem")
-                                                                      .tlsKeyFile("../config/key.pem")
+                                                                      .tlsCertFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
+                                                                      .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
                                                                       .userPasswordFile(file.getAbsolutePath())
                                                                       .port(1000)
                                                                       .build());

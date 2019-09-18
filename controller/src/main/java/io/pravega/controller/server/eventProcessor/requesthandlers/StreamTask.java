@@ -28,4 +28,11 @@ public interface StreamTask<T extends ControllerEvent> {
      * @return future of processing
      */
     CompletableFuture<Void> writeBack(T event);
+
+    /**
+     * Method that indicates to the processor if the work was already started and this is a rerun. 
+     * @param event event to process
+     * @return Completable Future which when completed will indicate if the event processing has already started or not. 
+     */
+    CompletableFuture<Boolean> hasTaskStarted(T event);
 }

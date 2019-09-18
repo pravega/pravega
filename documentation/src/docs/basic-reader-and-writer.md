@@ -11,10 +11,10 @@ You may obtain a copy of the License at
 
 Lets examine how to build Pravega applications. The simplest kind of Pravega application uses a Reader to read from a Stream or a
 Writer that writes to a Stream. A simple sample application of both can be
-found in the [Pravega samples repository](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These samples give a sense on how a Java application could use the Pravega's Java Client Library to access Pravega functionality.
+found in the [Pravega samples repository](https://github.com/pravega/pravega-samples/blob/v0.5.0/pravega-client-examples/README.md) (`HelloWorldReader` and  `HelloWorldWriter`) applications. These samples give a sense on how a Java application could use the Pravega's Java Client Library to access Pravega functionality.
 
 Instructions for running the sample applications can be found in the [Pravega
-Samples](https://github.com/pravega/pravega-samples/blob/v0.4.0/pravega-client-examples/README.md). Get familiar with the [Pravega Concepts](http://pravega.io/docs/latest/pravega-concepts/)
+Samples](https://github.com/pravega/pravega-samples/blob/v0.5.0/pravega-client-examples/README.md). Get familiar with the [Pravega Concepts](http://pravega.io/docs/latest/pravega-concepts/)
 before executing the sample applications.
 
 ## HelloWorldWriter
@@ -135,10 +135,13 @@ several things a developer needs to know before creating a Writer:
 
 
 ```Java
+
      EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName,
                                                       new JavaSerializer<String>(),
                                                       EventWriterConfig.builder().build()))
+
 ```
+
 The `EventStreamWriter` writes to the
 Stream specified in the configuration of the `HelloWorldWriter` sample application (by
 default the stream is named "helloStream" in the "examples" Scope). The Writer
@@ -276,7 +279,8 @@ EventStreamReader<String> reader = clientFactory.createReader("reader",
                                                               readerGroup,
                                                               new JavaSerializer<String>(),
                                                               ReaderConfig.builder().build()))
-  ```                                        
+```                                        
+
 The name of the Reader can be any valid Pravega naming convention (numbers and letters). Note that the name of the Reader is namespaced within the Scope. `EventStreamWriter` and `EventStreamReader` uses Java generic types to allow a developer to specify a type safe Reader. In the sample application,
 we read Strings from the stream and use the standard Java String Serializer to
 convert the bytes read from the stream into String objects.
@@ -303,16 +307,20 @@ Obviously this API is not for every application, the main advantage is that it a
 #### Example
 
 To iterate over all the segments in the stream:
+
 ```Java
 //Passing null to fromStreamCut and toStreamCut will result in using the current start of stream and the current end of stream respectively.
 Iterator<SegmentRange> segments = client.listSegments(stream, null, null).getIterator();
 SegmentRange segmentInfo = segments.next();
+
 ```
 To read the events from a segment:
+
 ```Java
 SegmentIterator<T> events = client.readSegment(segmentInfo, deserializer);
 while (events.hasNext())
 {
     processEvent(events.next());
 }
+
 ```

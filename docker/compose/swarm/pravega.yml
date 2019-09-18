@@ -24,8 +24,8 @@ services:
       - "10080:10080"
     environment:
       WAIT_FOR: ${ZK_URL:-zookeeper:2181}
-      ZK_URL: ${ZK_URL:-zookeeper:2181}
       JAVA_OPTS: |
+        -Dcontroller.zk.url=${ZK_URL:-zookeeper:2181}
         -Dconfig.controller.metricenableCSVReporter=false
         -Xmx512m
         -XX:OnError="kill -9 p%"

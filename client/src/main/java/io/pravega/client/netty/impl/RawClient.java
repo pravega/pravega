@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -42,6 +43,9 @@ public class RawClient implements AutoCloseable {
     private final Map<Long, CompletableFuture<Reply>> requests = new HashMap<>();
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    @Getter
+    private final Flow flow = Flow.create();
+
     private final class ResponseProcessor extends FailingReplyProcessor {
 
         @Override
@@ -52,6 +56,8 @@ public class RawClient implements AutoCloseable {
                 if (hello.getLowVersion() > WireCommands.WIRE_VERSION || hello.getHighVersion() < WireCommands.OLDEST_COMPATIBLE_VERSION) {
                     closeConnection(new IllegalStateException("Incompatible wire protocol versions " + hello));
                 }
+            } else if (reply instanceof WireCommands.WrongHost) {
+                closeConnection(new ConnectionFailedException(reply.toString()));
             } else {
                 log.debug("Received reply {}", reply);
                 reply(reply);
@@ -71,15 +77,21 @@ public class RawClient implements AutoCloseable {
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            log.warn("Auth token failure: ", authTokenCheckFailed);
+            log.warn("Auth token failure: {}", authTokenCheckFailed);
             closeConnection(new AuthenticationException(authTokenCheckFailed.toString()));
         }
+    }
+
+    public RawClient(PravegaNodeUri uri, ConnectionFactory connectionFactory) {
+        this.segmentId = null;
+        this.connection = connectionFactory.establishConnection(flow, uri, responseProcessor);
+        Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
     public RawClient(Controller controller, ConnectionFactory connectionFactory, Segment segmentId) {
         this.segmentId = segmentId;
         this.connection = controller.getEndpointForSegment(segmentId.getScopedName())
-                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(uri, responseProcessor));
+                                    .thenCompose((PravegaNodeUri uri) -> connectionFactory.establishConnection(flow, uri, responseProcessor));
         Futures.exceptionListener(connection, e -> closeConnection(e));
     }
 
@@ -95,9 +107,9 @@ public class RawClient implements AutoCloseable {
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
         if (closed.get() || exceptionToInflightRequests instanceof ConnectionClosedException) {
-            log.debug("Closing connection to segment {} with exception {}", this.segmentId, exceptionToInflightRequests);
+            log.debug("Closing connection with exception", exceptionToInflightRequests);
         } else {
-            log.warn("Closing connection to segment {} with exception: {}", this.segmentId, exceptionToInflightRequests);
+            log.warn("Closing connection with exception", exceptionToInflightRequests);
         }
         if (closed.compareAndSet(false, true)) {
             connection.thenAccept(c -> {
@@ -146,5 +158,4 @@ public class RawClient implements AutoCloseable {
     public void close() {
         closeConnection(new ConnectionClosedException());
     }
-
 }

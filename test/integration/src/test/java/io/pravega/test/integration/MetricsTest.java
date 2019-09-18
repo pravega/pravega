@@ -27,9 +27,8 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
-import io.pravega.common.Exceptions;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
@@ -52,7 +51,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -60,10 +58,11 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.shared.MetricsNames.SEGMENT_READ_BYTES;
+import static io.pravega.shared.MetricsTags.segmentTags;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-
 
 @Slf4j
 public class MetricsTest extends ThreadPooledTestSuite {
@@ -95,37 +94,39 @@ public class MetricsTest extends ThreadPooledTestSuite {
         final int servicePort = TestUtils.getAvailableListenPort();
         final int containerCount = 4;
 
-        // 1. Start ZK
+        // 1. Start Metrics service
+        log.info("Initializing metrics provider ...");
+
+        MetricsConfig metricsConfig = MetricsConfig.builder()
+                .with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
+                .build();
+        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(2));
+
+        MetricsProvider.initialize(metricsConfig);
+        statsProvider = MetricsProvider.getMetricsProvider();
+        statsProvider.startWithoutExporting();
+        log.info("Metrics Stats provider is started");
+
+        // 2. Start ZK
         this.zkTestServer = new TestingServerStarter().start();
 
-        // 2. Start Pravega SegmentStore service.
+        // 3. Start Pravega SegmentStore service.
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         monitor = new AutoScaleMonitor(store, AutoScalerConfig.builder().build());
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, "localhost", servicePort, store, mock(TableStore.class),
-                monitor.getRecorder(), new PassingTokenVerifier(), null, null, true);
+        this.server = new PravegaConnectionListener(false, false, "localhost", servicePort, store, tableStore,
+                monitor.getStatsRecorder(), monitor.getTableSegmentStatsRecorder(), new PassingTokenVerifier(),
+                null, null, true);
         this.server.startListening();
 
-        // 3. Start Pravega Controller service
+        // 4. Start Pravega Controller service
         this.controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), false,
                 controllerPort, serviceHost, servicePort, containerCount);
         this.controllerWrapper.awaitRunning();
         this.controller = controllerWrapper.getController();
-
-        // 4. Start Metrics service
-        log.info("Initializing metrics provider ...");
-
-        MetricsConfig metricsConfig = MetricsConfig.builder()
-                .with(MetricsConfig.ENABLE_CSV_REPORTER, false).with(MetricsConfig.ENABLE_STATSD_REPORTER, false)
-                .build();
-        metricsConfig.setDynamicCacheEvictionDuration(Duration.ofSeconds(5));
-
-        MetricsProvider.initialize(metricsConfig);
-        statsProvider = MetricsProvider.getMetricsProvider();
-        statsProvider.start();
-        log.info("Metrics Stats provider is started");
     }
 
     @After
@@ -162,8 +163,8 @@ public class MetricsTest extends ThreadPooledTestSuite {
         }
     }
 
-    @Test
-    public void metricsTimeBasedCacheEvictionTest() throws InterruptedException, ExecutionException {
+    @Test(timeout = 120000)
+    public void metricsTimeBasedCacheEvictionTest() throws Exception {
         try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
              StreamManager streamManager = new StreamManagerImpl(controller, cf)) {
             boolean createScopeStatus = streamManager.createScope(scope);
@@ -177,70 +178,55 @@ public class MetricsTest extends ThreadPooledTestSuite {
              ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
             EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM_NAME,
-                    new JavaSerializer<>(),
+                    new UTF8StringSerializer(),
                     EventWriterConfig.builder().build());
             String event = "12345";
-            long bytesWritten = TOTAL_NUM_EVENTS * event.length() * 4;
+            long bytesWritten = TOTAL_NUM_EVENTS * (8 + event.length());
 
-            for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
-                try {
-                    log.info("Writing event {}", event);
-                    writer1.writeEvent("", event);
-                    writer1.flush();
-                } catch (Throwable e) {
-                    log.warn("Test exception writing events: {}", e);
-                    break;
-                }
-            }
+            writeEvents(event, writer1);
 
             String readerGroupName1 = readerGroupName + "1";
             log.info("Creating Reader group : {}", readerGroupName1);
 
-            readerGroupManager.createReaderGroup(readerGroupName1, ReaderGroupConfig.builder().stream(Stream.of(scope, STREAM_NAME)).build());
+            readerGroupManager.createReaderGroup(readerGroupName1,
+                    ReaderGroupConfig
+                            .builder()
+                            .stream(Stream.of(scope, STREAM_NAME))
+                            .automaticCheckpointIntervalMillis(2000)
+                            .build());
 
             EventStreamReader<String> reader1 = clientFactory.createReader(readerName,
                     readerGroupName1,
-                    new JavaSerializer<>(),
+                    new UTF8StringSerializer(),
                     ReaderConfig.builder().build());
 
-            for (int j = 0; j < TOTAL_NUM_EVENTS; j++) {
-                try {
-                    String eventRead1 = reader1.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                    log.info("Reading event {}", eventRead1);
-                } catch (ReinitializationRequiredException e) {
-                    log.warn("Test Exception while reading from the stream", e);
-                }
-            }
+            readAllEvents(reader1);
 
-            long initialCount = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
-            Assert.assertEquals(bytesWritten, initialCount);
+            final String[] streamTags = segmentTags(scope + "/" + STREAM_NAME + "/0.#epoch.0");
+            assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count());
 
-            Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
+            //Wait for cache eviction to happen
+            Thread.sleep(5000);
 
             String readerGroupName2 = readerGroupName + "2";
             log.info("Creating Reader group : {}", readerGroupName2);
 
-            readerGroupManager.createReaderGroup(readerGroupName2, ReaderGroupConfig.builder().stream(Stream.of(scope, STREAM_NAME)).build());
+            readerGroupManager.createReaderGroup(readerGroupName2,
+                    ReaderGroupConfig.builder()
+                            .stream(Stream.of(scope, STREAM_NAME))
+                            .automaticCheckpointIntervalMillis(2000)
+                            .build());
 
             EventStreamReader<String> reader2 = clientFactory.createReader(readerName,
                     readerGroupName2,
-                    new JavaSerializer<>(),
+                    new UTF8StringSerializer(),
                     ReaderConfig.builder().build());
 
-            for (int q = 0; q < TOTAL_NUM_EVENTS; q++) {
-                try {
-                    String eventRead2 = reader2.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                    log.info("Reading event {}", eventRead2);
-                } catch (ReinitializationRequiredException e) {
-                    log.warn("Test Exception while reading from the stream", e);
-                }
-            }
-
-            long countAfterCacheEvicted = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".0.#epoch.0.Counter").getCount();
+            readAllEvents(reader2);
 
             //Metric is evicted from Cache, after cache eviction duration
             //Count starts from 0, rather than adding up to previously ready bytes, as cache is evicted.
-            Assert.assertEquals(bytesWritten, countAfterCacheEvicted);
+            assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags).count());
 
             Map<Double, Double> map = new HashMap<>();
             map.put(0.0, 1.0);
@@ -253,34 +239,15 @@ public class MetricsTest extends ThreadPooledTestSuite {
             Assert.assertTrue(scaleStatus.get());
 
             EventStreamWriter<String> writer2 = clientFactory.createEventWriter(STREAM_NAME,
-                    new JavaSerializer<>(),
+                    new UTF8StringSerializer(),
                     EventWriterConfig.builder().build());
 
-            for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
-                try {
-                    log.info("Writing event {}", event);
-                    writer2.writeEvent("", event);
-                    writer2.flush();
-                } catch (Throwable e) {
-                    log.warn("Test exception writing events: {}", e);
-                    break;
-                }
-            }
+            writeEvents(event, writer2);
 
-            Exceptions.handleInterrupted(() -> Thread.sleep(10 * 1000));
+            readAllEvents(reader1);
 
-            for (int j = 0; j < TOTAL_NUM_EVENTS; j++) {
-                try {
-                    String eventRead2 = reader1.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                    log.info("Reading event {}", eventRead2);
-                } catch (ReinitializationRequiredException e) {
-                    log.warn("Test Exception while reading from the stream", e);
-                }
-            }
-
-            long countFromSecondSegment = MetricRegistryUtils.getCounter("pravega.segmentstore.segment.read_bytes." + scope + "." + STREAM_NAME + ".1.#epoch.1.Counter").getCount();
-
-            Assert.assertEquals(bytesWritten, countFromSecondSegment);
+            final String[] streamTags2nd = segmentTags(scope + "/" + STREAM_NAME + "/1.#epoch.1");
+            assertEquals(bytesWritten, (long) MetricRegistryUtils.getCounter(SEGMENT_READ_BYTES, streamTags2nd).count());
 
             readerGroupManager.deleteReaderGroup(readerGroupName1);
             readerGroupManager.deleteReaderGroup(readerGroupName2);
@@ -299,6 +266,33 @@ public class MetricsTest extends ThreadPooledTestSuite {
         }
 
         log.info("Metrics Time based Cache Eviction test succeeds");
+    }
+
+    private void writeEvents(String event, EventStreamWriter<String> writer) {
+        for (int i = 0; i < TOTAL_NUM_EVENTS; i++) {
+            try {
+                log.info("Writing event {}", event);
+                writer.writeEvent("", event);
+            } catch (Throwable e) {
+                log.warn("Test exception writing events: {}", e);
+                break;
+            }
+        }
+        writer.flush();
+    }
+
+    private void readAllEvents(EventStreamReader<String> reader) {
+        for (int q = 0; q < TOTAL_NUM_EVENTS;) {
+            try {
+                String eventRead2 = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
+                if (eventRead2 != null) {
+                    q++;
+                }
+                log.info("Reading event {}", eventRead2);
+            } catch (ReinitializationRequiredException e) {
+                log.warn("Test Exception while reading from the stream", e);
+            }
+        }
     }
        
 }

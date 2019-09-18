@@ -10,9 +10,10 @@
 package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.StreamState;
-import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
 import java.util.Arrays;
@@ -34,11 +35,11 @@ public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     @Override
     @Before
     public void setup() throws Exception {
-        this.authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
+        this.authManager = new AuthHandlerManager(GRPCServerConfigImpl.builder()
                                                                       .authorizationEnabled(true)
-                                                                      .tlsCertFile("../config/cert.pem")
-                                                                      .tlsKeyFile("../config/key.pem")
-                                                                      .userPasswordFile("../config/passwd")
+                                                                      .tlsCertFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
+                                                                      .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
+                                                                      .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
                                                                       .port(1000)
                                                                       .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());

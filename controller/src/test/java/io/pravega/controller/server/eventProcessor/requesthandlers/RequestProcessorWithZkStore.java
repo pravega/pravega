@@ -19,8 +19,6 @@ import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-
 public class RequestProcessorWithZkStore extends RequestProcessorTest {
     private StreamMetadataStore store;
     private CuratorFramework client;
@@ -37,7 +35,8 @@ public class RequestProcessorWithZkStore extends RequestProcessorTest {
     }
 
     @After
-    public void tearDown() throws IOException {
+    public void tearDown() throws Exception {
+        store.close();
         client.close();
         zkServer.close();
     }

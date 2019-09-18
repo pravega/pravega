@@ -86,7 +86,7 @@ public class RetentionTest extends AbstractSystemTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
-        streamManager = StreamManager.create(controllerURI);
+        streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
@@ -98,13 +98,13 @@ public class RetentionTest extends AbstractSystemTest {
 
     @Test
     public void retentionTest() throws Exception {
-        final ClientConfig clientConfig = ClientConfig.builder().controllerURI(controllerURI).build();
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
         ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                                                        connectionFactory.getInternalExecutor());
         @Cleanup
-        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, new ConnectionFactoryImpl(clientConfig));
         log.info("Invoking Writer test with Controller URI: {}", controllerURI);
 
         //create a writer
@@ -123,7 +123,7 @@ public class RetentionTest extends AbstractSystemTest {
         Exceptions.handleInterrupted(() -> Thread.sleep(5 * 60 * 1000));
 
         //create a reader
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM)).build());
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
                 READER_GROUP,

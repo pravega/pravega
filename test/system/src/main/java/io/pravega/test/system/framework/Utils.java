@@ -9,6 +9,9 @@
  */
 package io.pravega.test.system.framework;
 
+import com.google.common.collect.ImmutableMap;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.docker.BookkeeperDockerService;
 import io.pravega.test.system.framework.services.docker.HDFSDockerService;
@@ -24,6 +27,8 @@ import io.pravega.test.system.framework.services.marathon.PravegaControllerServi
 import io.pravega.test.system.framework.services.marathon.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.marathon.ZookeeperService;
 
+import java.io.IOException;
+import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -42,7 +47,10 @@ public class Utils {
     public static final int ALTERNATIVE_CONTROLLER_PORT = 9093;
     public static final int ALTERNATIVE_REST_PORT = 9094;
     public static final TestExecutorFactory.TestExecutorType EXECUTOR_TYPE = TestExecutorFactory.getTestExecutionType();
-
+    public static final boolean AUTH_ENABLED = isAuthEnabled();
+    public static final String PROPERTIES_FILE = "pravega.properties";
+    public static final String PROPERTIES_FILE_WITH_AUTH = "pravega_withAuth.properties";
+    public static final ImmutableMap<String, String> PRAVEGA_PROPERTIES = readPravegaProperties();
 
     /**
      * Get Configuration from environment or system property.
@@ -77,7 +85,7 @@ public class Utils {
                 return new BookkeeperDockerService(serviceId, zkUri);
             case KUBERNETES:
             default:
-                return new BookkeeperK8sService(serviceId, zkUri);
+                return new BookkeeperK8sService(serviceId, zkUri, getPravegaProperties());
         }
     }
 
@@ -89,7 +97,7 @@ public class Utils {
                 return new PravegaControllerDockerService(serviceName, zkUri);
             case KUBERNETES:
             default:
-                return new PravegaControllerK8sService(serviceName, zkUri);
+                return new PravegaControllerK8sService(serviceName, zkUri, getPravegaProperties());
         }
 
     }
@@ -116,8 +124,43 @@ public class Utils {
                 return  new PravegaSegmentStoreDockerService(serviceId, zkUri, hdfsUri, contUri);
             case KUBERNETES:
             default:
-                return new PravegaSegmentStoreK8sService(serviceId, zkUri);
+                return new PravegaSegmentStoreK8sService(serviceId, zkUri, getPravegaProperties());
         }
+    }
+
+    private static ImmutableMap<String, String> getPravegaProperties() {
+        return PRAVEGA_PROPERTIES;
+    }
+
+    private static ImmutableMap<String, String> readPravegaProperties() {
+        String resourceName = PROPERTIES_FILE;
+        if (AUTH_ENABLED) {
+            resourceName = PROPERTIES_FILE_WITH_AUTH;
+        }
+        Properties props = new Properties();
+        try {
+            props.load(Utils.class.getClassLoader().getResourceAsStream(resourceName));
+        } catch (IOException e) {
+            log.error("Error reading properties file.", e);
+        }
+        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
+        props.forEach((key, value) -> builder.put(key.toString(), value.toString()));
+        return builder.build();
+    }
+
+    public static ClientConfig buildClientConfig(URI controllerUri) {
+        if (!AUTH_ENABLED) {
+            log.debug("Generating config with auth disabled.");
+            return ClientConfig.builder().controllerURI(controllerUri).build();
+        } else {
+            log.debug("Generating config with auth enabled.");
+            return ClientConfig.builder()
+                               // auth
+                               .credentials(new DefaultCredentials("1111_aaaa", "admin"))
+                               .controllerURI(controllerUri)
+                               .build();
+        }
+
     }
 
     /**
@@ -130,6 +173,7 @@ public class Utils {
      * Default value is false
      * @return true if skipServiceInstallation is set, false otherwise.
      */
+
     public static boolean isSkipServiceInstallationEnabled() {
         String config = getConfig("skipServiceInstallation", "false");
         return config.trim().equalsIgnoreCase("true") ? true : false;
@@ -144,6 +188,13 @@ public class Utils {
     public static boolean isAwsExecution() {
         String dockerConfig = getConfig("awsExec", "false");
         return dockerConfig.trim().equalsIgnoreCase("true") ?  true : false;
-
     }
+
+    private static boolean isAuthEnabled() {
+        String securityEnabled = Utils.getConfig("securityEnabled", "false");
+        return Boolean.valueOf(securityEnabled);
+    }
+
+
+
 }

@@ -10,7 +10,7 @@
 package io.pravega.client.stream;
 
 import io.pravega.client.stream.impl.StreamCutInternal;
-
+import io.pravega.common.util.ByteBufferUtils;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
 
@@ -31,7 +31,7 @@ public interface StreamCut extends Serializable {
 
         @Override
         public ByteBuffer toBytes() {
-            return ByteBuffer.allocate(0);
+            return ByteBufferUtils.EMPTY;
         }
 
         @Override
@@ -63,7 +63,8 @@ public interface StreamCut extends Serializable {
     
     /**
      * Serializes the cut to a compact byte array.
-     * @return A serialized version of this streamcut.
+     *
+     * @return  A serialized version of this streamcut.
      */
     ByteBuffer toBytes();
 

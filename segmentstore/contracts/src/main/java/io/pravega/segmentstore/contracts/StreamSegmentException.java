@@ -43,6 +43,8 @@ public abstract class StreamSegmentException extends StreamingException {
 
     /**
      * Gets a value indicating the StreamSegment Name.
+     *
+     * @return the name of the Stream Segment
      */
     public String getStreamSegmentName() {
         return this.streamSegmentName;

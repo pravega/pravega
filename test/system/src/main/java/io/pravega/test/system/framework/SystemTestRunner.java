@@ -85,6 +85,7 @@ public class SystemTestRunner extends BlockJUnit4ClassRunner {
                 eachNotifier.fireTestStarted();
                 execute(type, method.getMethod()).get();
             } catch (Throwable e) {
+                log.error("Test " + method + " failed with exception ", e);
                 eachNotifier.addFailure(unwrap(e));
             } finally {
                 eachNotifier.fireTestFinished();

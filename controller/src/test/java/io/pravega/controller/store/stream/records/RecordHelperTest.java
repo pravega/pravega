@@ -9,6 +9,8 @@
  */
 package io.pravega.controller.store.stream.records;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
@@ -16,7 +18,6 @@ import org.junit.Test;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,21 +57,21 @@ public class RecordHelperTest {
 
     @Test
     public void retentionSetRecordTest() {
-        RetentionSet retentionSet = new RetentionSet(Collections.emptyList());
+        RetentionSet retentionSet = new RetentionSet(ImmutableList.of());
 
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(0L, 0L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(0L, 0L, ImmutableMap.of()));
         assertTrue(!retentionSet.getRetentionRecords().isEmpty());
 
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(100L, 100L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(100L, 100L, ImmutableMap.of()));
         assertEquals(2, retentionSet.getRetentionRecords().size());
         assertEquals(100L, retentionSet.getLatest().recordingTime);
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(99L, 99L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(99L, 99L, ImmutableMap.of()));
         assertEquals(2, retentionSet.getRetentionRecords().size());
         assertEquals(100L, retentionSet.getLatest().recordingTime);
 
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(1000L, 1000L, Collections.emptyMap()));
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(10000L, 10000L, Collections.emptyMap()));
-        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(100000L, 100000L, Collections.emptyMap()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(1000L, 1000L, ImmutableMap.of()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(10000L, 10000L, ImmutableMap.of()));
+        retentionSet = RetentionSet.addReferenceToStreamCutIfLatest(retentionSet, new StreamCutRecord(100000L, 100000L, ImmutableMap.of()));
         assertEquals(5, retentionSet.getRetentionRecords().size());
         assertEquals(100000L, retentionSet.getLatest().recordingTime);
 
@@ -112,7 +113,7 @@ public class RecordHelperTest {
                 new StreamSegmentRecord(2, 0, timestamp, 2 * keyRangeChunk, 3 * keyRangeChunk),
                 new StreamSegmentRecord(3, 0, timestamp, 3 * keyRangeChunk, 4 * keyRangeChunk),
                 new StreamSegmentRecord(4, 0, timestamp, 4 * keyRangeChunk, 1.0));
-        EpochRecord epochRecord = new EpochRecord(0, 0, list, timestamp);
+        EpochRecord epochRecord = new EpochRecord(0, 0, ImmutableList.copyOf(list), timestamp);
 
         assertFalse(RecordHelper.canScaleFor(Lists.newArrayList(0L, 1L, 5L), epochRecord));
         assertTrue(RecordHelper.canScaleFor(Lists.newArrayList(0L, 1L, 4L), epochRecord));

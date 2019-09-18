@@ -9,12 +9,15 @@
  */
 package io.pravega.controller.rest.v1;
 
+import io.pravega.controller.server.rest.generated.model.ScopesList;
 import io.pravega.test.common.TestUtils;
 
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
+
+import static org.junit.Assert.assertEquals;
 
 public class UserSecureStreamMetaDataTests extends SecureStreamMetaDataTests {
 
@@ -25,4 +28,10 @@ public class UserSecureStreamMetaDataTests extends SecureStreamMetaDataTests {
         return request.headers(map);
     }
 
+    @Override
+    protected void verifyScopes(ScopesList scopesList1) {
+        assertEquals(2, scopesList1.getScopes().size());
+        assertEquals("scope1", scopesList1.getScopes().get(0).getScopeName());
+        assertEquals("scope2", scopesList1.getScopes().get(1).getScopeName());
+    }
 }

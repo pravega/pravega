@@ -211,6 +211,7 @@ public class ReaderGroupState implements Revisioned {
 
     /**
      * Returns the number of segments currently being read from and that are unassigned within the reader group.
+     * @return Number of segments.
      */
     @Synchronized
     public int getNumberOfSegments() {
@@ -341,7 +342,7 @@ public class ReaderGroupState implements Revisioned {
             }
 
             private void write00(ReaderGroupStateInit state, RevisionDataOutput revisionDataOutput) throws IOException {
-                revisionDataOutput.writeArray(new ByteArraySegment(state.config.toBytes()));
+                revisionDataOutput.writeBuffer(new ByteArraySegment(state.config.toBytes()));
                 ElementSerializer<Segment> keySerializer = (out, s) -> out.writeUTF(s.getScopedName());
                 revisionDataOutput.writeMap(state.segments, keySerializer, RevisionDataOutput::writeLong);
                 revisionDataOutput.writeMap(state.endSegments, keySerializer, RevisionDataOutput::writeLong);
@@ -427,8 +428,8 @@ public class ReaderGroupState implements Revisioned {
                 ElementSerializer<String> stringSerializer = RevisionDataOutput::writeUTF;
                 ElementSerializer<Long> longSerializer = RevisionDataOutput::writeLong;
                 ElementSerializer<Segment> segmentSerializer = (out, segment) -> out.writeUTF(segment.getScopedName());
-                revisionDataOutput.writeArray(new ByteArraySegment(object.config.toBytes()));
-                revisionDataOutput.writeArray(new ByteArraySegment(object.checkpointState.toBytes()));
+                revisionDataOutput.writeBuffer(new ByteArraySegment(object.config.toBytes()));
+                revisionDataOutput.writeBuffer(new ByteArraySegment(object.checkpointState.toBytes()));
                 revisionDataOutput.writeMap(object.distanceToTail, stringSerializer, longSerializer);
                 revisionDataOutput.writeMap(object.futureSegments, segmentSerializer,
                                             (out, obj) -> out.writeCollection(obj, RevisionDataOutput::writeLong));
@@ -536,13 +537,9 @@ public class ReaderGroupState implements Revisioned {
                 while (iter.hasNext()) {
                     Entry<Segment, Long> entry = iter.next();
                     Segment segment = entry.getKey();
-                    Long offset;
-                    if (ownedSegments == null || ownedSegments.isEmpty()) {
+                    Long offset = ownedSegments.get(segment);
+                    if (offset == null) {
                         offset = entry.getValue();
-                    } else {
-                        offset = ownedSegments.get(segment);
-                        Preconditions.checkState(offset != null,
-                                "No offset in lastPosition for assigned segment: " + segment);
                     }
                     finalPositions.put(segment, offset);
                     state.unassignedSegments.put(segment, offset);

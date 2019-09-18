@@ -127,8 +127,9 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
         String scope = "testscope" + RandomStringUtils.randomAlphanumeric(10);
         String stream = "teststream" + RandomStringUtils.randomAlphanumeric(10);
 
+        ClientConfig clientConfig = Utils.buildClientConfig(controllerUri);
         @Cleanup
-        StreamManager streamManager = StreamManager.create(ClientConfig.builder().controllerURI(controllerUri).build());
+        StreamManager streamManager = StreamManager.create(clientConfig);
         Assert.assertTrue(streamManager.createScope(scope));
 
         // Create stream with large number of segments so that most segment containers are used.
@@ -138,7 +139,7 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
 
         @Cleanup
         EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(scope,
-                ClientConfig.builder().controllerURI(controllerUri).build());
+                clientConfig);
 
         log.info("Invoking writer with controller URI: {}", controllerUri);
         @Cleanup
@@ -156,7 +157,7 @@ public class MultiSegmentStoreTest extends AbstractSystemTest {
 
         log.info("Invoking reader with controller URI: {}", controllerUri);
         final String readerGroup = "testreadergroup" + RandomStringUtils.randomAlphanumeric(10);
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, ClientConfig.builder().controllerURI(controllerUri).build());
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(scope, clientConfig);
         groupManager.createReaderGroup(readerGroup,
                 ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream(Stream.of(scope, stream)).build());
 

@@ -23,6 +23,7 @@ import io.pravega.client.stream.TxnFailedException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -49,13 +50,13 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
     private final Pinger pinger;
     
     TransactionalEventStreamWriterImpl(Stream stream, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
-            Serializer<Type> serializer, EventWriterConfig config) {
+                                       Serializer<Type> serializer, EventWriterConfig config, ScheduledExecutorService executor) {
         this.stream = Preconditions.checkNotNull(stream);
         this.controller = Preconditions.checkNotNull(controller);
         this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
-        this.pinger = new Pinger(config, stream, controller);
+        this.pinger = new Pinger(config, stream, controller, executor);
     }
 
     @RequiredArgsConstructor

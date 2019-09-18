@@ -19,12 +19,13 @@ import io.pravega.common.cluster.ClusterException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
-import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.stream.OperationContext;
 import io.pravega.controller.store.stream.ScaleMetadata;
-import io.pravega.controller.store.stream.Segment;
+import io.pravega.controller.store.stream.State;
+import io.pravega.controller.store.stream.StoreException;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.VersionedTransactionData;
+import io.pravega.controller.store.stream.records.StreamSegmentRecord;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateScopeStatus;
 import io.pravega.controller.stream.api.grpc.v1.Controller.CreateStreamStatus;
@@ -68,7 +69,6 @@ import org.apache.commons.lang3.tuple.Pair;
 public class ControllerService {
 
     private final StreamMetadataStore streamStore;
-    private final HostControllerStore hostStore;
     private final StreamMetadataTasks streamMetadataTasks;
     private final StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private final SegmentHelper segmentHelper;
@@ -77,11 +77,10 @@ public class ControllerService {
     private final StreamMetrics streamMetrics;
     private final TransactionMetrics transactionMetrics;
 
-    public ControllerService(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks,
+    public ControllerService(StreamMetadataStore streamStore, StreamMetadataTasks streamMetadataTasks,
                              StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
                              Executor executor, Cluster cluster) {
         this.streamStore = streamStore;
-        this.hostStore = hostStore;
         this.streamMetadataTasks = streamMetadataTasks;
         this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
         this.segmentHelper = segmentHelper;
@@ -121,15 +120,24 @@ public class ControllerService {
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
 
-        return streamMetadataTasks.createStream(scope,
-                                                stream,
-                                                streamConfig,
-                                                createTimestamp)
-                  .thenApplyAsync(status -> {
-                       reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
-                                timer.getElapsed());
-                       return CreateStreamStatus.newBuilder().setStatus(status).build();
-                  }, executor);
+        return Futures.exceptionallyExpecting(streamStore.getState(scope, stream, true, null, executor),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, State.UNKNOWN)
+                      .thenCompose(state -> {
+                          if (state.equals(State.UNKNOWN) || state.equals(State.CREATING)) {
+                              return streamMetadataTasks.createStreamRetryOnLockFailure(scope,
+                                      stream,
+                                      streamConfig,
+                                      createTimestamp, 10).thenApplyAsync(status -> {
+                                  reportCreateStreamMetrics(scope, stream, streamConfig.getScalingPolicy().getMinNumSegments(), status,
+                                          timer.getElapsed());
+                                  return CreateStreamStatus.newBuilder().setStatus(status).build();
+                              }, executor);
+                          } else {
+                              return CompletableFuture.completedFuture(
+                                      CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.STREAM_EXISTS).build());
+                          }
+                      });
+        
     }
 
     public CompletableFuture<UpdateStreamStatus> updateStream(String scope, String stream, final StreamConfiguration streamConfig) {
@@ -221,7 +229,7 @@ public class ControllerService {
                                 Map.Entry::getValue)));
     }
 
-    public CompletableFuture<List<Segment>> getSegmentsBetweenStreamCuts(Controller.StreamCutRange range) {
+    public CompletableFuture<List<StreamSegmentRecord>> getSegmentsBetweenStreamCuts(Controller.StreamCutRange range) {
         Preconditions.checkNotNull(range, "segment");
         Preconditions.checkArgument(!(range.getFromMap().isEmpty() && range.getToMap().isEmpty()));
 
@@ -273,13 +281,13 @@ public class ControllerService {
 
         return CompletableFuture.completedFuture(
                 segmentHelper.getSegmentUri(segment.getStreamInfo().getScope(), segment.getStreamInfo().getStream(),
-                        segment.getSegmentId(), hostStore)
+                        segment.getSegmentId())
         );
     }
 
     private SegmentRange convert(final String scope,
                                  final String stream,
-                                 final Segment segment) {
+                                 final StreamSegmentRecord segment) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         Exceptions.checkNotNullOrEmpty(stream, "stream");
         Preconditions.checkNotNull(segment, "segment");
@@ -313,7 +321,7 @@ public class ControllerService {
         return streamTransactionMetadataTasks.createTxn(scope, stream, lease, null)
                 .thenApply(pair -> {
                     VersionedTransactionData data = pair.getKey();
-                    List<Segment> segments = pair.getValue();
+                    List<StreamSegmentRecord> segments = pair.getValue();
                     return new ImmutablePair<>(data.getId(), getSegmentRanges(segments, scope, stream));
                 }).handle((result, ex) -> {
                     if (ex != null) {
@@ -325,7 +333,7 @@ public class ControllerService {
                 });
     }
 
-    private List<SegmentRange> getSegmentRanges(List<Segment> activeSegments, String scope, String stream) {
+    private List<SegmentRange> getSegmentRanges(List<StreamSegmentRecord> activeSegments, String scope, String stream) {
         List<SegmentRange> listOfSegment = activeSegments
                 .stream()
                 .map(segment -> convert(scope, stream, segment))
@@ -434,6 +442,19 @@ public class ControllerService {
     public CompletableFuture<Map<String, StreamConfiguration>> listStreamsInScope(final String scope) {
         Exceptions.checkNotNullOrEmpty(scope, "scope");
         return streamStore.listStreamsInScope(scope);
+    }
+
+    /**
+     * List existing streams in scopes.
+     *
+     * @param scope Name of the scope.
+     * @param token continuation token
+     * @param limit limit for number of streams to return. 
+     * @return List of streams in scope.
+     */
+    public CompletableFuture<Pair<List<String>, String>> listStreams(final String scope, final String token, final int limit) {
+        Exceptions.checkNotNullOrEmpty(scope, "scope");
+        return streamStore.listStream(scope, token, limit, executor);
     }
 
     /**

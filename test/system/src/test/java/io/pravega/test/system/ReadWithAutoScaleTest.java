@@ -25,6 +25,7 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.Retry;
 import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
+import io.pravega.test.system.framework.Utils;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -121,7 +122,7 @@ public class ReadWithAutoScaleTest extends AbstractScaleTests {
         //2.1 Create a reader group.
         log.info("Creating Reader group : {}", READER_GROUP_NAME);
         @Cleanup
-        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
+        ReaderGroupManager readerGroupManager = ReaderGroupManager.withScope(SCOPE, Utils.buildClientConfig(controllerUri));
         readerGroupManager.createReaderGroup(READER_GROUP_NAME, ReaderGroupConfig.builder().stream(Stream.of(SCOPE, STREAM_NAME)).build());
 
         //2.2 Create readers.

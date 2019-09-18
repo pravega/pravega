@@ -10,14 +10,14 @@
 package io.pravega.controller.store.stream.records;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import io.pravega.common.Exceptions;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -124,11 +124,12 @@ public class RecordHelper {
 
         int newEpoch = currentEpoch.getEpoch() + 1;
         int nextSegmentNumber = currentEpoch.getSegments().stream().mapToInt(StreamSegmentRecord::getSegmentNumber).max().getAsInt() + 1;
-        Map<Long, Map.Entry<Double, Double>> newSegments = new HashMap<>();
+        ImmutableMap.Builder<Long, Map.Entry<Double, Double>> newSegments = ImmutableMap.builder();
         for (int i = 0; i < newRanges.size(); i++) {
             newSegments.put(computeSegmentId(nextSegmentNumber + i, newEpoch), newRanges.get(i));
         }
-        return new EpochTransitionRecord(currentEpoch.getEpoch(), scaleTimestamp, new HashSet<>(segmentsToSeal), newSegments);
+        return new EpochTransitionRecord(currentEpoch.getEpoch(), scaleTimestamp, ImmutableSet.copyOf(segmentsToSeal), 
+                newSegments.build());
 
     }
     // endregion

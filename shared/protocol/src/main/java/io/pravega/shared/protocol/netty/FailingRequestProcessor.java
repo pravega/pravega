@@ -141,7 +141,7 @@ public class FailingRequestProcessor implements RequestProcessor {
 
     @Override
     public void keepAlive(KeepAlive keepAlive) {
-        log.debug("Received KeepAlive");
+        // This method intentionally left blank.
     }
 
 }

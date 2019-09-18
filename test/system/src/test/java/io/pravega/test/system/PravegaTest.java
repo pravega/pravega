@@ -9,7 +9,6 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -20,7 +19,6 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -31,24 +29,20 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+import java.io.Serializable;
+import java.net.URI;
+import java.util.List;
+import java.util.UUID;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
 
-import java.io.Serializable;
-import java.net.URI;
-import java.util.List;
-import java.util.UUID;
-
 import static org.apache.commons.lang.RandomStringUtils.randomAlphanumeric;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
@@ -78,34 +72,6 @@ public class PravegaTest extends AbstractReadWriteTest {
         ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
-    @BeforeClass
-    public static void beforeClass() {
-        // This is the placeholder to perform any operation on the services before executing the system tests
-    }
-
-    /**
-     * Invoke the createStream method, ensure we are able to create stream.
-     */
-    @Before
-    public void createStream() {
-
-        Service conService = Utils.createPravegaControllerService(null);
-
-        List<URI> ctlURIs = conService.getServiceDetails();
-        URI controllerUri = ctlURIs.get(0);
-
-        log.info("Invoking create stream with Controller URI: {}", controllerUri);
-        @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        @Cleanup
-        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
-                                    .clientConfig(ClientConfig.builder().controllerURI(controllerUri).build())
-                                    .build(), connectionFactory.getInternalExecutor());
-
-        assertTrue(controller.createScope(STREAM_SCOPE).join());
-        assertTrue(controller.createStream(STREAM_SCOPE, STREAM_NAME, config).join());
-    }
-
     /**
      * Invoke the simpleTest, ensure we are able to produce  events.
      * The test fails incase of exceptions while writing to the stream.
@@ -113,14 +79,26 @@ public class PravegaTest extends AbstractReadWriteTest {
      */
     @Test
     public void simpleTest() {
-
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         URI controllerUri = ctlURIs.get(0);
 
+        log.info("Invoking create stream with Controller URI: {}", controllerUri);
+
         @Cleanup
-        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(Utils.buildClientConfig(controllerUri));
+        @Cleanup
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
+                                                                           .clientConfig(Utils.buildClientConfig(controllerUri))
+                                                                           .build(), connectionFactory.getInternalExecutor());
+
+        assertTrue(controller.createScope(STREAM_SCOPE).join());
+        assertTrue(controller.createStream(STREAM_SCOPE, STREAM_NAME, config).join());
+
+        @Cleanup
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(STREAM_SCOPE, Utils.buildClientConfig(controllerUri));
         log.info("Invoking Writer test with Controller URI: {}", controllerUri);
+
         @Cleanup
         EventStreamWriter<Serializable> writer = clientFactory.createEventWriter(STREAM_NAME,
                                                                                  new JavaSerializer<>(),
@@ -132,8 +110,9 @@ public class PravegaTest extends AbstractReadWriteTest {
             writer.writeEvent("", event);
             writer.flush();
         }
+
         log.info("Invoking Reader test.");
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(STREAM_SCOPE, Utils.buildClientConfig(controllerUri));
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().stream(Stream.of(STREAM_SCOPE, STREAM_NAME)).build());
         @Cleanup
         EventStreamReader<String> reader = clientFactory.createReader(UUID.randomUUID().toString(),
@@ -144,15 +123,10 @@ public class PravegaTest extends AbstractReadWriteTest {
 
         EventRead<String> event = null;
         do {
-            try {
-                event = reader.readNextEvent(10_000);
-                log.debug("Read event: {}.", event.getEvent());
-                if (event.getEvent() != null) {
-                    readCount++;
-                }
-            } catch (ReinitializationRequiredException e) {
-                log.error("Exception while reading event using readerId: {}", reader, e);
-                fail("Reinitialization Exception is not expected");
+            event = reader.readNextEvent(10_000);
+            log.debug("Read event: {}.", event.getEvent());
+            if (event.getEvent() != null) {
+                readCount++;
             }
             // try reading until all the written events are read, else the test will timeout.
         } while ((event.getEvent() != null || event.isCheckpoint()) && readCount < NUM_EVENTS);

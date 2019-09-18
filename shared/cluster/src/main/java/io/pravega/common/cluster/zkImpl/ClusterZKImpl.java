@@ -17,7 +17,6 @@ import io.pravega.common.cluster.Host;
 import com.google.common.base.Preconditions;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.framework.recipes.cache.ChildData;
@@ -83,7 +82,7 @@ public class ClusterZKImpl implements Cluster {
 
         String hostPath = ZKPaths.makePath(getPathPrefix(), host.toString());
         PersistentNode node = new PersistentNode(client, CreateMode.EPHEMERAL, false, hostPath,
-                SerializationUtils.serialize(host));
+                host.toBytes());
 
         node.start(); //start creation of ephemeral node in background.
         entryMap.put(host, node);
@@ -149,7 +148,7 @@ public class ClusterZKImpl implements Cluster {
         }
         List<ChildData> data = cache.get().getCurrentData();
         return data.stream()
-                .map(d -> (Host) SerializationUtils.deserialize(d.getData()))
+                .map(d -> Host.fromBytes(d.getData()))
                 .collect(Collectors.toSet());
     }
 
@@ -188,11 +187,11 @@ public class ClusterZKImpl implements Cluster {
             switch (event.getType()) {
                 case CHILD_ADDED:
                     log.info("Node {} added to cluster", getServerName(event));
-                    listener.onEvent(HOST_ADDED, (Host) SerializationUtils.deserialize(event.getData().getData()));
+                    listener.onEvent(HOST_ADDED, Host.fromBytes(event.getData().getData()));
                     break;
                 case CHILD_REMOVED:
                     log.info("Node {} removed from cluster", getServerName(event));
-                    listener.onEvent(HOST_REMOVED, (Host) SerializationUtils.deserialize(event.getData().getData()));
+                    listener.onEvent(HOST_REMOVED, Host.fromBytes(event.getData().getData()));
                     break;
                 case CHILD_UPDATED:
                     log.warn("Invalid usage: Node {} updated externally for cluster", getServerName(event));

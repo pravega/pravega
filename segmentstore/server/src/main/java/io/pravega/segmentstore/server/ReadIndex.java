@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server;
 
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import java.io.InputStream;
@@ -30,16 +31,16 @@ public interface ReadIndex extends AutoCloseable, CacheUtilizationProvider {
      * @throws IllegalArgumentException If the offset does not match the expected value (end of StreamSegment in ReadIndex).
      * @throws IllegalArgumentException If the offset + data.length exceeds the metadata Length of the StreamSegment.
      */
-    void append(long streamSegmentId, long offset, byte[] data) throws StreamSegmentNotExistsException;
+    void append(long streamSegmentId, long offset, BufferView data) throws StreamSegmentNotExistsException;
 
     /**
      * Executes Step 1 of the 2-Step Merge Process.
      * <ol>
      * <li>Step 1: The StreamSegments are merged (Source-$gt;Target@Offset) in Metadata and a ReadIndex Redirection is put in place.
      * At this stage, the Source still exists as a physical object in Storage, and we need to keep its ReadIndex around, pointing
-     * to the old object.
+     * to the old object. </li>
      * <li>Step 2: The StreamSegments are physically merged in the Storage. The Source StreamSegment does not exist anymore.
-     * The ReadIndex entries of the two Streams are actually joined together.
+     * The ReadIndex entries of the two Streams are actually joined together. </li>
      * </ol>
      *
      * @param targetStreamSegmentId The Id of the StreamSegment to merge into.

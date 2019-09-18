@@ -13,6 +13,7 @@ import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.server.SegmentOperation;
 import io.pravega.segmentstore.server.WriterFlushResult;
 import io.pravega.segmentstore.server.WriterSegmentProcessor;
+import io.pravega.segmentstore.server.logs.operations.Operation;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Random;
@@ -92,6 +93,36 @@ public class AckCalculatorTests {
         result = calc.getHighestCommittedSequenceNumber(processors);
         expectedResult = processors.stream().mapToLong(TestProcessor::getLowestUncommittedSequenceNumber).filter(sn -> sn >= 0).min().getAsLong() - 1;
         Assert.assertEquals("Unexpected result for Set with partial values when LRSN is infinite.", expectedResult, result);
+    }
+
+    /**
+     * Tests the {@link AckCalculator#getLowestUncommittedSequenceNumber} method.
+     */
+    @Test
+    public void testGetLowestUncommittedSequenceNumber() {
+        final int processorCount = 2;
+        WriterState state = new WriterState();
+        AckCalculator calc = new AckCalculator(state);
+
+        ArrayList<TestProcessor> processors = new ArrayList<>();
+        for (int i = 0; i < processorCount; i++) {
+            processors.add(new TestProcessor());
+        }
+
+        // Everything up-to-date.
+        processors.forEach(p -> p.setLowestUncommittedSequenceNumber(Operation.NO_SEQUENCE_NUMBER));
+        long lusn = calc.getLowestUncommittedSequenceNumber(processors);
+        Assert.assertEquals("Unexpected result when all processors up-to-date.", Operation.NO_SEQUENCE_NUMBER, lusn);
+
+        // One processor not up-to-date.
+        processors.get(0).setLowestUncommittedSequenceNumber(10);
+        lusn = calc.getLowestUncommittedSequenceNumber(processors);
+        Assert.assertEquals("Unexpected result when only one processor is up-to-date.", 10, lusn);
+
+        // Neither processor is up-to-date.
+        processors.get(1).setLowestUncommittedSequenceNumber(8);
+        lusn = calc.getLowestUncommittedSequenceNumber(processors);
+        Assert.assertEquals("Unexpected result when neither processor is up-to-date.", 8, lusn);
     }
 
     private static class TestProcessor implements WriterSegmentProcessor {

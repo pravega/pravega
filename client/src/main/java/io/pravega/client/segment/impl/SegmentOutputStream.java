@@ -54,7 +54,7 @@ public interface SegmentOutputStream extends AutoCloseable {
      * This is invoked by the segmentSealed callback to fetch the unackedEvents to be resent to the right
      * SegmentOutputStreams.
      *
-     * Returns a List of all the events that have been passed to write but have not yet been
+     * @return List of all the events that have been passed to write but have not yet been
      * acknowledged as written. The iteration order in the List is from oldest to newest.
      */
     public abstract List<PendingEvent> getUnackedEventsOnSeal();

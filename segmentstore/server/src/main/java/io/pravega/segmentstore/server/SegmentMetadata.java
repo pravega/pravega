@@ -10,6 +10,9 @@
 package io.pravega.segmentstore.server;
 
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.BiPredicate;
 
 /**
  * Defines an immutable StreamSegment Metadata.
@@ -73,7 +76,8 @@ public interface SegmentMetadata extends SegmentProperties {
      * Creates a new SegmentProperties instance with current information from this SegmentMetadata object.
      *
      * @return The new SegmentProperties instance. This object is completely detached from the SegmentMetadata from which
-     * it was created (changes to the base object will not be reflected in the result).
+     * it was created (changes to the base object will not be reflected in the result). The returned object will have a copy
+     * of this instance's Attributes which would make it safe for iterating over without holding any locks.
      */
     SegmentProperties getSnapshot();
 
@@ -89,4 +93,31 @@ public interface SegmentMetadata extends SegmentProperties {
      * @return True if pinned, false otherwise.
      */
     boolean isPinned();
+
+    /**
+     * Gets a read-only Map of AttributeId-Values for this Segment. The returned object is a View combining both Core
+     * and Extended attributes and provides direct read-only access to all this Segment's Attributes.
+     *
+     * Notes on concurrency:
+     * - All retrieval methods are thread-safe and can be invoked from any context.
+     * - Iterating over this Map's elements ({@link Map#keySet(), {@link Map#values()}, {@link Map#entrySet()}) is not
+     * thread safe and should only be done in an (external) synchronized context (while holding the same lock that is
+     * used to update this {@link SegmentMetadata} instance).
+     * - Consider using {@link #getSnapshot()} if you need a thread-safe way of iterating over the current set of Attributes.
+     * - Consider using {@link #getAttributes(BiPredicate)} if you need to get a subset of the attributes and can provide
+     * a filter.
+     *
+     * @return The map.
+     */
+    @Override
+    Map<UUID, Long> getAttributes();
+
+    /**
+     * Gets new Map containing all the Attributes for this Segment that match the given filter.
+     *
+     * @param filter The Key-Value filter that will be used.
+     * @return A new Map containing the result. This is a new object, detached from this {@link SegmentMetadata} instance
+     * and can be safely accessed and iterated over from any thread.
+     */
+    Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter);
 }
