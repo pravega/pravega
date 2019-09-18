@@ -222,8 +222,11 @@ public class WatermarkingTest {
 
         EventRead<Long> event = reader.readNextEvent(10000L);
         TimeWindow currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        while (event.getEvent() != null && currentTimeWindow.getLowerTimeBound() == null && currentTimeWindow.getUpperTimeBound() == null) {
+            event = reader.readNextEvent(10000L);
+            currentTimeWindow = reader.getCurrentTimeWindow(streamObj);
+        }
 
-        assertNotNull(currentTimeWindow.getLowerTimeBound());
         assertNotNull(currentTimeWindow.getUpperTimeBound());
 
         // read all events and verify that all events are below the bounds
@@ -233,11 +236,18 @@ public class WatermarkingTest {
             assertTrue(currentTimeWindow.getLowerTimeBound() == null || time >= currentTimeWindow.getLowerTimeBound());
             assertTrue(currentTimeWindow.getUpperTimeBound() == null || time <= currentTimeWindow.getUpperTimeBound());
 
+            TimeWindow nextTimeWindow = reader.getCurrentTimeWindow(streamObj);
+            assertTrue(currentTimeWindow.getLowerTimeBound() == null || nextTimeWindow.getLowerTimeBound() >= currentTimeWindow.getLowerTimeBound());
+            assertTrue(currentTimeWindow.getUpperTimeBound() == null || nextTimeWindow.getUpperTimeBound() >= currentTimeWindow.getUpperTimeBound());
+            currentTimeWindow = nextTimeWindow;
+            
             event = reader.readNextEvent(10000L);
             if (event.isCheckpoint()) {
                 event = reader.readNextEvent(10000L);
             }
         }
+        
+        assertNotNull(currentTimeWindow.getLowerTimeBound());
     }
 
     private void scale(Controller controller, Stream streamObj, StreamConfiguration configuration) {
