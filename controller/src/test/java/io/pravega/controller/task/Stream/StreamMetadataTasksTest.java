@@ -1309,7 +1309,7 @@ public abstract class StreamMetadataTasksTest {
         assertEquals(requestEventWriter.eventQueue.poll(), truncateEvent);
 
         AssertExtensions.assertFutureThrows("any other exception", streamMetadataTasks.addIndexAndSubmitTask(truncateEvent,
-                () -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "write conflict"))),
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "data not found"))),
                 e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
         // no event should be posted for any other failure
         assertTrue(requestEventWriter.eventQueue.isEmpty());
