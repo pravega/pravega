@@ -349,8 +349,8 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             long previousAckLevel = dataAppended.getPreviousEventNumber();
             try {
                 checkAckLevels(ackLevel, previousAckLevel);
-                ackUpTo(ackLevel);
                 state.noteSegmentLength(dataAppended.getCurrentSegmentWriteOffset());
+                ackUpTo(ackLevel);
             } catch (Exception e) {
                 failConnection(e);
             }
