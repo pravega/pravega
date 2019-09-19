@@ -369,7 +369,7 @@ public final class Futures {
      *                and returns a CompletableFuture of the same type as the original one.
      *                This Function will be invoked after the original Future completes both successfully and exceptionally.
      * @param <T>     Type of the value of the original Future.
-     * @param <T>     Type of the value of the returned Future.
+     * @param <U>     Type of the value of the returned Future.
      * @return A new CompletableFuture that will handle the result/exception and return a new future or throw the exception. 
      */
     public static <T, U> CompletableFuture<U> handleCompose(CompletableFuture<T> future, 
