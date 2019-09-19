@@ -113,7 +113,9 @@ public class WatermarkingTest extends AbstractSystemTest {
     public void setup() {
         controllerInstance = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = controllerInstance.getServiceDetails();
-        controllerURI = ctlURIs.get(0);
+        final List<String> uris = ctlURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
+
+        controllerURI = URI.create("tcp://" + String.join(",", uris));
         streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating Scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
@@ -185,10 +187,10 @@ public class WatermarkingTest extends AbstractSystemTest {
         Watermark watermark2 = watermarks.take();
         Watermark watermark3 = watermarks.take();
         
-        assertTrue(watermark0.getLowerTimeBound() < watermark0.getUpperTimeBound());
-        assertTrue(watermark1.getLowerTimeBound() < watermark1.getUpperTimeBound());
-        assertTrue(watermark2.getLowerTimeBound() < watermark2.getUpperTimeBound());
-        assertTrue(watermark3.getLowerTimeBound() < watermark3.getUpperTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
+        assertTrue(watermark2.getLowerTimeBound() <= watermark2.getUpperTimeBound());
+        assertTrue(watermark3.getLowerTimeBound() <= watermark3.getUpperTimeBound());
 
         // verify that watermarks are increasing in time.
         assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
@@ -236,11 +238,13 @@ public class WatermarkingTest extends AbstractSystemTest {
         assertNotNull(currentTimeWindow);
         assertNotNull(currentTimeWindow.getLowerTimeBound());
         assertNotNull(currentTimeWindow.getUpperTimeBound());
-        
+        log.info("current time window = {}", currentTimeWindow);
+
         while (event.getEvent() != null) {
             Long time = event.getEvent();
+            log.info("event read = {}", time);
+            event.getPosition();
             assertTrue(time >= currentTimeWindow.getLowerTimeBound());
-            assertTrue(time <= currentTimeWindow.getUpperTimeBound());
             event = reader.readNextEvent(10000L);
             if (event.isCheckpoint()) {
                 event = reader.readNextEvent(10000L);
@@ -255,6 +259,7 @@ public class WatermarkingTest extends AbstractSystemTest {
             Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
             if (marks.hasNext()) {
                 Map.Entry<Revision, Watermark> next = marks.next();
+                log.info("watermark = {}", next.getValue());
                 watermarks.add(next.getValue());
                 revision.set(next.getKey());
             }
