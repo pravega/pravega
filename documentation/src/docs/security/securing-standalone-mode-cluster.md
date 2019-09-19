@@ -63,7 +63,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
    ```
    For descriptions of these properties, see [Pravega Security Configurations](security-configurations.md).
 
-   **Note**:
+   Note:
    * The default Password Auth Handler supports `Basic` authentication for client-server communications. You may deploy additional Auth Handler plugins by placing them in the classpath.
 
    * The default handler's configuration file shown above - `passwd` file - contains a single user with credentials containing username `admin` and password `1111_aaaa`.
@@ -85,7 +85,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
    * **Chain of Trust:** A chain of trust, which is the standard SSL/TLS certificate
      trust model, is established by verifying that the certificate is issued and signed by a trusted CA. To establish chain of trust for a certificate signed by a custom CA, we need to import the certificate of the CA into the JVM's truststore. The provided `server-cert.crt` is signed using a CA represented by another provided certificate `ca-cert.crt`: so, when using those certificate, you should import `ca-cert.crt` file.
 
-  * **Direct Trust:** This type of trust is established by adding the server's
+   * **Direct Trust:** This type of trust is established by adding the server's
       certificate to the truststore. It is a non-standard way of establishing trust, which is useful when using self-signed certificates.
 
    Here's how to import the provided CA certificate file `ca-cert.crt` to Java's system truststore, for establishing 'Chain of Trust':
@@ -114,7 +114,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
       ```
       (using the default password `changeit`)
 
-   **Note:** If you want to use a custom truststore instead of adding the certificate to the system truststore, create a new truststore using Java keytool utility, add the certificate to it and configure the JVM to use it by setting the system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
+   Note: If you want to use a custom truststore instead of adding the certificate to the system truststore, create a new truststore using Java keytool utility, add the certificate to it and configure the JVM to use it by setting the system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
 
 Now that you have enabled and configured security, restart the standalone mode cluster and [verify](#verifying-security) that security is working.
 
@@ -130,7 +130,7 @@ Now that you have enabled and configured security, restart the standalone mode c
    $ curl -v -u admin:1111_aaaa https://<host-name-or-ip/localhost>:9091/v1/scopes
    ```
 
-   **Note:**
+   Note:
    * `-k` in the command above avoids hostname verification and is needed only if you are enabling SSL/TLS. If you are using the provided certificate, the host's DNS name/IP isn't the subject (in `CN` or `SAN`), and therefore hostname verification will fail. `-k` lets the command to return data successfully. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
 
 2. Optionally, run security-enabled Reader/Writer from [Pravega sample applications](https://github.com/pravega/pravega-samples/blob/master/pravega-client-examples/README.md) against the standalone server to verify it is responding appropriately to `Read/Write` requests.
@@ -138,7 +138,7 @@ Now that you have enabled and configured security, restart the standalone mode c
    To do so, configure security in the client application and run it.
 
    ```java
-  ClientConfig clientConfig = ClientConfig.builder()
+    ClientConfig clientConfig = ClientConfig.builder()
                  .controllerURI("tls://localhost:9090")
 
                   // TLS-related client-side configuration
@@ -149,10 +149,10 @@ Now that you have enabled and configured security, restart the standalone mode c
                  .credentials(new DefaultCredentials(this.password, this.username))
 
                  .build();
-  ```
+   ```
 
   You can find a client example with security enabled [here](https://github.com/pravega/pravega-samples/tree/master/pravega-client-examples/src/main/java/io/pravega/example/secure).
 
-  **Note:**
+  Note:
   * Remember that clients can access standalone mode clusters through the localhost interface only. Therefore, the hostname in the Controller URI should be specified as `localhost` in client applications when accessing standalone mode cluster.
-      * `.validateHostName(false)` disables hostname verification for client-to-segment-store communications.
+  * `.validateHostName(false)` disables hostname verification for client-to-segment-store communications.
