@@ -260,7 +260,7 @@ public final class Futures {
             }
         });
     }
-    
+
     /**
      * Same as CompletableFuture.exceptionally(), except that it allows returning a CompletableFuture instead of a single value.
      *

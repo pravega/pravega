@@ -665,25 +665,21 @@ public class StreamMetadataTasks extends TaskBase {
         // has succeeded, then the event will be used for processing. If the update had failed, then the event
         // will be discarded. We will throw the exception that we received from running futureSupplier or return the
         // successful value
-
-        Supplier<CompletableFuture<Void>> postExecuteFutureSupplier = 
-                () -> RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event),
-                e -> log.warn("writing event failed with {}", e.getMessage()), executor)
-                   .thenCompose(v -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id));
-
         return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event) 
-        .thenCompose(v -> Futures.handleCompose(futureSupplier.get(),
+            .thenCompose(v -> Futures.handleCompose(futureSupplier.get(),
                 (r, e) -> {
                     if (e == null || (Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
                             Exceptions.unwrap(e) instanceof StoreException.WriteConflictException)) {
-                        return postExecuteFutureSupplier.get()
-                                                      .thenApply(vd -> {
-                                                          if (e != null) {
-                                                              throw new CompletionException(e);
-                                                          } else {
-                                                              return r;
-                                                          }
-                                                      });
+                        return RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event),
+                                ex -> log.warn("writing event failed with {}", ex.getMessage()), executor)
+                                          .thenCompose(z -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
+                                          .thenApply(vd -> {
+                                              if (e != null) {
+                                                  throw new CompletionException(e);
+                                              } else {
+                                                  return r;
+                                              }
+                                          });
                     } else {
                         throw new CompletionException(e);
                     }
