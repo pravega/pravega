@@ -74,6 +74,7 @@ public final class Config {
     public static final String TLS_TRUST_STORE;
     public static final String TOKEN_SIGNING_KEY;
     public static final int ACCESS_TOKEN_TTL_IN_SECONDS;
+    public static final String TLS_ENABLED_FOR_SEGMENT_STORE;
 
     public static final boolean REPLY_WITH_STACK_TRACE_ON_ERROR;
     public static final boolean REQUEST_TRACING_ENABLED;
@@ -145,7 +146,6 @@ public final class Config {
     private static final Property<String> PROPERTY_RPC_HOST = Property.named("service.publishedRPCHost", NULL_VALUE);
     private static final Property<Integer> PROPERTY_RPC_PORT = Property.named("service.publishedRPCPort", 9090);
     private static final Property<String> PROPERTY_CLUSTER_NAME = Property.named("service.cluster", "pravega-cluster");
-
     private static final Property<String> PROPERTY_REST_IP = Property.named("service.restIp", "0.0.0.0");
     private static final Property<Integer> PROPERTY_REST_PORT = Property.named("service.restPort", 9091);
     private static final Property<String> PROPERTY_REST_KEYSTORE_FILE_PATH = Property.named("rest.tlsKeyStoreFile", "");
@@ -160,6 +160,7 @@ public final class Config {
     private static final Property<String> PROPERTY_TLS_CERT_FILE = Property.named("auth.tlsCertFile", "");
     private static final Property<String> PROPERTY_TLS_TRUST_STORE = Property.named("auth.tlsTrustStore", "");
     private static final Property<String> PROPERTY_TLS_KEY_FILE = Property.named("auth.tlsKeyFile", "");
+    private static final Property<String> PROPERTY_TLS_ENABLED_FOR_SEGMENT_STORE = Property.named("auth.segmentStoreTlsEnabled", "");
 
     private static final Property<String> PROPERTY_ZK_URL = Property.named("zk.url", "localhost:2181");
     private static final Property<Integer> PROPERTY_ZK_RETRY_MILLIS = Property.named("zk.retryIntervalMillis", 5000);
@@ -213,6 +214,7 @@ public final class Config {
         TLS_KEY_FILE = p.get(PROPERTY_TLS_KEY_FILE);
         TLS_CERT_FILE = p.get(PROPERTY_TLS_CERT_FILE);
         TLS_TRUST_STORE = p.get(PROPERTY_TLS_TRUST_STORE);
+        TLS_ENABLED_FOR_SEGMENT_STORE = p.get(PROPERTY_TLS_ENABLED_FOR_SEGMENT_STORE);
 
         REPLY_WITH_STACK_TRACE_ON_ERROR = p.getBoolean(PROPERTY_REPLY_WITH_STACK_TRACE_ON_ERROR);
         REQUEST_TRACING_ENABLED = p.getBoolean(PROPERTY_REQUEST_TRACING_ENABLED);
