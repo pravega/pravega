@@ -166,6 +166,10 @@ public class MetricsProviderTest {
             assertEquals(3 * sum, (long) MetricRegistryUtils.getMeter("dynamicMeter", "container", "2").totalAmount());
         }
 
+        dynamicLogger.freezeMeter("dynamicMeter", "container", "1");
+        dynamicLogger.freezeMeter("dynamicMeter", "container", "2");
+        assertEquals(null, MetricRegistryUtils.getMeter("dynamicMeter", "container", "1"));
+        assertEquals(null, MetricRegistryUtils.getMeter("dynamicMeter", "container", "2"));
     }
 
     /**
