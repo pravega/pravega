@@ -109,7 +109,7 @@ public class DebugStreamSegmentsTest {
         zkTestServer.close();
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testOutOfSequence() throws Exception {
         // 1. Prepare
         createScope(SCOPE);
