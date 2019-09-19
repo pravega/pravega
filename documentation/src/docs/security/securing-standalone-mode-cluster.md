@@ -112,7 +112,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
       $ sudo keytool -importcert -alias local-CA \
            -keystore /path/to/jre/lib/security/cacerts  -file ca-cert.der
       ```
-      (using the default password `changeit`)
+      When prompted for keystore password, use the default JRE keystore password `changeit` or the custom one that you might have configured for the JRE.
 
    Note: If you want to use a custom truststore instead of adding the certificate to the system truststore, create a new truststore using Java keytool utility, add the certificate to it and configure the JVM to use it by setting the system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
 
@@ -127,19 +127,19 @@ Now that you have enabled and configured security, restart the standalone mode c
    $ curl -v -k -u admin:1111_aaaa https://<host-name-or-ip/localhost>:9091/v1/scopes
 
    # If only Auth is enabled
-   $ curl -v -u admin:1111_aaaa https://<host-name-or-ip/localhost>:9091/v1/scopes
+   $ curl -v -u admin:1111_aaaa http://<host-name-or-ip/localhost>:9091/v1/scopes
    ```
 
-   Note:
-   * `-k` in the command above avoids hostname verification and is needed only if you are enabling SSL/TLS. If you are using the provided certificate, the host's DNS name/IP isn't the subject (in `CN` or `SAN`), and therefore hostname verification will fail. `-k` lets the command to return data successfully. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
+   Note: `-k` in the command above avoids hostname verification and is needed only if you are enabling SSL/TLS. If you are using the provided certificate, the host's DNS name/IP isn't the subject (in `CN` or `SAN`), and therefore hostname verification will fail. `-k` lets the command to return data successfully. You can find details about curl's options [here](https://curl.haxx.se/docs/manpage.html).
 
 2. Optionally, run security-enabled Reader/Writer from [Pravega sample applications](https://github.com/pravega/pravega-samples/blob/master/pravega-client-examples/README.md) against the standalone server to verify it is responding appropriately to `Read/Write` requests.
 
-   To do so, configure security in the client application and run it.
+   To do so, configure security in the client application and run it. The example below assumes both TLS and `auth` are enabled. If TLS is disabled, modify the Controller URI scheme to `tcp` instead of `tls` and remove the lines that add
+   TLS-related client-side configuration.
 
    ```java
     ClientConfig clientConfig = ClientConfig.builder()
-                 .controllerURI("tls://localhost:9090")
+                 .controllerURI(URI.create("tls://localhost:9090"))
 
                   // TLS-related client-side configuration
                  .trustStore("/path/to/ca-cert.crt")
