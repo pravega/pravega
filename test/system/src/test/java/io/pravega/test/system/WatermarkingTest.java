@@ -193,9 +193,9 @@ public class WatermarkingTest extends AbstractSystemTest {
         assertTrue(watermark3.getLowerTimeBound() <= watermark3.getUpperTimeBound());
 
         // verify that watermarks are increasing in time.
-        assertTrue(watermark0.getLowerTimeBound() <= watermark1.getLowerTimeBound());
-        assertTrue(watermark1.getLowerTimeBound() <= watermark2.getLowerTimeBound());
-        assertTrue(watermark2.getLowerTimeBound() <= watermark3.getLowerTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() < watermark2.getLowerTimeBound());
+        assertTrue(watermark2.getLowerTimeBound() < watermark3.getLowerTimeBound());
         
         // use watermark as lower and upper bounds.
         Map<Segment, Long> positionMap0 = watermark0.getStreamCut()
