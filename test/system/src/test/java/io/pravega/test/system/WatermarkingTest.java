@@ -185,15 +185,15 @@ public class WatermarkingTest extends AbstractSystemTest {
         Watermark watermark2 = watermarks.take();
         Watermark watermark3 = watermarks.take();
         
-        assertTrue(watermark0.getLowerTimeBound() < watermark0.getUpperTimeBound());
-        assertTrue(watermark1.getLowerTimeBound() < watermark1.getUpperTimeBound());
-        assertTrue(watermark2.getLowerTimeBound() < watermark2.getUpperTimeBound());
-        assertTrue(watermark3.getLowerTimeBound() < watermark3.getUpperTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() <= watermark0.getUpperTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() <= watermark1.getUpperTimeBound());
+        assertTrue(watermark2.getLowerTimeBound() <= watermark2.getUpperTimeBound());
+        assertTrue(watermark3.getLowerTimeBound() <= watermark3.getUpperTimeBound());
 
         // verify that watermarks are increasing in time.
-        assertTrue(watermark0.getLowerTimeBound() < watermark1.getLowerTimeBound());
-        assertTrue(watermark1.getLowerTimeBound() < watermark2.getLowerTimeBound());
-        assertTrue(watermark2.getLowerTimeBound() < watermark3.getLowerTimeBound());
+        assertTrue(watermark0.getLowerTimeBound() <= watermark1.getLowerTimeBound());
+        assertTrue(watermark1.getLowerTimeBound() <= watermark2.getLowerTimeBound());
+        assertTrue(watermark2.getLowerTimeBound() <= watermark3.getLowerTimeBound());
         
         // use watermark as lower and upper bounds.
         Map<Segment, Long> positionMap0 = watermark0.getStreamCut()
@@ -255,6 +255,7 @@ public class WatermarkingTest extends AbstractSystemTest {
             Iterator<Map.Entry<Revision, Watermark>> marks = watermarkReader.readFrom(revision.get());
             if (marks.hasNext()) {
                 Map.Entry<Revision, Watermark> next = marks.next();
+                log.info("watermark = {}", next.getValue());
                 watermarks.add(next.getValue());
                 revision.set(next.getKey());
             }
