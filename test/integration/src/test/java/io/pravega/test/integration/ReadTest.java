@@ -102,7 +102,7 @@ public class ReadTest {
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testReadDirectlyFromStore() throws Exception {
         String segmentName = "testReadFromStore";
         final int entries = 10;
@@ -133,7 +133,7 @@ public class ReadTest {
         assertEquals(entries * data.length, index);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testReceivingReadCall() throws Exception {
         String segmentName = "testReceivingReadCall";
         int entries = 10;
@@ -171,7 +171,7 @@ public class ReadTest {
         assertEquals(expected, actual);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void readThroughSegmentClient() throws SegmentSealedException, EndOfSegmentException, SegmentTruncatedException {
         String endpoint = "localhost";
         String scope = "scope";
@@ -255,7 +255,7 @@ public class ReadTest {
         assertNull(in.read(100));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void readThroughStreamClient() throws ReinitializationRequiredException {
         String endpoint = "localhost";
         String streamName = "abc";

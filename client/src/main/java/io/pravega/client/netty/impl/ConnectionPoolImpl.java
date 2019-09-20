@@ -204,11 +204,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
         } catch (Exception e) {
             connectionComplete.completeExceptionally(new ConnectionFailedException(e));
         }
-
-        final CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //to track channel registration.
-        handler.completeWhenRegistered(channelRegisteredFuture);
-
-        return CompletableFuture.allOf(connectionComplete, channelRegisteredFuture);
+        return connectionComplete.thenCompose(v ->  {
+            CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //to track channel registration.
+            handler.completeWhenRegistered(channelRegisteredFuture);
+            return channelRegisteredFuture;
+        });
     }
 
     /**
