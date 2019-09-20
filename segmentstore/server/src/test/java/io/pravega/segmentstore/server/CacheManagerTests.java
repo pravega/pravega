@@ -388,24 +388,27 @@ public class CacheManagerTests extends ThreadPooledTestSuite {
     public void testCleanupListeners() {
         final CachePolicy policy = new CachePolicy(1024, Duration.ofHours(1), Duration.ofHours(1));
         @Cleanup
-        TestCacheManager cm = new TestCacheManager(policy, executorService());
+        val cache = new DirectMemoryCache(policy.getMaxSize());
+        @Cleanup
+        TestCacheManager cm = new TestCacheManager(policy, cache, executorService());
         TestClient client = new TestClient();
         cm.register(client);
         TestCleanupListener l1 = new TestCleanupListener();
         TestCleanupListener l2 = new TestCleanupListener();
         cm.registerCleanupListener(l1);
         cm.registerCleanupListener(l2);
-        client.setUpdateGenerationsImpl((current, oldest) -> 1L); // We always remove something.
+        client.setUpdateGenerationsImpl((current, oldest) -> true); // We always remove something.
 
         // In the first iteration, we should invoke both listeners.
-        client.setCacheStatus(policy.getMaxSize() + 1, 0, 0);
+        client.setCacheStatus(0, 0);
+        cache.insert(new ByteArraySegment(new byte[1])); // Put something in the cache so the cleanup can execute.
         cm.runOneIteration();
         Assert.assertEquals("Expected cleanup listener to be invoked the first time.", 1, l1.getCallCount());
         Assert.assertEquals("Expected cleanup listener to be invoked the first time.", 1, l2.getCallCount());
 
         // Close one of the listeners, and verify that only the other one is invoked now.
         l2.setClosed(true);
-        client.setCacheStatus(policy.getMaxSize() + 1, 0, 1);
+        client.setCacheStatus(0, 1);
         cm.runOneIteration();
         Assert.assertEquals("Expected cleanup listener to be invoked the second time.", 2, l1.getCallCount());
         Assert.assertEquals("Not expecting cleanup listener to be invoked the second time for closed listener.", 1, l2.getCallCount());
