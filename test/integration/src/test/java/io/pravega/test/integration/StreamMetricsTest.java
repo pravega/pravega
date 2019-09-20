@@ -136,7 +136,7 @@ public class StreamMetricsTest {
         }
     }
 
-    @Test
+    @Test(timeout = 30000)
     public void testSegmentSplitMerge() throws Exception {
 
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();

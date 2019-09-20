@@ -99,7 +99,7 @@ public class AppendTest {
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void testSetupOnNonExistentSegment() throws Exception {
         String segment = "123";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
@@ -112,7 +112,7 @@ public class AppendTest {
         assertEquals(segment, setup.getSegment());
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void sendReceivingAppend() throws Exception {
         String segment = "123";
         ByteBuf data = Unpooled.wrappedBuffer("Hello world\n".getBytes());
@@ -198,7 +198,7 @@ public class AppendTest {
         return channel;
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void appendThroughSegmentClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
@@ -227,7 +227,7 @@ public class AppendTest {
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test
+    @Test(timeout = 10000)
     public void appendThroughConditionalClient() throws Exception {
         String endpoint = "localhost";
         int port = TestUtils.getAvailableListenPort();
@@ -255,7 +255,7 @@ public class AppendTest {
         assertTrue(out.write(ByteBuffer.wrap(testString.getBytes()), 0));
     }
 
-    @Test
+    @Test(timeout = 10000)
     public void appendThroughStreamingClient() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -278,7 +278,7 @@ public class AppendTest {
         ack.get(5, TimeUnit.SECONDS);
     }
     
-    @Test(timeout = 40000)
+    @Test(timeout = 20000)
     public void miniBenchmark() throws InterruptedException, ExecutionException, TimeoutException {
         String endpoint = "localhost";
         String streamName = "abc";
