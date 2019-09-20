@@ -332,6 +332,11 @@ public class ContainerReadIndex implements ReadIndex {
         return this.cacheManager.getCacheMaxUtilization();
     }
 
+    @Override
+    public void registerCleanupListener(CleanupListener listener) {
+        this.cacheManager.registerCleanupListener(listener);
+    }
+
     //endregion
 
     //region Helpers

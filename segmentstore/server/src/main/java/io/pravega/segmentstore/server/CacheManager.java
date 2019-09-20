@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -60,6 +61,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private final CachePolicy policy;
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.CacheManager metrics;
+    @GuardedBy("cleanupListeners")
+    private final HashSet<CleanupListener> cleanupListeners;
     @Getter
     private final CacheStorage cacheStorage;
     private final Object lock = new Object();
@@ -97,6 +100,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         this.closed = new AtomicBoolean();
         this.lastSnapshot = this.cacheStorage.getSnapshot();
         this.metrics = new SegmentStoreMetrics.CacheManager();
+        this.cleanupListeners = new HashSet<>();
     }
 
     //endregion
@@ -130,7 +134,10 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     @Override
     protected void runOneIteration() {
-        applyCachePolicy();
+        boolean anythingEvicted = applyCachePolicy();
+        if (anythingEvicted) {
+            notifyCleanupListeners();
+        }
     }
 
     @Override
@@ -160,6 +167,18 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     @Override
     public double getCacheMaxUtilization() {
         return this.policy.getMaxUtilization();
+    }
+
+    @Override
+    public void registerCleanupListener(@NonNull CleanupListener listener) {
+        if (listener.isClosed()) {
+            log.warn("{} Attempted to register a closed Cleanup Listener ({}).", TRACE_OBJECT_ID, listener);
+            return;
+        }
+
+        synchronized (this.cleanupListeners) {
+            this.cleanupListeners.add(listener); // This is a Set, so we won't be adding the same listener twice.
+        }
     }
 
     //endregion
@@ -410,6 +429,34 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     @GuardedBy("lock")
     private void logCurrentStatus(CacheStatus status) {
         log.info("{} Gen: {}-{}, Clients: {}, Cache: {}.", TRACE_OBJECT_ID, this.currentGeneration, this.oldestGeneration, this.clients.size(), this.lastSnapshot);
+    }
+
+    private void notifyCleanupListeners() {
+        ArrayList<CacheUtilizationProvider.CleanupListener> toNotify = new ArrayList<>();
+        ArrayList<CacheUtilizationProvider.CleanupListener> toRemove = new ArrayList<>();
+        synchronized (this.cleanupListeners) {
+            for (CacheUtilizationProvider.CleanupListener l : this.cleanupListeners) {
+                if (l.isClosed()) {
+                    toRemove.add(l);
+                } else {
+                    toNotify.add(l);
+                }
+            }
+
+            this.cleanupListeners.removeAll(toRemove);
+        }
+
+        for (CacheUtilizationProvider.CleanupListener l : toNotify) {
+            try {
+                l.cacheCleanupComplete();
+            } catch (Throwable ex) {
+                if (Exceptions.mustRethrow(ex)) {
+                    throw ex;
+                }
+
+                log.error("{}: Error while notifying cleanup listener {}.", TRACE_OBJECT_ID, l, ex);
+            }
+        }
     }
 
     //endregion

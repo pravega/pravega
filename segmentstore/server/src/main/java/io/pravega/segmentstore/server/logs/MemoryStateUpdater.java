@@ -81,6 +81,11 @@ class MemoryStateUpdater implements CacheUtilizationProvider {
         return this.readIndex.getCacheMaxUtilization();
     }
 
+    @Override
+    public void registerCleanupListener(CleanupListener listener) {
+        this.readIndex.registerCleanupListener(listener);
+    }
+
     /**
      * Puts the Log Updater in Recovery Mode, using the given Metadata Source as interim.
      *

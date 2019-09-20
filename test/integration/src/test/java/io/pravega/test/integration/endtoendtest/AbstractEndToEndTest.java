@@ -34,7 +34,8 @@ import lombok.Cleanup;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-
+import org.junit.Rule;
+import org.junit.rules.Timeout;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,6 +52,9 @@ public class AbstractEndToEndTest extends ThreadPooledTestSuite {
     protected static final String SCOPE = "testScope";
     protected static final String STREAM = "testStream1";
 
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(60);
+    
     protected final int controllerPort = TestUtils.getAvailableListenPort();
     protected final String serviceHost = "localhost";
     protected final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
