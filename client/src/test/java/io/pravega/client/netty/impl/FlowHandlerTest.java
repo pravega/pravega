@@ -284,7 +284,7 @@ public class FlowHandlerTest {
         doAnswer((Answer<Void>) invocation -> {
             throw new RuntimeException("ReplyProcessorError");
         }).when(processor).process(any(Reply.class));
-        
+ 
         WireCommands.DataAppended msg = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1, 0);
         flowHandler.channelRead(ctx, msg);
         verify(processor).process(msg);
