@@ -20,7 +20,7 @@ public class TestCacheManager extends CacheManager {
     }
 
     @Override
-    public void applyCachePolicy() {
-        super.applyCachePolicy();
+    public boolean applyCachePolicy() {
+        return super.applyCachePolicy();
     }
 }
