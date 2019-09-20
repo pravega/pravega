@@ -10,14 +10,13 @@
 package io.pravega.test.integration.endtoendtest;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -25,11 +24,16 @@ import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.Transaction;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.stream.TxnFailedException;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.client.stream.impl.UTF8StringSerializer;
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -49,12 +53,18 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import static io.pravega.test.common.AssertExtensions.assertEventuallyEquals;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
+
+    private static final String STREAM = "stream";
+    private static final String SCOPE = "scope";
 
     private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
@@ -77,8 +87,8 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
-
-        server = new PravegaConnectionListener(false, servicePort, store);
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -101,24 +111,24 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
     @Test(timeout = 10000)
     public void testTxnWithScale() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope("test")
-                                                        .streamName("test")
-                                                        .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
         @Cleanup
-        EventStreamWriter<String> test = clientFactory.createEventWriter("test", new JavaSerializer<>(),
+        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", "test", new UTF8StringSerializer(),
                 EventWriterConfig.builder().transactionTimeoutTime(10000).build());
-        Transaction<String> transaction = test.beginTxn();
-        transaction.writeEvent("0", "txntest1");
-        transaction.commit();
+        Transaction<String> transaction1 = test.beginTxn();
+        transaction1.writeEvent("0", "txntest1");
+        transaction1.commit();
 
+        assertEventuallyEquals(Transaction.Status.COMMITTED, () -> transaction1.checkStatus(), 5000);
+        
         // scale
         Stream stream = new StreamImpl("test", "test");
         Map<Double, Double> map = new HashMap<>();
@@ -129,38 +139,68 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
 
         assertTrue(result);
 
-        transaction = test.beginTxn();
-        transaction.writeEvent("0", "txntest2");
-        transaction.commit();
+        Transaction<String> transaction2 = test.beginTxn();
+        transaction2.writeEvent("0", "txntest2");
+        transaction2.commit();
         @Cleanup
         ReaderGroupManager groupManager = new ReaderGroupManagerImpl("test", controller, clientFactory, connectionFactory);
-        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().stream("test/test").build());
+        groupManager.createReaderGroup("reader", ReaderGroupConfig.builder().disableAutomaticCheckpoints().groupRefreshTimeMillis(0).stream("test/test").build());
         @Cleanup
-        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new JavaSerializer<>(),
+        EventStreamReader<String> reader = clientFactory.createReader("readerId", "reader", new UTF8StringSerializer(),
                 ReaderConfig.builder().build());
-        EventRead<String> event = reader.readNextEvent(10000);
-        assertNotNull(event);
+        EventRead<String> event = reader.readNextEvent(5000);
+        assertNotNull(event.getEvent());
         assertEquals("txntest1", event.getEvent());
-        event = reader.readNextEvent(10000);
-        assertNotNull(event);
+        assertNull(reader.readNextEvent(100).getEvent());
+        groupManager.getReaderGroup("reader").initiateCheckpoint("cp", executorService());
+        event = reader.readNextEvent(5000);
+        assertEquals("cp", event.getCheckpointName());
+        event = reader.readNextEvent(5000);
+        assertNotNull(event.getEvent());
         assertEquals("txntest2", event.getEvent());
     }
+
+    @Test(timeout = 30000)
+    public void testTxnWithErrors() throws Exception {
+        StreamConfiguration config = StreamConfiguration.builder()
+                                                        .scalingPolicy(ScalingPolicy.fixed(1))
+                                                        .build();
+        Controller controller = controllerWrapper.getController();
+        controllerWrapper.getControllerService().createScope(SCOPE).get();
+        controller.createStream(SCOPE, STREAM, config).get();
+        @Cleanup
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
+        @Cleanup
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+        @Cleanup
+        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", STREAM, new UTF8StringSerializer(),
+                EventWriterConfig.builder().transactionTimeoutTime(10000).build());
+        Transaction<String> transaction = test.beginTxn();
+        transaction.writeEvent("0", "txntest1");
+        //abort the transaction to simulate a txn abort due to a missing ping request.
+        controller.abortTransaction(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join();
+        //check the status of the transaction.
+        assertEventuallyEquals(Transaction.Status.ABORTED, () -> controller.checkTransactionStatus(Stream.of(SCOPE, STREAM), transaction.getTxnId()).join(), 10000);
+        transaction.writeEvent("0", "txntest2");
+        //verify that commit fails with TxnFailedException.
+        assertThrows("TxnFailedException should be thrown", () -> transaction.commit(), t -> t instanceof TxnFailedException);
+    }
+
+
 
     @Test(timeout = 10000)
     public void testTxnConfig() throws Exception {
         // create stream test
         StreamConfiguration config = StreamConfiguration.builder()
-                .scope("test")
-                .streamName("test")
                 .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
                 .build();
         Controller controller = controllerWrapper.getController();
         controllerWrapper.getControllerService().createScope("test").get();
-        controller.createStream(config).get();
+        controller.createStream("test", "test", config).get();
         @Cleanup
         ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl("test", controller, connectionFactory);
 
         // create writers with different configs and try creating transactions against those configs
         EventWriterConfig defaultConfig = EventWriterConfig.builder().build();
@@ -171,16 +211,18 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
 
         EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
         AssertExtensions.assertThrows("low timeout period not honoured",
-                () -> createTxn(clientFactory, lowTimeoutConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+                () -> createTxn(clientFactory, lowTimeoutConfig, "test"),
+                e -> Exceptions.unwrap(e.getCause()) instanceof IllegalArgumentException);
 
         EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
         AssertExtensions.assertThrows("high timeouot period not honoured",
-                () -> createTxn(clientFactory, highTimeoutConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+                () -> createTxn(clientFactory, highTimeoutConfig, "test"),
+                e -> Exceptions.unwrap(e.getCause()) instanceof IllegalArgumentException);
     }
 
-    private UUID createTxn(ClientFactory clientFactory, EventWriterConfig config, String streamName) {
+    private UUID createTxn(EventStreamClientFactory clientFactory, EventWriterConfig config, String streamName) {
         @Cleanup
-        EventStreamWriter<String> test = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
+        TransactionalEventStreamWriter<String> test = clientFactory.createTransactionalEventWriter("writer", streamName, new JavaSerializer<>(),
                 config);
         return test.beginTxn().getTxnId();
     }

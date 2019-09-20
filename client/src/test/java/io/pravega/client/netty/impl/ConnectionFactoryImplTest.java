@@ -26,6 +26,7 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
 import io.pravega.client.ClientConfig;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.FailingReplyProcessor;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
@@ -33,6 +34,8 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.TestUtils;
 import java.io.File;
 import java.net.URI;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
@@ -40,6 +43,9 @@ import lombok.Cleanup;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class ConnectionFactoryImplTest {
 
@@ -54,7 +60,8 @@ public class ConnectionFactoryImplTest {
         final SslContext sslCtx;
         if (ssl) {
             try {
-                sslCtx = SslContextBuilder.forServer(new File("../config/cert.pem"), new File("../config/key.pem")).build();
+                sslCtx = SslContextBuilder.forServer(new File(SecurityConfigDefaults.TLS_SERVER_CERT_PATH),
+                             new File(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)).build();
             } catch (SSLException e) {
                 throw new RuntimeException(e);
             }
@@ -108,7 +115,7 @@ public class ConnectionFactoryImplTest {
         @Cleanup
         ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
                                                                               .controllerURI(URI.create((this.ssl ? "tls://" : "tcp://") + "localhost"))
-                                                                              .trustStore("../config/cert.pem")
+                                                                              .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                                                                               .build());
         @Cleanup
         ClientConnection connection = factory.establishConnection(new PravegaNodeUri("localhost", port), new FailingReplyProcessor() {
@@ -129,5 +136,94 @@ public class ConnectionFactoryImplTest {
         }).join();
 
         connection.send(new WireCommands.Hello(0, 0));
+    }
+
+    @Test
+    public void getActiveChannelTestWithConnectionPooling() throws InterruptedException, ConnectionFailedException {
+        @Cleanup
+        ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                              .controllerURI(URI.create( "tcp://" + "localhost"))
+                                                                              .build());
+        Flow flow = Flow.create();
+        // establish a connection with Flow.
+        @Cleanup
+        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(flow, new PravegaNodeUri("localhost", port),
+                                                                                             new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+
+            }
+        }).join();
+
+        assertEquals("Expected active channel count is 1", 1, factory.getActiveChannelCount());
+
+        // add a listener to track the channel close.
+        final CountDownLatch latch = new CountDownLatch(1);
+        connection.getNettyHandler().getChannel().closeFuture().addListener(future -> latch.countDown());
+
+        // close the connection, this does not close the underlying network connection due to connection pooling.
+        connection.close();
+        // the underlying connection is closed only on closing the connection pool
+        factory.getConnectionPool().close();
+
+        // wait until the channel is closed.
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertEquals("Expected active channel count is 0", 0, factory.getActiveChannelCount());
+        // verify that the channel is removed from channelGroup too.
+        assertEquals(0,  ((ConnectionPoolImpl) factory.getConnectionPool()).getChannelGroup().size());
+    }
+
+    @Test
+    public void getActiveChannelTestWithoutConnectionPooling() throws InterruptedException, ConnectionFailedException {
+        @Cleanup
+        ConnectionFactoryImpl factory = new ConnectionFactoryImpl(ClientConfig.builder()
+                                                                              .controllerURI(URI.create("tcp://" + "localhost"))
+                                                                              .build());
+        final FailingReplyProcessor rp = new FailingReplyProcessor() {
+
+            @Override
+            public void connectionDropped() {
+
+            }
+
+            @Override
+            public void processingFailure(Exception error) {
+
+            }
+
+            @Override
+            public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
+
+            }
+        };
+        // establish a connection with Flow.
+        @Cleanup
+        ClientConnectionImpl connection = (ClientConnectionImpl) factory.establishConnection(new PravegaNodeUri("localhost", port), rp).join();
+
+        assertEquals("Expected active channel count is 1", 1, factory.getActiveChannelCount());
+
+        // add a listener to track the channel close.
+        final CountDownLatch latch = new CountDownLatch(1);
+        connection.getNettyHandler().getChannel().closeFuture().addListener(future -> latch.countDown());
+
+        // close the connection, this closes the underlying network connection since connection pooling is disabled.
+        connection.close();
+
+        // wait until the channel is closed.
+        assertTrue(latch.await(10, TimeUnit.SECONDS));
+        assertEquals("Expected active channel count is 0", 0, factory.getActiveChannelCount());
+        // verify that the channel is removed from channelGroup too.
+        assertEquals(0, ((ConnectionPoolImpl) factory.getConnectionPool()).getChannelGroup().size());
     }
 }

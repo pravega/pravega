@@ -17,6 +17,8 @@ import io.pravega.shared.metrics.OpStatsLogger;
 import io.pravega.shared.metrics.StatsLogger;
 import java.time.Duration;
 
+import static io.pravega.shared.MetricsTags.containerTag;
+
 /**
  * Metrics for BookKeeper.
  */
@@ -30,18 +32,16 @@ final class BookKeeperMetrics {
     final static class BookKeeperLog implements AutoCloseable {
         private final OpStatsLogger writeQueueSize;
         private final OpStatsLogger writeQueueFillRate;
-        private final String ledgerCount;
         private final OpStatsLogger writeLatency;
         private final OpStatsLogger totalWriteLatency;
-        private final OpStatsLogger writeBytes;
+        private final String[] containerTag;
 
         BookKeeperLog(int containerId) {
-            this.ledgerCount = MetricsNames.nameFromContainer(MetricsNames.BK_LEDGER_COUNT, containerId);
-            this.writeQueueSize = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_SIZE, containerId));
-            this.writeQueueFillRate = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_QUEUE_FILL_RATE, containerId));
-            this.writeLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_LATENCY, containerId));
-            this.totalWriteLatency = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_TOTAL_WRITE_LATENCY, containerId));
-            this.writeBytes = STATS_LOGGER.createStats(MetricsNames.nameFromContainer(MetricsNames.BK_WRITE_BYTES, containerId));
+            this.containerTag = containerTag(containerId);
+            this.writeQueueSize = STATS_LOGGER.createStats(MetricsNames.BK_WRITE_QUEUE_SIZE, this.containerTag);
+            this.writeQueueFillRate = STATS_LOGGER.createStats(MetricsNames.BK_WRITE_QUEUE_FILL_RATE, this.containerTag);
+            this.writeLatency = STATS_LOGGER.createStats(MetricsNames.BK_WRITE_LATENCY, this.containerTag);
+            this.totalWriteLatency = STATS_LOGGER.createStats(MetricsNames.BK_TOTAL_WRITE_LATENCY, this.containerTag);
         }
 
         @Override
@@ -50,11 +50,10 @@ final class BookKeeperMetrics {
             this.writeQueueFillRate.close();
             this.writeLatency.close();
             this.totalWriteLatency.close();
-            this.writeBytes.close();
         }
 
         void ledgerCount(int count) {
-            DYNAMIC_LOGGER.reportGaugeValue(this.ledgerCount, count);
+            DYNAMIC_LOGGER.reportGaugeValue(MetricsNames.BK_LEDGER_COUNT, count, this.containerTag);
         }
 
         void queueStats(QueueStats qs) {
@@ -68,7 +67,7 @@ final class BookKeeperMetrics {
 
         void bookKeeperWriteCompleted(int length, Duration elapsed) {
             this.writeLatency.reportSuccessEvent(elapsed);
-            this.writeBytes.reportSuccessValue(length);
+            DYNAMIC_LOGGER.incCounterValue(MetricsNames.BK_WRITE_BYTES, length);
         }
     }
 }

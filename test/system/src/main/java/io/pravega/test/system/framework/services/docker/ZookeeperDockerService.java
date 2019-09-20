@@ -20,8 +20,6 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import lombok.extern.slf4j.Slf4j;
-
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
@@ -30,7 +28,8 @@ import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 @Slf4j
 public class ZookeeperDockerService extends DockerBasedService {
 
-    private static final String ZK_IMAGE = "jplock/zookeeper:3.5.1-alpha";
+    private static final String ZOOKEEPER_IMAGE_NAME = System.getProperty("zookeeperImageName", "zookeeper") + ":";
+    private static final String ZOOKEEPER_IMAGE_VERSION = System.getProperty("zookeeperImageVersion", "latest");
     private final long instances = 1;
     private final double cpu = 1.0 * Math.pow(10.0, 9.0);
     private final long mem = 1024 * 1024 * 1024L;
@@ -60,11 +59,10 @@ public class ZookeeperDockerService extends DockerBasedService {
 
         final TaskSpec taskSpec = TaskSpec
                 .builder()
-                .containerSpec(ContainerSpec.builder().image(ZK_IMAGE)
+                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + IMAGE_PREFIX + ZOOKEEPER_IMAGE_NAME + ZOOKEEPER_IMAGE_VERSION)
                         .hostname(serviceName)
                         .labels(labels)
-                        .healthcheck(ContainerConfig.Healthcheck.create(null,
-                                Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3)).build())
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(ZKSERVICE_ZKPORT)).build()).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()
                         .limits(Resources.builder().memoryBytes(mem).nanoCpus((long) cpu).build())

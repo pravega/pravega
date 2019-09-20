@@ -26,7 +26,7 @@ public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSeg
     @Override
     protected StreamSegmentMapOperation createOperation(Random random) {
         long length = MathHelpers.abs(random.nextLong());
-        return new StreamSegmentMapOperation(StreamSegmentInformation
+        val op = new StreamSegmentMapOperation(StreamSegmentInformation
                 .builder()
                 .name(super.getStreamSegmentName(random.nextLong()))
                 .startOffset(length / 2)
@@ -35,6 +35,8 @@ public class StreamSegmentMapOperationTests extends OperationTestsBase<StreamSeg
                 .deleted(random.nextBoolean())
                 .attributes(createAttributes(10))
                 .build());
+        op.markPinned();
+        return op;
     }
 
     @Override

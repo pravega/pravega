@@ -24,4 +24,5 @@ public class CreateStreamResponse {
     private final CreateStatus status;
     private final StreamConfiguration configuration;
     private final long timestamp;
+    private final int startingSegmentNumber;
 }

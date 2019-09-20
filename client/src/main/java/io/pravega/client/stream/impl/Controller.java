@@ -10,12 +10,14 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.StreamCut;
 import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
+import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +45,14 @@ public interface Controller extends AutoCloseable {
     CompletableFuture<Boolean> createScope(final String scopeName);
 
     /**
+     * Gets an async iterator on streams in scope.
+     *
+     * @param scopeName The name of the scope for which to list streams in.
+     * @return An AsyncIterator which can be used to iterate over all Streams in the scope. 
+     */
+    AsyncIterator<Stream> listStreams(final String scopeName);
+
+    /**
      * API to delete a scope. Note that a scope can only be deleted in the case is it empty. If
      * the scope contains at least one stream, then the delete request will fail.
      *
@@ -57,21 +67,24 @@ public interface Controller extends AutoCloseable {
      * exist when the controller executed the operation. In the case of a re-attempt to create
      * the same stream, the future completes with false to indicate that the stream existed when
      * the controller executed the operation.
-     *
+     * 
+     * @param scope Scope
+     * @param streamName Stream name
      * @param streamConfig Stream configuration
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the stream was added because it did not already exist.
      */
-    CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig);
+    CompletableFuture<Boolean> createStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
      * API to update the configuration of a stream.
-     *
+     * @param scope Scope
+     * @param streamName Stream name
      * @param streamConfig Stream configuration to updated
      * @return A future which will throw if the operation fails, otherwise returning a boolean to
      *         indicate that the stream was updated because the config is now different from before.
      */
-    CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig);
+    CompletableFuture<Boolean> updateStream(final String scope, final String streamName, final StreamConfiguration streamConfig);
 
     /**
      * API to Truncate stream. This api takes a stream cut point which corresponds to a cut in
@@ -168,9 +181,9 @@ public interface Controller extends AutoCloseable {
      * @param stream     Stream name
      * @param txId       Transaction id
      * @param lease      Time for which transaction shall remain open with sending any heartbeat.
-     * @return           Void or PingFailedException
+     * @return           Transaction.PingStatus or PingFailedException
      */
-    CompletableFuture<Void> pingTransaction(final Stream stream, final UUID txId, final long lease);
+    CompletableFuture<Transaction.PingStatus> pingTransaction(final Stream stream, final UUID txId, final long lease);
 
     /**
      * Commits a transaction, atomically committing all events to the stream, subject to the
@@ -178,10 +191,12 @@ public interface Controller extends AutoCloseable {
      * {@link TxnFailedException} if the transaction has already been committed or aborted.
      * 
      * @param stream Stream name
+     * @param writerId The writer that is comiting the transaction.
+     * @param timestamp The timestamp the writer provided for the commit (or null if they did not specify one).
      * @param txId Transaction id
      * @return Void or TxnFailedException
      */
-    CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<Void> commitTransaction(final Stream stream, final String writerId, final Long timestamp, final UUID txId);
 
     /**
      * Aborts a transaction. No events written to it may be read, and no further events may be
@@ -221,12 +236,12 @@ public interface Controller extends AutoCloseable {
      * In the event of a scale up the newly created segments contain a subset of the keyspace of the original
      * segment and their only predecessor is the segment that was split. Example: If there are two segments A
      * and B. A scaling event split A into two new segments C and D. The successors of A are C and D. So
-     * calling this method with A would return {C -> A, D -> A}
+     * calling this method with A would return {C &rarr; A, D &rarr; A}
      * 
      * In the event of a scale down there would be one segment the succeeds multiple. So it would contain the
      * union of the keyspace of its predecessors. So calling with that segment would map to multiple segments.
      * Example: If there are two segments A and B. A and B are merged into a segment C. The successor of A is
-     * C. so calling this method with A would return {C -> {A, B}}
+     * C. so calling this method with A would return {C &rarr; {A, B}}
      * 
      * If a segment has not been sealed, it may not have successors now even though it might in the future.
      * The successors to a sealed segment are always known and returned. Example: If there is only one segment
@@ -277,6 +292,32 @@ public interface Controller extends AutoCloseable {
      * @return Pravega node URI.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
+    
+    /**
+     * Notifies that the specified writer has noted the provided timestamp when it was at
+     * lastWrittenPosition.
+     * 
+     * This is called by writers via {@link EventStreamWriter#noteTime(long)} or
+     * {@link Transaction#commit(long)}. The controller should aggrigate this information and write
+     * it to the stream's marks segment so that it read by readers who will in turn ultimately
+     * surface this information through the {@link EventStreamReader#getCurrentTimeWindow()} API.
+     * 
+     * @param writer The name of the writer. (User defined)
+     * @param stream The stream the timestamp is associated with.
+     * @param timestamp The new timestamp for the writer on the stream.
+     * @param lastWrittenPosition The position the writer was at when it noted the time.
+     */
+    CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition);
+
+    /**
+     * Notifies the controller that the specified writer is shutting down gracefully and no longer
+     * needs to be considered for calculating entries for the marks segment. This may not be called
+     * in the event that writer crashes. 
+     * 
+     * @param writerId The name of the writer. (User defined)
+     * @param stream The stream the writer was on.
+     */
+    CompletableFuture<Void> removeWriter(String writerId, Stream stream);
 
     /**
      * Closes controller client.

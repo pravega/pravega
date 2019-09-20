@@ -20,7 +20,7 @@ public class OperationSerializer extends VersionedSerializer.MultiType<Operation
 
     @Override
     protected void declareSerializers(Builder b) {
-        // Unused values:
+        // Unused values (Do not repurpose!):
         // - 0: Unsupported Serializer.
         // - 5: TransactionMapOperation (retired).
         b.serializer(StreamSegmentAppendOperation.class, 1, new StreamSegmentAppendOperation.Serializer())
@@ -30,6 +30,7 @@ public class OperationSerializer extends VersionedSerializer.MultiType<Operation
          .serializer(UpdateAttributesOperation.class, 6, new UpdateAttributesOperation.Serializer())
          .serializer(StreamSegmentTruncateOperation.class, 7, new StreamSegmentTruncateOperation.Serializer())
          .serializer(MetadataCheckpointOperation.class, 8, new MetadataCheckpointOperation.Serializer())
-         .serializer(StorageMetadataCheckpointOperation.class, 9, new StorageMetadataCheckpointOperation.Serializer());
+         .serializer(StorageMetadataCheckpointOperation.class, 9, new StorageMetadataCheckpointOperation.Serializer())
+         .serializer(DeleteSegmentOperation.class, 10, new DeleteSegmentOperation.Serializer());
     }
 }

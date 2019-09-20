@@ -42,7 +42,6 @@ import org.apache.bookkeeper.client.BKException;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.zookeeper.KeeperException;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -95,6 +94,8 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                                             .zkPort(BK_PORT.get())
                                             .ledgersPath("/pravega/bookkeeper/ledgers")
                                             .secureBK(isSecure())
+                                            .secureZK(isSecure())
+                                            .tlsTrustStore("../../../config/bookie.truststore.jks")
                                             .tLSKeyStore("../../../config/bookie.keystore.jks")
                                             .tLSKeyStorePasswordPath("../../../config/bookie.keystore.jks.passwd")
                                             .bookiePorts(bookiePorts)
@@ -181,9 +182,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
         AssertExtensions.assertThrows("",
                 factory::initialize,
                 ex -> ex instanceof DataLogNotAvailableException &&
-                        ex.getCause() instanceof KeeperException.NoNodeException &&
-                        ex.getCause().getMessage().
-                                indexOf(this.zkClient.get().getNamespace() + "/bookkeeper/ledgers/available") > 0
+                        ex.getCause() instanceof BKException.ZKException
         );
     }
 
@@ -203,7 +202,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
 
                 // First write should fail. Either a DataLogNotAvailableException (insufficient bookies) or
                 // WriteFailureException (general unable to write) should be thrown.
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "First write did not fail with the appropriate exception.",
                         () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof RetriesExhaustedException
@@ -213,7 +212,7 @@ public abstract class BookKeeperLogTests extends DurableDataLogTestBase {
                                 || ex instanceof CancellationException);
 
                 // Subsequent writes should be rejected since the BookKeeperLog is now closed.
-                AssertExtensions.assertThrows(
+                AssertExtensions.assertSuppliedFutureThrows(
                         "Second write did not fail with the appropriate exception.",
                         () -> log.append(new ByteArraySegment(getWriteData()), TIMEOUT),
                         ex -> ex instanceof ObjectClosedException

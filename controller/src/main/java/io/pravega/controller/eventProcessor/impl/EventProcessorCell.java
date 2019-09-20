@@ -32,6 +32,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * This is an internal class that embeds the following.
@@ -54,8 +55,10 @@ class EventProcessorCell<T extends ControllerEvent> {
     private final CheckpointStore checkpointStore;
     private final String process;
     private final String readerGroupName;
+    @Getter(AccessLevel.PACKAGE)
     private final String readerId;
     private final String objectId;
+    private final AtomicReference<Position> lastCheckpoint;
 
     @VisibleForTesting
     @Getter(value = AccessLevel.PACKAGE)
@@ -109,7 +112,6 @@ class EventProcessorCell<T extends ControllerEvent> {
                     handleException(e);
                 }
             }
-
         }
 
         @Override
@@ -129,11 +131,19 @@ class EventProcessorCell<T extends ControllerEvent> {
 
                 // First close the reader, which implicitly notifies reader position to the reader group
                 log.info("Closing reader for {}", objectId);
-                reader.close();
+                try {
+                    reader.closeAt(getCheckpoint());
+                } catch (Exception e) {
+                    log.info("Exception while closing EventProcessorCell reader from checkpointStore: {}.", e.getMessage());
+                }
 
                 // Next, clean up the reader and its position from checkpoint store
                 log.info("Cleaning up checkpoint store for {}", objectId);
-                checkpointStore.removeReader(process, readerGroupName, readerId);
+                try {
+                    checkpointStore.removeReader(process, readerGroupName, readerId);
+                } catch (Exception e) {
+                    log.info("Exception while removing reader from checkpointStore: {}.", e.getMessage());
+                }
             }
         }
 
@@ -244,6 +254,7 @@ class EventProcessorCell<T extends ControllerEvent> {
         this.objectId = String.format("EventProcessor[%s:%s]", this.readerGroupName, index);
         this.actor = createEventProcessor(eventProcessorConfig);
         this.delegate = new Delegate(eventProcessorConfig);
+        this.lastCheckpoint = new AtomicReference<>();
     }
 
     final void startAsync() {
@@ -285,12 +296,18 @@ class EventProcessorCell<T extends ControllerEvent> {
 
     private EventProcessor<T> createEventProcessor(final EventProcessorConfig<T> eventProcessorConfig) {
         EventProcessor<T> eventProcessor = eventProcessorConfig.getSupplier().get();
-        eventProcessor.checkpointer = (Position position) ->
-        checkpointStore.setPosition(process, readerGroupName, readerId, position);
+        eventProcessor.checkpointer = (Position position) -> {
+            checkpointStore.setPosition(process, readerGroupName, readerId, position);
+            lastCheckpoint.set(position);
+        };
         eventProcessor.selfWriter = selfWriter::writeEvent;
         return eventProcessor;
     }
 
+    Position getCheckpoint() {
+        return lastCheckpoint.get();    
+    }
+    
     @Override
     public String toString() {
         return String.format("%s[%s]", objectId, this.delegate.state());

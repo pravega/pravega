@@ -19,7 +19,10 @@ import io.pravega.client.stream.mock.MockClientFactory;
 import io.pravega.client.stream.mock.MockStreamManager;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
+import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
+import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.AssertExtensions;
@@ -30,8 +33,6 @@ import org.junit.Test;
 @Slf4j
 public class ReadFromDeletedStreamTest {
     static final StreamConfiguration CONFIG = StreamConfiguration.builder()
-                                                                 .scope("test")
-                                                                 .streamName("test")
                                                                  .scalingPolicy(ScalingPolicy.fixed(1))
                                                                  .build();
 
@@ -43,9 +44,11 @@ public class ReadFromDeletedStreamTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, "localhost", 12345, store, null, null, null, null);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
+                SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(), null, null, null, true);
         server.startListening();
 
         streamManager.createScope("test");

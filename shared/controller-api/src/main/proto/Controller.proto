@@ -24,20 +24,26 @@ service ControllerService {
     rpc deleteStream(StreamInfo) returns (DeleteStreamStatus);
     rpc getCurrentSegments(StreamInfo) returns (SegmentRanges);
     rpc getSegments(GetSegmentsRequest) returns (SegmentsAtTime);
+    /* Deprecated RPC: https://github.com/pravega/pravega/issues/3760 */
     rpc getSegmentsImmediatlyFollowing(SegmentId) returns(SuccessorResponse);
+    rpc getSegmentsImmediatelyFollowing(SegmentId) returns(SuccessorResponse);
     rpc getSegmentsBetween(StreamCutRange) returns (StreamCutRangeResponse);
     rpc scale(ScaleRequest) returns (ScaleResponse);
     rpc checkScale(ScaleStatusRequest) returns (ScaleStatusResponse);
     rpc getURI(SegmentId) returns (NodeUri);
     rpc isSegmentValid(SegmentId) returns (SegmentValidityResponse);
+    rpc isStreamCutValid(StreamCut) returns (StreamCutValidityResponse);
     rpc createTransaction(CreateTxnRequest) returns (CreateTxnResponse);
     rpc commitTransaction(TxnRequest) returns (TxnStatus);
     rpc abortTransaction(TxnRequest) returns (TxnStatus);
     rpc pingTransaction(PingTxnRequest) returns (PingTxnStatus);
     rpc checkTransactionState(TxnRequest) returns (TxnState);
     rpc createScope(ScopeInfo) returns (CreateScopeStatus);
+    rpc listStreamsInScope(StreamsInScopeRequest) returns (StreamsInScopeResponse);
     rpc deleteScope(ScopeInfo) returns (DeleteScopeStatus);
     rpc getDelegationToken(StreamInfo) returns (DelegationToken);
+    rpc removeWriter(RemoveWriterRequest) returns (RemoveWriterResponse);
+    rpc noteTimestampFromWriter(TimestampFromWriter) returns (TimestampResponse);
 }
 
 message ServerRequest {
@@ -115,6 +121,9 @@ message PingTxnStatus {
         MAX_EXECUTION_TIME_EXCEEDED = 2;
         SCALE_GRACE_TIME_EXCEEDED = 3 [deprecated=true];
         DISCONNECTED = 4;
+        COMMITTED = 5;
+        ABORTED = 6;
+        UNKNOWN = 7;
     }
     Status status = 1;
 }
@@ -134,6 +143,26 @@ message TxnState {
 message ScopeInfo {
     string scope = 1;
 }
+
+message ContinuationToken {
+    string token = 1;
+}
+
+ message StreamsInScopeRequest {
+     ScopeInfo scope = 1;
+     ContinuationToken continuationToken = 2;
+}
+
+ message StreamsInScopeResponse {
+    repeated StreamInfo streams = 1;
+    ContinuationToken continuationToken = 2;
+    enum Status {
+        SUCCESS = 0;
+        FAILURE = 1;
+        SCOPE_NOT_FOUND = 2;
+    }
+    Status status = 3;
+ }
 
 message StreamInfo {
     string scope = 1;
@@ -224,6 +253,8 @@ message CreateTxnResponse {
 message TxnRequest {
     StreamInfo streamInfo = 1;
     TxnId txnId = 2;
+    string writerId = 3;
+    int64 timestamp = 4;
 }
 
 message PingTxnRequest {
@@ -298,6 +329,41 @@ message SegmentValidityResponse {
     bool response = 1;
 }
 
+message StreamCutValidityResponse {
+    bool response = 1;
+}
+
 message DelegationToken {
     string delegationToken = 1;
- }
+}
+
+message RemoveWriterRequest {
+    string writer = 1;
+    StreamInfo stream = 2;
+}
+
+message RemoveWriterResponse {
+    enum Status {
+        SUCCESS = 0;
+        UNKNOWN_WRITER = 1;
+        STREAM_DOES_NOT_EXIST = 2;
+        INTERNAL_ERROR = 3;
+    }
+    Status result = 1;
+}
+
+message TimestampFromWriter {
+    string writer = 1;
+    StreamCut position = 2;
+    int64 timestamp = 3;
+}
+
+message TimestampResponse {
+    enum Status {
+        SUCCESS = 0;
+        INVALID_TIME = 1;
+        INVALID_POSITION = 2;
+        INTERNAL_ERROR = 3;
+    }
+    Status result = 1;
+}

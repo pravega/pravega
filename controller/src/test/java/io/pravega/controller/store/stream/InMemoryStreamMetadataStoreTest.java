@@ -9,7 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
-import java.io.IOException;
+import com.google.common.collect.ImmutableMap;
 
 /**
  * In-memory stream metadata store tests.
@@ -17,11 +17,15 @@ import java.io.IOException;
 public class InMemoryStreamMetadataStoreTest extends StreamMetadataStoreTest {
 
     @Override
-    public void setupTaskStore() throws Exception {
-        store = StreamStoreFactory.createInMemoryStore(1, executor);
+    public void setupStore() throws Exception {
+        store = StreamStoreFactory.createInMemoryStore(executor);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
     }
 
     @Override
-    public void cleanupTaskStore() throws IOException {
+    public void cleanupStore() throws Exception {
+        store.close();
     }
 }

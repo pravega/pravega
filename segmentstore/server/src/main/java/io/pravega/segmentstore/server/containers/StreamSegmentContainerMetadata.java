@@ -191,32 +191,6 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
     }
 
     @Override
-    public SegmentMetadata deleteStreamSegment(String streamSegmentName) {
-        StreamSegmentMetadata segmentMetadata;
-        synchronized (this.lock) {
-            segmentMetadata = this.metadataByName.getOrDefault(streamSegmentName, null);
-            if (segmentMetadata == null) {
-                // We have no knowledge in our metadata about this StreamSegment. This means it has no transactions associated
-                // with it, so no need to do anything else.
-                log.info("{}: DeleteStreamSegments (nothing)", this.traceObjectId);
-                return null;
-            } else if (segmentMetadata.isDeleted() || segmentMetadata.isMerged()) {
-                // Do not attempt to re-delete the Segment if already deleted or merged. That is more likely to cause
-                // issues in downstream components.
-                log.info("{}: DeleteStreamSegments {} ('{}') - no action (deleted={}, merged={}).", this.traceObjectId,
-                        segmentMetadata.getId(), segmentMetadata.getName(), segmentMetadata.isDeleted(), segmentMetadata.isMerged());
-                return null;
-            }
-
-            // Mark this segment as deleted.
-            segmentMetadata.markDeleted();
-        }
-
-        log.info("{}: DeleteStreamSegment {} ('{}').", this.traceObjectId, segmentMetadata.getId(), segmentMetadata.getName());
-        return segmentMetadata;
-    }
-
-    @Override
     public long nextOperationSequenceNumber() {
         ensureNonRecoveryMode();
         return this.sequenceNumber.incrementAndGet();
@@ -282,8 +256,11 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             count = this.metadataById.size();
         }
 
-        log.info("{}: EvictedStreamSegments Count = {}, Active = {}", this.traceObjectId, evictedSegments.size(), count);
-        this.metrics.segmentCount(count);
+        if (evictedSegments.size() > 0) {
+            log.info("{}: EvictedStreamSegments Count = {}, Active = {}", this.traceObjectId, evictedSegments.size(), count);
+            this.metrics.segmentCount(count);
+        }
+
         return evictedSegments;
     }
 
@@ -300,12 +277,16 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
             count += sm.cleanupAttributes(maximumAttributeCount, adjustedCutoff);
         }
 
-        log.info("{}: EvictedExtendedAttributes Count = {}", this.traceObjectId, count);
+        if (count > 0) {
+            log.info("{}: EvictedExtendedAttributes Count = {}", this.traceObjectId, count);
+        }
+
         return count;
     }
 
     /**
      * Determines whether the Segment with given metadata can be evicted, based on the the given Sequence Number Threshold.
+     * A Segment will not be chosen for eviction if {@link SegmentMetadata#isPinned()} is true.
      *
      * @param metadata             The Metadata for the Segment that is considered for eviction.
      * @param sequenceNumberCutoff A Sequence Number that indicates the cutoff threshold. A Segment is eligible for eviction
@@ -314,8 +295,9 @@ public class StreamSegmentContainerMetadata implements UpdateableContainerMetada
      * @return True if the Segment can be evicted, false otherwise.
      */
     private boolean isEligibleForEviction(SegmentMetadata metadata, long sequenceNumberCutoff) {
-        return metadata.getLastUsed() < sequenceNumberCutoff
-                || metadata.isDeleted() && metadata.getLastUsed() <= this.lastTruncatedSequenceNumber.get();
+        return !metadata.isPinned()
+                && (metadata.getLastUsed() < sequenceNumberCutoff
+                || metadata.isDeleted() && metadata.getLastUsed() <= this.lastTruncatedSequenceNumber.get());
     }
 
     //endregion

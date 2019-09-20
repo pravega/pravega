@@ -11,8 +11,9 @@
 rootProject.name = 'pravega'
 
 include 'common',
-        'shared',
+        'shared:cluster',
         'shared:authplugin',
+        'shared:security',
         'shared:metrics',
         'shared:protocol',
         'shared:controller-api',
@@ -26,4 +27,5 @@ include 'common',
         'standalone',
         'test:testcommon',
         'test:integration',
-        'test:system'
+        'test:system',
+        'bindings'

@@ -13,6 +13,7 @@ import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
@@ -31,7 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.Lombok;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -53,7 +53,6 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     private final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
     private final RetryWithBackoff retrySchedule;
     
-
     @Override
     public String getScopedSegmentName() {
         return segmentId.getScopedName();
@@ -68,7 +67,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                     .run(() -> {
                         if (client == null || client.isClosed()) {
                             client = new RawClient(controller, connectionFactory, segmentId);
-                            long requestId = requestIdGenerator.get();
+                            long requestId = client.getFlow().getNextSequenceNumber();
                             log.debug("Setting up append on segment: {}", segmentId);
                             SetupAppend setup = new SetupAppend(requestId, writerId,
                                                                 segmentId.getScopedName(),
@@ -79,9 +78,10 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                                 return true;
                             }
                         }
+                        long requestId = client.getFlow().getNextSequenceNumber();
                         val request = new ConditionalAppend(writerId, appendSequence, expectedOffset,
-                                                            new Event(Unpooled.wrappedBuffer(data)));
-                        val reply = client.sendRequest(appendSequence, request);
+                                                            new Event(Unpooled.wrappedBuffer(data)), requestId);
+                        val reply = client.sendRequest(requestId, request);
                         return transformDataAppended(reply.join());
                     });
         } 
@@ -118,16 +118,20 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
         if (reply instanceof WireCommands.NoSuchSegment) {
             throw new NoSuchSegmentException(reply.toString());
         } else if (reply instanceof SegmentIsSealed) {
-            throw Lombok.sneakyThrow(new SegmentSealedException(reply.toString()));
+            throw Exceptions.sneakyThrow(new SegmentSealedException(reply.toString()));
         } else if (reply instanceof WrongHost) {
-            throw Lombok.sneakyThrow(new ConnectionFailedException(reply.toString()));
+            throw Exceptions.sneakyThrow(new ConnectionFailedException(reply.toString()));
         } else {
-            throw Lombok.sneakyThrow(new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an AppendSetup"));
+            throw Exceptions.sneakyThrow(new ConnectionFailedException("Unexpected reply of " + reply + " when expecting an AppendSetup"));
         }
     }
     
     private void closeConnection(String message) {
-        log.info("Closing connection as a result of receiving: {}", message);
+        if (closed.get()) {
+            log.debug("Closing connection as a result of receiving: {} for segment: {}", message, segmentId);
+        } else {
+            log.warn("Closing connection as a result of receiving: {} for segment: {}", message, segmentId);
+        }
         RawClient c;
         synchronized (lock) {
             c = client;

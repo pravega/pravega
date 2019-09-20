@@ -18,6 +18,7 @@ import com.google.common.util.concurrent.Service;
 public interface Container extends Service, AutoCloseable {
     /**
      * Gets a value indicating the Id of this container.
+     * @return The Id of this container.
      */
     int getId();
 

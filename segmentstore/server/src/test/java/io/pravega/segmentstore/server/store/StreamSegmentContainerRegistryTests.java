@@ -13,14 +13,18 @@ import com.google.common.util.concurrent.AbstractService;
 import com.google.common.util.concurrent.Service;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
+import io.pravega.common.util.BufferView;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainer;
 import io.pravega.segmentstore.server.SegmentContainerFactory;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.ServiceListeners;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
@@ -332,12 +336,12 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         //region Unimplemented methods
 
         @Override
-        public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             return null;
         }
 
         @Override
-        public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+        public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
             return null;
         }
 
@@ -357,7 +361,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
+        public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
             return null;
         }
 
@@ -367,7 +371,7 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public CompletableFuture<Void> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
+        public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
             return null;
         }
 
@@ -387,7 +391,17 @@ public class StreamSegmentContainerRegistryTests extends ThreadPooledTestSuite {
         }
 
         @Override
+        public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
+            return null;
+        }
+
+        @Override
         public Collection<SegmentProperties> getActiveSegments() {
+            return null;
+        }
+
+        @Override
+        public <T extends SegmentContainerExtension> T getExtension(Class<T> extensionClass) {
             return null;
         }
 

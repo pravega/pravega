@@ -43,13 +43,6 @@ public class ModelHelperTest {
         return new Segment("scope", streamName, number);
     }
 
-    private static PositionInternal createPosition() {
-        Map<Segment, Long> ownedLogs = new HashMap<>();
-        ownedLogs.put(createSegmentId("stream", 1), 1L);
-        ownedLogs.put(createSegmentId("stream", 2), 2L);
-        return new PositionImpl(ownedLogs);
-    }
-
     @Test(expected = NullPointerException.class)
     public void decodeSegmentIdNullTest() {
         ModelHelper.decode((Segment) null);
@@ -76,6 +69,15 @@ public class ModelHelperTest {
         assertEquals("stream1", segment.getStreamName());
         assertEquals("scope", segment.getScope());
         assertEquals(2L, segment.getSegmentId());
+    }
+    
+    @Test
+    public void encodeSegmentWithRange() {
+        SegmentWithRange segment = ModelHelper.encode(createSegmentRange(.25, .75));
+        assertEquals("testStream", segment.getSegment().getStreamName());
+        assertEquals("testScope", segment.getSegment().getScope());
+        assertEquals(.25, segment.getRange().getLow(), 0.0);
+        assertEquals(.75, segment.getRange().getHigh(), 0.0);
     }
 
     @Test(expected = NullPointerException.class)
@@ -136,14 +138,12 @@ public class ModelHelperTest {
 
     @Test(expected = NullPointerException.class)
     public void decodeStreamConfigNullInput() {
-        ModelHelper.decode((StreamConfiguration) null);
+        ModelHelper.decode("", "", (StreamConfiguration) null);
     }
 
     @Test
     public void decodeStreamConfig() {
-        StreamConfig config = ModelHelper.decode(StreamConfiguration.builder()
-                .scope("scope")
-                .streamName("test")
+        StreamConfig config = ModelHelper.decode("scope", "test", StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
                 .retentionPolicy(RetentionPolicy.byTime(Duration.ofDays(100L)))
                 .build());
@@ -165,13 +165,10 @@ public class ModelHelperTest {
 
     @Test
     public void encodeStreamConfig() {
-        StreamConfiguration config = ModelHelper.encode(ModelHelper.decode(StreamConfiguration.builder()
-          .scope("scope")
-          .streamName("test")
+        StreamConfiguration config = ModelHelper.encode(ModelHelper.decode("scope", "test", StreamConfiguration.builder()
           .scalingPolicy(ScalingPolicy.byEventRate(100, 2, 3))
           .retentionPolicy(RetentionPolicy.bySizeBytes(1000L))
           .build()));
-        assertEquals("test", config.getStreamName());
         ScalingPolicy policy = config.getScalingPolicy();
         assertEquals(ScalingPolicy.ScaleType.BY_RATE_IN_EVENTS_PER_SEC, policy.getScaleType());
         assertEquals(100L, policy.getTargetRate());

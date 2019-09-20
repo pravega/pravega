@@ -16,7 +16,6 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.concurrent.SequentialAsyncProcessor;
 import io.pravega.common.util.ArrayView;
 import io.pravega.common.util.CloseableIterator;
 import io.pravega.common.util.RetriesExhaustedException;
@@ -783,20 +782,21 @@ class BookKeeperLog implements DurableDataLog {
     private void persistMetadata(LogMetadata metadata, boolean create) throws DurableDataLogException {
         try {
             byte[] serializedMetadata = LogMetadata.SERIALIZER.serialize(metadata).getCopy();
+            Stat result;
             if (create) {
+                result = new Stat();
                 this.zkClient.create()
                              .creatingParentsIfNeeded()
+                             .storingStatIn(result)
                              .forPath(this.logNodePath, serializedMetadata);
-                // Set version to 0 as that will match the ZNode's version.
-                metadata.withUpdateVersion(0);
             } else {
-                this.zkClient.setData()
-                             .withVersion(metadata.getUpdateVersion())
-                             .forPath(this.logNodePath, serializedMetadata);
+                result = this.zkClient.setData()
+                                      .withVersion(metadata.getUpdateVersion())
+                                      .forPath(this.logNodePath, serializedMetadata);
 
-                // Increment the version to keep up with the ZNode's value (after writing it to ZK).
-                metadata.withUpdateVersion(metadata.getUpdateVersion() + 1);
             }
+
+            metadata.withUpdateVersion(result.getVersion());
         } catch (KeeperException.NodeExistsException | KeeperException.BadVersionException keeperEx) {
             // We were fenced out. Clean up and throw appropriate exception.
             throw new DataLogWriterNotPrimaryException(

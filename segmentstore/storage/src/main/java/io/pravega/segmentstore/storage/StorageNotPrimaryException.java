@@ -41,7 +41,7 @@ public class StorageNotPrimaryException extends StreamSegmentException {
     }
 
     public StorageNotPrimaryException(String streamSegmentName, String message, Throwable cause) {
-        super(streamSegmentName, "The current instance is no longer the primary writer for this StreamSegment." + (message == null ? "" : " ") + message,
+        super(streamSegmentName, "The current instance is no longer the primary writer for this StreamSegment." + (message == null ? "" : " " + message),
                 cause);
     }
 }

@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.collect.Iterators;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.io.StreamHelpers;
@@ -19,10 +20,10 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.IntentionalException;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.io.ByteArrayInputStream;
+import java.io.SequenceInputStream;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
@@ -31,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import lombok.Cleanup;
+import lombok.val;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -131,7 +133,7 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
      * Tests the AsyncReadResultProcessor when it encounters read failures.
      */
     @Test
-    public void testReadFailures() throws Exception {
+    public void testReadFailures() {
         // Pre-generate some entries.
         final int totalLength = 1000;
         final Semaphore barrier = new Semaphore(0);
@@ -165,6 +167,41 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         }
 
         Assert.assertTrue("ReadResult was not closed when the AsyncReadResultProcessor was closed.", rr.isClosed());
+    }
+
+    /**
+     * Tests the {@link AsyncReadResultProcessor#processAll} method.
+     */
+    @Test
+    public void testProcessAll() throws Exception {
+        // Pre-generate some entries.
+        ArrayList<byte[]> entries = new ArrayList<>();
+        int totalLength = generateEntries(entries);
+
+        // Setup an entry provider supplier.
+        AtomicInteger currentIndex = new AtomicInteger();
+        StreamSegmentReadResult.NextEntrySupplier supplier = (offset, length) -> {
+            int idx = currentIndex.getAndIncrement();
+            if (idx == entries.size() - 1) {
+                // Future read result.
+                Supplier<ReadResultEntryContents> entryContentsSupplier =
+                        () -> new ReadResultEntryContents(new ByteArrayInputStream(entries.get(idx)), entries.get(idx).length);
+                return new TestFutureReadResultEntry(offset, length, entryContentsSupplier, executorService());
+            } else if (idx >= entries.size()) {
+                return null;
+            }
+
+            // Normal read.
+            return new CacheReadResultEntry(offset, entries.get(idx), 0, entries.get(idx).length);
+        };
+
+        // Fetch all the data and compare with expected.
+        @Cleanup
+        StreamSegmentReadResult rr = new StreamSegmentReadResult(0, totalLength, supplier, "");
+        val result = AsyncReadResultProcessor.processAll(rr, executorService(), TIMEOUT);
+        val actualData = result.get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        val expectedData = new SequenceInputStream(Iterators.asEnumeration(entries.stream().map(ByteArrayInputStream::new).iterator()));
+        AssertExtensions.assertStreamEquals("Unexpected data read back.", expectedData, actualData, totalLength);
     }
 
     private int generateEntries(ArrayList<byte[]> entries) {
@@ -247,13 +284,6 @@ public class AsyncReadResultProcessorTests extends ThreadPooledTestSuite {
         @Override
         public void complete(ReadResultEntryContents contents) {
             super.complete(contents);
-        }
-
-        /**
-         * Cancels this pending read result entry.
-         */
-        public void cancel() {
-            fail(new CancellationException());
         }
 
         @Override

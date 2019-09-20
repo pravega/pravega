@@ -10,8 +10,7 @@
 package io.pravega.shared.metrics;
 
 /**
- * Simple stats that require only increment and decrement
- * functions on a Long. Metrics like the number of topics, persist queue size
+ * Simple stats that require only increment functions on a Long. Metrics like the number of topics, persist queue size
  * etc. should use this.
  */
 public interface Counter extends Metric {
@@ -24,11 +23,6 @@ public interface Counter extends Metric {
      * Increment the value associated with this stat.
      */
     void inc();
-
-    /**
-     * Decrement the value associated with this stat.
-     */
-    void dec();
 
     /**
      * Add delta to the value associated with this stat.

@@ -74,4 +74,10 @@ public class InMemoryHostStore implements HostControllerStore {
         String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName(scope, stream, segmentId);
         return getHostForContainer(segmentMapper.getContainerId(qualifiedName));
     }
+
+    @Override
+    @Synchronized
+    public Host getHostForTableSegment(String tableName) {
+        return getHostForContainer(segmentMapper.getContainerId(tableName));
+    }
 }

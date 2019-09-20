@@ -36,4 +36,9 @@ public abstract class StreamCutInternal implements StreamCut {
     public static StreamCutInternal fromBytes(ByteBuffer cut) {
         return StreamCutImpl.fromBytes(cut);
     }
+
+    public static StreamCutInternal from(String cut) {
+        return StreamCutImpl.from(cut);
+    }
+
 }

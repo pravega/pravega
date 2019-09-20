@@ -27,6 +27,7 @@ public interface ContainerMetadata {
 
     /**
      * Gets a value indicating the Id of the StreamSegmentContainer this Metadata refers to.
+     * @return The Id of the StreamSegmentContainer.
      */
     int getContainerId();
 
@@ -47,11 +48,13 @@ public interface ContainerMetadata {
 
     /**
      * Gets a value indicating whether we are currently in Recovery Mode.
+     * @return true if currently in Recovery Mode, false otherwise.
      */
     boolean isRecoveryMode();
 
     /**
      * Gets a value indicating the current Operation Sequence Number.
+     * @return The Current Operation Sequence Number.
      */
     long getOperationSequenceNumber();
 
@@ -75,6 +78,7 @@ public interface ContainerMetadata {
 
     /**
      * Gets a collection containing all StreamSegmentIds currently mapped.
+     * @return The collection containing all StreamSegmentIds currently mapped.
      */
     Collection<Long> getAllStreamSegmentIds();
 

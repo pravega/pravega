@@ -9,18 +9,16 @@
  */
 package io.pravega.common.util;
 
-import java.io.ByteArrayInputStream;
+import io.pravega.common.io.StreamHelpers;
+import io.pravega.test.common.AssertExtensions;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-
-import io.pravega.common.io.StreamHelpers;
+import java.util.Arrays;
 import org.junit.Assert;
 import org.junit.Test;
-
-import io.pravega.test.common.AssertExtensions;
 
 /**
  * Unit tests for ByteArraySegment class.
@@ -75,8 +73,18 @@ public class ByteArraySegmentTests {
         target.copyFrom(source, targetOffset, copyLength);
         for (int i = 0; i < targetBuffer.length; i++) {
             int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : i - targetOffset;
-            Assert.assertEquals("Unexpected value after copyFrom (second half) in segment at offset " + i, expectedValue, target.get(i));
-            Assert.assertEquals("Unexpected value after copyFrom (second half) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
+            Assert.assertEquals("Unexpected value after copyFrom (1) in segment at offset " + i, expectedValue, target.get(i));
+            Assert.assertEquals("Unexpected value after copyFrom (1) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
+        }
+
+        // Test copyFrom with source offset.
+        Arrays.fill(targetBuffer, (byte) 0);
+        final int sourceOffset = 3;
+        target.copyFrom(source, sourceOffset, targetOffset, copyLength);
+        for (int i = 0; i < targetBuffer.length; i++) {
+            int expectedValue = i < targetOffset || i >= targetOffset + copyLength ? 0 : (i - targetOffset + sourceOffset);
+            Assert.assertEquals("Unexpected value after copyFrom (2) in segment at offset " + i, expectedValue, target.get(i));
+            Assert.assertEquals("Unexpected value after copyFrom (2) in base buffer at offset " + i, expectedValue, targetBuffer[i]);
         }
     }
 
@@ -101,24 +109,23 @@ public class ByteArraySegmentTests {
     }
 
     /**
-     * Tests the functionality of writeTo and readFrom.
+     * Tests the functionality of copyTo(OutputStream).
      */
     @Test
-    public void testWriteToReadFrom() throws IOException {
+    public void testCopyToStream() throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         int count = 10;
         ArrayList<ByteArraySegment> sourceSegments = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             ByteArraySegment s = new ByteArraySegment(createFormattedBuffer());
             sourceSegments.add(s);
-            s.writeTo(outputStream);
+            s.copyTo(outputStream);
         }
 
-        InputStream inputStream = new ByteArrayInputStream(outputStream.toByteArray());
         for (int i = 0; i < count; i++) {
             ByteArraySegment s = sourceSegments.get(i);
             ByteArraySegment t = new ByteArraySegment(new byte[s.getLength()]);
-            t.readFrom(inputStream);
+            t.copyFrom(s, 0, t.getLength());
 
             Assert.assertEquals("Source and target lengths differ.", s.getLength(), t.getLength());
             for (int j = 0; j < s.getLength(); j++) {

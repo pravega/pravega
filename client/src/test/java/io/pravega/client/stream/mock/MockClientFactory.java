@@ -10,9 +10,8 @@
 package io.pravega.client.stream.mock;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
-import io.pravega.client.batch.BatchClient;
-import io.pravega.client.batch.impl.BatchClientImpl;
+import io.pravega.client.EventStreamClientFactory;
+import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Revisioned;
@@ -25,19 +24,21 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.TransactionalEventStreamWriter;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import java.util.function.Supplier;
+import lombok.Getter;
 
-public class MockClientFactory implements ClientFactory, AutoCloseable {
-
+public class MockClientFactory implements EventStreamClientFactory, SynchronizerClientFactory, AutoCloseable {
     private final ConnectionFactoryImpl connectionFactory;
+    @Getter
     private final Controller controller;
     private final ClientFactoryImpl impl;
 
     public MockClientFactory(String scope, MockSegmentStreamFactory ioFactory) {
         this.connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        this.controller = new MockController("localhost", 0, connectionFactory);
+        this.controller = new MockController("localhost", 0, connectionFactory, false);
         this.impl = new ClientFactoryImpl(scope, controller, connectionFactory, ioFactory, ioFactory, ioFactory, ioFactory);
     }
 
@@ -50,6 +51,16 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         return impl.createEventWriter(streamName, s, config);
+    }
+    
+    @Override
+    public <T> EventStreamWriter<T> createEventWriter(String writerId, String streamName, Serializer<T> s, EventWriterConfig config) {
+        return impl.createEventWriter(writerId, streamName, s, config);
+    }
+    
+    @Override
+    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String writerId, String streamName, Serializer<T> s, EventWriterConfig config) {
+        return impl.createTransactionalEventWriter(writerId, streamName, s, config);
     }
 
     @Override
@@ -80,10 +91,5 @@ public class MockClientFactory implements ClientFactory, AutoCloseable {
     @Override
     public void close() {
         this.connectionFactory.close();
-    }
-
-    @Override
-    public BatchClient createBatchClient() {
-        return new BatchClientImpl(controller, connectionFactory);
     }
 }

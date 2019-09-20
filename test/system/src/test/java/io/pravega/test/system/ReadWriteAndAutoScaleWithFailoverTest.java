@@ -9,8 +9,6 @@
  */
 package io.pravega.test.system;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.StreamManagerImpl;
@@ -51,16 +49,15 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     private static final int NUM_READERS = 2;
     private static final int TOTAL_NUM_WRITERS = INIT_NUM_WRITERS + ADD_NUM_WRITERS;
 
-    //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
+    //The execution time for @Before + @After + @Test methods should be less than 30 mins. Else the test will timeout.
     @Rule
-    public Timeout globalTimeout = Timeout.seconds(25 * 60);
+    public Timeout globalTimeout = Timeout.seconds(30 * 60);
 
     private final String scope = "testReadWriteAndAutoScaleScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final String readerGroupName = "testReadWriteAndAutoScaleReaderGroup" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.byEventRate(1, 2, 2);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(AUTO_SCALE_STREAM).scalingPolicy(scalingPolicy).build();
-    private ClientFactory clientFactory;
+    private final StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
+    private ClientFactoryImpl clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;
 
@@ -68,8 +65,8 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     public static void initialize() throws MarathonException, ExecutionException {
         URI zkUri = startZookeeperInstance();
         startBookkeeperInstances(zkUri);
-        URI controllerUri = startPravegaControllerInstances(zkUri);
-        startPravegaSegmentStoreInstances(zkUri, controllerUri);
+        URI controllerUri = startPravegaControllerInstances(zkUri, 3);
+        startPravegaSegmentStoreInstances(zkUri, controllerUri, 3);
     }
 
     @Before
@@ -88,9 +85,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         log.info("Pravega Controller service instance details: {}", conURIs);
 
         // Fetch all the RPC endpoints and construct the client URIs.
-        final List<String> uris = conURIs.stream().filter(uri -> Utils.DOCKER_BASED ? uri.getPort() == Utils.DOCKER_CONTROLLER_PORT
-                : uri.getPort() == Utils.MARATHON_CONTROLLER_PORT).map(URI::getAuthority)
-                .collect(Collectors.toList());
+        final List<String> uris = conURIs.stream().filter(ISGRPC).map(URI::getAuthority).collect(Collectors.toList());
 
         controllerURIDirect = URI.create("tcp://" + String.join(",", uris));
         log.info("Controller Service direct URI: {}", controllerURIDirect);
@@ -105,29 +100,25 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
                                                                         "ReadWriteAndAutoScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
                                                                                   "ReadWriteAndAutoScaleWithFailoverTest-controller");
+
         //get Controller Uri
         controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                            .clientConfig( ClientConfig.builder().controllerURI(controllerURIDirect).build())
+                                                            .clientConfig(Utils.buildClientConfig(controllerURIDirect))
                                                             .maxBackoffMillis(5000).build(),
-
                                         controllerExecutorService);
         testState = new TestState(false);
-        testState.writersListComplete.add(0, testState.writersComplete);
-        testState.writersListComplete.add(1, testState.newWritersComplete);
-        streamManager = new StreamManagerImpl( ClientConfig.builder().controllerURI(controllerURIDirect).build());
+        streamManager = new StreamManagerImpl(Utils.buildClientConfig(controllerURIDirect));
         createScopeAndStream(scope, AUTO_SCALE_STREAM, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
 
         clientFactory = new ClientFactoryImpl(scope, controller);
-        readerGroupManager = ReaderGroupManager.withScope(scope,
-                ClientConfig.builder().controllerURI(controllerURIDirect).build());
+        readerGroupManager = ReaderGroupManager.withScope(scope, Utils.buildClientConfig(controllerURIDirect));
     }
 
     @After
     public void tearDown() throws ExecutionException {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -139,44 +130,40 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
         Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(1), ExecutionException::new);
     }
 
-
-    @Test(timeout = 25 * 60 * 1000)
+    @Test
     public void readWriteAndAutoScaleWithFailoverTest() throws Exception {
-        try {
-            createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
+        createWriters(clientFactory, INIT_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+        createReaders(clientFactory, readerGroupName, scope, readerGroupManager, AUTO_SCALE_STREAM, NUM_READERS);
 
-            //run the failover test before scaling
-            performFailoverTest();
+        //run the failover test before scaling
+        performFailoverTest();
 
-            //bring the instances back to 3 before performing failover during scaling
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        //bring the instances back to 3 before performing failover during scaling
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
+        addNewWriters(clientFactory, ADD_NUM_WRITERS, scope, AUTO_SCALE_STREAM);
 
-            //run the failover test while scaling
-            performFailoverTest();
+        //run the failover test while scaling
+        performFailoverTest();
 
-            waitForScaling(scope, AUTO_SCALE_STREAM, config);
+        waitForScaling(scope, AUTO_SCALE_STREAM, config);
 
-            //bring the instances back to 3 before performing failover
-            Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
-            Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
-            Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        //bring the instances back to 3 before performing failover
+        Futures.getAndHandleExceptions(controllerInstance.scaleService(3), ExecutionException::new);
+        Futures.getAndHandleExceptions(segmentStoreInstance.scaleService(3), ExecutionException::new);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
-            //run the failover test after scaling
-            performFailoverTest();
+        //run the failover test after scaling
+        performFailoverTest();
 
-            stopWriters();
-            stopReaders();
-            validateResults();
+        stopWriters();
+        stopReaders();
+        validateResults();
 
-            cleanUp(scope, AUTO_SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-            log.info("Test ReadWriteAndAutoScaleWithFailover succeeds");
-        } finally {
-            testState.checkForAnomalies();
-        }
+        cleanUp(scope, AUTO_SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+        testState.checkForAnomalies();
+        log.info("Test ReadWriteAndAutoScaleWithFailover succeeds");
     }
 }

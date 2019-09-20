@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host;
 
 import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
@@ -20,7 +21,6 @@ import io.pravega.test.common.ThreadPooledTestSuite;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.val;
-import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -38,6 +38,7 @@ import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
@@ -135,9 +136,9 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
                 .thenReturn(startupFuture);
 
         // Now modify the ZK entry.
-        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        Map<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         // Container finished starting.
         startupFuture.complete(containerHandle);
@@ -150,7 +151,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
         // Now modify the ZK entry. Remove container 2 and add 1.
         HashMap<Host, Set<Integer>> newMapping = new HashMap<>();
         newMapping.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(1));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(newMapping));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(newMapping).toBytes());
 
         // Verify that stop is called and only the newly added container is in running state.
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
@@ -184,9 +185,9 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
                 .thenReturn(startupFuture);
 
         // Use ZK to send that information to the Container Manager.
-        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        Map<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         // Verify it's not yet started.
         verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
@@ -196,7 +197,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
         when(containerRegistry.stopContainer(any(), any())).thenReturn(CompletableFuture.completedFuture(null));
 
         currentData.clear();
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         verify(containerRegistry, timeout(10000).atLeastOnce()).stopContainer(any(), any());
         Thread.sleep(2000);
@@ -220,9 +221,9 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
                 .thenReturn(failedFuture);
 
         // Use ZK to send that information to the Container Manager.
-        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        Map<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         // Verify that it does not start.
         verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
@@ -256,9 +257,9 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
                 .thenThrow(new RuntimeException());
 
         // Use ZK to send that information to the Container Manager.
-        HashMap<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
+        Map<Host, Set<Integer>> currentData = deserialize(zkClient, PATH);
         currentData.put(PRAVEGA_SERVICE_ENDPOINT, Collections.singleton(2));
-        zkClient.setData().forPath(PATH, SerializationUtils.serialize(currentData));
+        zkClient.setData().forPath(PATH, HostContainerMap.createHostContainerMap(currentData).toBytes());
 
         // Verify that it does not start.
         verify(containerRegistry, timeout(1000).atLeastOnce()).startContainer(eq(2), any());
@@ -319,7 +320,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
 
     private void initializeHostContainerMapping(CuratorFramework zkClient) throws Exception {
         HashMap<Host, Set<Integer>> mapping = new HashMap<>();
-        zkClient.create().creatingParentsIfNeeded().forPath(PATH, SerializationUtils.serialize(mapping));
+        zkClient.create().creatingParentsIfNeeded().forPath(PATH, HostContainerMap.createHostContainerMap(mapping).toBytes());
     }
 
     private SegmentContainerRegistry createMockContainerRegistry() {
@@ -333,7 +334,7 @@ public class ZKSegmentContainerMonitorTest extends ThreadPooledTestSuite {
     }
 
     @SuppressWarnings("unchecked")
-    private HashMap<Host, Set<Integer>> deserialize(CuratorFramework zkClient, String path) throws Exception {
-        return (HashMap<Host, Set<Integer>>) SerializationUtils.deserialize(zkClient.getData().forPath(path));
+    private Map<Host, Set<Integer>> deserialize(CuratorFramework zkClient, String path) throws Exception {
+        return HostContainerMap.fromBytes(zkClient.getData().forPath(path)).getHostContainerMap();
     }
 }

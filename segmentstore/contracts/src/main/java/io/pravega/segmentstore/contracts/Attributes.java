@@ -23,7 +23,13 @@ import java.util.stream.Collectors;
  * MetadataCheckpoints or the Segment's State, thus its value will not be reloaded into memory upon a failover or
  * segment eviction + re-activation.
  */
-public final class Attributes {
+public class Attributes {
+    /**
+     * The Attribute ID at which Table Attributes can begin at. Everything with an ID smaller than this is a general
+     * Attribute.
+     */
+    public static final long TABLE_ATTRIBUTES_START_OFFSET = 1024 * 1024; // Powers of 2 make UUID.toString look readable.
+
     /**
      * Defines an attribute value that denotes a missing value.
      */
@@ -32,7 +38,7 @@ public final class Attributes {
     /**
      * Prefix (Most Significant Bits) of the Id of all Core Attributes.
      */
-    private static final long CORE_ATTRIBUTE_ID_PREFIX = Long.MIN_VALUE;
+    public static final long CORE_ATTRIBUTE_ID_PREFIX = Long.MIN_VALUE;
 
     /**
      * Defines an attribute that can be used to denote Segment creation time.
@@ -60,14 +66,16 @@ public final class Attributes {
     public static final UUID ROLLOVER_SIZE = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 4);
 
     /**
-     * Defines an attribute that is used to store the offset within the Attribute sub-segment where the last Snapshot begins.
+     * [Retired August 2018. Do not reuse as obsolete values may still linger around.]
+     * Attribute Snapshot Location.
      */
-    public static final UUID LAST_ATTRIBUTE_SNAPSHOT_OFFSET = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 5);
+    private static final UUID RETIRED_1 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 5);
 
     /**
-     * Defines an attribute that is used to store the length (in bytes) of the last Attribute Snapshot.
+     * [Retired August 2018. Do not reuse as obsolete values may still linger around.]
+     * Attribute Snapshot Length.
      */
-    public static final UUID LAST_ATTRIBUTE_SNAPSHOT_LENGTH = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
+    private static final UUID RETIRED_2 = new UUID(CORE_ATTRIBUTE_ID_PREFIX, 6);
 
     /**
      * Determines whether the given Attribute Id refers to a Core Attribute.

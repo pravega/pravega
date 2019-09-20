@@ -12,6 +12,7 @@ package io.pravega.segmentstore.server.logs.operations;
 import com.google.common.base.Preconditions;
 import io.pravega.common.io.serialization.RevisionDataInput;
 import io.pravega.common.io.serialization.RevisionDataOutput;
+import io.pravega.segmentstore.server.SegmentOperation;
 import java.io.IOException;
 import lombok.Getter;
 

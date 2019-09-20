@@ -20,36 +20,39 @@ public interface StatsLogger {
      * Create op stats logger.
      *
      * @param name Stats Name
+     * @param tags Tags associated with the stats.
      * @return logger for an OpStat described by the <i>name</i>.
      */
-    OpStatsLogger createStats(String name);
+    OpStatsLogger createStats(String name, String... tags);
 
     /**
      * Create counter.
      *
      * @param name Stats Name
+     * @param tags Tags associated with the counter.
      * @return counter described by the <i>name</i>
      */
-    Counter createCounter(String name);
+    Counter createCounter(String name, String... tags);
 
     /**
      * Create meter.
      *
      * @param name the meter name
+     * @param tags the tags associated with the meter.
      * @return Create and register Meter described by the <i>name</i>
      */
-    Meter createMeter(String name);
+    Meter createMeter(String name, String... tags);
 
     /**
      * Register gauge.
      * <i>value</i> is usually get of Number: AtomicInteger::get, AtomicLong::get
      *
-     * @param <T>   the type of value
-     * @param name  the name of gauge
-     * @param value the supplier to provide value through get()
+     * @param name          the name of gauge
+     * @param tags          the tags associated with the Gauge.
+     * @param valueSupplier the supplier to provide value through get()
      */
-    <T extends Number> Gauge registerGauge(String name, Supplier<T> value);
-
+    Gauge registerGauge(String name, Supplier<Number> valueSupplier, String... tags);
+    
     /**
      * Create the stats logger under scope <i>scope</i>.
      *

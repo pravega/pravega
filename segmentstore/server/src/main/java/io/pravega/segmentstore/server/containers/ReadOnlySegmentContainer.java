@@ -16,14 +16,18 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.TimeoutTimer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.concurrent.Services;
-import io.pravega.common.util.AsyncMap;
+import io.pravega.common.util.BufferView;
+import io.pravega.common.util.Retry;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
+import io.pravega.segmentstore.server.DirectSegmentAccess;
 import io.pravega.segmentstore.server.SegmentContainer;
+import io.pravega.segmentstore.server.SegmentContainerExtension;
 import io.pravega.segmentstore.server.reading.StreamSegmentStorageReader;
 import io.pravega.segmentstore.storage.ReadOnlyStorage;
-import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
 import java.time.Duration;
 import java.util.Collection;
@@ -47,9 +51,10 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     static final int MAX_READ_AT_ONCE_BYTES = 4 * 1024 * 1024;
     private static final int CONTAINER_ID = Integer.MAX_VALUE; // So that it doesn't collide with any other real Container Id.
     private static final int CONTAINER_EPOCH = 1; // This guarantees that any write operations should be fenced out if attempted.
-
-    private final AsyncMap<String, SegmentState> stateStore;
-    private final SegmentStateMapper segmentStateMapper;
+    private static final Retry.RetryAndThrowExceptionally<StreamSegmentNotExistsException, RuntimeException> READ_RETRY = Retry
+            .withExpBackoff(30, 10, 4)
+            .retryingOn(StreamSegmentNotExistsException.class)
+            .throwingOn(RuntimeException.class);
     private final ReadOnlyStorage storage;
     private final ScheduledExecutorService executor;
     private final AtomicBoolean closed;
@@ -67,10 +72,7 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     ReadOnlySegmentContainer(StorageFactory storageFactory, ScheduledExecutorService executor) {
         Preconditions.checkNotNull(storageFactory, "storageFactory");
         this.executor = Preconditions.checkNotNull(executor, "executor");
-        Storage writableStorage = storageFactory.createStorageAdapter();
-        this.storage = writableStorage;
-        this.stateStore = new SegmentStateStore(writableStorage, this.executor);
-        this.segmentStateMapper = new SegmentStateMapper(this.stateStore, writableStorage);
+        this.storage = storageFactory.createStorageAdapter();
         this.closed = new AtomicBoolean();
     }
 
@@ -126,16 +128,15 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     public CompletableFuture<ReadResult> read(String streamSegmentName, long offset, int maxLength, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
         TimeoutTimer timer = new TimeoutTimer(timeout);
-        return getStreamSegmentInfo(streamSegmentName, false, timer.getRemaining())
-                .thenApply(si -> StreamSegmentStorageReader.read(si, offset, maxLength, MAX_READ_AT_ONCE_BYTES, this.storage));
+        return READ_RETRY.run(() -> getStreamSegmentInfo(streamSegmentName, timer.getRemaining())
+                .thenApply(si -> StreamSegmentStorageReader.read(si, offset, maxLength, MAX_READ_AT_ONCE_BYTES, this.storage)));
     }
 
     @Override
-    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, boolean waitForPendingOps, Duration timeout) {
+    public CompletableFuture<SegmentProperties> getStreamSegmentInfo(String streamSegmentName, Duration timeout) {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        return this.segmentStateMapper.getSegmentInfoFromStorage(streamSegmentName, timeout);
+        return READ_RETRY.run(() -> this.storage.getStreamSegmentInfo(streamSegmentName, timeout));
     }
-
 
     //endregion
 
@@ -147,12 +148,17 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public <T extends SegmentContainerExtension> T getExtension(Class<T> extensionClass) {
+        throw new UnsupportedOperationException("getExtension is not supported on " + getClass().getSimpleName());
+    }
+
+    @Override
+    public CompletableFuture<Long> append(String streamSegmentName, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return unsupported("append");
     }
 
     @Override
-    public CompletableFuture<Void> append(String streamSegmentName, long offset, byte[] data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
+    public CompletableFuture<Long> append(String streamSegmentName, long offset, BufferView data, Collection<AttributeUpdate> attributeUpdates, Duration timeout) {
         return unsupported("append");
     }
 
@@ -172,8 +178,8 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     }
 
     @Override
-    public CompletableFuture<Void> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
-        return unsupported("mergeTransaction");
+    public CompletableFuture<MergeStreamSegmentResult> mergeStreamSegment(String targetStreamSegment, String sourceStreamSegment, Duration timeout) {
+        return unsupported("mergeStreamSegment");
     }
 
     @Override
@@ -189,6 +195,11 @@ class ReadOnlySegmentContainer extends AbstractIdleService implements SegmentCon
     @Override
     public CompletableFuture<Void> truncateStreamSegment(String streamSegmentName, long offset, Duration timeout) {
         return unsupported("truncateStreamSegment");
+    }
+
+    @Override
+    public CompletableFuture<DirectSegmentAccess> forSegment(String streamSegmentName, Duration timeout) {
+        return unsupported("forSegment");
     }
 
     private <T> CompletableFuture<T> unsupported(String methodName) {

@@ -9,7 +9,7 @@
  */
 package io.pravega.client.stream;
 
-public class ReinitializationRequiredException extends Exception {
+public class ReinitializationRequiredException extends RuntimeException {
 
     private static final long serialVersionUID = 1L;
 

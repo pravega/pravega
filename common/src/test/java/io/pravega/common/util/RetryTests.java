@@ -18,13 +18,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Test methods for Retry utilities
@@ -163,18 +161,13 @@ public class RetryTests {
     }
 
     @Test
-    public void retryFutureInExecutorTests() {
+    public void retryFutureInExecutorTests() throws ExecutionException {
         ScheduledExecutorService executorService = ExecutorServiceHelpers.newScheduledThreadPool(5, "testpool");
 
         // 1. series of retryable exceptions followed by a failure
         begin = Instant.now();
         final CompletableFuture<Void> result1 = retryFutureInExecutor(uniformDelay, 1, maxLoops, maxDelay, true, executorService);
-        try {
-            Exceptions.handleInterrupted(() -> result1.get());
-        } catch (ExecutionException e) {
-            log.debug("Exception not expected", e);
-            fail("Exception observed in retryInExecutor");
-        }
+        Exceptions.handleInterrupted(() -> result1.get());
         end = Instant.now();
         duration = end.toEpochMilli() - begin.toEpochMilli();
         log.debug("Expected duration = {}", expectedDurationUniform);
@@ -199,12 +192,7 @@ public class RetryTests {
         // 3. exponential backoff
         begin = Instant.now();
         final CompletableFuture<Void> result3 = retryFutureInExecutor(exponentialInitialDelay, multiplier, maxLoops, maxDelay, true, executorService);
-        try {
-            Exceptions.handleInterrupted(() -> result3.get());
-        } catch (ExecutionException e) {
-            log.debug("Exception not expected", e);
-            fail("Exception observed in retryInExecutor");
-        }
+        Exceptions.handleInterrupted(() -> result3.get());
         end = Instant.now();
         duration = end.toEpochMilli() - begin.toEpochMilli();
         log.debug("Expected duration = {}", expectedDurationExponential);

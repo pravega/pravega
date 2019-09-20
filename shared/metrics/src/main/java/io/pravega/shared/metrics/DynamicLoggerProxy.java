@@ -23,32 +23,32 @@ public class DynamicLoggerProxy implements DynamicLogger {
     }
 
     @Override
-    public void incCounterValue(String name, long delta) {
-        this.instance.get().incCounterValue(name, delta);
+    public void incCounterValue(String name, long delta, String... tags) {
+        this.instance.get().incCounterValue(name, delta, tags);
     }
 
     @Override
-    public void updateCounterValue(String name, long value) {
-        this.instance.get().updateCounterValue(name, value);
+    public void updateCounterValue(String name, long value, String... tags) {
+        this.instance.get().updateCounterValue(name, value, tags);
     }
 
     @Override
-    public void freezeCounter(String name) {
-        this.instance.get().freezeCounter(name);
+    public void freezeCounter(String name, String... tags) {
+        this.instance.get().freezeCounter(name, tags);
     }
 
     @Override
-    public <T extends Number> void reportGaugeValue(String name, T value) {
-        this.instance.get().reportGaugeValue(name, value);
+    public <T extends Number> void reportGaugeValue(String name, T value, String... tags) {
+        this.instance.get().reportGaugeValue(name, value, tags);
     }
 
     @Override
-    public void freezeGaugeValue(String name) {
-        this.instance.get().freezeGaugeValue(name);
+    public void freezeGaugeValue(String name, String... tags) {
+        this.instance.get().freezeGaugeValue(name, tags);
     }
 
     @Override
-    public void recordMeterEvents(String name, long number) {
-        this.instance.get().recordMeterEvents(name, number);
+    public void recordMeterEvents(String name, long number, String... tags) {
+        this.instance.get().recordMeterEvents(name, number, tags);
     }
 }

@@ -7,34 +7,40 @@
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
+FROM apache/bookkeeper:4.7.3
 
-FROM java:8
-MAINTAINER Arvind Kandhare [arvind.kandhare@emc.com]
+ARG BK_VERSION=4.7.3
+ARG DISTRO_NAME=bookkeeper-all-${BK_VERSION}-bin
+ARG GPG_KEY=FD74402C
 
-RUN apt-get update \
-&&  apt-get install -y wget unzip \
-&&  mkdir -p /opt \
-&&  cd /opt
+RUN set -x \
+    && yum install -y iproute \
+    && cd /opt \
+    && curl -O "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz" \
+    && curl -O "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz.asc" \
+    && curl -O "https://archive.apache.org/dist/bookkeeper/bookkeeper-${BK_VERSION}/${DISTRO_NAME}.tar.gz.sha512" \
+    && sha512sum -c ${DISTRO_NAME}.tar.gz.sha512 \
+    && gpg --batch --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys "$GPG_KEY" || \
+       gpg --batch --keyserver hkp://ipv4.pool.sks-keyservers.net --recv-keys "$GPG_KEY" || \
+       gpg --batch --keyserver hkp://pgp.mit.edu:80 --recv-keys "$GPG_KEY" \
+    && gpg --batch --verify "$DISTRO_NAME.tar.gz.asc" "$DISTRO_NAME.tar.gz" \
+    && tar -xzf "$DISTRO_NAME.tar.gz" \
+    && cp -r bookkeeper-all-${BK_VERSION}/* /opt/bookkeeper/ \
+    && rm -rf "bookkeeper-all-${BK_VERSION}" "$DISTRO_NAME.tar.gz" "$DISTRO_NAME.tar.gz.asc" "$DISTRO_NAME.tar.gz.sha512" \
+    && yum clean all
 
-ENV BOOKKEEPER_VERSION=4.5.0 \
-    ZOOKEEPER_VERSION=3.5.3-beta
-
-RUN wget http://central.maven.org/maven2/org/apache/bookkeeper/bookkeeper-server/$BOOKKEEPER_VERSION/bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
-&&  tar xvzf  bookkeeper-server-$BOOKKEEPER_VERSION-bin.tar.gz \
-&&  mv bookkeeper-server-$BOOKKEEPER_VERSION /opt/bookkeeper
-
-# zookeeper-3.5.3-beta.tar.gz is actually not compressed even though it is published as .tar.gz, so not using -z flag to untar
-RUN wget http://www.apache.org/dist/zookeeper/zookeeper-$ZOOKEEPER_VERSION/zookeeper-$ZOOKEEPER_VERSION.tar.gz \
-&&  tar xvf zookeeper-$ZOOKEEPER_VERSION.tar.gz \
-&&  mv zookeeper-$ZOOKEEPER_VERSION /opt/zookeeper
-
-ENV bookiePort 3181
-
-EXPOSE $bookiePort
-
-# all execute-able bin, download from apache BK and ZK
 WORKDIR /opt/bookkeeper
 
-# After container up, Following instructions to build bookie cluster
+COPY entrypoint.sh /opt/bookkeeper/scripts/pravega_entrypoint.sh
+# For backwards compatibility with older operator versions
 COPY entrypoint.sh /opt/bookkeeper/entrypoint.sh
-ENTRYPOINT /opt/bookkeeper/entrypoint.sh
+
+RUN chmod +x -R /opt/bookkeeper/scripts/
+
+ENTRYPOINT [ "/bin/bash", "/opt/bookkeeper/scripts/pravega_entrypoint.sh" ]
+CMD ["bookie"]
+
+# BookKeeper healthcheck was broken in 4.7.3 and was not fixed until 4.9.0
+# This overrides the healthcheck to the default BK healthcheck method
+# https://github.com/apache/bookkeeper/issues/1687
+HEALTHCHECK --interval=10s --timeout=60s CMD /opt/bookkeeper/bin/bookkeeper shell bookiesanity

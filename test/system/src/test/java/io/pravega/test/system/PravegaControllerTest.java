@@ -13,17 +13,28 @@ import io.pravega.test.system.framework.Environment;
 import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
+import io.pravega.test.system.framework.services.marathon.PravegaControllerService;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+
 import java.net.URI;
 import java.util.List;
-import static org.junit.Assert.assertEquals;
+
+import static io.pravega.test.system.framework.Utils.REST_PORT;
+import static io.pravega.test.system.framework.services.kubernetes.AbstractService.CONTROLLER_GRPC_PORT;
+import static io.pravega.test.system.framework.services.kubernetes.AbstractService.CONTROLLER_REST_PORT;
+import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
 public class PravegaControllerTest {
+
+    @Rule
+    public Timeout globalTimeout = Timeout.seconds(5 * 60);
 
     /**
      * This is used to setup the various services required by the system test framework.
@@ -31,7 +42,7 @@ public class PravegaControllerTest {
      * @throws MarathonException if error in setup
      */
     @Environment
-    public static void setup() throws MarathonException {
+    public static void initialize() throws MarathonException {
         Service zk = Utils.createZookeeperService();
         if (!zk.isRunning()) {
             zk.start(true);
@@ -44,20 +55,25 @@ public class PravegaControllerTest {
 
     /**
      * Invoke the controller test.
-     * The test fails incase controller is not running on given ports
+     * The test fails in case controller is not running on given ports.
      */
-
-    @Test(timeout = 5 * 60 * 1000)
+    @Test
     public void controllerTest() {
         log.debug("Start execution of controllerTest");
         Service con = Utils.createPravegaControllerService(null);
         List<URI> conUri = con.getServiceDetails();
         log.debug("Controller Service URI details: {} ", conUri);
-        for (int i = 0; i < conUri.size(); i++) {
-            int port = conUri.get(i).getPort();
-            boolean boolPort =  Utils.DOCKER_BASED ? (port == 9090 ||  port == 9091) : (port == 9092 || port == 10080);
-            assertEquals(true, boolPort);
-        }
+        assertTrue(conUri.stream().map(URI::getPort).allMatch(port -> {
+            switch (Utils.EXECUTOR_TYPE) {
+                case REMOTE_SEQUENTIAL:
+                    return port == PravegaControllerService.CONTROLLER_PORT || port == PravegaControllerService.REST_PORT;
+                case DOCKER:
+                    return port == CONTROLLER_GRPC_PORT || port == REST_PORT;
+                case KUBERNETES:
+                default:
+                    return port == CONTROLLER_GRPC_PORT || port == CONTROLLER_REST_PORT;
+            }
+        }));
         log.debug("ControllerTest  execution completed");
     }
 }

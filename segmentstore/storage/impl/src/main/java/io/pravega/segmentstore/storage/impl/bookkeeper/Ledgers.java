@@ -44,7 +44,7 @@ final class Ledgers {
      */
     static LedgerHandle create(BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
-            return Exceptions.handleInterrupted(() ->
+            return Exceptions.handleInterruptedCall(() ->
                     bookKeeper.createLedger(
                             config.getBkEnsembleSize(),
                             config.getBkWriteQuorumSize(),
@@ -69,7 +69,8 @@ final class Ledgers {
      */
     static LedgerHandle openFence(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
-            return Exceptions.handleInterrupted(() -> bookKeeper.openLedger(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword()));
+            return Exceptions.handleInterruptedCall(
+                    () -> bookKeeper.openLedger(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword()));
         } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-fence ledger %d.", ledgerId), bkEx);
         }
@@ -86,7 +87,8 @@ final class Ledgers {
      */
     static LedgerHandle openRead(long ledgerId, BookKeeper bookKeeper, BookKeeperConfig config) throws DurableDataLogException {
         try {
-            return Exceptions.handleInterrupted(() -> bookKeeper.openLedgerNoRecovery(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword()));
+            return Exceptions.handleInterruptedCall(
+                    () -> bookKeeper.openLedgerNoRecovery(ledgerId, LEDGER_DIGEST_TYPE, config.getBKPassword()));
         } catch (BKException bkEx) {
             throw new DurableDataLogException(String.format("Unable to open-read ledger %d.", ledgerId), bkEx);
         }

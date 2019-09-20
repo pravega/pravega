@@ -30,7 +30,6 @@ import io.pravega.segmentstore.server.ReadIndex;
 import io.pravega.segmentstore.server.UpdateableContainerMetadata;
 import io.pravega.segmentstore.server.logs.operations.MetadataCheckpointOperation;
 import io.pravega.segmentstore.server.logs.operations.Operation;
-import io.pravega.segmentstore.server.logs.operations.ProbeOperation;
 import io.pravega.segmentstore.server.logs.operations.StorageMetadataCheckpointOperation;
 import io.pravega.segmentstore.storage.DataLogDisabledException;
 import io.pravega.segmentstore.storage.DurableDataLog;
@@ -148,7 +147,6 @@ public class DurableLog extends AbstractService implements OperationLog {
                         .whenComplete((v, ex) -> {
                             if (ex == null) {
                                 // We are done.
-                                log.info("{}: Online.", this.traceObjectId);
                                 notifyDelayedStartComplete(null);
                             } else {
                                 if (Exceptions.unwrap(ex) instanceof DataLogDisabledException) {
@@ -371,18 +369,6 @@ public class DurableLog extends AbstractService implements OperationLog {
     }
 
     @Override
-    public CompletableFuture<Void> operationProcessingBarrier(Duration timeout) {
-        return add(new ProbeOperation(), timeout)
-                .whenComplete((r, ex) -> {
-                    // We don't care if this operation completed successfully or not. The Operation Barrier needs to complete
-                    // when all operations prior to it completed, regardless of outcome.
-                    if (ex != null) {
-                        log.warn("{}: Error caught while waiting for {}: {}.", this.traceObjectId, ProbeOperation.class.getSimpleName(), ex);
-                    }
-                });
-    }
-
-    @Override
     public CompletableFuture<Void> awaitOnline() {
         Exceptions.checkNotClosed(this.closed.get(), this);
         if (state() != State.RUNNING) {
@@ -422,7 +408,7 @@ public class DurableLog extends AbstractService implements OperationLog {
     }
 
     private CompletableFuture<Void> queueMetadataCheckpoint() {
-        log.info("{}: MetadataCheckpointOperation queued.", this.traceObjectId);
+        log.debug("{}: Queuing MetadataCheckpointOperation.", this.traceObjectId);
         return this.operationProcessor
                 .process(new MetadataCheckpointOperation())
                 .thenAccept(seqNo -> log.info("{}: MetadataCheckpointOperation durably stored.", this.traceObjectId));

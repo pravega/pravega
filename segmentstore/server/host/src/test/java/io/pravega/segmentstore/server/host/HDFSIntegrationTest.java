@@ -13,11 +13,11 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSClusterHelpers;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageConfig;
-import io.pravega.segmentstore.storage.impl.hdfs.HDFSStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
+import io.pravega.storage.hdfs.HDFSClusterHelpers;
+import io.pravega.storage.hdfs.HDFSStorageConfig;
+import io.pravega.storage.hdfs.HDFSStorageFactory;
 import lombok.val;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
@@ -61,6 +61,11 @@ public class HDFSIntegrationTest extends BookKeeperIntegrationTestBase {
     //endregion
 
     //region StreamSegmentStoreTestBase Implementation
+
+    @Override
+    protected boolean appendAfterMerging() {
+        return false; // HDFS is slow enough as it is; adding this would cause the test to take even longer.
+    }
 
     @Override
     protected ServiceBuilder createBuilder(ServiceBuilderConfig.Builder configBuilder, int instanceId) {

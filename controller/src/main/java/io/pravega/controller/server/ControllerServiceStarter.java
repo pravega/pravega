@@ -20,24 +20,36 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
+import io.pravega.common.util.BooleanUtils;
 import io.pravega.controller.fault.ControllerClusterListener;
 import io.pravega.controller.fault.FailoverSweeper;
 import io.pravega.controller.fault.SegmentContainerMonitor;
 import io.pravega.controller.fault.UniformContainerBalancer;
+import io.pravega.controller.server.bucket.BucketManager;
+import io.pravega.controller.server.bucket.BucketServiceFactory;
+import io.pravega.controller.metrics.StreamMetrics;
+import io.pravega.controller.metrics.TransactionMetrics;
+import io.pravega.controller.server.bucket.PeriodicRetention;
+import io.pravega.controller.server.bucket.PeriodicWatermarking;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
-import io.pravega.controller.server.retention.StreamCutService;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.client.StoreClient;
+import io.pravega.controller.store.client.StoreType;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
 import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.task.Stream.RequestSweeper;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.controller.task.Stream.TxnSweeper;
@@ -49,10 +61,15 @@ import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.curator.framework.CuratorFramework;
@@ -68,14 +85,17 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private ScheduledExecutorService controllerExecutor;
     private ScheduledExecutorService retentionExecutor;
+    private ScheduledExecutorService watermarkingExecutor;
 
     private ConnectionFactory connectionFactory;
+    private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
-    private StreamCutService streamCutService;
+    private BucketManager retentionService;
+    private BucketManager watermarkingService;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
-
+    private SegmentHelper segmentHelper;
     private ControllerService controllerService;
 
     private LocalController localController;
@@ -91,24 +111,51 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private Cluster cluster = null;
 
+    private StreamMetrics streamMetrics;
+    private TransactionMetrics transactionMetrics;
+    private final Optional<SegmentHelper> segmentHelperRef;
+    private final Optional<ConnectionFactory> connectionFactoryRef;
+    private final Optional<StreamMetadataStore> streamMetadataStoreRef;
+    
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private final CompletableFuture<Void> storeClientFailureFuture;
+    
     public ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient) {
+        this(serviceConfig, storeClient, null);
+    }
+
+    @VisibleForTesting
+    ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper) {
+        this(serviceConfig, storeClient, segmentHelper, null, null);
+    }
+
+    @VisibleForTesting
+    ControllerServiceStarter(ControllerServiceConfig serviceConfig, StoreClient storeClient, SegmentHelper segmentHelper,
+                             ConnectionFactory connectionFactory, StreamMetadataStore streamStore) {
         this.serviceConfig = serviceConfig;
         this.storeClient = storeClient;
         this.objectId = "ControllerServiceStarter";
         this.controllerReadyLatch = new CountDownLatch(1);
+        this.segmentHelperRef = Optional.ofNullable(segmentHelper);
+        this.connectionFactoryRef = Optional.ofNullable(connectionFactory);
+        this.streamMetadataStoreRef = Optional.ofNullable(streamStore);
+        this.storeClientFailureFuture = new CompletableFuture<>();
     }
 
     @Override
     protected void startUp() {
         long traceId = LoggerHelpers.traceEnterWithContext(log, this.objectId, "startUp");
         log.info("Initiating controller service startUp");
+
+        log.info("Controller serviceConfig = {}", serviceConfig.toString());
         log.info("Event processors enabled = {}", serviceConfig.getEventProcessorConfig().isPresent());
         log.info("Cluster listener enabled = {}", serviceConfig.isControllerClusterListenerEnabled());
         log.info("    Host monitor enabled = {}", serviceConfig.getHostMonitorConfig().isHostMonitorEnabled());
         log.info("     gRPC server enabled = {}", serviceConfig.getGRPCServerConfig().isPresent());
         log.info("     REST server enabled = {}", serviceConfig.getRestServerConfig().isPresent());
 
-        final StreamMetadataStore streamStore;
+        final BucketStore bucketStore;
         final TaskMetadataStore taskMetadataStore;
         final HostControllerStore hostStore;
         final CheckpointStore checkpointStore;
@@ -121,8 +168,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
             retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
                                                                                "retentionpool");
 
-            log.info("Creating the stream store");
-            streamStore = StreamStoreFactory.createStore(storeClient, controllerExecutor);
+            watermarkingExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.WATERMARKING_THREAD_POOL_SIZE,
+                                                                               "watermarkingpool");
+            
+            log.info("Creating the bucket store");
+            bucketStore = StreamStoreFactory.createBucketStore(storeClient, controllerExecutor);
 
             log.info("Creating the task store");
             taskMetadataStore = TaskStoreFactory.createStore(storeClient, controllerExecutor);
@@ -138,6 +188,10 @@ public class ControllerServiceStarter extends AbstractIdleService {
             String hostName = getHostName();
             Host host = new Host(hostName, getPort(), UUID.randomUUID().toString());
 
+            // Create a RequestTracker instance to trace client requests end-to-end.
+            GRPCServerConfig grpcServerConfig = serviceConfig.getGRPCServerConfig().get();
+            RequestTracker requestTracker = new RequestTracker(grpcServerConfig.isRequestTracingEnabled());
+
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
                 monitor = new SegmentContainerMonitor(hostStore, (CuratorFramework) storeClient.getClient(),
@@ -147,29 +201,53 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
-            ClientConfig clientConfig = ClientConfig.builder()
-                                                    .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
-                                                                          "tls://" : "tcp://") + "localhost"))
-                                                    .trustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
-                                                    .validateHostName(false)
-                                                    .build();
+            // This client config is used by the segment store helper (SegmentHelper) to connect to the segment store.
+            ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
+                    .controllerURI(URI.create((grpcServerConfig.isTlsEnabled() ?
+                            "tls://" : "tcp://") + "localhost:" + grpcServerConfig.getPort()))
+                    .trustStore(grpcServerConfig.getTlsTrustStore())
+                    .validateHostName(false);
 
-            connectionFactory = new ConnectionFactoryImpl(clientConfig);
-            SegmentHelper segmentHelper = new SegmentHelper();
+            Optional<Boolean> tlsEnabledForSegmentStore = BooleanUtils.extract(serviceConfig.getTlsEnabledForSegmentStore());
+            if (tlsEnabledForSegmentStore.isPresent()) {
+                clientConfigBuilder.enableTlsToSegmentStore(tlsEnabledForSegmentStore.get());
+            }
+            
+            ClientConfig clientConfig = clientConfigBuilder.build();
+            connectionFactory = connectionFactoryRef.orElse(new ConnectionFactoryImpl(clientConfig));
+            segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionFactory, hostStore));
 
-            streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore,
-                    segmentHelper, controllerExecutor, host.getHostId(), connectionFactory,
-                    serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
+            GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
+                                                           grpcServerConfig.getTokenSigningKey(),
+                                                           grpcServerConfig.getAccessTokenTTLInSeconds());
+
+            log.info("Creating the stream store");
+            streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
+
+            streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore,
+                    segmentHelper, controllerExecutor, host.getHostId(), authHelper, requestTracker);
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
-                    hostStore, segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), connectionFactory,
-                    serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey());
+                    segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
-            streamCutService = new StreamCutService(Config.BUCKET_COUNT, host.getHostId(), streamStore, streamMetadataTasks, retentionExecutor);
-            log.info("starting auto retention service asynchronously");
-            streamCutService.startAsync();
-            streamCutService.awaitRunning();
+            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
+            Duration executionDurationRetention = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
+
+            PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
+            retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
+
+            log.info("starting background periodic service for retention");
+            retentionService.startAsync();
+            retentionService.awaitRunning();
+
+            Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
+            PeriodicWatermarking watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
+                    clientConfig, watermarkingExecutor);
+            watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
+                    watermarkingWork::watermark, watermarkingExecutor);
+
+            log.info("starting background periodic service for watermarking");
+            watermarkingService.startAsync();
+            watermarkingService.awaitRunning();
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -182,28 +260,33 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             TxnSweeper txnSweeper = new TxnSweeper(streamStore, streamTransactionMetadataTasks,
                     serviceConfig.getTimeoutServiceConfig().getMaxLeaseValue(), controllerExecutor);
+            RequestSweeper requestSweeper = new RequestSweeper(streamStore, controllerExecutor,
+                    streamMetadataTasks);
 
             if (serviceConfig.isControllerClusterListenerEnabled()) {
                 cluster = new ClusterZKImpl((CuratorFramework) storeClient.getClient(), ClusterType.CONTROLLER);
             }
 
-            controllerService = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                    streamTransactionMetadataTasks, new SegmentHelper(), controllerExecutor, cluster);
+            streamMetrics = new StreamMetrics();
+            transactionMetrics = new TransactionMetrics();
+            controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+                    streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
-            setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey()));
+            setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
+                    grpcServerConfig.getTokenSigningKey()));
 
+            CompletableFuture<Void> eventProcessorFuture = CompletableFuture.completedFuture(null); 
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 // Create ControllerEventProcessor object.
                 controllerEventProcessors = new ControllerEventProcessors(host.getHostId(),
                         serviceConfig.getEventProcessorConfig().get(), localController, checkpointStore, streamStore,
-                        connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
+                        bucketStore, connectionFactory, streamMetadataTasks, streamTransactionMetadataTasks,
                         controllerExecutor);
 
                 // Bootstrap and start it asynchronously.
                 log.info("Starting event processors");
-                controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks)
+                eventProcessorFuture = controllerEventProcessors.bootstrap(streamTransactionMetadataTasks, streamMetadataTasks)
                         .thenAcceptAsync(x -> controllerEventProcessors.startAsync(), controllerExecutor);
             }
 
@@ -212,6 +295,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 List<FailoverSweeper> failoverSweepers = new ArrayList<>();
                 failoverSweepers.add(taskSweeper);
                 failoverSweepers.add(txnSweeper);
+                failoverSweepers.add(requestSweeper);
                 if (serviceConfig.getEventProcessorConfig().isPresent()) {
                     assert controllerEventProcessors != null;
                     failoverSweepers.add(controllerEventProcessors);
@@ -225,7 +309,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
-                grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get());
+                grpcServer = new GRPCServer(controllerService, grpcServerConfig, requestTracker);
                 grpcServer.startAsync();
                 log.info("Awaiting start of rpc server");
                 grpcServer.awaitRunning();
@@ -235,7 +319,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
             if (serviceConfig.getRestServerConfig().isPresent()) {
                 restServer = new RESTServer(this.localController,
                         controllerService,
-                        grpcServer.getPravegaAuthManager(),
+                        grpcServer.getAuthHandlerManager(),
                         serviceConfig.getRestServerConfig().get(),
                         connectionFactory);
                 restServer.startAsync();
@@ -246,7 +330,13 @@ public class ControllerServiceStarter extends AbstractIdleService {
             // Wait for controller event processors to start.
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
                 log.info("Awaiting start of controller event processors");
-                controllerEventProcessors.awaitRunning();
+                // if store client has failed because of session expiration, there are two possibilities where 
+                // controllerEventProcessors.awaitRunning may be stuck forever -
+                // 1. stream creation is retried indefinitely and cannot complete because of zk session expiration
+                // 2. event writer after stream creation throws exception. 
+                // In both of above cases controllerEventProcessors.startAsync may not get called. 
+                CompletableFuture.anyOf(storeClientFailureFuture, 
+                        eventProcessorFuture.thenAccept(x -> controllerEventProcessors.awaitRunning())).join();
             }
 
             // Wait for controller cluster listeners to start.
@@ -254,6 +344,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting start of controller cluster listener");
                 controllerClusterListener.awaitRunning();
             }
+        } catch (Exception e) {
+            log.error("Failed trying to start controller services", e);
+            throw e;
         } finally {
             LoggerHelpers.traceLeave(log, this.objectId, "startUp", traceId);
         }
@@ -285,9 +378,14 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Controller cluster listener shutdown");
             }
 
-            if (streamCutService != null) {
+            if (retentionService != null) {
                 log.info("Stopping auto retention service");
-                streamCutService.stopAsync();
+                retentionService.stopAsync();
+            }
+
+            if (watermarkingService != null) {
+                log.info("Stopping watermarking service");
+                watermarkingService.stopAsync();
             }
 
             log.info("Closing stream metadata tasks");
@@ -322,9 +420,14 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 controllerClusterListener.awaitTerminated();
             }
 
-            if (streamCutService != null) {
+            if (retentionService != null) {
                 log.info("Awaiting termination of auto retention");
-                streamCutService.awaitTerminated();
+                retentionService.awaitTerminated();
+            }
+
+            if (watermarkingService != null) {
+                log.info("Awaiting termination of watermarking service");
+                watermarkingService.awaitTerminated();
             }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
@@ -335,11 +438,16 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Next stop all executors
             log.info("Stopping controller executor");
-            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor);
+            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor);
 
             if (cluster != null) {
                 log.info("Closing controller cluster instance");
                 cluster.close();
+            }
+
+            if (segmentHelper != null) {
+                log.info("closing segment helper");
+                segmentHelper.close();
             }
 
             log.info("Closing connection factory");
@@ -347,9 +455,27 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             log.info("Closing storeClient");
             storeClient.close();
+            
+            log.info("Closing store");
+            streamStore.close();
 
+            // Close metrics.
+            if (streamMetrics != null) {
+                streamMetrics.close();
+            }
+
+            if (transactionMetrics != null) {
+                transactionMetrics.close();
+            }
+
+            log.info("Finishing controller service shutDown");
             LoggerHelpers.traceLeave(log, this.objectId, "shutDown", traceId);
         }
+    }
+
+    void notifySessionExpiration() {
+        assert storeClient.getType().equals(StoreType.Zookeeper) || storeClient.getType().equals(StoreType.PravegaTable);
+        storeClientFailureFuture.completeExceptionally(new ZkSessionExpirationException("Zookeeper Session Expired"));
     }
 
     @VisibleForTesting

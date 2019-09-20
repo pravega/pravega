@@ -10,21 +10,15 @@
 package io.pravega.test.system;
 
 import com.google.common.collect.Lists;
+import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
+import io.pravega.client.admin.StreamInfo;
 import io.pravega.client.admin.StreamManager;
-import io.pravega.client.batch.BatchClient;
 import io.pravega.client.batch.SegmentRange;
-import io.pravega.client.batch.StreamInfo;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.Checkpoint;
-import io.pravega.client.stream.EventRead;
-import io.pravega.client.stream.EventStreamReader;
-import io.pravega.client.stream.EventStreamWriter;
-import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
 import io.pravega.client.stream.ScalingPolicy;
@@ -43,13 +37,11 @@ import io.pravega.test.system.framework.SystemTestRunner;
 import io.pravega.test.system.framework.Utils;
 import io.pravega.test.system.framework.services.Service;
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import lombok.Cleanup;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
@@ -58,13 +50,13 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
-import static java.util.stream.Collectors.toList;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-public class BatchClientSimpleTest {
+public class BatchClientSimpleTest extends AbstractReadWriteTest {
 
     private static final String STREAM = "testBatchClientStream";
     private static final String SCOPE = "testBatchClientScope" + RandomFactory.create().nextInt(Integer.MAX_VALUE);
@@ -75,8 +67,7 @@ public class BatchClientSimpleTest {
 
     private final ScheduledExecutorService executor = ExecutorServiceHelpers.newScheduledThreadPool(4, "executor");
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(RG_PARALLELISM);
-    private final StreamConfiguration config = StreamConfiguration.builder().scope(SCOPE)
-                                                                  .streamName(STREAM)
+    private final StreamConfiguration config = StreamConfiguration.builder()
                                                                   .scalingPolicy(scalingPolicy).build();
     private URI controllerURI = null;
     private StreamManager streamManager = null;
@@ -88,44 +79,10 @@ public class BatchClientSimpleTest {
      */
     @Environment
     public static void initialize() throws MarathonException {
-
-        // 1. Check if zk is running, if not start it.
-        Service zkService = Utils.createZookeeperService();
-        if (!zkService.isRunning()) {
-            zkService.start(true);
-        }
-
-        List<URI> zkUris = zkService.getServiceDetails();
-        log.debug("Zookeeper service details: {}", zkUris);
-        // Get the zk ip details and pass it to bk, host, controller.
-        URI zkUri = zkUris.get(0);
-
-        // 2. Check if bk is running, otherwise start, get the zk ip.
-        Service bkService = Utils.createBookkeeperService(zkUri);
-        if (!bkService.isRunning()) {
-            bkService.start(true);
-        }
-
-        List<URI> bkUris = bkService.getServiceDetails();
-        log.debug("Bookkeeper service details: {}", bkUris);
-
-        // 3. Start controller.
-        Service conService = Utils.createPravegaControllerService(zkUri);
-        if (!conService.isRunning()) {
-            conService.start(true);
-        }
-
-        List<URI> conUris = conService.getServiceDetails();
-        log.debug("Pravega controller service details: {}", conUris);
-
-        // 4.Start segmentstore.
-        Service segService = Utils.createPravegaSegmentStoreService(zkUri, conUris.get(0));
-        if (!segService.isRunning()) {
-            segService.start(true);
-        }
-
-        List<URI> segUris = segService.getServiceDetails();
-        log.debug("Pravega segmentstore service details: {}", segUris);
+        URI zkUri = startZookeeperInstance();
+        startBookkeeperInstances(zkUri);
+        URI controllerUri = ensureControllerRunning(zkUri);
+        ensureSegmentStoreRunning(zkUri, controllerUri);
     }
 
     @Before
@@ -133,7 +90,8 @@ public class BatchClientSimpleTest {
         Service conService = Utils.createPravegaControllerService(null);
         List<URI> ctlURIs = conService.getServiceDetails();
         controllerURI = ctlURIs.get(0);
-        streamManager = StreamManager.create(controllerURI);
+
+        streamManager = StreamManager.create(Utils.buildClientConfig(controllerURI));
         assertTrue("Creating scope", streamManager.createScope(SCOPE));
         assertTrue("Creating stream", streamManager.createStream(SCOPE, STREAM, config));
     }
@@ -145,35 +103,39 @@ public class BatchClientSimpleTest {
     }
 
     /**
-     * This test verifies the basic functionality of {@link BatchClient}, including stream metadata checks, segment
+     * This test verifies the basic functionality of {@link BatchClientFactory}, including stream metadata checks, segment
      * counts, parallel segment reads and reads with offsets using stream cuts.
      */
     @Test
+    @SuppressWarnings("deprecation")
     public void batchClientSimpleTest() {
         final int totalEvents = RG_PARALLELISM * 100;
         final int offsetEvents = RG_PARALLELISM * 20;
         final int batchIterations = 4;
         final Stream stream = Stream.of(SCOPE, STREAM);
+        final ClientConfig clientConfig = Utils.buildClientConfig(controllerURI);
+
         @Cleanup
-        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder()
-                                                                           .clientConfig(ClientConfig.builder()
-                                                                           .controllerURI(controllerURI).build()).build(),
+        ConnectionFactory connectionFactory = new ConnectionFactoryImpl(clientConfig);
+        ControllerImpl controller = new ControllerImpl(ControllerImplConfig.builder().clientConfig(clientConfig).build(),
                                                                             connectionFactory.getInternalExecutor());
         @Cleanup
-        ClientFactory clientFactory = new ClientFactoryImpl(SCOPE, controller);
+        ClientFactoryImpl clientFactory = new ClientFactoryImpl(SCOPE, controller, connectionFactory);
+        @Cleanup
+        BatchClientFactory batchClient = BatchClientFactory.withScope(SCOPE, clientConfig);
         log.info("Invoking batchClientSimpleTest test with Controller URI: {}", controllerURI);
         @Cleanup
-        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerURI);
+        ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, clientConfig);
         groupManager.createReaderGroup(READER_GROUP, ReaderGroupConfig.builder().disableAutomaticCheckpoints()
                                                                       .stream(SCOPE + "/" + STREAM).build());
         ReaderGroup readerGroup = groupManager.getReaderGroup(READER_GROUP);
 
+        log.info("Writing events to stream");
         // Write events to the Stream.
-        writeDummyEvents(clientFactory, STREAM, totalEvents);
+        writeEvents(clientFactory, STREAM, totalEvents);
 
         // Instantiate readers to consume from Stream up to truncatedEvents.
-        List<CompletableFuture<Integer>> futures = readDummyEvents(clientFactory, READER_GROUP, RG_PARALLELISM, offsetEvents);
+        List<CompletableFuture<Integer>> futures = readEventFutures(clientFactory, READER_GROUP, RG_PARALLELISM, offsetEvents);
         Futures.allOf(futures).join();
 
         // Create a stream cut on the specified offset position.
@@ -182,8 +144,7 @@ public class BatchClientSimpleTest {
 
         // Instantiate the batch client and assert it provides correct stream info.
         log.debug("Creating batch client.");
-        BatchClient batchClient = clientFactory.createBatchClient();
-        StreamInfo streamInfo = batchClient.getStreamInfo(stream).join();
+        StreamInfo streamInfo = streamManager.getStreamInfo(SCOPE, stream.getStreamName());
         log.debug("Validating stream metadata fields.");
         assertEquals("Expected Stream name: ", STREAM, streamInfo.getStreamName());
         assertEquals("Expected Scope name: ", SCOPE, streamInfo.getScope());
@@ -195,17 +156,17 @@ public class BatchClientSimpleTest {
 
         // Emulate the behavior of Hadoop client: i) Get tail of Stream, ii) Read from current point until tail, iii) repeat.
         log.debug("Reading in batch iterations.");
-        StreamCut currentTailStreamCut = batchClient.getStreamInfo(stream).join().getTailStreamCut();
+        StreamCut currentTailStreamCut = streamManager.getStreamInfo(SCOPE, stream.getStreamName()).getTailStreamCut();
         int readEvents = 0;
         for (int i = 0; i < batchIterations; i++) {
-            writeDummyEvents(clientFactory, STREAM, totalEvents);
+            writeEvents(clientFactory, STREAM, totalEvents);
 
             // Read all the existing events in parallel segments from the previous tail to the current one.
             ranges = Lists.newArrayList(batchClient.getSegments(stream, currentTailStreamCut, StreamCut.UNBOUNDED).getIterator());
             assertEquals("Expected number of segments: ", RG_PARALLELISM, ranges.size());
             readEvents += readFromRanges(ranges, batchClient);
             log.debug("Events read in parallel so far: {}.", readEvents);
-            currentTailStreamCut = batchClient.getStreamInfo(stream).join().getTailStreamCut();
+            currentTailStreamCut = streamManager.getStreamInfo(SCOPE, stream.getStreamName()).getTailStreamCut();
         }
 
         assertEquals("Expected events read: .", totalEvents * batchIterations, readEvents);
@@ -215,7 +176,7 @@ public class BatchClientSimpleTest {
         assertTrue(controller.truncateStream(SCOPE, STREAM, streamCut).join());
 
         // Test the batch client when we select to start reading a Stream from a truncation point.
-        StreamCut initialPosition = batchClient.getStreamInfo(stream).join().getHeadStreamCut();
+        StreamCut initialPosition = streamManager.getStreamInfo(SCOPE, stream.getStreamName()).getHeadStreamCut();
         List<SegmentRange> newRanges = Lists.newArrayList(batchClient.getSegments(stream, initialPosition, StreamCut.UNBOUNDED).getIterator());
         assertEquals("Expected events read: ", (totalEvents - offsetEvents) + totalEvents * batchIterations,
                     readFromRanges(newRanges, batchClient));
@@ -224,7 +185,7 @@ public class BatchClientSimpleTest {
 
     // Start utils region
 
-    private int readFromRanges(List<SegmentRange> ranges, BatchClient batchClient) {
+    private int readFromRanges(List<SegmentRange> ranges, BatchClientFactory batchClient) {
         List<CompletableFuture<Integer>> eventCounts = ranges
                 .parallelStream()
                 .map(range -> CompletableFuture.supplyAsync(() -> batchClient.readSegment(range, new JavaSerializer<>()))
@@ -236,43 +197,6 @@ public class BatchClientSimpleTest {
                                                }))
                 .collect(Collectors.toList());
         return eventCounts.stream().map(CompletableFuture::join).mapToInt(Integer::intValue).sum();
-    }
-
-    private void writeDummyEvents(ClientFactory clientFactory, String streamName, int totalEvents) {
-        @Cleanup
-        EventStreamWriter<String> writer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
-                EventWriterConfig.builder().build());
-        for (int i = 0; i < totalEvents; i++) {
-            writer.writeEvent(String.valueOf(i)).join();
-            log.debug("Writing event: {} to stream {}", i, streamName);
-        }
-    }
-
-    private List<CompletableFuture<Integer>> readDummyEvents(ClientFactory client, String rGroup, int numReaders, int limit) {
-        List<EventStreamReader<String>> readers = new ArrayList<>();
-        for (int i = 0; i < numReaders; i++) {
-            readers.add(client.createReader(String.valueOf(i), rGroup, new JavaSerializer<>(), ReaderConfig.builder().build()));
-        }
-
-        return readers.stream().map(r -> CompletableFuture.supplyAsync(() -> readEvents(r, limit / numReaders))).collect(toList());
-    }
-
-    @SneakyThrows
-    private <T> int readEvents(EventStreamReader<T> reader, int limit) {
-        EventRead<T> event;
-        int validEvents = 0;
-        try {
-            do {
-                event = reader.readNextEvent(1000);
-                if (event.getEvent() != null) {
-                    validEvents++;
-                }
-            } while ((event.getEvent() != null || event.isCheckpoint()) && validEvents < limit);
-        } finally {
-            reader.close();
-        }
-
-        return validEvents;
     }
 
     // End utils region

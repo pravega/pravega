@@ -10,11 +10,12 @@
 package io.pravega.test.integration.selftest.adapters;
 
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.Exceptions;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.common.util.Retry;
 import io.pravega.test.integration.selftest.TestConfig;
 import java.net.URI;
@@ -31,7 +32,7 @@ class ExternalAdapter extends ClientAdapterBase {
     //region Members
 
     private final AtomicReference<StreamManager> streamManager;
-    private final AtomicReference<ClientFactory> clientFactory;
+    private final AtomicReference<EventStreamClientFactory> clientFactory;
 
     //endregion
 
@@ -60,7 +61,7 @@ class ExternalAdapter extends ClientAdapterBase {
 
             // Create Stream Manager, Scope and Client Factory.
             this.streamManager.set(StreamManager.create(ClientConfig.builder()
-                            .trustStore("../../config/cert.pem")
+                            .trustStore(String.format("../../config/%s", SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME))
                             .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                     .validateHostName(false)
                     .controllerURI(controllerUri)
@@ -70,8 +71,8 @@ class ExternalAdapter extends ClientAdapterBase {
                  .run(() -> this.streamManager.get().createScope(SCOPE));
 
             // Create Client Factory.
-            this.clientFactory.set(ClientFactory.withScope(SCOPE, ClientConfig.builder()
-                    .trustStore("../../config/cert.pem")
+            this.clientFactory.set(EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder()
+                    .trustStore(String.format("../../config/%s", SecurityConfigDefaults.TLS_CA_CERT_FILE_NAME))
                     .credentials(new DefaultCredentials("1111_aaaa", "admin"))
                     .validateHostName(false)
                     .controllerURI(controllerUri).build()));
@@ -114,12 +115,12 @@ class ExternalAdapter extends ClientAdapterBase {
     @Override
     public boolean isFeatureSupported(Feature feature) {
         // Even though it does support it, Feature.RandomRead is not enabled because it currently has very poor performance.
-        return feature == Feature.Create
+        return feature == Feature.CreateStream
                 || feature == Feature.Append
                 || feature == Feature.TailRead
                 || feature == Feature.Transaction
-                || feature == Feature.Seal
-                || feature == Feature.Delete;
+                || feature == Feature.SealStream
+                || feature == Feature.DeleteStream;
     }
 
     @Override
@@ -128,7 +129,7 @@ class ExternalAdapter extends ClientAdapterBase {
     }
 
     @Override
-    protected ClientFactory getClientFactory() {
+    protected EventStreamClientFactory getClientFactory() {
         return this.clientFactory.get();
     }
 

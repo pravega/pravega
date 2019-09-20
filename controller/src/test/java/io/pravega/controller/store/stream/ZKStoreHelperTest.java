@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.store.stream;
 
+import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.test.common.AssertExtensions;
@@ -30,6 +31,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 /**
  * Unit tests for ZKStoreHelper.
  */
@@ -46,7 +50,7 @@ public class ZKStoreHelperTest {
     @Before
     public void setup() throws Exception {
         zkServer = new TestingServerStarter().start();
-        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 100, 100, new RetryNTimes(0, 0));
+        cli = CuratorFrameworkFactory.newClient(zkServer.getConnectString(), 10000, 10000, new RetryNTimes(0, 0));
         cli.start();
         zkStoreHelper = new ZKStoreHelper(cli, executor);
     }
@@ -61,10 +65,10 @@ public class ZKStoreHelperTest {
     @Test
     public void testAddNode() throws ExecutionException, InterruptedException, IOException {
         Assert.assertNull(zkStoreHelper.addNode("/test/test1").get());
-        AssertExtensions.assertThrows("Should throw NodeExistsException", zkStoreHelper.addNode("/test/test1"),
+        AssertExtensions.assertFutureThrows("Should throw NodeExistsException", zkStoreHelper.addNode("/test/test1"),
                 e -> e instanceof StoreException.DataExistsException);
         zkServer.stop();
-        AssertExtensions.assertThrows("Should throw UnknownException", zkStoreHelper.addNode("/test/test2"),
+        AssertExtensions.assertFutureThrows("Should throw UnknownException", zkStoreHelper.addNode("/test/test2"),
                 e -> e instanceof StoreException.StoreConnectionException);
     }
 
@@ -73,17 +77,28 @@ public class ZKStoreHelperTest {
         Assert.assertNull(zkStoreHelper.addNode("/test/test1").get());
 
         Assert.assertNull(zkStoreHelper.addNode("/test/test1/test2").get());
-        AssertExtensions.assertThrows("Should throw NodeNotEmptyException", zkStoreHelper.deleteNode("/test/test1"),
+        AssertExtensions.assertFutureThrows("Should throw NodeNotEmptyException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.DataNotEmptyException);
 
         Assert.assertNull(zkStoreHelper.deleteNode("/test/test1/test2").get());
 
         Assert.assertNull(zkStoreHelper.deleteNode("/test/test1").get());
-        AssertExtensions.assertThrows("Should throw NodeNotFoundException", zkStoreHelper.deleteNode("/test/test1"),
+        AssertExtensions.assertFutureThrows("Should throw NodeNotFoundException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.DataNotFoundException);
         zkServer.stop();
-        AssertExtensions.assertThrows("Should throw UnknownException", zkStoreHelper.deleteNode("/test/test1"),
+        AssertExtensions.assertFutureThrows("Should throw UnknownException", zkStoreHelper.deleteNode("/test/test1"),
                 e -> e instanceof StoreException.StoreConnectionException);
+    }
+    
+    @Test
+    public void testDeleteConditionally() {
+        String path = "/test/test/deleteConditionally";
+        zkStoreHelper.createZNode(path, new byte[0]).join();
+        VersionedMetadata<byte[]> data = zkStoreHelper.getData(path, x -> x).join();
+        zkStoreHelper.setData(path, data.getObject(), data.getVersion()).join();
+        AssertExtensions.assertFutureThrows("delete version mismatch",
+                zkStoreHelper.deleteNode(path, data.getVersion()),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
     }
 
     @Test
@@ -92,12 +107,41 @@ public class ZKStoreHelperTest {
         cli2.start();
         ZKStoreHelper zkStoreHelper2 = new ZKStoreHelper(cli2, executor);
 
-        Assert.assertTrue(zkStoreHelper2.createEphemeralZNode("/testEphemeral", new byte[0]).join());
-        Assert.assertNotNull(zkStoreHelper2.getData("/testEphemeral").join());
+        assertTrue(zkStoreHelper2.createEphemeralZNode("/testEphemeral", new byte[0]).join());
+        Assert.assertNotNull(zkStoreHelper2.getData("/testEphemeral", x -> x).join());
+        zkStoreHelper2.getClient().getZookeeperClient().close();
         zkStoreHelper2.getClient().close();
         // let session get expired.
         // now read the data again. Verify that node no longer exists
-        AssertExtensions.assertThrows("", Futures.delayedFuture(() -> zkStoreHelper.getData("/testEphemeral"), 1000, executor),
+        AssertExtensions.assertFutureThrows("", Futures.delayedFuture(() -> zkStoreHelper.getData("/testEphemeral", x -> x), 1000, executor),
                 e -> e instanceof StoreException.DataNotFoundException);
+    }
+    
+    @Test
+    public void testGetChildren() {
+        zkStoreHelper.createZNodeIfNotExist("/1").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/1").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/2").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/3").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/4").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/1/1").join();
+        zkStoreHelper.createZNodeIfNotExist("/1/1/2").join();
+        assertEquals(zkStoreHelper.getChildren("/1").join().size(), 4);
+        assertEquals(zkStoreHelper.getChildren("/1/1").join().size(), 2);
+        assertEquals(zkStoreHelper.getChildren("/1/1/2").join().size(), 0);
+        assertEquals(zkStoreHelper.getChildren("/112").join().size(), 0);
+        AssertExtensions.assertFutureThrows("data not found",
+                zkStoreHelper.getChildren("/112", false),
+                e -> e instanceof StoreException.DataNotFoundException);
+    }
+    
+    @Test
+    public void testSync() {
+        String path = "/path";
+        byte[] entry = new byte[1];
+        zkStoreHelper.createZNode(path, entry).join();
+        zkStoreHelper.sync(path).join();
+        byte[] data = zkStoreHelper.getData(path, x -> x).join().getObject();
+        assertEquals(1, data.length);
     }
 }

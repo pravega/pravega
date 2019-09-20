@@ -15,6 +15,7 @@ import io.pravega.test.common.IntentionalException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import lombok.val;
 import org.junit.Assert;
 import org.junit.Test;
@@ -89,7 +91,7 @@ public class FuturesTests {
         val f3 = Futures.<Integer>exceptionallyCompose(failedFuture, ex -> {
             throw new IntentionalException();
         });
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected completion for failed future whose handler also threw an exception.",
                 () -> f3,
                 ex -> ex instanceof IntentionalException);
@@ -298,7 +300,7 @@ public class FuturesTests {
         Function<Integer, CompletableFuture<Boolean>> futureEvenFilter =
                 x -> Futures.failedFuture(new IntentionalException("intentional"));
 
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Unexpected behavior when filter threw an exception.",
                 () -> Futures.filter(list, futureEvenFilter),
                 ex -> ex instanceof IntentionalException);
@@ -405,6 +407,20 @@ public class FuturesTests {
     }
 
     @Test
+    public void testLoopIterable() {
+        val list = IntStream.range(1, 10000).boxed().collect(Collectors.toList());
+        val processedList = Collections.synchronizedList(new ArrayList<Integer>());
+        Futures.loop(
+                list,
+                item -> {
+                    processedList.add(item);
+                    return CompletableFuture.completedFuture(true);
+                },
+                ForkJoinPool.commonPool()).join();
+        AssertExtensions.assertListEquals("Unexpected result.", list, processedList, Integer::equals);
+    }
+
+    @Test
     public void testDoWhileLoopWithCondition() {
         final int maxLoops = 10;
         final int expectedResult = maxLoops * (maxLoops - 1) / 2;
@@ -456,6 +472,30 @@ public class FuturesTests {
                 loopFuture::join,
                 ex -> ex instanceof IntentionalException);
         Assert.assertEquals("Unexpected value accumulated until loop was interrupted.", 3, accumulator.get());
+    }
+
+    @Test
+    public void testHandleCompose() {
+        // When applied to a CompletableFuture that completes normally.
+        val successfulFuture = new CompletableFuture<Integer>();
+        val f1 = Futures.<Integer, String>handleCompose(successfulFuture, (r, ex) -> CompletableFuture.completedFuture("2"));
+        successfulFuture.complete(1);
+        Assert.assertEquals("Unexpected completion value for successful future.", "2", f1.join());
+
+        // When applied to a CompletableFuture that completes exceptionally.
+        val failedFuture = new CompletableFuture<Integer>();
+        val f2 = Futures.<Integer, Integer>handleCompose(failedFuture, (r, ex) -> CompletableFuture.completedFuture(2));
+        failedFuture.completeExceptionally(new IntentionalException());
+        Assert.assertEquals("Unexpected completion value for failed future that handled the exception.", 2, (int) f2.join());
+
+        // When applied to a CompletableFuture that completes exceptionally and the handler also throws.
+        val f3 = Futures.<Integer, Integer>handleCompose(failedFuture, (r, ex) -> {
+            throw new IntentionalException();
+        });
+        AssertExtensions.assertSuppliedFutureThrows(
+                "Unexpected completion for failed future whose handler also threw an exception.",
+                () -> f3,
+                ex -> ex instanceof IntentionalException);
     }
 
     private List<CompletableFuture<Integer>> createNumericFutures(int count) {

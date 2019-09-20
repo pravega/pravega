@@ -1,20 +1,15 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 package io.pravega.controller.store.index;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.controller.store.stream.StoreException;
 import lombok.extern.slf4j.Slf4j;
@@ -93,12 +88,13 @@ public class ZKHostIndex implements HostIndex {
     @Override
     public CompletableFuture<List<String>> getEntities(final String hostId) {
         Preconditions.checkNotNull(hostId);
-        return getChildren(getHostPath(hostId));
+        String hostPath = getHostPath(hostId);
+        return sync(hostPath).thenCompose(v -> getChildren(hostPath));
     }
 
     @Override
     public CompletableFuture<Set<String>> getHosts() {
-        return getChildren(hostRoot).thenApply(list -> list.stream().collect(Collectors.toSet()));
+        return sync(hostRoot).thenCompose(v -> getChildren(hostRoot)).thenApply(list -> list.stream().collect(Collectors.toSet()));
     }
 
     private CompletableFuture<Void> createNode(CreateMode createMode, boolean createParents, String path, byte[] data) {
@@ -157,6 +153,25 @@ public class ZKHostIndex implements HostIndex {
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e));
         }
+        return result;
+    }
+
+    @VisibleForTesting
+    CompletableFuture<Void> sync(final String path) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+
+        try {
+            client.sync().inBackground((cli, event) -> {
+                if (event.getResultCode() == KeeperException.Code.OK.intValue()) {
+                    result.complete(null);
+                } else {
+                    result.completeExceptionally(translateErrorCode(path, event));
+                }
+                }, executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
         return result;
     }
 

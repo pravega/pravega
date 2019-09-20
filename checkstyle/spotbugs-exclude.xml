@@ -1,0 +1,58 @@
+<FindBugsFilter>
+    <Match> <!-- generated code -->
+        <Package name="io.pravega.controller.stream.api.grpc.v1" />
+    </Match>
+    <Match> <!-- does not work well with futures -->
+        <Bug pattern="NP_NONNULL_PARAM_VIOLATION" />
+    </Match>
+    <Match> <!-- overagressive. Too many false positives -->
+        <Bug pattern="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" />
+    </Match>
+    <Match> <!-- No practical consequence and generate a lot of warnings -->
+        <Bug pattern="SS_SHOULD_BE_STATIC" />
+    </Match>
+    <Match> <!-- Usually done in a context where the developer knows the value to be positive -->
+        <Bug pattern="IM_BAD_CHECK_FOR_ODD" />
+    </Match>
+    <Match> <!-- No practical consequence and generate a lot of warnings -->
+        <Bug pattern="RV_RETURN_VALUE_IGNORED_NO_SIDE_EFFECT" />
+    </Match>
+    <Match> <!-- No practical consequence and generate a lot of warnings -->
+        <Bug pattern="UC_USELESS_OBJECT" />
+    </Match>
+    <Match> <!-- No practical consequence and generate a lot of warnings -->
+        <Bug pattern="DLS_DEAD_LOCAL_STORE" />
+    </Match>
+    <Match> <!-- Lots of harmless calls to System.exit() in our codebase -->
+        <Bug pattern="DM_EXIT" />
+    </Match>
+    <Match> <!-- does not work from JDK11 onwards https://github.com/spotbugs/spotbugs/issues/756 -->
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE" />
+    </Match>
+    <Match> <!-- does not work from JDK11 onwards https://github.com/spotbugs/spotbugs/issues/756 -->
+        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE" />
+    </Match>
+    <Match> <!-- Returning a java.lang.Boolean is common with Streams/Lambdas -->
+        <Bug pattern="NP_BOOLEAN_RETURN_NULL" />
+    </Match>
+    <Match> <!-- This is intended in these and only these classes -->
+        <Or>
+            <Class name="io.pravega.common.io.FixedByteArrayOutputStream" />
+            <Class name="io.pravega.common.util.ByteArraySegment" />
+            <Class name="io.pravega.controller.store.stream.tables.Data" />
+            <Class name="io.pravega.segmentstore.server.logs.operations.StreamSegmentAppendOperation" />
+        </Or>
+        <Or>
+            <Bug pattern="EI_EXPOSE_REP" />
+            <Bug pattern="EI_EXPOSE_REP2" />
+        </Or>
+    </Match>
+    <Match> <!-- These patterns while normally bad practice, are common in tests -->
+        <Class name="~.*\.*Tests?" />
+        <Or>
+            <Bug category="PERFORMANCE" />
+            <Bug pattern="URF_UNREAD_PUBLIC_OR_PROTECTED_FIELD" />
+            <Bug pattern="DMI_RANDOM_USED_ONLY_ONCE" />
+        </Or>
+    </Match>
+</FindBugsFilter>

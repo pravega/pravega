@@ -12,6 +12,7 @@ package io.pravega.test.integration.demo;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.controller.util.Config;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -53,9 +54,10 @@ public class ScaleTest {
             ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
             serviceBuilder.initialize();
             StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+            TableStore tableStore = serviceBuilder.createTableStoreService();
             int port = Config.SERVICE_PORT;
             @Cleanup
-            PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+            PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
             server.startListening();
 
             // Create controller object for testing against a separate controller report.
@@ -68,13 +70,13 @@ public class ScaleTest {
 
             final String streamName = "stream1";
             final StreamConfiguration config =
-                    StreamConfiguration.builder().scope(scope).streamName(streamName).scalingPolicy(
+                    StreamConfiguration.builder().scalingPolicy(
                             ScalingPolicy.fixed(1)).build();
 
             Stream stream = new StreamImpl(scope, streamName);
 
             log.info("Creating stream {}/{}", scope, streamName);
-            if (!controller.createStream(config).get()) {
+            if (!controller.createStream(scope, streamName, config).get()) {
                 log.error("Stream already existed, exiting");
                 return;
             }

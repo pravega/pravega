@@ -10,12 +10,9 @@
 package io.pravega.common.util;
 
 import java.nio.ByteBuffer;
-
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
 
 public class CircularBufferTests {
 
@@ -101,14 +98,50 @@ public class CircularBufferTests {
     }
 
     @Test
-    @Ignore
-    public void testLargeReads() {
-        fail();
+    public void testLargeWrites() {
+        int capacity = 10;
+        byte[] pattern = new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        CircularBuffer buffer = new CircularBuffer(capacity);
+        ByteBuffer in = ByteBuffer.allocate(20);
+        ByteBuffer out = ByteBuffer.allocate(20);
+        in.put(pattern);
+        in.put(pattern);
+        in.flip();
+        assertEquals(0, buffer.dataAvailable());
+        assertEquals(10, buffer.fill(in));
+        assertEquals(10, buffer.dataAvailable());
+        assertEquals(0, buffer.capacityAvailable());
+        assertEquals(10, buffer.read(out));
+        assertEquals(10, out.position());
+        out.flip();
+        for (int i = 0; i < 10; i++) {
+            assertEquals(pattern[i], out.get(i));
+        }
     }
 
     @Test
-    @Ignore
-    public void testLargeWrites() {
-        fail();
+    public void testLargeReads() {
+        int capacity = 12;
+        ByteBuffer in = ByteBuffer.allocate(4);
+        in.putInt(1);
+        in.flip();
+        CircularBuffer buffer = new CircularBuffer(4);
+        ByteBuffer out = ByteBuffer.allocate(capacity);
+        buffer.fill(in);
+        buffer.read(out);
+        in.clear();
+        in.putInt(2);
+        in.flip();
+        buffer.fill(in);
+        buffer.read(out);
+        in.clear();
+        in.putInt(3);
+        in.flip();
+        buffer.fill(in);
+        buffer.read(out);
+        out.flip();
+        assertEquals(1, out.getInt());
+        assertEquals(2, out.getInt());
+        assertEquals(3, out.getInt());
     }
 }

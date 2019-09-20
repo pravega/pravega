@@ -21,6 +21,17 @@ import io.pravega.client.segment.impl.NoSuchEventException;
 public interface EventStreamReader<T> extends AutoCloseable {
 
     /**
+     * Returns a window which represents the range of time that this reader is currently reading as
+     * provided by writers via the {@link EventStreamWriter#noteTime(long)} API.
+     * 
+     * If no writers were providing timestamps at the current position in the stream `null` will be returned.
+     *  
+     * @param stream the stream to obtain a time window for.
+     * @return A TimeWindow which bounds the current location in the stream, or null if one cannot be established.
+     */
+    TimeWindow getCurrentTimeWindow(Stream stream);
+    
+    /**
      * Gets the next event in the stream. If there are no events currently available this will block up for
      * timeout waiting for them to arrive. If none do, an EventRead will be returned with null for
      * {@link EventRead#getEvent()}. (As well as for most other fields)
@@ -71,4 +82,13 @@ public interface EventStreamReader<T> extends AutoCloseable {
      */
     @Override
     void close();
+
+    /**
+     * Close the reader at a specific position. No further actions may be performed. If this reader is part of
+     * a {@link ReaderGroup}, this will automatically invoke {@link ReaderGroup#readerOffline(String, Position)} with
+     * the supplied position.
+     *
+     * @param position {@link Position} to use while reporting readerOffline on the {@link ReaderGroup}.
+     */
+    void closeAt(Position position);
 }

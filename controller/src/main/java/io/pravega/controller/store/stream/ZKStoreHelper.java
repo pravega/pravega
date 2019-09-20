@@ -9,15 +9,16 @@
  */
 package io.pravega.controller.store.stream;
 
-import io.pravega.controller.store.stream.tables.Data;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
+import com.google.common.annotations.VisibleForTesting;
 import lombok.AccessLevel;
+import lombok.Data;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -25,31 +26,31 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.BackgroundCallback;
 import org.apache.curator.framework.api.CreateBuilder;
 import org.apache.curator.framework.api.CuratorEvent;
+import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.utils.ZKPaths;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 
 @Slf4j
 public class ZKStoreHelper {
-    static final String BUCKET_ROOT_PATH = "/buckets";
-    static final String BUCKET_OWNERSHIP_PATH = BUCKET_ROOT_PATH + "/ownership";
-    static final String BUCKET_PATH = BUCKET_ROOT_PATH + "/%d";
-    static final String RETENTION_PATH = BUCKET_PATH + "/%s";
-    static final String COUNTER_PATH = "/counter";
-    private static final String TRANSACTION_ROOT_PATH = "/transactions";
-    private static final String ACTIVE_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/activeTx";
-    private static final String SCOPE_TX_ROOT = ACTIVE_TX_ROOT_PATH + "/%s";
-    static final String STREAM_TX_ROOT = SCOPE_TX_ROOT + "/%s";
-    private static final String COMPLETED_TX_ROOT_PATH = TRANSACTION_ROOT_PATH + "/completedTx";
-    static final String SCOPE_COMPLETED_TX_PATH = COMPLETED_TX_ROOT_PATH + "/%s";
-    static final String COMPLETED_TX_PATH = SCOPE_COMPLETED_TX_PATH + "/%s";
-
     @Getter(AccessLevel.PACKAGE)
     private final CuratorFramework client;
     private final Executor executor;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private final Cache cache;
+
     public ZKStoreHelper(final CuratorFramework cf, Executor executor) {
         client = cf;
         this.executor = executor;
+        this.cache = new Cache(x -> {
+            // The cache key has zk path (key.getPath) of the entity to cache 
+            // and a function (key.getFromBytesFunc()) for deserializing the byte array into meaningful data objects.
+            // The cache stores CompletableFutures which upon completion will hold the deserialized data object. 
+            ZkCacheKey<?> key = (ZkCacheKey<?>) x;
+            return this.getData(key.getPath(), key.getFromBytesFunc())
+                    .thenApply(v -> new VersionedMetadata<>(v.getObject(), v.getVersion()));
+        });
     }
 
     /**
@@ -77,6 +78,24 @@ public class ZKStoreHelper {
         try {
             client.delete().inBackground(
                     callback(x -> result.complete(null), result::completeExceptionally, path), executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+        return result;
+    }
+
+    CompletableFuture<Void> deleteNode(final String path, final Version version) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        try {
+            client.delete().withVersion(version.asIntVersion().getIntValue()).inBackground(
+                    callback(x -> result.complete(null),
+                            e -> {
+                                if (e instanceof StoreException.DataNotFoundException) { // deleted already
+                                    result.complete(null);
+                                } else {
+                                    result.completeExceptionally(e);
+                                }
+                            }, path), executor).forPath(path);
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
         }
@@ -130,7 +149,7 @@ public class ZKStoreHelper {
         return result;
     }
 
-    public CompletableFuture<Void> deleteTree(final String path) {
+    CompletableFuture<Void> deleteTree(final String path) {
         CompletableFuture<Void> result = new CompletableFuture<>();
         try {
             client.delete()
@@ -144,13 +163,28 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Data<Integer>> getData(final String path) {
-        final CompletableFuture<Data<Integer>> result = new CompletableFuture<>();
+    /**
+     * Method to retrieve an entity from zookeeper and then deserialize it using the supplied `fromBytes` function. 
+     * @param path Zk path where entity is stored
+     * @param fromBytes Deserialization function for creating object of type T
+     * @param <T> Type of Object to retrieve. 
+     * @return CompletableFuture which when completed will have the object of type T retrieved from path and deserialized 
+     * using fromBytes function. 
+     */
+    public <T> CompletableFuture<VersionedMetadata<T>> getData(final String path, Function<byte[], T> fromBytes) {
+        final CompletableFuture<VersionedMetadata<T>> result = new CompletableFuture<>();
 
         try {
             client.getData().inBackground(
-                    callback(event -> result.complete(new Data<>(event.getData(), event.getStat()
-                                    .getVersion())),
+                    callback(event -> {
+                                try {
+                                    T deserialized = fromBytes.apply(event.getData());
+                                    result.complete(new VersionedMetadata<>(deserialized, new Version.IntVersion(event.getStat().getVersion())));
+                                } catch (Exception e) {
+                                    log.error("Exception thrown while deserializing the data", e);
+                                    result.completeExceptionally(e);
+                                }
+                            },
                             result::completeExceptionally, path), executor)
                     .forPath(path);
         } catch (Exception e) {
@@ -161,13 +195,17 @@ public class ZKStoreHelper {
     }
 
     CompletableFuture<List<String>> getChildren(final String path) {
+        return getChildren(path, true);
+    }
+
+    CompletableFuture<List<String>> getChildren(final String path, boolean ignoreDataNotFound) {
         final CompletableFuture<List<String>> result = new CompletableFuture<>();
 
         try {
             client.getChildren().inBackground(
                     callback(event -> result.complete(event.getChildren()),
                             e -> {
-                                if (e instanceof StoreException.DataNotFoundException) {
+                                if (ignoreDataNotFound && e instanceof StoreException.DataNotFoundException) {
                                     result.complete(Collections.emptyList());
                                 } else {
                                     result.completeExceptionally(e);
@@ -180,17 +218,17 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> setData(final String path, final Data<Integer> data) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
+    CompletableFuture<Integer> setData(final String path, final byte[] data, final Version version) {
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
-            if (data.getVersion() == null) {
+            if (version == null) {
                 client.setData().inBackground(
-                        callback(event -> result.complete(null), result::completeExceptionally, path), executor)
-                        .forPath(path, data.getData());
+                        callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
+                        .forPath(path, data);
             } else {
-                client.setData().withVersion(data.getVersion()).inBackground(
-                        callback(event -> result.complete(null), result::completeExceptionally, path), executor)
-                        .forPath(path, data.getData());
+                client.setData().withVersion(version.asIntVersion().getIntValue()).inBackground(
+                        callback(event -> result.complete(event.getStat().getVersion()), result::completeExceptionally, path), executor)
+                        .forPath(path, data);
             }
         } catch (Exception e) {
             result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
@@ -198,11 +236,11 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> createZNode(final String path, final byte[] data) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
+    CompletableFuture<Integer> createZNode(final String path, final byte[] data) {
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             CreateBuilder createBuilder = client.create();
-            BackgroundCallback callback = callback(x -> result.complete(null),
+            BackgroundCallback callback = callback(x -> result.complete(x.getStat().getVersion()),
                     e -> result.completeExceptionally(e), path);
             createBuilder.creatingParentsIfNeeded().inBackground(callback, executor).forPath(path, data);
         } catch (Exception e) {
@@ -212,15 +250,15 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data) {
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data) {
         return createZNodeIfNotExist(path, data, true);
     }
 
-    CompletableFuture<Void> createZNodeIfNotExist(final String path, final byte[] data, final boolean createParent) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path, final byte[] data, final boolean createParent) {
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
         try {
             CreateBuilder createBuilder = client.create();
-            BackgroundCallback callback = callback(x -> result.complete(null),
+            BackgroundCallback callback = callback(x -> result.complete(x.getStat().getVersion()),
                     e -> {
                         if (e instanceof StoreException.DataExistsException) {
                             result.complete(null);
@@ -240,16 +278,16 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Void> createZNodeIfNotExist(final String path) {
+    CompletableFuture<Integer> createZNodeIfNotExist(final String path) {
         return createZNodeIfNotExist(path, true);
     }
 
-    CompletableFuture<Void> createZNodeIfNotExist(final String path, final boolean createParent) {
-        final CompletableFuture<Void> result = new CompletableFuture<>();
+    private CompletableFuture<Integer> createZNodeIfNotExist(final String path, final boolean createParent) {
+        final CompletableFuture<Integer> result = new CompletableFuture<>();
 
         try {
             CreateBuilder createBuilder = client.create();
-            BackgroundCallback callback = callback(x -> result.complete(null),
+            BackgroundCallback callback = callback(x -> result.complete(x.getStat().getVersion()),
                     e -> {
                         if (e instanceof StoreException.DataExistsException) {
                             result.complete(null);
@@ -291,7 +329,53 @@ public class ZKStoreHelper {
         return result;
     }
 
-    CompletableFuture<Boolean> checkExists(final String path) {
+    CompletableFuture<String> createEphemeralSequentialZNode(final String path) {
+        final CompletableFuture<String> result = new CompletableFuture<>();
+
+        try {
+            CreateBuilder createBuilder = client.create();
+            BackgroundCallback callback = callback(x -> result.complete(x.getName()),
+                    result::completeExceptionally, path);
+            createBuilder.creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
+                         .inBackground(callback, executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
+        return result;
+    }
+    
+    CompletableFuture<String> createPersistentSequentialZNode(final String path, final byte[] data) {
+        final CompletableFuture<String> result = new CompletableFuture<>();
+
+        try {
+            CreateBuilder createBuilder = client.create();
+            BackgroundCallback callback = callback(x -> result.complete(x.getName()),
+                    result::completeExceptionally, path);
+            createBuilder.creatingParentsIfNeeded().withMode(CreateMode.PERSISTENT_SEQUENTIAL)
+                         .inBackground(callback, executor).forPath(path, data);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
+        return result;
+    }
+    
+    CompletableFuture<Void> sync(final String path) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+
+        try {
+            BackgroundCallback callback = callback(x -> result.complete(null),
+                    result::completeExceptionally, path);
+            client.sync().inBackground(callback, executor).forPath(path);
+        } catch (Exception e) {
+            result.completeExceptionally(StoreException.create(StoreException.Type.UNKNOWN, e, path));
+        }
+
+        return result;
+    }
+    
+    public CompletableFuture<Boolean> checkExists(final String path) {
         final CompletableFuture<Boolean> result = new CompletableFuture<>();
 
         try {
@@ -336,4 +420,58 @@ public class ZKStoreHelper {
         };
     }
     // endregion
+    
+    PathChildrenCache getPathChildrenCache(String path, boolean cacheData) {
+        return new PathChildrenCache(client, path, cacheData);
+    }
+
+    <T> CompletableFuture<VersionedMetadata<T>> getCachedData(String path, String id, Function<byte[], T> fromBytes) {
+        return cache.getCachedData(new ZkCacheKey<>(path, id, fromBytes))
+                .thenApply(this::getVersionedMetadata);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> VersionedMetadata<T> getVersionedMetadata(VersionedMetadata v) {
+        // Since cache is untyped and holds all types of deserialized objects, we typecast it to the requested object type
+        // based on the type in caller's supplied Deserialization function. 
+        return new VersionedMetadata<>((T) v.getObject(), v.getVersion());
+    }
+
+    void invalidateCache(String path, String id) {
+        cache.invalidateCache(new ZkCacheKey<>(path, id, x -> null));
+    }
+
+    /**
+     * Cache key used to load and retrieve entities from the cache. 
+     * The cache key also provides a deserialization function which is used after loading the value from the zookeeper.
+     * The cache key is comprised of three parts - zk path, id and deserialization function.
+     * Only Id and ZkPath are used in equals and hashcode in the cache key. 
+     */
+    @Data
+    static class ZkCacheKey<T> implements Cache.CacheKey {
+        // ZkPath is the path at which the entity is stored in zookeeper.
+        private final String path;
+        // Id is the unique id that callers can use for entities that are deleted and recreated. Using a unique id upon recreation 
+        // of entity ensures that the previously cached value against older id becomes stale.
+        private final String id;
+        // FromBytesFunction is the deserialization function which takes byes and deserializes it into object of type T. 
+        // Refer to ZkStoreHelper constructor for cache loader.  
+        private final Function<byte[], T> fromBytesFunc;
+
+        @Override
+        public int hashCode() {
+            int result = 17;
+            result = 31 * result + path.hashCode();
+            result = 31 * result + id.hashCode();
+            return result;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj instanceof ZkCacheKey 
+                    && path.equals(((ZkCacheKey) obj).path)
+                    && id.equals(((ZkCacheKey) obj).id);
+        }
+    }
+
 }

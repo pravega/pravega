@@ -9,17 +9,20 @@
  */
 package io.pravega.client.state.impl;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
+import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
-import io.pravega.client.segment.impl.SegmentInputStream;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
+import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
 import io.pravega.client.segment.impl.SegmentSealedException;
 import io.pravega.client.segment.impl.SegmentTruncatedException;
 import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
+import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.PendingEvent;
@@ -28,24 +31,23 @@ import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.SegmentAttribute.NULL_VALUE;
 import static io.pravega.client.segment.impl.SegmentAttribute.RevisionStreamClientMark;
 
-@RequiredArgsConstructor
 @Slf4j
 public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> {
 
     private final Segment segment;
     @GuardedBy("lock")
-    private final SegmentInputStream in;
+    private final EventSegmentReader in;
     @GuardedBy("lock")
     private final SegmentOutputStream out;
     @GuardedBy("lock")
@@ -55,6 +57,18 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
     private final Serializer<T> serializer;
 
     private final Object lock = new Object();
+
+    public RevisionedStreamClientImpl(Segment segment, EventSegmentReader in, SegmentOutputStreamFactory outFactory,
+                                      ConditionalOutputStream conditional, SegmentMetadataClient meta,
+                                      Serializer<T> serializer, EventWriterConfig config, String delegationToken ) {
+        this.segment = segment;
+        this.in = in;
+        this.conditional = conditional;
+        this.meta = meta;
+        this.serializer = serializer;
+        this.out = outFactory.createOutputStreamForSegment(segment, s -> handleSegmentSealed(), config, delegationToken);
+    }
+
 
     @Override
     public Revision writeConditionally(Revision latestRevision, T value) {
@@ -71,10 +85,10 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         }
         if (wasWritten) {
             long newOffset = getNewOffset(offset, size);
-            log.trace("Wrote from {} to {}", offset, newOffset);
+            log.debug("Wrote from {} to {}", offset, newOffset);
             return new RevisionImpl(segment, newOffset, 0);
         } else {
-            log.trace("Write failed at offset {}", offset);
+            log.debug("Conditional write failed at offset {}", offset);
             return null;
         }
     }
@@ -88,8 +102,8 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
         CompletableFuture<Void> ack = new CompletableFuture<>();
         ByteBuffer serialized = serializer.serialize(value);
         try {
-            PendingEvent event = new PendingEvent(null, serialized, ack);
-            log.trace("Unconditionally writing: {}", value);
+            PendingEvent event = PendingEvent.withHeader(null, serialized, ack);
+            log.trace("Unconditionally writing: {} to segment {}", value, segment);
             synchronized (lock) {
                 out.write(event);
                 out.flush();
@@ -102,6 +116,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public Iterator<Entry<Revision, T>> readFrom(Revision start) {
+        log.trace("Read segment {} from revision {}", segment, start);
         synchronized (lock) {
             long startOffset = start.asImpl().getOffsetInSegment();
             SegmentInfo segmentInfo = meta.getSegmentInfo();
@@ -109,7 +124,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             if (startOffset < segmentInfo.getStartingOffset()) {
                 throw new TruncatedDataException("Data at the supplied revision has been truncated.");
             }
-            log.trace("Creating iterator from {} until {}", startOffset, endOffset);
+            log.debug("Creating iterator from {} until {} for segment {} ", startOffset, endOffset, segment);
             return new StreamIterator(startOffset, endOffset);
         }
     }
@@ -144,7 +159,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
                 if (!hasNext()) {
                     throw new NoSuchElementException();
                 }
-                log.trace("Iterater reading entry at", offset.get());
+                log.trace("Iterator reading entry at {}", offset.get());
                 in.setOffset(offset.get());
                 try {
                     data = in.read();
@@ -162,6 +177,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public Revision getMark() {
+        log.trace("Fetching mark for segment {}", segment);
         synchronized (lock) {
             long value = meta.fetchProperty(RevisionStreamClientMark);
             return value == NULL_VALUE ? null : new RevisionImpl(segment, value, 0);
@@ -185,7 +201,7 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     @Override
     public void truncateToRevision(Revision newStart) {
-        meta.truncateSegment(newStart.asImpl().getSegment(), newStart.asImpl().getOffsetInSegment());
+        meta.truncateSegment(newStart.asImpl().getOffsetInSegment());
     }
 
     @Override
@@ -200,5 +216,14 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
             meta.close();
             in.close();
         }
+    }
+
+    @VisibleForTesting
+    void handleSegmentSealed() {
+        log.debug("Complete all unacked events with SegmentSealedException for segment {}", segment);
+        List<PendingEvent> r = out.getUnackedEventsOnSeal();
+        r.stream()
+         .filter(pendingEvent -> pendingEvent.getAckFuture() != null)
+         .forEach(pendingEvent -> pendingEvent.getAckFuture().completeExceptionally(new SegmentSealedException(segment.toString())));
     }
 }

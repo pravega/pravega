@@ -10,12 +10,16 @@
 package io.pravega.controller.rest.v1;
 
 import io.grpc.ServerBuilder;
+import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.controller.server.rest.generated.model.CreateScopeRequest;
 import io.pravega.controller.server.rest.generated.model.StreamState;
-import io.pravega.controller.server.rpc.auth.PravegaAuthManager;
+import io.pravega.controller.server.rpc.auth.AuthHandlerManager;
 import io.pravega.controller.server.rpc.grpc.impl.GRPCServerConfigImpl;
 import io.pravega.test.common.TestUtils;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Response;
@@ -23,18 +27,19 @@ import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.when;
 
-public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
+public class FailingSecureStreamMetaDataTests extends StreamMetaDataTests {
     protected int expectedResult = 401;
 
     @Override
     @Before
-    public void setup() {
-        this.authManager = new PravegaAuthManager(GRPCServerConfigImpl.builder()
+    public void setup() throws Exception {
+        this.authManager = new AuthHandlerManager(GRPCServerConfigImpl.builder()
                                                                       .authorizationEnabled(true)
-                                                                      .tlsCertFile("../config/cert.pem")
-                                                                      .tlsKeyFile("../config/key.pem")
-                                                                      .userPasswordFile("../config/passwd")
+                                                                      .tlsCertFile(SecurityConfigDefaults.TLS_SERVER_CERT_PATH)
+                                                                      .tlsKeyFile(SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_PATH)
+                                                                      .userPasswordFile(SecurityConfigDefaults.AUTH_HANDLER_INPUT_PATH)
                                                                       .port(1000)
                                                                       .build());
         ServerBuilder<?> server = ServerBuilder.forPort(TestUtils.getAvailableListenPort());
@@ -144,6 +149,18 @@ public class FailingSecureStreamMetaDataTests extends  StreamMetaDataTests {
         // Test to get an existing stream
         Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
         assertEquals("Get Stream Config Status", expectedResult, response.getStatus());
+    }
+
+    @Override
+    @Test
+    public void testListScopes() throws ExecutionException, InterruptedException {
+        final String resourceURI = getURI() + "v1/scopes";
+
+        // Test to list scopes.
+        List<String> scopesList = Arrays.asList("scope1", "scope2");
+        when(mockControllerService.listScopes()).thenReturn(CompletableFuture.completedFuture(scopesList));
+        Response response = addAuthHeaders(client.target(resourceURI).request()).buildGet().invoke();
+        assertEquals("List Scopes response code", expectedResult, response.getStatus());
     }
 
     @Override

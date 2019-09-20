@@ -21,12 +21,14 @@ import io.pravega.controller.timeout.TimeoutServiceConfig;
 import com.google.common.base.Preconditions;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.ToString;
 
 import java.util.Optional;
 
 /**
  * Controller Service Configuration.
  */
+@ToString
 @Getter
 public class ControllerServiceConfigImpl implements ControllerServiceConfig {
 
@@ -35,6 +37,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final HostMonitorConfig hostMonitorConfig;
     private final boolean controllerClusterListenerEnabled;
     private final TimeoutServiceConfig timeoutServiceConfig;
+
+    private final String tlsEnabledForSegmentStore;
 
     private final Optional<ControllerEventProcessorConfig> eventProcessorConfig;
 
@@ -47,6 +51,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final StoreClientConfig storeClientConfig,
                                 final HostMonitorConfig hostMonitorConfig,
                                 final boolean controllerClusterListenerEnabled,
+                                final String tlsEnabledForSegmentStore,
                                 final TimeoutServiceConfig timeoutServiceConfig,
                                 final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
                                 final Optional<GRPCServerConfig> grpcServerConfig,
@@ -58,7 +63,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         Preconditions.checkNotNull(storeClientConfig, "storeClientConfig");
         Preconditions.checkNotNull(hostMonitorConfig, "hostMonitorConfig");
         if (controllerClusterListenerEnabled) {
-            Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper,
+            Preconditions.checkArgument(storeClientConfig.getStoreType() == StoreType.Zookeeper ||
+                            storeClientConfig.getStoreType() == StoreType.PravegaTable,
                     "If controllerCluster is enabled, store type should be Zookeeper");
         }
         if (eventProcessorConfig.isPresent()) {
@@ -75,6 +81,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.storeClientConfig = storeClientConfig;
         this.hostMonitorConfig = hostMonitorConfig;
         this.controllerClusterListenerEnabled = controllerClusterListenerEnabled;
+        this.tlsEnabledForSegmentStore = tlsEnabledForSegmentStore;
         this.timeoutServiceConfig = timeoutServiceConfig;
         this.eventProcessorConfig = eventProcessorConfig;
         this.gRPCServerConfig = grpcServerConfig;

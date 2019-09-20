@@ -50,15 +50,6 @@ public interface OperationLog extends Container {
     CompletableFuture<Iterator<Operation>> read(long afterSequence, int maxCount, Duration timeout);
 
     /**
-     * Waits until all currently pending Operations up to this point are processed (whether successfully or not).
-     *
-     * @param timeout Timeout for the operation.
-     * @return A CompletableFuture that, when completed, will indicate that all currently pending operations up to this
-     * point will have completed (normally or exceptionally).
-     */
-    CompletableFuture<Void> operationProcessingBarrier(Duration timeout);
-
-    /**
      * Waits until the OperationLog enters an Online State.
      *
      * @return A CompletableFuture that, when completed, will indicate that the OperationLog is Online. If the OperationLog

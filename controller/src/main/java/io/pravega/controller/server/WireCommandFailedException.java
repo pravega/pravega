@@ -11,10 +11,12 @@ package io.pravega.controller.server;
 
 import io.pravega.controller.retryable.RetryableException;
 import io.pravega.shared.protocol.netty.WireCommandType;
+import lombok.Getter;
 
 /**
  * Wire command failed exception.
  */
+
 public class WireCommandFailedException extends RuntimeException implements RetryableException {
 
     public enum Reason {
@@ -23,9 +25,14 @@ public class WireCommandFailedException extends RuntimeException implements Retr
         UnknownHost,
         PreconditionFailed,
         AuthFailed,
+        SegmentDoesNotExist,
+        TableSegmentNotEmpty,
+        TableKeyDoesNotExist,
+        TableKeyBadVersion,
     }
 
     private final WireCommandType type;
+    @Getter
     private final Reason reason;
 
     public WireCommandFailedException(Throwable cause, WireCommandType type, Reason reason) {

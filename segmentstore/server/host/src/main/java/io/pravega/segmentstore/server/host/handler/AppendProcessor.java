@@ -11,14 +11,15 @@ package io.pravega.segmentstore.server.host.handler;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 import com.google.common.collect.LinkedListMultimap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthHandler;
+import io.pravega.auth.TokenException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
-import io.pravega.common.auth.AuthenticationException;
 import io.pravega.segmentstore.contracts.AttributeUpdate;
 import io.pravega.segmentstore.contracts.AttributeUpdateType;
 import io.pravega.segmentstore.contracts.Attributes;
@@ -29,13 +30,11 @@ import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentSealedException;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.server.IllegalContainerStateException;
 import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
-import io.pravega.shared.metrics.DynamicLogger;
-import io.pravega.shared.metrics.MetricsProvider;
-import io.pravega.shared.metrics.OpStatsLogger;
-import io.pravega.shared.metrics.StatsLogger;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.ByteBufWrapper;
 import io.pravega.shared.protocol.netty.DelegatingRequestProcessor;
 import io.pravega.shared.protocol.netty.RequestProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
@@ -57,18 +56,15 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
 
 import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
-import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
-import static io.pravega.shared.MetricsNames.nameFromSegment;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -78,18 +74,19 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int HIGH_WATER_MARK = 128 * 1024;
-    private static final int LOW_WATER_MARK = 64 * 1024;
-    private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
-    private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
-    private static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
+    private static final int HIGH_WATER_MARK = 1024 * 1024; // 1MB
+    private static final int LOW_WATER_MARK = 640 * 1024;  // 640KB
+    private static final String EMPTY_STACK_TRACE = "";
     private final StreamSegmentStore store;
     private final ServerConnection connection;
+    private final AtomicLong pendingBytes = new AtomicLong(0);
+
     @Getter
     private final RequestProcessor nextRequestProcessor;
     private final Object lock = new Object();
     private final SegmentStatsRecorder statsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
+    private final boolean replyWithStackTraceOnError;
 
     @GuardedBy("lock")
     private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
@@ -113,23 +110,26 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @VisibleForTesting
     public AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, DelegationTokenVerifier verifier) {
-        this(store, connection, next, null, verifier);
+        this(store, connection, next, SegmentStatsRecorder.noOp(), verifier, false);
     }
 
     /**
      * Creates a new instance of the AppendProcessor class.
-     *  @param store         The SegmentStore to send append requests to.
+     * @param store         The SegmentStore to send append requests to.
      * @param connection    The ServerConnection to send responses to.
      * @param next          The RequestProcessor to invoke next.
-     * @param statsRecorder (Optional) A StatsRecorder to record Metrics.
+     * @param statsRecorder A StatsRecorder to record Metrics.
      * @param tokenVerifier Delegation token verifier.
+     * @param replyWithStackTraceOnError Whether client replies upon failed requests contain server-side stack traces or not.
      */
-    AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder, DelegationTokenVerifier tokenVerifier) {
+    AppendProcessor(StreamSegmentStore store, ServerConnection connection, RequestProcessor next, SegmentStatsRecorder statsRecorder,
+                    DelegationTokenVerifier tokenVerifier, boolean replyWithStackTraceOnError) {
         this.store = Preconditions.checkNotNull(store, "store");
         this.connection = Preconditions.checkNotNull(connection, "connection");
         this.nextRequestProcessor = Preconditions.checkNotNull(next, "next");
-        this.statsRecorder = statsRecorder;
+        this.statsRecorder = Preconditions.checkNotNull(statsRecorder, statsRecorder);
         this.tokenVerifier = tokenVerifier;
+        this.replyWithStackTraceOnError = replyWithStackTraceOnError;
     }
 
     //endregion
@@ -157,12 +157,17 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         String newSegment = setupAppend.getSegment();
         UUID writer = setupAppend.getWriterId();
         log.info("Setting up appends for writer: {} on segment: {}", writer, newSegment);
-        if (this.tokenVerifier != null && !tokenVerifier.verifyToken(newSegment,
-                setupAppend.getDelegationToken(), AuthHandler.Permissions.READ_UPDATE)) {
-            log.warn("Delegation token verification failed");
-            handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
-                    "Update Segment Attribute", new AuthenticationException("Token verification failed"));
-            return;
+
+        if (this.tokenVerifier != null) {
+            try {
+                tokenVerifier.verifyToken(newSegment,
+                                          setupAppend.getDelegationToken(),
+                                          AuthHandler.Permissions.READ_UPDATE);
+            } catch (TokenException e) {
+                handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
+                        "Update Segment Attribute", e);
+                return;
+            }
         }
 
         // Get the last Event Number for this writer from the Store. This operation (cache=true) will automatically put
@@ -198,14 +203,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         long traceId = LoggerHelpers.traceEnter(log, "storeAppend", append);
         Timer timer = new Timer();
         storeAppend(append)
-                .whenComplete((v, e) -> {
-                    handleAppendResult(append, e);
-                    LoggerHelpers.traceLeave(log, "storeAppend", traceId, v, e);
-                    if (e == null) {
-                        WRITE_STREAM_SEGMENT.reportSuccessEvent(timer.getElapsed());
-                    } else {
-                        WRITE_STREAM_SEGMENT.reportFailEvent(timer.getElapsed());
-                    }
+                .whenComplete((length, e) -> {
+                    handleAppendResult(append, length, e, timer);
+                    LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, e);
                 })
                 .whenComplete((v, e) -> append.getData().release());
     }
@@ -223,7 +223,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 ByteBuf[] toAppend = new ByteBuf[appends.size()];
                 Append last = appends.get(0);
                 int eventCount = 0;
-
                 int i = -1;
                 for (Iterator<Append> iterator = appends.iterator(); iterator.hasNext(); ) {
                     Append a = iterator.next();
@@ -237,16 +236,16 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     iterator.remove();
                 }
                 ByteBuf data = Unpooled.wrappedBuffer(toAppend);
-
                 String segment = last.getSegment();
                 long eventNumber = last.getEventNumber();
-                outstandingAppend = new Append(segment, writer, eventNumber, eventCount, data, null);
+                outstandingAppend = new Append(segment, writer, eventNumber, eventCount, data, null, last.getRequestId());
             }
+            setPendingBytes(getPendingBytes() - outstandingAppend.getData().readableBytes());
             return outstandingAppend;
         }
     }
 
-    private CompletableFuture<Void> storeAppend(Append append) {
+    private CompletableFuture<Long> storeAppend(Append append) {
         long lastEventNumber;
         synchronized (lock) {
             lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
@@ -255,19 +254,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         List<AttributeUpdate> attributes = Arrays.asList(
                 new AttributeUpdate(append.getWriterId(), AttributeUpdateType.ReplaceIfEquals, append.getEventNumber(), lastEventNumber),
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
-        ByteBuf buf = append.getData().asReadOnly();
-        byte[] bytes = new byte[buf.readableBytes()];
-        buf.readBytes(bytes);
+        ByteBufWrapper buf = new ByteBufWrapper(append.getData());
         if (append.isConditional()) {
-            return store.append(append.getSegment(), append.getExpectedLength(), bytes, attributes, TIMEOUT);
+            return store.append(append.getSegment(), append.getExpectedLength(), buf, attributes, TIMEOUT);
         } else {
-            return store.append(append.getSegment(), bytes, attributes, TIMEOUT);
+            return store.append(append.getSegment(), buf, attributes, TIMEOUT);
         }
     }
 
-    private void handleAppendResult(final Append append, Throwable exception) {
+    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, Timer elapsedTimer) {
+        boolean success = exception == null;
         try {
-            boolean conditionalFailed = exception != null && (Exceptions.unwrap(exception) instanceof BadOffsetException);
+            boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
             long previousEventNumber;
             synchronized (lock) {
                 previousEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
@@ -275,28 +273,19 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         "Synchronization error in: %s while processing append: %s.",
                         AppendProcessor.this.getClass().getName(), append);
             }
-      
-            if (exception != null) {
-                if (conditionalFailed) {
-                    log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
-                    connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber()));
-                } else {
-                    handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "appending data", exception);
-                }
-            } else {
-                if (statsRecorder != null && !StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                    statsRecorder.record(append.getSegment(), append.getDataLength(), append.getEventCount());
-                }
-                final DataAppended dataAppendedAck = new DataAppended(append.getWriterId(), append.getEventNumber(),
-                        previousEventNumber);
+
+            if (success) {
+                final DataAppended dataAppendedAck = new DataAppended(append.getRequestId(), append.getWriterId(), append.getEventNumber(),
+                        previousEventNumber, newWriteOffset);
                 log.trace("Sending DataAppended : {}", dataAppendedAck);
                 connection.send(dataAppendedAck);
-                //Don't report metrics if segment is a transaction
-                //Update the parent segment metrics, once the transaction is merged
-                //TODO: https://github.com/pravega/pravega/issues/2570
-                if (!StreamSegmentNameUtils.isTransactionSegment(append.getSegment())) {
-                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_BYTES, append.getSegment()), append.getDataLength());
-                    DYNAMIC_LOGGER.incCounterValue(nameFromSegment(SEGMENT_WRITE_EVENTS, append.getSegment()), append.getEventCount());
+            } else {
+                if (conditionalFailed) {
+                    log.debug("Conditional append failed due to incorrect offset: {}, {}", append, exception.getMessage());
+                    connection.send(new ConditionalCheckFailed(append.getWriterId(), append.getEventNumber(), append.getRequestId()));
+                } else {
+                    handleException(append.getWriterId(), append.getRequestId(), append.getSegment(), append.getEventNumber(),
+                                    "appending data", exception);
                 }
             }
 
@@ -313,7 +302,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
                 } else {
                     if (!conditionalFailed) {
-                        waitingAppends.removeAll(append.getWriterId());
+                        long bytes = waitingAppends.removeAll(append.getWriterId())
+                                .stream().mapToInt(a -> a.getData().readableBytes()).sum();
+                        setPendingBytes(getPendingBytes() - bytes);
                         latestEventNumbers.remove(Pair.of(append.getSegment(), append.getWriterId()));
                     }
                 }
@@ -322,11 +313,21 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             pauseOrResumeReading();
             performNextWrite();
         } catch (Throwable e) {
+            success = false;
             handleException(append.getWriterId(), append.getEventNumber(), append.getSegment(), "handling append result", e);
+        }
+
+        if (success) {
+            // Record any necessary metrics or statistics, but after we have sent the ack back and initiated the next append.
+            this.statsRecorder.recordAppend(append.getSegment(), append.getDataLength(), append.getEventCount(), elapsedTimer.getElapsed());
         }
     }
 
     private void handleException(UUID writerId, long requestId, String segment, String doingWhat, Throwable u) {
+        handleException(writerId, requestId, segment, -1L, doingWhat, u);
+    }
+
+    private void handleException(UUID writerId, long requestId, String segment, long eventNumber, String doingWhat, Throwable u) {
         if (u == null) {
             IllegalStateException exception = new IllegalStateException("No exception to handle.");
             log.error("Append processor: Error {} on segment = '{}'", doingWhat, segment, exception);
@@ -334,34 +335,47 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
 
         u = Exceptions.unwrap(u);
+        String clientReplyStackTrace = replyWithStackTraceOnError ? Throwables.getStackTraceAsString(u) : EMPTY_STACK_TRACE;
+
         if (u instanceof StreamSegmentExistsException) {
             log.warn("Segment '{}' already exists and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
-            connection.send(new SegmentAlreadyExists(requestId, segment));
+            connection.send(new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace));
         } else if (u instanceof StreamSegmentNotExistsException) {
             log.warn("Segment '{}' does not exist and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
-            connection.send(new NoSuchSegment(requestId, segment));
+            connection.send(new NoSuchSegment(requestId, segment, clientReplyStackTrace, -1L));
         } else if (u instanceof StreamSegmentSealedException) {
             log.info("Segment '{}' is sealed and {} cannot perform operation '{}'.", segment, writerId, doingWhat);
-            connection.send(new SegmentIsSealed(requestId, segment));
+            connection.send(new SegmentIsSealed(requestId, segment, clientReplyStackTrace, eventNumber));
         } else if (u instanceof ContainerNotFoundException) {
             int containerId = ((ContainerNotFoundException) u).getContainerId();
             log.warn("Wrong host. Segment '{}' (Container {}) is not owned and {} cannot perform operation '{}'.",
                     segment, containerId, writerId, doingWhat);
-            connection.send(new WrongHost(requestId, segment, ""));
+            connection.send(new WrongHost(requestId, segment, "", clientReplyStackTrace));
         } else if (u instanceof BadAttributeUpdateException) {
             log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
-            connection.send(new InvalidEventNumber(writerId, requestId));
+            connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
             connection.close();
-        } else if (u instanceof AuthenticationException) {
+        } else if (u instanceof TokenException) {
             log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
-            connection.send(new WireCommands.AuthTokenCheckFailed(requestId));
-            connection.close();
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace));
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", doingWhat, u);
-            connection.send(new OperationUnsupported(requestId, doingWhat));
+            connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
+        } else if (u instanceof CancellationException) {
+            // Cancellation exception is thrown when the Operation processor is shutting down.
+            log.info("Closing connection '{}' while performing append on Segment '{}' due to {}.", connection, segment, u.toString());
+            connection.close();
+        } else {
+            logError(segment, u);
+            connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
+        }
+    }
+
+    private void logError(String segment, Throwable u) {
+        if (u instanceof IllegalContainerStateException) {
+            log.warn("Error (Segment = '{}', Operation = 'append'): {}.", segment, u.toString());
         } else {
             log.error("Error (Segment = '{}', Operation = 'append')", segment, u);
-            connection.close(); // Closing connection should reinitialize things, and hopefully fix the problem
         }
     }
 
@@ -370,13 +384,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      * If there is room for more data, we resume consuming from the socket.
      */
     private void pauseOrResumeReading() {
-        int bytesWaiting;
-        synchronized (lock) {
-            bytesWaiting = waitingAppends.values()
-                    .stream()
-                    .mapToInt(a -> a.getData().readableBytes())
-                    .sum();
-        }
+        long bytesWaiting = getPendingBytes();
 
         if (bytesWaiting > HIGH_WATER_MARK) {
             log.debug("Pausing writing from connection {}", connection);
@@ -386,6 +394,23 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.trace("Resuming writing from connection {}", connection);
             connection.resumeReading();
         }
+    }
+
+    /**
+     * return the remaining bytes to be consumed.
+     */
+    protected long getPendingBytes() {
+        return pendingBytes.get();
+    }
+
+    /**
+     * set the remaining bytes to be consumed.
+     * Make sure that negative value is not set.
+     *
+     * @param val  New value to set.
+     */
+    protected void setPendingBytes(long val) {
+        pendingBytes.set(Math.max(val, 0));
     }
 
     /**
@@ -403,9 +428,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             Preconditions.checkState(append.getEventNumber() >= lastEventNumber, "Event was already appended.");
             waitingAppends.put(id, append);
         }
+        setPendingBytes(getPendingBytes() + append.getData().readableBytes());
         pauseOrResumeReading();
         performNextWrite();
     }
-
     //endregion
 }

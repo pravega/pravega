@@ -9,8 +9,22 @@
  */
 package io.pravega.shared.metrics;
 
+import java.util.function.Supplier;
+
 /**
  * Defines a Gauge, which will wrap a gauge instance and its name.
  */
 public interface Gauge extends Metric {
+
+    /**
+     * Set the supplier of gauge value.
+     * @param supplier the supplier of gauge value.
+     */
+    void setSupplier(Supplier<Number> supplier);
+
+    /**
+     * Get the supplier of gauge value.
+     * @return the supplier of gauge value.
+     */
+    Supplier<Number> getSupplier();
 }

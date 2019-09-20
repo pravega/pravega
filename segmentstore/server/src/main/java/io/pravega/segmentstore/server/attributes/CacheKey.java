@@ -28,7 +28,7 @@ class CacheKey extends Cache.Key {
     @Getter
     private final long segmentId;
     @Getter
-    private final int entryId;
+    private final long offset;
 
     //endregion
 
@@ -38,12 +38,12 @@ class CacheKey extends Cache.Key {
      * Creates a new instance of the CacheKey class.
      *
      * @param segmentId The Segment Id that the key refers to.
-     * @param entryId   The Cache Entry Id that the key refers to.
+     * @param offset   The Cache Entry Id that the key refers to.
      */
-    CacheKey(long segmentId, int entryId) {
+    CacheKey(long segmentId, long offset) {
         Preconditions.checkArgument(segmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "segmentId");
         this.segmentId = segmentId;
-        this.entryId = entryId;
+        this.offset = offset;
     }
 
     @VisibleForTesting
@@ -52,7 +52,7 @@ class CacheKey extends Cache.Key {
         Preconditions.checkArgument(serialization.length == SERIALIZATION_LENGTH, "Invalid serialization length.");
 
         this.segmentId = BitConverter.readLong(serialization, 0);
-        this.entryId = BitConverter.readInt(serialization, Long.BYTES);
+        this.offset = BitConverter.readLong(serialization, Long.BYTES);
     }
 
     //endregion
@@ -63,13 +63,13 @@ class CacheKey extends Cache.Key {
     public byte[] serialize() {
         byte[] result = new byte[SERIALIZATION_LENGTH];
         BitConverter.writeLong(result, 0, this.segmentId);
-        BitConverter.writeInt(result, Long.BYTES, this.entryId);
+        BitConverter.writeLong(result, Long.BYTES, this.offset);
         return result;
     }
 
     @Override
     public int hashCode() {
-        return HASH.hash(this.entryId);
+        return HASH.hash(this.offset);
     }
 
     @Override
@@ -80,12 +80,12 @@ class CacheKey extends Cache.Key {
 
         CacheKey other = (CacheKey) obj;
         return this.segmentId == other.segmentId
-                && this.entryId == other.entryId;
+                && this.offset == other.offset;
     }
 
     @Override
     public String toString() {
-        return String.format("SegmentId = %d, EntryId = %d", this.segmentId, this.entryId);
+        return String.format("SegmentId = %d, Offset = %d", this.segmentId, this.offset);
     }
 
     //endregion

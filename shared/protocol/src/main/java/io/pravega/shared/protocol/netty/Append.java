@@ -9,9 +9,9 @@
  */
 package io.pravega.shared.protocol.netty;
 
-import java.util.UUID;
-
 import io.netty.buffer.ByteBuf;
+import io.pravega.shared.protocol.netty.WireCommands.Event;
+import java.util.UUID;
 import lombok.Data;
 
 @Data
@@ -22,18 +22,24 @@ public class Append implements Request, Comparable<Append> {
     final int eventCount;
     final ByteBuf data;
     final Long expectedLength;
+    final long flowId;
 
-    public Append(String segment, UUID writerId, long eventNumber, ByteBuf data, Long expectedLength) {
-        this(segment, writerId, eventNumber, 1, data, expectedLength);
+    public Append(String segment, UUID writerId, long eventNumber, Event event, long flowId) {
+        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), null, flowId);
     }
-
-    public Append(String segment, UUID writerId, long eventNumber, int eventCount, ByteBuf data, Long expectedLength) {
+    
+    public Append(String segment, UUID writerId, long eventNumber, Event event, long expectedLength, long flowId) {
+        this(segment, writerId, eventNumber, 1, event.getAsByteBuf(), expectedLength, flowId);
+    }
+    
+    public Append(String segment, UUID writerId, long eventNumber, int eventCount, ByteBuf data, Long expectedLength, long flowId) {
         this.segment = segment;
         this.writerId = writerId;
         this.eventNumber = eventNumber;
         this.eventCount = eventCount;
         this.data = data;
         this.expectedLength = expectedLength;
+        this.flowId = flowId;
     }
     
     public int getDataLength() {
@@ -56,6 +62,6 @@ public class Append implements Request, Comparable<Append> {
 
     @Override
     public long getRequestId() {
-        return eventNumber;
+        return flowId;
     }
 }

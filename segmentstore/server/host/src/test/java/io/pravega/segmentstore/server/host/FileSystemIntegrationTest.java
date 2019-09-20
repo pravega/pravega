@@ -13,10 +13,10 @@ import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperConfig;
 import io.pravega.segmentstore.storage.impl.bookkeeper.BookKeeperLogFactory;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageConfig;
-import io.pravega.segmentstore.storage.impl.filesystem.FileSystemStorageFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBCacheFactory;
 import io.pravega.segmentstore.storage.impl.rocksdb.RocksDBConfig;
+import io.pravega.storage.filesystem.FileSystemStorageConfig;
+import io.pravega.storage.filesystem.FileSystemStorageFactory;
 import org.junit.After;
 import org.junit.Before;
 

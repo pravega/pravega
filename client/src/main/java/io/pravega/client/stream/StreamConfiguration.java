@@ -24,18 +24,6 @@ public class StreamConfiguration implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * API to return scope.
-     *
-     */
-    private final String scope;
-
-    /**
-     * API to return stream name.
-     *
-     */
-    private final String streamName;
-
-    /**
      * API to return scaling policy.
      *
      */
@@ -46,8 +34,39 @@ public class StreamConfiguration implements Serializable {
      *
      */
     private final RetentionPolicy retentionPolicy;
+    
+    /**
+     * The duration after the last call to {@link EventStreamWriter#noteTime(long)} which the
+     * timestamp should be considered valid before it is forgotten. Meaning that after this long of
+     * not calling {@link EventStreamWriter#noteTime(long)} the writer will be forgotten.
+     * If there are no known writers, readers that call {@link EventStreamReader#getCurrentTimeWindow()}
+     * will receive a `null` when they are at the corresponding position in the stream.
+     */
+    private final long timestampAggregationTimeout;
 
     public static final class StreamConfigurationBuilder {
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);
+        
+        /**
+         * Scope is specified on stream creation.
+         * @param scope ignored
+         * @deprecated Does nothing. 
+         * @return this
+         */
+        @Deprecated
+        public StreamConfigurationBuilder scope(String scope) {
+            return this;
+        }
+        
+        /**
+         * Stream name is specified on stream creation.
+         * @param streamName ignored
+         * @deprecated Does nothing. 
+         * @return this
+         */
+        @Deprecated
+        public StreamConfigurationBuilder streamName(String streamName) {
+            return this;
+        }
     }
 }

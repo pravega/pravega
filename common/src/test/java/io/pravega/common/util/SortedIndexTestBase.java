@@ -30,7 +30,7 @@ import org.junit.Test;
 abstract class SortedIndexTestBase {
     private static final int ITEM_COUNT = 100 * 1000;
     private static final Comparator<Long> KEY_COMPARATOR = Long::compare;
-    private static final Comparator<Long> KEY_REVERSE_COMPARATOR = (n1, n2) -> -Long.compare(n1, n2);
+    private static final Comparator<Long> KEY_REVERSE_COMPARATOR = (n1, n2) -> Long.compare(n2, n1);
 
     //region Test Targets
 

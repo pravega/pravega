@@ -15,6 +15,7 @@ import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.stream.Stream;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
@@ -59,7 +60,8 @@ public class TransactionTest {
         ResourceLeakDetector.setLevel(originalLevel);
     }
 
-    @Test
+    @Test(timeout = 10000)
+    @SuppressWarnings("deprecation")
     public void testTransactionalWritesOrderedCorrectly() throws TxnFailedException, ReinitializationRequiredException {
         int readTimeout = 5000;
         String readerName = "reader";
@@ -71,14 +73,20 @@ public class TransactionTest {
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createScope("scope");
         streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
-        streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().stream(Stream.of("scope", streamName)).build());
+        streamManager.createReaderGroup(groupName,
+                                        ReaderGroupConfig.builder()
+                                                         .stream(Stream.of("scope", streamName))
+                                                         .disableAutomaticCheckpoints()
+                                                         .build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),
@@ -127,7 +135,8 @@ public class TransactionTest {
         assertEquals(nonTxEvent, consumer.readNextEvent(readTimeout).getEvent());
     }
 
-    @Test
+    @Test(timeout = 10000)
+    @SuppressWarnings("deprecation")
     public void testDoubleCommit() throws TxnFailedException {
         String endpoint = "localhost";
         String streamName = "abc";
@@ -135,8 +144,10 @@ public class TransactionTest {
         String event = "Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
@@ -154,7 +165,8 @@ public class TransactionTest {
         AssertExtensions.assertThrows(TxnFailedException.class, () -> transaction.commit());
     }
 
-    @Test
+    @Test(timeout = 10000)
+    @SuppressWarnings("deprecation")
     public void testDrop() throws TxnFailedException, ReinitializationRequiredException {
         String endpoint = "localhost";
         String groupName = "group";
@@ -164,14 +176,20 @@ public class TransactionTest {
         String nonTxEvent = "Non-TX Event\n";
         String routingKey = "RoutingKey";
         StreamSegmentStore store = this.serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
+
         @Cleanup
-        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store);
+        PravegaConnectionListener server = new PravegaConnectionListener(false, port, store, tableStore);
         server.startListening();
         @Cleanup
         MockStreamManager streamManager = new MockStreamManager("scope", endpoint, port);
         streamManager.createScope("scope");
         streamManager.createStream("scope", streamName, StreamConfiguration.builder().build());
-        streamManager.createReaderGroup(groupName, ReaderGroupConfig.builder().stream(Stream.of("scope", streamName)).build());
+        streamManager.createReaderGroup(groupName,
+                                        ReaderGroupConfig.builder()
+                                                         .stream(Stream.of("scope", streamName))
+                                                         .disableAutomaticCheckpoints()
+                                                         .build());
         MockClientFactory clientFactory = streamManager.getClientFactory();
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(),

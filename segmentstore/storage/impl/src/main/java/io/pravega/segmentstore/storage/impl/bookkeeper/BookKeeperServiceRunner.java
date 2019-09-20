@@ -10,6 +10,8 @@
 package io.pravega.segmentstore.storage.impl.bookkeeper;
 
 import com.google.common.base.Preconditions;
+import io.pravega.common.auth.JKSHelper;
+import io.pravega.common.auth.ZKTLSUtils;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -55,6 +57,8 @@ public class BookKeeperServiceRunner implements AutoCloseable {
     private final boolean secureBK;
     private final String tLSKeyStore;
     private final String tLSKeyStorePasswordPath;
+    private final boolean secureZK;
+    private final String tlsTrustStore;
     private final List<Integer> bookiePorts;
     private final List<BookieServer> servers = new ArrayList<>();
     private final AtomicReference<ZooKeeperServiceRunner> zkServer = new AtomicReference<>();
@@ -137,7 +141,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
      * @throws Exception If an exception got thrown.
      */
     public void resumeZooKeeper() throws Exception {
-        val zk = new ZooKeeperServiceRunner(this.zkPort);
+        val zk = new ZooKeeperServiceRunner(this.zkPort, this.secureZK, this.tLSKeyStore, this.tLSKeyStorePasswordPath, this.tlsTrustStore);
         if (this.zkServer.compareAndSet(null, zk)) {
             // Initialize ZK runner (since nobody else did it for us).
             zk.initialize();
@@ -171,6 +175,11 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
     private void initializeZookeeper() throws Exception {
         log.info("Formatting ZooKeeper ...");
+
+        if (this.secureZK) {
+            ZKTLSUtils.setSecureZKClientProperties(this.tlsTrustStore, JKSHelper.loadPasswordFrom(this.tLSKeyStorePasswordPath));
+        }
+
         @Cleanup
         val zkc = ZooKeeperClient.newBuilder()
                                  .connectString(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort)
@@ -215,12 +224,11 @@ public class BookKeeperServiceRunner implements AutoCloseable {
 
         val conf = new ServerConfiguration();
         conf.setBookiePort(bkPort);
-        conf.setZkServers(LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort);
+        conf.setMetadataServiceUri("zk://" + LOOPBACK_ADDRESS.getHostAddress() + ":" + this.zkPort + ledgersPath);
         conf.setJournalDirName(tmpDir.getPath());
         conf.setLedgerDirNames(new String[]{tmpDir.getPath()});
         conf.setAllowLoopback(true);
         conf.setJournalAdaptiveGroupWrites(false);
-        conf.setZkLedgersRootPath(ledgersPath);
 
         if (secureBK) {
             conf.setTLSProvider("OpenSSL");

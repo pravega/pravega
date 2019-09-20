@@ -13,7 +13,8 @@ plugins.withId('checkstyle') {
         toolVersion = checkstyleToolVersion
 
         configFile = new File(rootDir, "checkstyle/checkstyle.xml")
-        configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml"]
+        configProperties = [importControlFile: "$rootDir/checkstyle/import-control.xml",
+                            suppressionsFile: "$rootDir/checkstyle/suppressions.xml"]
     }
 
     plugins.withId('java') {

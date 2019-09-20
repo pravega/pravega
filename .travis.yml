@@ -27,6 +27,10 @@ jobs:
       after_success:
            - bash <(curl -s https://codecov.io/bash) -t ccceafaf-7c60-4a02-9165-480174b535a2
 
+    - stage: javadocs
+      install: echo "Building javadocs"
+      script: ./gradlew javadocs
+
     - stage: snapshot
       if: branch = master AND NOT (type = pull_request)
       env:

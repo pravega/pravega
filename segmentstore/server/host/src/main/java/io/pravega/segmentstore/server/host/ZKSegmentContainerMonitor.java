@@ -9,15 +9,16 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.cluster.Host;
+import io.pravega.common.cluster.HostContainerMap;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.segmentstore.server.ContainerHandle;
 import io.pravega.segmentstore.server.SegmentContainerRegistry;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -33,13 +34,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-
+import java.util.function.Supplier;
 import lombok.SneakyThrows;
 import lombok.Synchronized;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import org.apache.commons.lang.SerializationUtils;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.utils.ZKPaths;
@@ -56,6 +57,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     private static final Duration INIT_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
     private static final Duration CLOSE_TIMEOUT_PER_CONTAINER = Duration.ofSeconds(30L);
     private static final Duration MONITOR_INTERVAL = Duration.ofSeconds(10);
+    private static final long REPORT_INTERVAL_MILLIS = Duration.ofMinutes(10).toMillis();
+    private static final Supplier<Long> CURRENT_TIME_MILLIS = System::currentTimeMillis;
 
     // The host entry for which we are monitoring the container assignments.
     private final Host host;
@@ -73,6 +76,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
     private final Set<Integer> pendingTasks;
     private final ScheduledExecutorService executor;
     private AtomicReference<ScheduledFuture<?>> assigmentTask;
+    private final AtomicLong lastReportTime;
 
     /**
      * Creates an instance of ZKSegmentContainerMonitor.
@@ -93,6 +97,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
         String clusterPath = ZKPaths.makePath("cluster", "segmentContainerHostMapping");
         this.hostContainerMapNode = new NodeCache(zkClient, clusterPath);
         this.assigmentTask = new AtomicReference<>();
+        this.lastReportTime = new AtomicLong(CURRENT_TIME_MILLIS.get());
     }
 
     /**
@@ -126,7 +131,7 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             this.hostContainerMapNode.close();
         } catch (IOException e) {
             // Ignoring exception on shutdown.
-            log.warn("Failed to close hostContainerMapNode {}", e);
+            log.warn("Failed to close hostContainerMapNode", e);
         }
 
         val task = this.assigmentTask.getAndSet(null);
@@ -175,9 +180,14 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
                 Collection<Integer> containersToBeStopped = CollectionHelpers.filterOut(runningContainers, desiredList);
                 containersToBeStopped = CollectionHelpers.filterOut(containersToBeStopped, containersPendingTasks);
 
-                log.info("Container Changes: Desired = {}, Current = {}, PendingTasks = {}, ToStart = {}, ToStop = {}.",
-                        desiredList, runningContainers, containersPendingTasks, containersToBeStarted,
-                        containersToBeStopped);
+                // Only report if we have any changes or if sufficient time has elapsed since the last report.
+                boolean logReport = !(containersPendingTasks.isEmpty() && containersToBeStarted.isEmpty() && containersToBeStopped.isEmpty());
+                if (logReport || (CURRENT_TIME_MILLIS.get() - this.lastReportTime.get() >= REPORT_INTERVAL_MILLIS)) {
+                    log.info("Container Changes: Desired = {}, Current = {}, PendingTasks = {}, ToStart = {}, ToStop = {}.",
+                            desiredList, runningContainers, containersPendingTasks, containersToBeStarted,
+                            containersToBeStopped);
+                    this.lastReportTime.set(CURRENT_TIME_MILLIS.get());
+                }
 
                 // Initiate the start and stop tasks asynchronously.
                 containersToBeStarted.forEach(this::startContainer);
@@ -276,8 +286,8 @@ public class ZKSegmentContainerMonitor implements AutoCloseable {
             byte[] containerToHostMapSer = hostContainerMapNode.getCurrentData().getData();
             if (containerToHostMapSer != null) {
                 @SuppressWarnings("unchecked")
-                val controlMapping = (Map<Host, Set<Integer>>) SerializationUtils.deserialize(containerToHostMapSer);
-                return controlMapping.entrySet().stream()
+                val controlMapping = HostContainerMap.fromBytes(containerToHostMapSer);
+                return controlMapping.getHostContainerMap().entrySet().stream()
                                      .filter(ep -> ep.getKey().equals(this.host))
                                      .map(Map.Entry::getValue)
                                      .findFirst().orElse(Collections.emptySet());

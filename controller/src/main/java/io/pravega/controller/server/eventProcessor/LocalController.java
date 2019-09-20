@@ -21,33 +21,40 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.ControllerFailureException;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.client.stream.impl.SegmentWithRange;
+import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.client.stream.impl.StreamSegmentSuccessors;
 import io.pravega.client.stream.impl.StreamSegments;
 import io.pravega.client.stream.impl.StreamSegmentsWithPredecessors;
 import io.pravega.client.stream.impl.TxnSegments;
+import io.pravega.client.stream.impl.WriterPosition;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.AsyncIterator;
+import io.pravega.common.util.ContinuationTokenAsyncIterator;
 import io.pravega.controller.server.ControllerService;
-import io.pravega.controller.server.rpc.auth.PravegaInterceptor;
-import io.pravega.controller.stream.api.grpc.v1.Controller.PingTxnStatus;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.stream.api.grpc.v1.Controller.ScaleResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SegmentRange;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
+import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import org.apache.commons.lang3.StringUtils;
 
 public class LocalController implements Controller {
 
+    private static final int LIST_STREAM_IN_SCOPE_LIMIT = 1000;
     private ControllerService controller;
     private final String tokenSigningKey;
     private final boolean authorizationEnabled;
@@ -78,13 +85,25 @@ public class LocalController implements Controller {
     }
 
     @Override
+    public AsyncIterator<Stream> listStreams(String scopeName) {
+        final Function<String, CompletableFuture<Map.Entry<String, Collection<Stream>>>> function = token ->
+                controller.listStreams(scopeName, token, LIST_STREAM_IN_SCOPE_LIMIT)
+                          .thenApply(result -> {
+                              List<Stream> asStreamList = result.getKey().stream().map(m -> new StreamImpl(scopeName, m)).collect(Collectors.toList());
+                              return new AbstractMap.SimpleEntry<>(result.getValue(), asStreamList);
+                          });
+
+        return new ContinuationTokenAsyncIterator<>(function, "");
+    }
+
+    @Override
     public CompletableFuture<Boolean> deleteScope(String scopeName) {
         return this.controller.deleteScope(scopeName).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to delete scope: " + scopeName);
             case SCOPE_NOT_EMPTY:
-                throw new IllegalStateException("Scope "+ scopeName+ " is not empty.");
+                throw new IllegalStateException("Scope " + scopeName + " is not empty.");
             case SCOPE_NOT_FOUND:
                 return false;
             case SUCCESS:
@@ -97,8 +116,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> createStream(final StreamConfiguration streamConfig) {
-        return this.controller.createStream(streamConfig, System.currentTimeMillis()).thenApply(x -> {
+    public CompletableFuture<Boolean> createStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.controller.createStream(scope, streamName, streamConfig, System.currentTimeMillis()).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to createing stream: " + streamConfig);
@@ -118,8 +137,8 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Boolean> updateStream(final StreamConfiguration streamConfig) {
-        return this.controller.updateStream(streamConfig).thenApply(x -> {
+    public CompletableFuture<Boolean> updateStream(String scope, String streamName, final StreamConfiguration streamConfig) {
+        return this.controller.updateStream(scope, streamName, streamConfig).thenApply(x -> {
             switch (x.getStatus()) {
             case FAILURE:
                 throw new ControllerFailureException("Failed to update stream: " + streamConfig);
@@ -284,9 +303,9 @@ public class LocalController implements Controller {
     }
 
     private StreamSegments getStreamSegments(List<SegmentRange> ranges) {
-        NavigableMap<Double, Segment> rangeMap = new TreeMap<>();
+        NavigableMap<Double, SegmentWithRange> rangeMap = new TreeMap<>();
         for (SegmentRange r : ranges) {
-            rangeMap.put(r.getMaxKey(), ModelHelper.encode(r.getSegmentId()));
+            rangeMap.put(r.getMaxKey(), new SegmentWithRange(ModelHelper.encode(r.getSegmentId()), r.getMinKey(), r.getMaxKey()));
         }
         return new StreamSegments(rangeMap, retrieveDelegationToken());
     }
@@ -299,17 +318,22 @@ public class LocalController implements Controller {
     }
 
     @Override
-    public CompletableFuture<Void> pingTransaction(Stream stream, UUID txId, long lease) {
-        return Futures.toVoidExpecting(
-                controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease),
-                PingTxnStatus.newBuilder().setStatus(PingTxnStatus.Status.OK).build(),
-                PingFailedException::new);
+    public CompletableFuture<Transaction.PingStatus> pingTransaction(Stream stream, UUID txId, long lease) {
+        return controller.pingTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txId), lease)
+                         .thenApply(status -> {
+                             try {
+                                 return ModelHelper.encode(status.getStatus(), stream + " " + txId);
+                             } catch (PingFailedException ex) {
+                                 throw new CompletionException(ex);
+                             }
+                         });
     }
 
     @Override
-    public CompletableFuture<Void> commitTransaction(Stream stream, UUID txnId) {
+    public CompletableFuture<Void> commitTransaction(Stream stream, final String writerId, final Long timestamp, UUID txnId) {
+        long time = Optional.ofNullable(timestamp).orElse(Long.MIN_VALUE);
         return controller
-                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId))
+                .commitTransaction(stream.getScope(), stream.getStreamName(), ModelHelper.decode(txnId), writerId, time)
                 .thenApply(x -> null);
     }
 
@@ -328,7 +352,7 @@ public class LocalController implements Controller {
 
     @Override
     public CompletableFuture<Map<Segment, Long>> getSegmentsAtTime(Stream stream, long timestamp) {
-        return controller.getSegmentsAtTime(stream.getScope(), stream.getStreamName(), timestamp).thenApply(segments -> {
+        return controller.getSegmentsAtHead(stream.getScope(), stream.getStreamName()).thenApply(segments -> {
             return segments.entrySet()
                            .stream()
                            .collect(Collectors.toMap(entry -> ModelHelper.encode(entry.getKey()),
@@ -381,7 +405,7 @@ public class LocalController implements Controller {
 
     public String retrieveDelegationToken() {
         if (authorizationEnabled) {
-            return PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+            return GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
         } else {
             return StringUtils.EMPTY;
         }
@@ -391,7 +415,7 @@ public class LocalController implements Controller {
     public CompletableFuture<String> getOrRefreshDelegationTokenFor(String scope, String streamName) {
         String retVal = "";
         if (authorizationEnabled) {
-            retVal = PravegaInterceptor.retrieveDelegationToken(tokenSigningKey);
+            retVal = GrpcAuthHelper.retrieveMasterToken(tokenSigningKey);
         }
         return CompletableFuture.completedFuture(retVal);
     }
@@ -402,5 +426,16 @@ public class LocalController implements Controller {
         }
         return streamCut.asImpl().getPositions().entrySet()
                 .stream().collect(Collectors.toMap(x -> x.getKey().getSegmentId(), Map.Entry::getValue));
+    }
+
+    @Override
+    public CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition) {
+        Map<Long, Long> map = ModelHelper.createStreamCut(stream, lastWrittenPosition).getCutMap();
+        return Futures.toVoid(controller.noteTimestampFromWriter(stream.getScope(), stream.getStreamName(), writer, timestamp, map));
+    }
+
+    @Override
+    public CompletableFuture<Void> removeWriter(String writerId, Stream stream) {
+        return Futures.toVoid(controller.removeWriter(stream.getScope(), stream.getStreamName(), writerId));
     }
 }

@@ -60,6 +60,8 @@ public class RemoteSequential implements TestExecutor {
             if (response.status() != CREATED.code()) {
                 throw new TestFrameworkException(TestFrameworkException.Type.ConnectionFailed, "Error while starting " +
                         "test " + testMethod);
+            } else {
+                log.info("Created job succeeded with: " + response.toString());
             }
         }).thenCompose(v2 -> waitForJobCompletion(jobId, client))
                 .<Void>thenApply(v1 -> {
@@ -112,10 +114,10 @@ public class RemoteSequential implements TestExecutor {
         Run run = new Run();
         run.setArtifacts(Collections.singletonList(art));
 
-        run.setCmd("docker run --rm -v $(pwd):/data " + System.getProperty("dockerImageRegistry")+"/java:8 java" +
+        run.setCmd("docker run --rm -v $(pwd):/data " + System.getProperty("dockerImageRegistry") + "/java:8 java" +
                 " -DmasterIP=" + LoginClient.MESOS_MASTER +
                 " -DskipServiceInstallation=" + Utils.isSkipServiceInstallationEnabled() +
-                " -cp /data/pravega-test-system-"+System.getProperty("testVersion")+".jar io.pravega.test.system.SingleJUnitTestRunner " +
+                " -cp /data/pravega-test-system-" + System.getProperty("testVersion") + ".jar io.pravega.test.system.SingleJUnitTestRunner " +
                 className + "#" + methodName + " > server.log 2>&1" +
                 "; exit $?");
 

@@ -79,7 +79,7 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         val s = new AsyncStorageWrapper(innerStorage, executorService());
 
         // Create
-        toReturn.set(StreamSegmentInformation.builder().name(segmentName).build());
+        toReturn.set(handle);
         validator.set((o, segment) -> {
             Assert.assertEquals(TestStorage.CREATE, o);
             Assert.assertEquals(segmentName, segment);
@@ -401,8 +401,8 @@ public class AsyncStorageWrapperTests extends ThreadPooledTestSuite {
         }
 
         @Override
-        public SegmentProperties create(String streamSegmentName) {
-            return (SegmentProperties) this.methodInvoked.apply(CREATE, streamSegmentName);
+        public SegmentHandle create(String streamSegmentName) {
+            return (SegmentHandle) this.methodInvoked.apply(CREATE, streamSegmentName);
         }
 
         @Override

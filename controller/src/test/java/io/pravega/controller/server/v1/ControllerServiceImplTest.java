@@ -9,6 +9,7 @@
  */
 package io.pravega.controller.server.v1;
 
+import com.google.common.base.Strings;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.pravega.client.stream.ScalingPolicy;
@@ -35,14 +36,16 @@ import io.pravega.controller.stream.api.grpc.v1.Controller.ServerResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.StreamInfo;
 import io.pravega.controller.stream.api.grpc.v1.Controller.SuccessorResponse;
 import io.pravega.controller.stream.api.grpc.v1.Controller.UpdateStreamStatus;
-import io.pravega.shared.NameUtils;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.test.common.AssertExtensions;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -50,13 +53,17 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Controller Service Implementation tests.
  * <p>
  * Every test is run twice for both streamStore (Zookeeper and InMemory) types.
  */
+@Slf4j
 public abstract class ControllerServiceImplTest {
 
     protected static final String SCOPE1 = "scope1";
@@ -64,6 +71,7 @@ public abstract class ControllerServiceImplTest {
     protected static final String SCOPE3 = "scope3";
     protected static final String STREAM1 = "stream1";
     protected static final String STREAM2 = "stream2";
+    protected static final String STREAM3 = "stream3";
 
     //Ensure each test completes within 10 seconds.
     @Rule
@@ -118,6 +126,88 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void streamsInScopeTest() {
+        final StreamConfiguration configuration = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(2)).build();
+
+        ResultObserver<CreateScopeStatus> result = new ResultObserver<>();
+        ScopeInfo scopeInfo = ScopeInfo.newBuilder().setScope(SCOPE1).build();
+        this.controllerService.createScope(scopeInfo, result);
+        Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
+
+        ResultObserver<CreateStreamStatus> createStreamStatus1 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration), createStreamStatus1);
+        CreateStreamStatus status = createStreamStatus1.get();
+        Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<CreateStreamStatus> createStreamStatus2 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM2, configuration), createStreamStatus2);
+        status = createStreamStatus2.get();
+        Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<CreateStreamStatus> createStreamStatus3 = new ResultObserver<>();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM3, configuration), createStreamStatus3);
+        status = createStreamStatus3.get();
+        Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
+
+        ResultObserver<Controller.StreamsInScopeResponse> streamsInScopeResponse1 = new ResultObserver<>();
+        Controller.StreamsInScopeRequest streamsInScopeRequest1 = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+        this.controllerService.listStreamsInScope(streamsInScopeRequest1, streamsInScopeResponse1);
+        List<Controller.StreamInfo> list = streamsInScopeResponse1.get().getStreamsList();
+        // check continuation token
+        assertEquals(streamsInScopeResponse1.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
+        assertFalse(Strings.isNullOrEmpty(streamsInScopeResponse1.get().getContinuationToken().getToken()));
+        assertEquals(2, list.size());
+
+        ResultObserver<Controller.StreamsInScopeResponse> streamsInScopeResponse2 = new ResultObserver<>();
+        Controller.StreamsInScopeRequest streamsInScopeRequest2 = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(streamsInScopeResponse1.get().getContinuationToken()).build();
+        this.controllerService.listStreamsInScope(streamsInScopeRequest2, streamsInScopeResponse2);
+        list = streamsInScopeResponse2.get().getStreamsList();
+        // check continuation token
+        assertEquals(streamsInScopeResponse2.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
+        assertFalse(Strings.isNullOrEmpty(streamsInScopeResponse2.get().getContinuationToken().getToken()));
+        assertEquals(2, list.size());
+
+        ResultObserver<Controller.StreamsInScopeResponse> streamsInScopeResponse3 = new ResultObserver<>();
+        Controller.StreamsInScopeRequest streamsInScopeRequest3 = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(streamsInScopeResponse2.get().getContinuationToken()).build();
+        this.controllerService.listStreamsInScope(streamsInScopeRequest3, streamsInScopeResponse3);
+        list = streamsInScopeResponse3.get().getStreamsList();
+        // check continuation token
+        assertEquals(streamsInScopeResponse3.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
+        assertFalse(Strings.isNullOrEmpty(streamsInScopeResponse3.get().getContinuationToken().getToken()));
+        assertEquals(2, list.size());
+
+        ResultObserver<Controller.StreamsInScopeResponse> streamsInScopeResponse4 = new ResultObserver<>();
+        Controller.StreamsInScopeRequest streamsInScopeRequest4 = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(scopeInfo).setContinuationToken(streamsInScopeResponse3.get().getContinuationToken()).build();
+        this.controllerService.listStreamsInScope(streamsInScopeRequest4, streamsInScopeResponse4);
+        list = streamsInScopeResponse4.get().getStreamsList();
+        // check continuation token
+        assertEquals(streamsInScopeResponse4.get().getStatus(), Controller.StreamsInScopeResponse.Status.SUCCESS);
+        assertEquals(streamsInScopeResponse4.get().getContinuationToken().getToken(), streamsInScopeResponse3.get().getContinuationToken().getToken());
+        assertEquals(0, list.size());
+
+        List<StreamInfo> m = new LinkedList<>();
+        m.addAll(streamsInScopeResponse1.get().getStreamsList());
+        m.addAll(streamsInScopeResponse2.get().getStreamsList());
+        m.addAll(streamsInScopeResponse3.get().getStreamsList());
+        
+        // verify that all three streams have been found
+        assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM1)));
+        assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM2)));
+        assertTrue(m.stream().anyMatch(x -> x.getStream().equals(STREAM3)));
+
+        Controller.StreamsInScopeRequest nonExistentScopeRequest = Controller.StreamsInScopeRequest
+                .newBuilder().setScope(ScopeInfo.newBuilder().setScope("NonExistent").build()).setContinuationToken(Controller.ContinuationToken.newBuilder().build()).build();
+        ResultObserver<Controller.StreamsInScopeResponse> nonExistentScopeResponse = new ResultObserver<>();
+
+        this.controllerService.listStreamsInScope(nonExistentScopeRequest, nonExistentScopeResponse);
+        assertEquals(nonExistentScopeResponse.get().getStatus(), Controller.StreamsInScopeResponse.Status.SCOPE_NOT_FOUND);
+    }
+
+    @Test
     public void deleteScopeTests() {
         CreateScopeStatus createScopeStatus;
         DeleteScopeStatus deleteScopeStatus;
@@ -149,9 +239,9 @@ public abstract class ControllerServiceImplTest {
 
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final StreamConfiguration configuration1 =
-                StreamConfiguration.builder().scope(SCOPE2).streamName(STREAM1).scalingPolicy(policy1).build();
+                StreamConfiguration.builder().scalingPolicy(policy1).build();
         ResultObserver<CreateStreamStatus> result4 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(configuration1), result4);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE2, STREAM1, configuration1), result4);
         createStreamStatus = result4.get();
         assertEquals(createStreamStatus.getStatus(), CreateStreamStatus.Status.SUCCESS);
 
@@ -166,18 +256,23 @@ public abstract class ControllerServiceImplTest {
         deleteScopeStatus = result6.get();
         assertEquals("Delete non existent scope", DeleteScopeStatus.Status.SCOPE_NOT_FOUND,
                      deleteScopeStatus.getStatus());
+
+        // Delete empty scope, should throw
+        ResultObserver<DeleteScopeStatus> result8 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Call to delete scope did not throw on empty scope",
+                () ->  this.controllerService.deleteScope(ModelHelper.createScopeInfo(""), result8),
+                ex -> ex instanceof IllegalArgumentException);
+
     }
 
     @Test
     public void createStreamTests() {
         final ScalingPolicy policy1 = ScalingPolicy.fixed(2);
         final ScalingPolicy policy2 = ScalingPolicy.fixed(3);
-        final StreamConfiguration configuration1 =
-                StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1).scalingPolicy(policy1).build();
-        final StreamConfiguration configuration2 =
-                StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM2).scalingPolicy(policy2).build();
-        final StreamConfiguration configuration3 =
-                StreamConfiguration.builder().scope("SCOPE3").streamName(STREAM2).scalingPolicy(policy2).build();
+        final StreamConfiguration configuration1 = StreamConfiguration.builder().scalingPolicy(policy1).build();
+        final StreamConfiguration configuration2 = StreamConfiguration.builder().scalingPolicy(policy2).build();
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(policy2).build();
 
         CreateStreamStatus status;
 
@@ -187,63 +282,61 @@ public abstract class ControllerServiceImplTest {
         Assert.assertEquals(result.get().getStatus(), CreateScopeStatus.Status.SUCCESS);
 
         ResultObserver<CreateStreamStatus> result1 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(configuration1), result1);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result1);
         status = result1.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
 
         ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(configuration2), result2);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM2, configuration2), result2);
         status = result2.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
         // endregion
 
         // region duplicate create stream
         ResultObserver<CreateStreamStatus> result3 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(configuration1), result3);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result3);
         status = result3.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.STREAM_EXISTS);
         // endregion
 
         // create stream for non-existent scope
         ResultObserver<CreateStreamStatus> result4 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(configuration3), result4);
+        this.controllerService.createStream(ModelHelper.decode("SCOPE3", STREAM2, configuration3), result4);
         status = result4.get();
         Assert.assertEquals(status.getStatus(), CreateStreamStatus.Status.SCOPE_NOT_FOUND);
 
         //create stream with invalid stream name "abc/def"
         ResultObserver<CreateStreamStatus> result5 = new ResultObserver<>();
         final StreamConfiguration configuration4 =
-                StreamConfiguration.builder().scope("SCOPE3").streamName("abc/def").scalingPolicy(policy2).build();
-        this.controllerService.createStream(ModelHelper.decode(configuration4), result5);
+                StreamConfiguration.builder().scalingPolicy(policy2).build();
+        this.controllerService.createStream(ModelHelper.decode("SCOPE3", "abc/def", configuration4), result5);
         status = result5.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.INVALID_STREAM_NAME);
 
         // Create stream with an internal stream name.
         ResultObserver<CreateStreamStatus> result6 = new ResultObserver<>();
         final StreamConfiguration configuration6 =
-                StreamConfiguration.builder().scope(SCOPE1).streamName(
-                        NameUtils.getInternalNameForStream("abcdef")).scalingPolicy(policy2).build();
-        this.controllerService.createStream(ModelHelper.decode(configuration6), result6);
+                StreamConfiguration.builder().scalingPolicy(policy2).build();
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, "abcdef", configuration6), result6);
         status = result6.get();
         assertEquals(status.getStatus(), CreateStreamStatus.Status.SUCCESS);
     }
-
+    
     @Test
     public void updateStreamTests() {
         createScopeAndStream(SCOPE1, STREAM1, ScalingPolicy.fixed(2));
 
-        final StreamConfiguration configuration2 = StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1)
+        final StreamConfiguration configuration2 = StreamConfiguration.builder()
                 .scalingPolicy(ScalingPolicy.fixed(3)).build();
         ResultObserver<UpdateStreamStatus> result2 = new ResultObserver<>();
-        this.controllerService.updateStream(ModelHelper.decode(configuration2), result2);
+        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, STREAM1, configuration2), result2);
         UpdateStreamStatus updateStreamStatus = result2.get();
         Assert.assertEquals(updateStreamStatus.getStatus(), UpdateStreamStatus.Status.SUCCESS);
 
         // Update stream for non-existent stream.
         ResultObserver<UpdateStreamStatus> result3 = new ResultObserver<>();
-        final StreamConfiguration configuration3 = StreamConfiguration.builder().scope(SCOPE1)
-                .streamName("unknownstream").scalingPolicy(ScalingPolicy.fixed(1)).build();
-        this.controllerService.updateStream(ModelHelper.decode(configuration3), result3);
+        final StreamConfiguration configuration3 = StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(1)).build();
+        this.controllerService.updateStream(ModelHelper.decode(SCOPE1, "unknownstream", configuration3), result3);
         updateStreamStatus = result3.get();
         Assert.assertEquals(UpdateStreamStatus.Status.STREAM_NOT_FOUND, updateStreamStatus.getStatus());
     }
@@ -254,8 +347,7 @@ public abstract class ControllerServiceImplTest {
         CreateStreamStatus createStreamStatus;
         DeleteStreamStatus deleteStreamStatus;
         final StreamConfiguration configuration1 =
-                StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1).scalingPolicy(ScalingPolicy.fixed(4))
-                        .build();
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(4)).build();
 
         // Create a test scope.
         ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
@@ -279,7 +371,7 @@ public abstract class ControllerServiceImplTest {
 
         // Create a test stream.
         ResultObserver<CreateStreamStatus> result4 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(configuration1), result4);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result4);
         createStreamStatus = result4.get();
         Assert.assertEquals("Create stream",
                 CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
@@ -305,13 +397,52 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
+    public void streamCutValidationTest() {
+        // call scale test to create stream and scale it
+        scaleTest();
+
+        // Case 1: do not cover full range
+        ResultObserver<Controller.StreamCutValidityResponse> result1 = new ResultObserver<>();
+        StreamInfo streamInfo = StreamInfo.newBuilder()
+                .setScope(SCOPE1)
+                .setStream(STREAM1)
+                .build();
+        this.controllerService.isStreamCutValid(Controller.StreamCut.newBuilder()
+                .setStreamInfo(streamInfo)
+                .putCut(0, 0).build(), result1);
+        assertFalse(result1.get().getResponse());
+
+        // Case 2: include overlapping segments
+        ResultObserver<Controller.StreamCutValidityResponse> result2 = new ResultObserver<>();
+
+        this.controllerService.isStreamCutValid(Controller.StreamCut.newBuilder()
+                .setStreamInfo(streamInfo).putCut(0, 0).putCut(1, 0).
+                        putCut(computeSegmentId(2, 1), 0).
+                        putCut(computeSegmentId(3, 1), 0).build(), result2);
+        assertFalse(result2.get().getResponse());
+
+        // Case 3: Correct stream cut spanning one epoch
+        ResultObserver<Controller.StreamCutValidityResponse> result3 = new ResultObserver<>();
+        this.controllerService.isStreamCutValid(Controller.StreamCut.newBuilder()
+                .setStreamInfo(streamInfo).putCut(0, 0).putCut(1, 0).build(), result3);
+        assertTrue(result3.get().getResponse());
+
+        // Case 4: Correct stream cut spanning two epochs
+        ResultObserver<Controller.StreamCutValidityResponse> result4 = new ResultObserver<>();
+        this.controllerService.isStreamCutValid(Controller.StreamCut.newBuilder()
+                .setStreamInfo(streamInfo).putCut(0, 0).
+                putCut(computeSegmentId(2, 1), 0).
+                putCut(computeSegmentId(3, 1), 0).build(), result4);
+        assertTrue(result4.get().getResponse());
+    }
+
+    @Test
     public void truncateStreamTests() {
         CreateScopeStatus createScopeStatus;
         CreateStreamStatus createStreamStatus;
 
         final StreamConfiguration configuration1 =
-                StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1).scalingPolicy(ScalingPolicy.fixed(4))
-                                   .build();
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(4)).build();
 
         // Create a test scope.
         ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
@@ -321,7 +452,7 @@ public abstract class ControllerServiceImplTest {
 
         // Create a test stream.
         ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(configuration1), result2);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result2);
         createStreamStatus = result2.get();
         assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
 
@@ -332,19 +463,19 @@ public abstract class ControllerServiceImplTest {
                                                                                            .setScope(SCOPE1)
                                                                                            .setStream(STREAM1)
                                                                                            .build())
-                .putCut(0, 0).build(), result3);
+                .putCut(0, 0).putCut(1, 0).putCut(2, 0).putCut(3, 0).build(), result3);
         UpdateStreamStatus truncateStreamStatus = result3.get();
+        assertEquals(UpdateStreamStatus.Status.SUCCESS, truncateStreamStatus.getStatus());
     }
 
-        @Test
+    @Test
     public void sealStreamTests() {
         CreateScopeStatus createScopeStatus;
         CreateStreamStatus createStreamStatus;
         UpdateStreamStatus updateStreamStatus;
 
         final StreamConfiguration configuration1 =
-                StreamConfiguration.builder().scope(SCOPE1).streamName(STREAM1).scalingPolicy(ScalingPolicy.fixed(4))
-                        .build();
+                StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(4)).build();
 
         // Create a test scope.
         ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
@@ -354,7 +485,7 @@ public abstract class ControllerServiceImplTest {
 
         // Create a test stream.
         ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(configuration1), result2);
+        this.controllerService.createStream(ModelHelper.decode(SCOPE1, STREAM1, configuration1), result2);
         createStreamStatus = result2.get();
         assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
 
@@ -430,18 +561,31 @@ public abstract class ControllerServiceImplTest {
     }
 
     @Test
-    public void getSegmentsImmediatlyFollowingTest() {
+    public void getSegmentsImmediatelyFollowingTest() {
         scaleTest();
         ResultObserver<SuccessorResponse> result = new ResultObserver<>();
-        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), result);
+        this.controllerService.getSegmentsImmediatelyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), result);
         final SuccessorResponse successorResponse = result.get();
         Assert.assertEquals(2, successorResponse.getSegmentsCount());
 
         ResultObserver<SuccessorResponse> result2 = new ResultObserver<>();
-        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
+        this.controllerService.getSegmentsImmediatelyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
                 result2);
         final SuccessorResponse successorResponse2 = result2.get();
         Assert.assertEquals(0, successorResponse2.getSegmentsCount());
+
+        /* Testing deprecated RPC. This test code should be removed once we address: */
+        /* https://github.com/pravega/pravega/issues/3760                            */
+        ResultObserver<SuccessorResponse> resultDeprecated = new ResultObserver<>();
+        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 1), resultDeprecated);
+        final SuccessorResponse successorResponseDeprecated = resultDeprecated.get();
+        Assert.assertEquals(2, successorResponseDeprecated.getSegmentsCount());
+
+        ResultObserver<SuccessorResponse> resultDeprecated2 = new ResultObserver<>();
+        this.controllerService.getSegmentsImmediatlyFollowing(ModelHelper.createSegmentId(SCOPE1, STREAM1, 0),
+                resultDeprecated2);
+        final SuccessorResponse successorResponseDeprecated2 = resultDeprecated2.get();
+        Assert.assertEquals(0, successorResponseDeprecated2.getSegmentsCount());
     }
 
     @Test
@@ -487,8 +631,8 @@ public abstract class ControllerServiceImplTest {
         final SegmentRanges segmentRanges = result3.get();
         Assert.assertEquals(3, segmentRanges.getSegmentRangesCount());
         Assert.assertEquals(0, segmentRanges.getSegmentRanges(0).getSegmentId().getSegmentId());
-        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(2, 1), segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentId());
-        Assert.assertEquals(StreamSegmentNameUtils.computeSegmentId(3, 1), segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentId());
+        Assert.assertEquals(computeSegmentId(2, 1), segmentRanges.getSegmentRanges(1).getSegmentId().getSegmentId());
+        Assert.assertEquals(computeSegmentId(3, 1), segmentRanges.getSegmentRanges(2).getSegmentId().getSegmentId());
     }
 
     @Test
@@ -529,6 +673,18 @@ public abstract class ControllerServiceImplTest {
         this.controllerService.isSegmentValid(ModelHelper.createSegmentId(SCOPE1, STREAM1, 3), result2);
         final SegmentValidityResponse isValid2 = result2.get();
         Assert.assertEquals(false, isValid2.getResponse());
+
+        ResultObserver<SegmentValidityResponse> result3 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Failed to throw when validating segment.",
+                () ->  this.controllerService.isSegmentValid(ModelHelper.createSegmentId("", STREAM1, 3), result3),
+                ex -> ex instanceof IllegalArgumentException);
+
+        ResultObserver<SegmentValidityResponse> result4 = new ResultObserver<>();
+        AssertExtensions.assertThrows(
+                "Failed to throw when validating segment.",
+                () -> this.controllerService.isSegmentValid(ModelHelper.createSegmentId(SCOPE1, "", 3), result4),
+                ex -> ex instanceof IllegalArgumentException);
     }
 
     @Test
@@ -549,9 +705,109 @@ public abstract class ControllerServiceImplTest {
                 e -> checkGRPCException(e, IllegalArgumentException.class));
     }
 
+    @Test(timeout = 30000L)
+    public void testWriterMark() {
+        String writer1 = "writer1";
+        String stream = "mark";
+        StreamInfo streamInfo = ModelHelper.createStreamInfo(SCOPE1, stream);
+        
+        createScopeAndStream(SCOPE1, stream, ScalingPolicy.fixed(2));
+        
+        // call note for new writer
+        Controller.StreamCut.Builder position = Controller.StreamCut.newBuilder()
+                                               .setStreamInfo(streamInfo)
+                                               .putCut(0L, 0L).putCut(1L, 0L);
+        Controller.TimestampFromWriter request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(1L)
+                                     .setPosition(position)
+                                     .build();
+
+        ResultObserver<Controller.TimestampResponse> resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
+
+        // call note for existing writer with advancing time and advancing position
+        position = Controller.StreamCut.newBuilder()
+                            .setStreamInfo(streamInfo)
+                            .putCut(0L, 1L).putCut(1L, 1L);
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(2L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        resultObserver.get();
+
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
+
+        // call note for existing writer with advancing time but same position
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(3L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
+        
+        // call note for existing writer with same time but advancing position
+        position = Controller.StreamCut.newBuilder()
+                            .setStreamInfo(streamInfo)
+                            .putCut(0L, 2L).putCut(1L, 2L);
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(3L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.SUCCESS);
+        
+        // call note for existing writer with lower time
+        position = Controller.StreamCut.newBuilder()
+                            .setStreamInfo(streamInfo)
+                            .putCut(0L, 2L).putCut(1L, 2L);
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(2L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.INVALID_TIME);
+        
+        // call note for existing writer with lower position
+        position = Controller.StreamCut.newBuilder()
+                            .setStreamInfo(streamInfo)
+                            .putCut(0L, 2L).putCut(1L, 1L);
+        request = Controller.TimestampFromWriter.newBuilder()
+                                     .setWriter(writer1)
+                                     .setTimestamp(4L)
+                                     .setPosition(position)
+                                     .build();
+        resultObserver = new ResultObserver<>();
+        this.controllerService.noteTimestampFromWriter(request, resultObserver);
+        assertEquals(resultObserver.get().getResult(), Controller.TimestampResponse.Status.INVALID_POSITION);
+
+        Controller.RemoveWriterRequest writerShutdownRequest = Controller.RemoveWriterRequest
+                .newBuilder().setStream(streamInfo).setWriter(writer1).build();
+        ResultObserver<Controller.RemoveWriterResponse> shutdownResultObserver = new ResultObserver<>();
+        this.controllerService.removeWriter(writerShutdownRequest, shutdownResultObserver);
+        assertEquals(shutdownResultObserver.get().getResult(), Controller.RemoveWriterResponse.Status.SUCCESS);
+
+        // shutdown request for unknown writer
+        writerShutdownRequest = Controller.RemoveWriterRequest
+                .newBuilder().setStream(streamInfo).setWriter("unknown writer").build();
+        shutdownResultObserver = new ResultObserver<>();
+        this.controllerService.removeWriter(writerShutdownRequest, shutdownResultObserver);
+        assertEquals(shutdownResultObserver.get().getResult(), Controller.RemoveWriterResponse.Status.UNKNOWN_WRITER);
+    }
+
     protected void createScopeAndStream(String scope, String stream, ScalingPolicy scalingPolicy) {
         final StreamConfiguration configuration1 =
-                StreamConfiguration.builder().scope(scope).streamName(stream).scalingPolicy(scalingPolicy).build();
+                StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
         // Create a test scope.
         ResultObserver<CreateScopeStatus> result1 = new ResultObserver<>();
@@ -561,7 +817,7 @@ public abstract class ControllerServiceImplTest {
 
         // Create a test stream.
         ResultObserver<CreateStreamStatus> result2 = new ResultObserver<>();
-        this.controllerService.createStream(ModelHelper.decode(configuration1), result2);
+        this.controllerService.createStream(ModelHelper.decode(scope, stream, configuration1), result2);
         CreateStreamStatus createStreamStatus = result2.get();
         assertEquals("Create stream", CreateStreamStatus.Status.SUCCESS, createStreamStatus.getStatus());
     }

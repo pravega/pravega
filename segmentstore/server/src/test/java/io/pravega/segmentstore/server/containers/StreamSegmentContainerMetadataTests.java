@@ -176,57 +176,6 @@ public class StreamSegmentContainerMetadataTests {
     }
 
     /**
-     * Tests the ability to delete a StreamSegment from the metadata.
-     */
-    @Test
-    public void testDeleteStreamSegment() {
-        final UpdateableContainerMetadata m = new MetadataBuilder(CONTAINER_ID).build();
-        ArrayList<Long> segmentIds = new ArrayList<>();
-        HashSet<Long> deletedStreamSegmentIds = new HashSet<>();
-        for (long i = 0; i < SEGMENT_COUNT; i++) {
-            final long segmentId = segmentIds.size();
-            segmentIds.add(segmentId);
-            val sm = m.mapStreamSegmentId(getName(segmentId), segmentId);
-            if (i % 3 == 1) {
-                // Every 3i+1 Segment is deleted.
-                sm.markDeleted();
-            } else if (i % 3 == 2) {
-                // Every 3i+1 Segment is merged.
-                sm.markMerged();
-            }
-        }
-
-        // Delete segments.
-        for (long segmentId : segmentIds) {
-            SegmentMetadata existingMetadata = m.getStreamSegmentMetadata(segmentId);
-            boolean alreadyMergedOrDeleted = existingMetadata.isMerged() || existingMetadata.isDeleted();
-            SegmentMetadata sm = m.deleteStreamSegment(existingMetadata.getName());
-            if (alreadyMergedOrDeleted) {
-                Assert.assertNull("Expected deletion to not succeed for already deleted or merged Segment.", sm);
-                Assert.assertNotEquals("Not expecting isMerged to equal isDeleted.", existingMetadata.isMerged(), existingMetadata.isDeleted());
-            } else {
-                Assert.assertNotNull("Expected deletion to not succeed for non-deleted and non-merged Segment.", sm);
-                Assert.assertEquals("Unexpected SegmentMetadata returned.", segmentId, sm.getId());
-            }
-            if (existingMetadata.isDeleted()) {
-                deletedStreamSegmentIds.add(segmentId);
-            }
-        }
-
-        // Verify deleted segments have not been actually removed from the metadata.
-        Collection<Long> metadataSegmentIds = m.getAllStreamSegmentIds();
-        AssertExtensions.assertContainsSameElements("Metadata does not contain the expected Segment Ids", segmentIds, metadataSegmentIds);
-
-        // Verify individual StreamSegmentMetadata.
-        for (long segmentId : segmentIds) {
-            boolean expectDeleted = deletedStreamSegmentIds.contains(segmentId);
-            val sm = m.getStreamSegmentMetadata(segmentId);
-            Assert.assertEquals("Unexpected value for isDeleted.", expectDeleted, sm.isDeleted());
-            Assert.assertNotEquals("Unexpected value for isMerged.", expectDeleted, sm.isMerged());
-        }
-    }
-
-    /**
      * Tests the ability for the metadata to reset itself.
      */
     @Test
@@ -549,6 +498,32 @@ public class StreamSegmentContainerMetadataTests {
         val evictionCandidates = m.getEvictionCandidates(maxLastUsed, maxCap);
         val evictedSegments = m.cleanup(evictionCandidates, maxLastUsed);
         AssertExtensions.assertGreaterThan("At least one segment was expected to be evicted.", 0, evictedSegments.size());
+    }
+
+    /**
+     * Tests the ability to pin Segments to the metadata, which should prevent them from being evicted.
+     */
+    @Test
+    public void testPinnedSegments() {
+        final StreamSegmentContainerMetadata m = new MetadataBuilder(CONTAINER_ID).buildAs();
+        final String segmentName = "segment";
+        final String pinnedSegmentName = "segment_pinned";
+        final long segmentId = 1;
+        final long pinnedSegmentId = 2;
+
+        // Map the segments and pin only one of them.
+        val nonPinnedMetadata = m.mapStreamSegmentId(segmentName, segmentId);
+        val pinnedMetadata = m.mapStreamSegmentId(pinnedSegmentName, pinnedSegmentId);
+        pinnedMetadata.markPinned();
+
+        // Try to evict it.
+        nonPinnedMetadata.setLastUsed(1);
+        pinnedMetadata.setLastUsed(1);
+        m.removeTruncationMarkers(2);
+        val evictionCandidates = m.getEvictionCandidates(2, 10);
+        Assert.assertEquals("Not expecting pinned segment to be evicted.", 1, evictionCandidates.size());
+        val evicted = evictionCandidates.stream().findFirst().get();
+        Assert.assertEquals("Unexpected Segment got evicted.", nonPinnedMetadata, evicted);
     }
 
     private void populateSegmentsForEviction(List<Long> segments, UpdateableContainerMetadata m) {

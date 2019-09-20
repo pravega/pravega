@@ -30,7 +30,7 @@ import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -128,7 +128,7 @@ public class RollingStorage implements SyncStorage {
 
     @Override
     public int read(SegmentHandle handle, long offset, byte[] buffer, int bufferOffset, int length) throws StreamSegmentException {
-        val h = asReadableHandle(handle);
+        val h = getHandle(handle);
         long traceId = LoggerHelpers.traceEnter(log, "read", handle, offset, length);
         ensureNotDeleted(h);
         Exceptions.checkArrayRange(bufferOffset, length, buffer.length, "bufferOffset", "length");
@@ -139,17 +139,16 @@ public class RollingStorage implements SyncStorage {
                     offset, bufferOffset, length, buffer.length));
         }
 
-        if (h.isReadOnly() && !h.isSealed() && offset + length > h.length()) {
-            // We have a non-sealed read-only handle. It's possible that the SegmentChunks may have been modified since
-            // the last time we refreshed it, and we received a request for a read beyond our last known offset. Reload
-            // the handle before attempting the read.
+        if (!h.isSealed() && offset + length > h.length()) {
+            // We have a non-sealed handle (read-only or read-write). It's possible that the SegmentChunks may have been
+            // modified since the last time we refreshed it, and we received a request for a read beyond our last known offset.
+            // This could happen if the Segment was modified using a different handle or a previous write did succeed but was
+            // reported as having failed. Reload the handle before attempting the read so that we have the most up-to-date info.
             val newHandle = (RollingSegmentHandle) openRead(handle.getSegmentName());
             h.refresh(newHandle);
             log.debug("Handle refreshed: {}.", h);
         }
 
-        Preconditions.checkArgument(offset < h.length(), "Offset %s is beyond the last offset %s of the segment.",
-                offset, h.length());
         Preconditions.checkArgument(offset + length <= h.length(), "Offset %s + length %s is beyond the last offset %s of the segment.",
                 offset, length, h.length());
 
@@ -232,12 +231,12 @@ public class RollingStorage implements SyncStorage {
     //region SyncStorage Implementation
 
     @Override
-    public SegmentProperties create(String streamSegmentName) throws StreamSegmentException {
+    public SegmentHandle create(String streamSegmentName) throws StreamSegmentException {
         return create(streamSegmentName, this.defaultRollingPolicy);
     }
 
     @Override
-    public SegmentProperties create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
+    public SegmentHandle create(String segmentName, SegmentRollingPolicy rollingPolicy) throws StreamSegmentException {
         Preconditions.checkNotNull(rollingPolicy, "rollingPolicy");
         String headerName = StreamSegmentNameUtils.getHeaderSegmentName(segmentName);
         long traceId = LoggerHelpers.traceEnter(log, "create", segmentName, rollingPolicy);
@@ -252,16 +251,18 @@ public class RollingStorage implements SyncStorage {
         // If the header file already exists, then it's OK if it's empty (probably a remnant from a previously failed
         // attempt); in that case we ignore it and let the creation proceed.
         SegmentHandle headerHandle = null;
+        RollingSegmentHandle retValue;
         try {
             try {
-                this.baseStorage.create(headerName);
+                headerHandle = this.baseStorage.create(headerName);
             } catch (StreamSegmentExistsException ex) {
                 checkIfEmptyAndNotSealed(ex, headerName);
+                headerHandle = this.baseStorage.openWrite(headerName);
                 log.debug("Empty Segment Header found for '{}'; treating as inexistent.", segmentName);
             }
 
-            headerHandle = this.baseStorage.openWrite(headerName);
-            serializeHandle(new RollingSegmentHandle(headerHandle, rollingPolicy, Collections.emptyList()));
+            retValue = new RollingSegmentHandle(headerHandle, rollingPolicy, new ArrayList<>());
+            serializeHandle(retValue);
         } catch (StreamSegmentExistsException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -280,7 +281,7 @@ public class RollingStorage implements SyncStorage {
         }
 
         LoggerHelpers.traceLeave(log, "create", traceId, segmentName);
-        return StreamSegmentInformation.builder().name(segmentName).build();
+        return retValue;
     }
 
     @Override
@@ -301,9 +302,10 @@ public class RollingStorage implements SyncStorage {
 
     @Override
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
-        val h = asWritableHandle(handle);
+        val h = getHandle(handle);
         ensureNotDeleted(h);
         ensureNotSealed(h);
+        ensureWritable(h);
         ensureOffset(h, offset);
         long traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
 
@@ -329,8 +331,14 @@ public class RollingStorage implements SyncStorage {
 
     @Override
     public void seal(SegmentHandle handle) throws StreamSegmentException {
-        val h = asWritableHandle(handle);
+        val h = getHandle(handle);
         ensureNotDeleted(h);
+        if (h.isReadOnly() && h.isSealed()) {
+            // Nothing to do.
+            log.debug("Segment already sealed: '{}'.", h.getSegmentName());
+            return;
+        }
+
         long traceId = LoggerHelpers.traceEnter(log, "seal", handle);
         sealActiveChunk(h);
         SegmentHandle headerHandle = h.getHeaderHandle();
@@ -350,10 +358,11 @@ public class RollingStorage implements SyncStorage {
 
     @Override
     public void concat(SegmentHandle targetHandle, long targetOffset, String sourceSegment) throws StreamSegmentException {
-        val target = asWritableHandle(targetHandle);
+        val target = getHandle(targetHandle);
         ensureOffset(target, targetOffset);
         ensureNotDeleted(target);
         ensureNotSealed(target);
+        ensureWritable(target);
         long traceId = LoggerHelpers.traceEnter(log, "concat", target, targetOffset, sourceSegment);
 
         // We can only use a Segment as a concat source if it is Sealed.
@@ -421,7 +430,7 @@ public class RollingStorage implements SyncStorage {
 
     @Override
     public void delete(SegmentHandle handle) throws StreamSegmentException {
-        val h = asReadableHandle(handle);
+        val h = getHandle(handle);
         long traceId = LoggerHelpers.traceEnter(log, "delete", handle);
 
         SegmentHandle headerHandle = h.getHeaderHandle();
@@ -461,7 +470,7 @@ public class RollingStorage implements SyncStorage {
     @Override
     public void truncate(SegmentHandle handle, long truncationOffset) throws StreamSegmentException {
         // Delete all SegmentChunks which are entirely before the truncation offset.
-        RollingSegmentHandle h = asReadableHandle(handle);
+        RollingSegmentHandle h = getHandle(handle);
         ensureNotDeleted(h);
 
         // The only acceptable case where we allow a read-only handle is if the Segment is sealed, since openWrite() will
@@ -508,7 +517,22 @@ public class RollingStorage implements SyncStorage {
         Preconditions.checkArgument(!handle.isSealed(), "Cannot rollover a Sealed Segment.");
         log.debug("Rolling over '{}'.", handle);
         sealActiveChunk(handle);
-        createChunk(handle);
+        try {
+            createChunk(handle);
+        } catch (StreamSegmentExistsException ex) {
+            // It may be possible that a concurrent rollover request using a different handle (either from this instance
+            // or another) has already created the new chunk. Refresh the handle and try again. This is usually the case
+            // with concurrent Storage instances trying to modify the same segment at the same time.
+            int chunkCount = handle.chunks().size();
+            handle.refresh(openHandle(handle.getSegmentName(), false));
+            if (chunkCount == handle.chunks().size()) {
+                // Nothing changed; re-throw the exception.
+                throw ex;
+            } else {
+                // We've just refreshed the handle and picked up the latest chunk. Move on.
+                log.warn("Aborted rollover due to concurrent rollover detected ('{}').", handle);
+            }
+        }
     }
 
     private void sealActiveChunk(RollingSegmentHandle handle) throws StreamSegmentException {
@@ -766,14 +790,13 @@ public class RollingStorage implements SyncStorage {
         }
     }
 
-    private RollingSegmentHandle asWritableHandle(SegmentHandle handle) {
-        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only.");
-        return asReadableHandle(handle);
-    }
-
-    private RollingSegmentHandle asReadableHandle(SegmentHandle handle) {
+    private RollingSegmentHandle getHandle(SegmentHandle handle) {
         Preconditions.checkArgument(handle instanceof RollingSegmentHandle, "handle must be of type RollingSegmentHandle.");
         return (RollingSegmentHandle) handle;
+    }
+
+    private void ensureWritable(RollingSegmentHandle handle) {
+        Preconditions.checkArgument(!handle.isReadOnly(), "handle must not be read-only (%s).", handle.getSegmentName());
     }
 
     private void ensureNotDeleted(RollingSegmentHandle handle) throws StreamSegmentNotExistsException {

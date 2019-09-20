@@ -9,12 +9,15 @@
  */
 package io.pravega.segmentstore.server.containers;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.util.CollectionHelpers;
 import io.pravega.common.util.ImmutableDate;
 import io.pravega.segmentstore.contracts.Attributes;
+import io.pravega.segmentstore.contracts.SegmentProperties;
+import io.pravega.segmentstore.contracts.StreamSegmentInformation;
 import io.pravega.segmentstore.server.ContainerMetadata;
 import io.pravega.segmentstore.server.SegmentMetadata;
 import io.pravega.segmentstore.server.UpdateableSegmentMetadata;
@@ -25,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -60,6 +64,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @GuardedBy("this")
     private boolean deleted;
     @GuardedBy("this")
+    private boolean deletedInStorage;
+    @GuardedBy("this")
     private boolean merged;
     @GuardedBy("this")
     private ImmutableDate lastModified;
@@ -67,6 +73,8 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     private long lastUsed;
     @GuardedBy("this")
     private boolean active;
+    @GuardedBy("this")
+    private boolean pinned;
 
     //endregion
 
@@ -85,13 +93,14 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         Preconditions.checkArgument(streamSegmentId != ContainerMetadata.NO_STREAM_SEGMENT_ID, "streamSegmentId");
         Preconditions.checkArgument(containerId >= 0, "containerId");
 
-        this.traceObjectId = String.format("StreamSegment[%d]", streamSegmentId);
+        this.traceObjectId = String.format("StreamSegment[%d-%d]", containerId, streamSegmentId);
         this.name = streamSegmentName;
         this.streamSegmentId = streamSegmentId;
         this.containerId = containerId;
         this.sealed = false;
         this.sealedInStorage = false;
         this.deleted = false;
+        this.deletedInStorage = false;
         this.merged = false;
         this.startOffset = 0;
         this.storageLength = -1;
@@ -147,6 +156,11 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public synchronized boolean isDeletedInStorage() {
+        return this.deletedInStorage;
+    }
+
+    @Override
     public synchronized boolean isSealedInStorage() {
         return this.sealedInStorage;
     }
@@ -169,6 +183,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     @Override
     public synchronized Map<UUID, Long> getAttributes() {
         return new AttributesView();
+    }
+
+    @Override
+    public synchronized Map<UUID, Long> getAttributes(BiPredicate<UUID, Long> filter) {
+        return getAttributes().entrySet().stream()
+                              .filter(e -> filter.test(e.getKey(), e.getValue()))
+                              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     @Override
@@ -229,15 +250,9 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
     @Override
     public synchronized void markSealedInStorage() {
-        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in DurableLog.");
+        Preconditions.checkState(this.sealed, "Cannot mark SealedInStorage if not Sealed in Metadata.");
         log.debug("{}: SealedInStorage = true.", this.traceObjectId);
         this.sealedInStorage = true;
-    }
-
-    @Override
-    public synchronized void markDeleted() {
-        log.debug("{}: Deleted = true.", this.traceObjectId);
-        this.deleted = true;
     }
 
     @Override
@@ -247,9 +262,28 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
     }
 
     @Override
+    public synchronized void markDeleted() {
+        log.debug("{}: Deleted = true.", this.traceObjectId);
+        this.deleted = true;
+    }
+
+    @Override
+    public synchronized void markDeletedInStorage() {
+        Preconditions.checkState(this.deleted, "Cannot mark DeletedInStorage if not Deleted in Metadata.");
+        log.debug("{}: DeletedInStorage = true.", this.traceObjectId);
+        this.deletedInStorage = true;
+    }
+
+    @Override
+    public synchronized void markPinned() {
+        log.debug("{}: Pinned = true.", this.traceObjectId);
+        this.pinned = true;
+    }
+
+    @Override
     public synchronized void setLastModified(ImmutableDate date) {
         this.lastModified = date;
-        log.trace("{}: LastModified = {}.", this.lastModified);
+        log.trace("{}: LastModified = {}.", this.traceObjectId, this.lastModified);
     }
 
     @Override
@@ -290,6 +324,13 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
 
         if (base.isDeleted()) {
             markDeleted();
+            if (base.isDeletedInStorage()) {
+                markDeletedInStorage();
+            }
+        }
+
+        if (base.isPinned()) {
+            markPinned();
         }
 
         setLastUsed(base.getLastUsed());
@@ -310,10 +351,21 @@ public class StreamSegmentMetadata implements UpdateableSegmentMetadata {
         return this.active;
     }
 
+    @Override
+    public synchronized SegmentProperties getSnapshot() {
+        return StreamSegmentInformation.from(this).attributes(new HashMap<>(getAttributes())).build();
+    }
+
+    @Override
+    public synchronized boolean isPinned() {
+        return this.pinned;
+    }
+
     /**
      * Marks this SegmentMetadata as inactive.
      */
-    synchronized void markInactive() {
+    @VisibleForTesting
+    public synchronized void markInactive() {
         this.active = false;
     }
 

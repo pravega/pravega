@@ -9,8 +9,27 @@
  */
 package io.pravega.test.integration;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import io.pravega.client.ClientConfig;
-import io.pravega.client.ClientFactory;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
@@ -22,39 +41,24 @@ import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroupConfig;
-import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
+import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.TreeSet;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class ReadWriteTest {
@@ -72,6 +76,8 @@ public class ReadWriteTest {
     private PravegaConnectionListener server = null;
     private ControllerWrapper controllerWrapper = null;
     private Controller controller = null;
+    private ScheduledExecutorService writerPool;
+    private ScheduledExecutorService readerPool;
 
     @Before
     public void setup() throws Exception {
@@ -88,8 +94,9 @@ public class ReadWriteTest {
         ServiceBuilder serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        this.server = new PravegaConnectionListener(false, servicePort, store);
+        this.server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         this.server.startListening();
 
         // 3. Start Pravega Controller service
@@ -97,6 +104,8 @@ public class ReadWriteTest {
                 controllerPort, serviceHost, servicePort, containerCount);
         this.controllerWrapper.awaitRunning();
         this.controller = controllerWrapper.getController();
+        this.writerPool = ExecutorServiceHelpers.newScheduledThreadPool(NUM_WRITERS, "WriterPool");
+        this.readerPool = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS, "ReaderPool");
     }
 
     @After
@@ -123,15 +132,15 @@ public class ReadWriteTest {
         String readerGroupName = "testMultiReaderWriterReaderGroup";
         //20  readers -> 20 stream segments ( to have max read parallelism)
         ScalingPolicy scalingPolicy = ScalingPolicy.fixed(20);
-        StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-                .streamName(STREAM_NAME).scalingPolicy(scalingPolicy).build();
+        StreamConfiguration config = StreamConfiguration.builder().scalingPolicy(scalingPolicy).build();
 
         eventsReadFromPravega = new ConcurrentLinkedQueue<>();
         eventData = new AtomicLong(); //data used by each of the writers.
         eventReadCount = new AtomicLong(); // used by readers to maintain a count of events.
         stopReadFlag = new AtomicBoolean(false);
 
-        try (StreamManager streamManager = new StreamManagerImpl(controller)) {
+        try (ConnectionFactory cf = new ConnectionFactoryImpl(ClientConfig.builder().build());
+             StreamManager streamManager = new StreamManagerImpl(controller, cf)) {
             //create a scope
             Boolean createScopeStatus = streamManager.createScope(scope);
             log.info("Create scope status {}", createScopeStatus);
@@ -141,7 +150,7 @@ public class ReadWriteTest {
         }
 
         try (ConnectionFactory connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-             ClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
+             ClientFactoryImpl clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory);
              ReaderGroupManager readerGroupManager = new ReaderGroupManagerImpl(scope, controller, clientFactory, connectionFactory)) {
 
             //start writing events to the stream
@@ -172,10 +181,12 @@ public class ReadWriteTest {
 
             //wait for writers completion
             Futures.allOf(writerList).get();
-
+            ExecutorServiceHelpers.shutdown(writerPool);
+            
             //set stop read flag to true
             stopReadFlag.set(true);
-
+            ExecutorServiceHelpers.shutdown(readerPool);
+            
             //wait for readers completion
             Futures.allOf(readerList).get();
 
@@ -203,29 +214,24 @@ public class ReadWriteTest {
     }
 
     private CompletableFuture<Void> startNewWriter(final AtomicLong data,
-                                                   final ClientFactory clientFactory) {
+                                                   final EventStreamClientFactory clientFactory) {
         return CompletableFuture.runAsync(() -> {
             final EventStreamWriter<Long> writer = clientFactory.createEventWriter(STREAM_NAME,
                     new JavaSerializer<Long>(),
                     EventWriterConfig.builder().build());
             for (int i = 0; i < NUM_EVENTS_BY_WRITER; i++) {
-                try {
-                    long value = data.incrementAndGet();
-                    log.info("Writing event {}", value);
-                    writer.writeEvent(String.valueOf(value), value);
-                    writer.flush();
-                } catch (Throwable e) {
-                    log.warn("Test exception writing events: {}", e);
-                    break;
-                }
+                long value = data.incrementAndGet();
+                log.info("Writing event {}", value);
+                writer.writeEvent(String.valueOf(value), value);
+                writer.flush();
             }
             log.info("Closing writer {}", writer);
             writer.close();
 
-        });
+        }, writerPool);
     }
 
-    private CompletableFuture<Void> startNewReader(final String id, final ClientFactory clientFactory, final String
+    private CompletableFuture<Void> startNewReader(final String id, final EventStreamClientFactory clientFactory, final String
             readerGroupName, final ConcurrentLinkedQueue<Long> readResult, final AtomicLong writeCount, final
                                                    AtomicLong readCount, final  AtomicBoolean exitFlag) {
         return CompletableFuture.runAsync(() -> {
@@ -234,21 +240,16 @@ public class ReadWriteTest {
                     new JavaSerializer<Long>(),
                     ReaderConfig.builder().build());
             while (!(exitFlag.get() && readCount.get() == writeCount.get())) {
-                try {
-                    final Long longEvent = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
-                    log.info("Reading event {}", longEvent);
-                    if (longEvent != null) {
-                        //update if event read is not null.
-                        readResult.add(longEvent);
-                        readCount.incrementAndGet();
-                    }
-                } catch (ReinitializationRequiredException e) {
-                    log.warn("Test Exception while reading from the stream", e);
-                    break;
+                final Long longEvent = reader.readNextEvent(SECONDS.toMillis(2)).getEvent();
+                log.info("Reading event {}", longEvent);
+                if (longEvent != null) {
+                    //update if event read is not null.
+                    readResult.add(longEvent);
+                    readCount.incrementAndGet();
                 }
             }
             log.info("Closing reader {}", reader);
             reader.close();
-        });
+        }, readerPool);
     }
 }

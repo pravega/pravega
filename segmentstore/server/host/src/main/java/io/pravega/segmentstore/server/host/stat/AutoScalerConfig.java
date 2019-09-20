@@ -9,6 +9,7 @@
  */
 package io.pravega.segmentstore.server.host.stat;
 
+import com.google.common.base.Strings;
 import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
@@ -30,6 +31,8 @@ public class AutoScalerConfig {
     public static final Property<String> TLS_CERT_FILE = Property.named("tlsCertFile", "");
     public static final Property<Boolean> AUTH_ENABLED = Property.named("authEnabled", false);
     public static final Property<String> TOKEN_SIGNING_KEY = Property.named("tokenSigningKey", "secret");
+    public static final Property<Boolean> VALIDATE_HOSTNAME = Property.named("validateHostName", true);
+    public static final Property<Integer> THREAD_POOL_SIZE = Property.named("threadPoolSize", 10);
 
     public static final String COMPONENT_CODE = "autoScale";
 
@@ -91,10 +94,22 @@ public class AutoScalerConfig {
     private final boolean authEnabled;
 
     /**
-     *
+     * Signing key for the auth token.
      */
     @Getter
     private final String tokenSigningKey;
+
+    /**
+     * Flag indicating whether to validate the hostname when TLS is enabled.
+     */
+    @Getter
+    private final boolean validateHostName;
+
+    /**
+     * The number of threads for the {@link AutoScaleMonitor}.
+     */
+    @Getter
+    private final int threadPoolSize;
 
     private AutoScalerConfig(TypedProperties properties) throws ConfigurationException {
         this.internalRequestStream = properties.get(REQUEST_STREAM);
@@ -107,9 +122,38 @@ public class AutoScalerConfig {
         this.authEnabled = properties.getBoolean(AUTH_ENABLED);
         this.tlsCertFile = properties.get(TLS_CERT_FILE);
         this.tokenSigningKey = properties.get(TOKEN_SIGNING_KEY);
+        this.validateHostName = properties.getBoolean(VALIDATE_HOSTNAME);
+        this.threadPoolSize = properties.getInt(THREAD_POOL_SIZE);
+        if (this.threadPoolSize <= 0) {
+            throw new ConfigurationException(String.format("Property '%s' must be a non-negative integer.", THREAD_POOL_SIZE));
+        }
     }
 
     public static ConfigBuilder<AutoScalerConfig> builder() {
         return new ConfigBuilder<>(COMPONENT_CODE, AutoScalerConfig::new);
+    }
+
+    @Override
+    public String toString() {
+        // Note: We don't use Lombok @ToString to automatically generate an implementation of this method,
+        // in order to avoid returning a string containing sensitive security configuration.
+
+        return new StringBuilder(String.format("%s(", getClass().getSimpleName()))
+                .append(String.format("controllerUri: %s, ", (controllerUri != null) ? controllerUri.toString() : "null"))
+                .append(String.format("internalRequestStream: %s, ", internalRequestStream))
+                .append(String.format("cooldownDuration: %s, ", (cooldownDuration != null) ? cooldownDuration.toString() : "null"))
+                .append(String.format("muteDuration: %s, ", (muteDuration != null) ? muteDuration.toString() : "null"))
+                .append(String.format("cacheExpiry: %s, ", (cacheExpiry != null) ? cacheExpiry.toString() : "null"))
+                .append(String.format("cacheCleanup: %s, ", (cacheCleanup != null) ? cacheCleanup.toString() : "null"))
+                .append(String.format("tlsEnabled: %b, ", tlsEnabled))
+                .append(String.format("tlsCertFile is %s, ",
+                        Strings.isNullOrEmpty(tlsCertFile) ? "unspecified" : "specified"))
+                .append(String.format("authEnabled: %b, ", authEnabled))
+                .append(String.format("tokenSigningKey is %s, ",
+                        Strings.isNullOrEmpty(tokenSigningKey) ? "unspecified" : "specified"))
+                .append(String.format("validateHostName: %b, ", validateHostName))
+                .append(String.format("threadPoolSize: %d", threadPoolSize))
+                .append(")")
+                .toString();
     }
 }

@@ -10,7 +10,6 @@
 package io.pravega.test.system.framework.services.docker;
 
 import com.spotify.docker.client.messages.ContainerConfig;
-import com.spotify.docker.client.messages.mount.Mount;
 import com.spotify.docker.client.messages.swarm.ContainerSpec;
 import com.spotify.docker.client.messages.swarm.EndpointSpec;
 import com.spotify.docker.client.messages.swarm.NetworkAttachmentConfig;
@@ -22,20 +21,20 @@ import com.spotify.docker.client.messages.swarm.ServiceMode;
 import com.spotify.docker.client.messages.swarm.ServiceSpec;
 import com.spotify.docker.client.messages.swarm.TaskSpec;
 import java.net.URI;
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
+import static com.spotify.docker.client.messages.swarm.RestartPolicy.RESTART_POLICY_ANY;
 import static io.pravega.test.system.framework.Utils.DOCKER_NETWORK;
 
 @Slf4j
 public class BookkeeperDockerService extends DockerBasedService {
 
     private static final int BK_PORT = 3181;
+    private static final String BOOKKEEPER_IMAGE_NAME = System.getProperty("bookkeeperImageName", "bookkeeper") + ":";
     private final long instances = 3;
     private final double cpu = 0.5;
     private final double mem = 1024.0;
@@ -65,29 +64,26 @@ public class BookkeeperDockerService extends DockerBasedService {
         Map<String, String> labels = new HashMap<>();
         labels.put("com.docker.swarm.service.name", serviceName);
 
-        Mount mount1 = Mount.builder().type("volume").source("index-volume").target("/bk/index")
-                .build();
-        Mount mount2 = Mount.builder().type("volume").source("logs-volume")
-                .target("/opt/dl_all/distributedlog-service/logs/")
-                .build();
         String zk = zkUri.getHost() + ":" + ZKSERVICE_ZKPORT;
         List<String> stringList = new ArrayList<>();
         String env1 = "ZK_URL=" + zk;
         String env2 = "ZK=" + zk;
         String env3 = "bookiePort=" + String.valueOf(BK_PORT);
         String env4 = "DLOG_EXTRA_OPTS=-Xms512m";
+        String env5 = "BK_useHostNameAsBookieID=false";
         stringList.add(env1);
         stringList.add(env2);
         stringList.add(env3);
         stringList.add(env4);
+        stringList.add(env5);
+
         final TaskSpec taskSpec = TaskSpec
-                .builder().restartPolicy(RestartPolicy.builder().maxAttempts(0).condition("none").build())
+                .builder().restartPolicy(RestartPolicy.builder().maxAttempts(3).condition(RESTART_POLICY_ANY).build())
                 .containerSpec(ContainerSpec.builder()
                         .hostname(serviceName)
                         .labels(labels)
-                        .image(IMAGE_PATH + "nautilus/bookkeeper:" + PRAVEGA_VERSION)
-                        .healthcheck(ContainerConfig.Healthcheck.create(null, Duration.ofSeconds(10).toNanos(), Duration.ofSeconds(10).toNanos(), 3))
-                        .mounts(Arrays.asList(mount1, mount2))
+                        .image(IMAGE_PATH + IMAGE_PREFIX + BOOKKEEPER_IMAGE_NAME + PRAVEGA_VERSION)
+                        .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(BK_PORT)).build())
                         .env(stringList).build())
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
                 .resources(ResourceRequirements.builder()

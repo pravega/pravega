@@ -168,7 +168,7 @@ public class ReusableFutureLatch<T> {
     }
 
     /**
-     * If {@link #release(Object)} or {@link #releaseExceptionally(Exception)} has been called it
+     * If {@link #release(Object)} or {@link #releaseExceptionally(Throwable)} has been called it
      * resets the object into the unreleased state. If release has not been called this will have no effect.
      */
     public void reset() {

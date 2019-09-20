@@ -46,7 +46,7 @@ import static io.pravega.controller.eventProcessor.impl.EventProcessorHelper.wri
 @Slf4j
 public class ConcurrentEventProcessor<R extends ControllerEvent, H extends RequestHandler<R>>
         extends EventProcessor<R> {
-    private static final int MAX_CONCURRENT = 10000;
+    private static final int MAX_CONCURRENT = 1000;
     private static final PositionCounter MAX = new PositionCounter(null, Long.MAX_VALUE);
 
     private final ConcurrentSkipListSet<PositionCounter> running;

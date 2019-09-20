@@ -10,6 +10,10 @@
 package io.pravega.local;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.stream.impl.Credentials;
+import io.pravega.client.stream.impl.DefaultCredentials;
+import io.pravega.common.auth.ZKTLSUtils;
+import com.google.common.base.Strings;
 import io.pravega.controller.server.ControllerServiceConfig;
 import io.pravega.controller.server.ControllerServiceMain;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessorConfig;
@@ -38,7 +42,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.UUID;
 import javax.annotation.concurrent.GuardedBy;
 import lombok.Builder;
@@ -67,6 +70,9 @@ public class InProcPravegaCluster implements AutoCloseable {
     private boolean enableAuth = false;
     @Builder.Default
     private boolean enableTls = false;
+
+    @Builder.Default
+    private boolean enableTlsReload = false;
 
     /*Controller related variables*/
     private boolean isInProcController;
@@ -110,12 +116,16 @@ public class InProcPravegaCluster implements AutoCloseable {
     private String zkUrl;
 
     @Builder.Default
-    private boolean startRestServer = true;
+    private boolean enableRestServer = true;
     private String userName;
     private String passwd;
     private String certFile;
     private String keyFile;
+    private String jksTrustFile;
     private String passwdFile;
+    private boolean secureZK;
+    private String keyPasswordFile;
+    private String jksKeyFile;
 
     public static final class InProcPravegaClusterBuilder {
         public InProcPravegaCluster build() {
@@ -132,14 +142,23 @@ public class InProcPravegaCluster implements AutoCloseable {
             //For SegmentStore
             Preconditions.checkState(isInProcSegmentStore || this.segmentStorePorts != null, "SegmentStore ports not declared");
 
+            //Check TLS related parameters
+            Preconditions.checkState(!enableTls ||
+                            (!Strings.isNullOrEmpty(this.keyFile)
+                            && !Strings.isNullOrEmpty(this.certFile)
+                            && !Strings.isNullOrEmpty(this.jksKeyFile)
+                            && !Strings.isNullOrEmpty(this.jksTrustFile)
+                            && !Strings.isNullOrEmpty(this.keyPasswordFile)),
+                    "TLS enabled, but not all parameters set");
+
             if (this.isInMemStorage) {
                 this.isInProcHDFS = false;
             }
-            return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls,
+            return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls, enableTlsReload,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
-                    startRestServer, userName, passwd, certFile, keyFile, passwdFile);
+                    enableRestServer, userName, passwd, certFile, keyFile, jksTrustFile, passwdFile, secureZK, keyPasswordFile, jksKeyFile);
         }
     }
 
@@ -190,7 +209,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     }
 
     private void startLocalZK() throws Exception {
-        zkService = new ZooKeeperServiceRunner(zkPort);
+        zkService = new ZooKeeperServiceRunner(zkPort, secureZK, jksKeyFile, keyPasswordFile, jksTrustFile);
         zkService.initialize();
         zkService.start();
     }
@@ -205,6 +224,10 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .connectionTimeoutMs(5000)
                 .sessionTimeoutMs(5000)
                 .retryPolicy(rp);
+        if (secureZK) {
+            ZKTLSUtils.setSecureZKClientProperties(jksTrustFile, "1111_aaaa");
+        }
+
         @Cleanup
         CuratorFramework zclient = builder.build();
         zclient.start();
@@ -237,24 +260,26 @@ public class InProcPravegaCluster implements AutoCloseable {
      * @param segmentStoreId id of the SegmentStore.
      */
     private void startLocalSegmentStore(int segmentStoreId) throws Exception {
-        Properties authProps = new Properties();
-        authProps.setProperty("pravega.client.auth.method", "Default");
-        authProps.setProperty("pravega.client.auth.userName", "arvind");
-        authProps.setProperty("pravega.client.auth.password", "1111_aaaa");
+        if (this.enableAuth) {
+            setAuthSystemProperties();
+        }
 
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig
                 .builder()
                 .include(System.getProperties())
-                .include(authProps)
                 .include(ServiceConfig.builder()
                         .with(ServiceConfig.CONTAINER_COUNT, containerCount)
                         .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE)
                         .with(ServiceConfig.ZK_URL, "localhost:" + zkPort)
+                        .with(ServiceConfig.SECURE_ZK, this.secureZK)
+                        .with(ServiceConfig.ZK_TRUSTSTORE_LOCATION, jksTrustFile)
+                        .with(ServiceConfig.ZK_TRUST_STORE_PASSWORD_PATH, keyPasswordFile)
                         .with(ServiceConfig.LISTENING_PORT, this.segmentStorePorts[segmentStoreId])
                         .with(ServiceConfig.CLUSTER_NAME, this.clusterName)
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
+                        .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
                         .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 60)
                         .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?
@@ -273,12 +298,34 @@ public class InProcPravegaCluster implements AutoCloseable {
                                          .with(AutoScalerConfig.TOKEN_SIGNING_KEY, "secret")
                                          .with(AutoScalerConfig.AUTH_ENABLED, this.enableAuth)
                                          .with(AutoScalerConfig.TLS_ENABLED, this.enableTls)
-                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile))
+                                         .with(AutoScalerConfig.TLS_CERT_FILE, this.certFile)
+                                         .with(AutoScalerConfig.VALIDATE_HOSTNAME, false))
                 .include(MetricsConfig.builder()
                         .with(MetricsConfig.ENABLE_STATISTICS, enableMetrics));
 
         nodeServiceStarter[segmentStoreId] = new ServiceStarter(configBuilder.build());
         nodeServiceStarter[segmentStoreId].start();
+    }
+
+    private void setAuthSystemProperties() {
+        if (authPropertiesAlreadySet()) {
+            log.debug("Auth params already specified via system properties or environment variables.");
+        } else {
+            if (!Strings.isNullOrEmpty(this.userName)) {
+                Credentials credentials = new DefaultCredentials(this.passwd, this.userName);
+                System.setProperty("pravega.client.auth.loadDynamic", "false");
+                System.setProperty("pravega.client.auth.method", credentials.getAuthenticationType());
+                System.setProperty("pravega.client.auth.token", credentials.getAuthenticationToken());
+                log.debug("Done setting auth params via system properties.");
+            } else {
+                log.debug("Cannot set auth params as username is null or empty");
+            }
+        }
+    }
+
+    private boolean authPropertiesAlreadySet() {
+        return !Strings.isNullOrEmpty(System.getProperty("pravega.client.auth.method"))
+                || !Strings.isNullOrEmpty(System.getenv("pravega_client_auth_method"));
     }
 
     private void startLocalControllers() {
@@ -302,6 +349,9 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .initialSleepInterval(2000)
                 .maxRetries(1)
                 .sessionTimeoutMs(10 * 1000)
+                .secureConnectionToZooKeeper(this.secureZK)
+                .trustStorePath(jksTrustFile)
+                .trustStorePasswordPath(keyPasswordFile)
                 .build();
 
         StoreClientConfig storeClientConfig = StoreClientConfigImpl.withZKClient(zkClientConfig);
@@ -330,12 +380,21 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .tlsKeyFile(this.keyFile)
                 .userPasswordFile(this.passwdFile)
                 .tokenSigningKey("secret")
+                .accessTokenTTLInSeconds(600)
+                .replyWithStackTraceOnError(false)
+                .requestTracingEnabled(true)
                 .build();
 
-        RESTServerConfig restServerConfig = RESTServerConfigImpl.builder()
-                .host("0.0.0.0")
-                .port(this.restServerPort)
-                .build();
+        RESTServerConfig restServerConfig = null;
+        if (this.enableRestServer) {
+            restServerConfig = RESTServerConfigImpl.builder()
+                    .host("0.0.0.0")
+                    .port(this.restServerPort)
+                    .tlsEnabled(this.enableTls)
+                    .keyFilePath(this.jksKeyFile)
+                    .keyFilePasswordPath(this.keyPasswordFile)
+                    .build();
+        }
 
         ControllerServiceConfig serviceConfig = ControllerServiceConfigImpl.builder()
                 .threadPoolSize(Config.ASYNC_TASK_POOL_SIZE)
@@ -345,7 +404,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                 .timeoutServiceConfig(timeoutServiceConfig)
                 .eventProcessorConfig(Optional.of(eventProcessorConfig))
                 .grpcServerConfig(Optional.of(grpcServerConfig))
-                .restServerConfig(Optional.of(restServerConfig))
+                .restServerConfig(Optional.ofNullable(restServerConfig))
                 .build();
 
         ControllerServiceMain controllerService = new ControllerServiceMain(serviceConfig);

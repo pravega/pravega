@@ -14,7 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.common.function.Callbacks;
 import io.pravega.common.io.FileHelpers;
-import io.pravega.common.util.ByteArraySegment;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.storage.Cache;
 import io.pravega.segmentstore.storage.CacheException;
 import java.io.File;
@@ -24,9 +24,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.rocksdb.BlockBasedTableConfig;
+import org.rocksdb.Env;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksMemEnv;
 import org.rocksdb.WriteOptions;
 
 /**
@@ -46,6 +49,16 @@ class RocksDBCache implements Cache {
      */
     private static final int MAX_WRITE_AHEAD_LOG_SIZE_MB = 64;
 
+    /**
+     * Max number of in-memory write buffers (memtables) for the cache (active and immutable).
+     */
+    private static final int MAX_WRITE_BUFFER_NUMBER = 4;
+
+    /**
+     * Minimum number of in-memory write buffers (memtables) to be merged before flushing to storage.
+     */
+    private static final int MIN_WRITE_BUFFER_NUMBER_TO_MERGE = 2;
+
     @Getter
     private final String id;
     private final Options databaseOptions;
@@ -55,6 +68,11 @@ class RocksDBCache implements Cache {
     private final String dbDir;
     private final String logId;
     private final Consumer<String> closeCallback;
+    private final int writeBufferSizeMB;
+    private final int readCacheSizeMB;
+    private final int cacheBlockSizeKB;
+    private final boolean directReads;
+    private final boolean memoryOnly;
 
     //endregion
 
@@ -77,6 +95,12 @@ class RocksDBCache implements Cache {
         this.closeCallback = closeCallback;
         this.closed = new AtomicBoolean();
         this.database = new AtomicReference<>();
+        // The total write buffer space is divided into the number of buffers.
+        this.writeBufferSizeMB = config.getWriteBufferSizeMB() / MAX_WRITE_BUFFER_NUMBER;
+        this.readCacheSizeMB = config.getReadCacheSizeMB();
+        this.cacheBlockSizeKB = config.getCacheBlockSizeKB();
+        this.directReads = config.isDirectReads();
+        this.memoryOnly = config.isMemoryOnly();
         try {
             this.databaseOptions = createDatabaseOptions();
             this.writeOptions = createWriteOptions();
@@ -154,17 +178,18 @@ class RocksDBCache implements Cache {
     public void insert(Key key, byte[] data) {
         ensureInitializedAndNotClosed();
         Timer timer = new Timer();
+        byte[] serializedKey = key.serialize();
         try {
-            this.database.get().put(this.writeOptions, key.serialize(), data);
+            this.database.get().put(this.writeOptions, serializedKey, data);
         } catch (RocksDBException ex) {
             throw convert(ex, "insert key '%s'", key);
         }
 
-        RocksDBMetrics.insert(timer.getElapsedMillis());
+        RocksDBMetrics.insert(timer.getElapsedMillis(), serializedKey.length + ((data != null) ? data.length : 0));
     }
 
     @Override
-    public void insert(Key key, ByteArraySegment data) {
+    public void insert(Key key, BufferView data) {
         insert(key, data.getCopy());
     }
 
@@ -173,13 +198,14 @@ class RocksDBCache implements Cache {
         ensureInitializedAndNotClosed();
         Timer timer = new Timer();
         byte[] result;
+        byte[] serializedKey = key.serialize();
         try {
-            result = this.database.get().get(key.serialize());
+            result = this.database.get().get(serializedKey);
         } catch (RocksDBException ex) {
             throw convert(ex, "get key '%s'", key);
         }
 
-        RocksDBMetrics.get(timer.getElapsedMillis());
+        RocksDBMetrics.get(timer.getElapsedMillis(), (result != null) ? result.length : 0);
         return result;
     }
 
@@ -218,12 +244,29 @@ class RocksDBCache implements Cache {
     }
 
     private Options createDatabaseOptions() {
-        return new Options()
+        BlockBasedTableConfig tableFormatConfig = new BlockBasedTableConfig()
+                .setBlockSize(cacheBlockSizeKB * 1024L)
+                .setBlockCacheSize(readCacheSizeMB * 1024L * 1024L)
+                .setCacheIndexAndFilterBlocks(true);
+
+        Options options = new Options()
                 .setCreateIfMissing(true)
                 .setDbLogDir(Paths.get(this.dbDir, DB_LOG_DIR).toString())
                 .setWalDir(Paths.get(this.dbDir, DB_WRITE_AHEAD_LOG_DIR).toString())
                 .setWalTtlSeconds(0)
-                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB);
+                .setWalSizeLimitMB(MAX_WRITE_AHEAD_LOG_SIZE_MB)
+                .setWriteBufferSize(writeBufferSizeMB * 1024L * 1024L)
+                .setMaxWriteBufferNumber(MAX_WRITE_BUFFER_NUMBER)
+                .setMinWriteBufferNumberToMerge(MIN_WRITE_BUFFER_NUMBER_TO_MERGE)
+                .setTableFormatConfig(tableFormatConfig)
+                .setOptimizeFiltersForHits(true)
+                .setUseDirectReads(this.directReads);
+
+        if (this.memoryOnly) {
+            Env env = new RocksMemEnv();
+            options.setEnv(env);
+        }
+        return options;
     }
 
     private void clear(boolean recreateDirectory) {

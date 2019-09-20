@@ -30,4 +30,6 @@ public enum SegmentAttribute {
         HashHelper hash = HashHelper.seededWith("SegmentAttribute");
         value = hash.toUUID(this.name());
     }
+    
 }
+

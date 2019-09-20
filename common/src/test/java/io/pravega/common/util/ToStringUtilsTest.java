@@ -10,15 +10,23 @@
 package io.pravega.common.util;
 
 import io.pravega.test.common.AssertExtensions;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Random;
+
 import org.junit.Test;
 
+import static io.pravega.common.util.ToStringUtils.compressToBase64;
+import static io.pravega.common.util.ToStringUtils.decompressFromBase64;
 import static org.junit.Assert.assertEquals;
 
 public class ToStringUtilsTest {
 
-    
     @Test
     public void testRoundTrip() {
         HashMap<String, Integer> m = new HashMap<>();
@@ -41,5 +49,41 @@ public class ToStringUtilsTest {
         m.clear();
         m.put("c  =4", 3);
         AssertExtensions.assertThrows(IllegalArgumentException.class, () -> ToStringUtils.mapToString(m));
+    }
+
+    @Test
+    public void testListToString() {
+        List<Integer> list = Arrays.asList(1, 2, 3, 4);
+
+        String string = ToStringUtils.listToString(list);
+        List<Integer> list2 = ToStringUtils.stringToList(string, Integer::parseInt);
+        assertEquals("String did not round trip: " + string, list, list2);
+    }
+
+    @Test
+    public void testBadListValues() {
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> ToStringUtils.listToString(Arrays.asList("a,b\"")));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> ToStringUtils.listToString(Arrays.asList("a, b")));
+    }
+
+    @Test
+    public void testCompressBase64() throws IOException {
+        //generate a random string.
+        byte[] array = new byte[10];
+        new Random().nextBytes(array);
+        String generatedString = new String(array, StandardCharsets.UTF_8);
+
+        String compressedString = compressToBase64(generatedString);
+        assertEquals(generatedString, decompressFromBase64(compressedString));
+    }
+
+    @Test
+    public void testCompressInvalidInput() {
+        AssertExtensions.assertThrows(NullPointerException.class, () -> compressToBase64(null));
+        AssertExtensions.assertThrows(NullPointerException.class, () -> decompressFromBase64(null));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> decompressFromBase64(""));
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> decompressFromBase64("Invalid base64 String"));
+        // test with partial base64 string.
+        AssertExtensions.assertThrows(IllegalArgumentException.class, () -> decompressFromBase64("H4sIAAAAAAAAAFvz"));
     }
 }

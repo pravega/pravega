@@ -31,6 +31,16 @@ public interface ConnectionFactory extends AutoCloseable {
     CompletableFuture<ClientConnection> establishConnection(PravegaNodeUri endpoint, ReplyProcessor rp);
 
     /**
+     * This method is used to establish a client connection using a {@link Flow} on the underlying Connection
+     * pool.
+     * @param flow  Flow to be used to create a client connection.
+     * @param endpoint The Pravega Node URI.
+     * @param rp Reply Processor instance.
+     * @return An instance of client connection.
+     */
+    CompletableFuture<ClientConnection> establishConnection(Flow flow, PravegaNodeUri endpoint, ReplyProcessor rp);
+
+    /**
      * Get the internal executor which is used by the client.
      * @return A ScheduledExecutorService.
      */

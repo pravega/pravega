@@ -122,13 +122,13 @@ public class StorageReadManagerTests extends ThreadPooledTestSuite {
                 ex -> ex instanceof StreamSegmentNotExistsException);
 
         // Invalid read offset.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Request was not failed when bad offset was provided.",
                 () -> sendRequest(reader, segmentData.length + 1, 1),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);
 
         // Invalid read length.
-        AssertExtensions.assertThrows(
+        AssertExtensions.assertSuppliedFutureThrows(
                 "Request was not failed when bad offset + length was provided.",
                 () -> sendRequest(reader, segmentData.length - 1, 2),
                 ex -> ex instanceof ArrayIndexOutOfBoundsException);

@@ -14,6 +14,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.function.Callbacks;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -27,13 +28,13 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import lombok.Data;
-import lombok.Lombok;
 import lombok.SneakyThrows;
 import lombok.val;
 
@@ -152,9 +153,9 @@ public final class Futures {
             return future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw Lombok.sneakyThrow(e);
+            throw Exceptions.sneakyThrow(e);
         } catch (Exception e) {
-            throw Lombok.sneakyThrow(Exceptions.unwrap(e));
+            throw Exceptions.sneakyThrow(Exceptions.unwrap(e));
         }
     }
 
@@ -175,7 +176,7 @@ public final class Futures {
                                                                                          Function<Throwable, ExceptionT> exceptionConstructor) throws ExceptionT {
         Preconditions.checkNotNull(exceptionConstructor);
         try {
-            return Exceptions.handleInterrupted(() -> future.get());
+            return Exceptions.handleInterruptedCall(() -> future.get());
         } catch (ExecutionException e) {
             ExceptionT result = exceptionConstructor.apply(e.getCause());
             if (result == null) {
@@ -358,6 +359,22 @@ public final class Futures {
     public static <T, E extends Exception> CompletableFuture<Void> toVoidExpecting(CompletableFuture<T> future,
                                                                                    T expectedValue, Supplier<E> exceptionConstructor) {
         return future.thenApply(value -> expect(value, expectedValue, exceptionConstructor));
+    }
+
+    /**
+     * Same as CompletableFuture.handle(), except that it allows returning a CompletableFuture instead of a single value.
+     *
+     * @param future  The original CompletableFuture to attach a handle callback.
+     * @param handler A BiFunction that consumes a Throwable or successful result 
+     *                and returns a CompletableFuture of the same type as the original one.
+     *                This Function will be invoked after the original Future completes both successfully and exceptionally.
+     * @param <T>     Type of the value of the original Future.
+     * @param <U>     Type of the value of the returned Future.
+     * @return A new CompletableFuture that will handle the result/exception and return a new future or throw the exception. 
+     */
+    public static <T, U> CompletableFuture<U> handleCompose(CompletableFuture<T> future, 
+                                                         BiFunction<T, Throwable, CompletableFuture<U>> handler) {
+        return future.handle(handler).thenCompose(f -> f);
     }
 
     @SneakyThrows
@@ -579,6 +596,28 @@ public final class Futures {
     //endregion
 
     //region Loops
+
+    /**
+     * Executes a loop using CompletableFutures over the given Iterable, processing each item in order, without overlap,
+     * using the given Executor for task execution.
+     *
+     * @param iterable An Iterable instance to loop over.
+     * @param loopBody A Function that, when applied to an element in the given iterable, returns a CompletableFuture which
+     *                 will complete when the given element has been processed. This function is invoked every time the
+     *                 loopBody needs to execute.
+     * @param executor An Executor that is used to execute the condition and the loop support code.
+     * @param <T>      Type of items in the given iterable.
+     * @return A CompletableFuture that, when completed, indicates the loop terminated without any exception. If
+     * the loopBody throws/returns Exceptions, these will be set as the result of this returned Future.
+     */
+    public static <T> CompletableFuture<Void> loop(Iterable<T> iterable, Function<T, CompletableFuture<Boolean>> loopBody, Executor executor) {
+        Iterator<T> iterator = iterable.iterator();
+        AtomicBoolean canContinue = new AtomicBoolean(true);
+        return loop(
+                () -> iterator.hasNext() && canContinue.get(),
+                () -> loopBody.apply(iterator.next()),
+                canContinue::set, executor);
+    }
 
     /**
      * Executes a loop using CompletableFutures, without invoking join()/get() on any of them or exclusively hogging a thread.

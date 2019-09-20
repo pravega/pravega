@@ -10,11 +10,16 @@
 package io.pravega.test.common;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.net.ServerSocket;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Random;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
@@ -36,7 +41,7 @@ public class TestUtils {
      *
      * @return free port.
      */
-    public static int getAvailableListenPort() {
+    public synchronized static int getAvailableListenPort() {
         for (int i = 0; i < MAX_PORT_COUNT; i++) {
             int candidatePort = BASE_PORT + NEXT_PORT.getAndIncrement() % MAX_PORT_COUNT;
             try {
@@ -71,4 +76,32 @@ public class TestUtils {
             throw new TimeoutException("Timeout expired prior to the condition becoming true.");
         }
     }
+
+    /**
+     * Generates an auth token using the Basic authentication scheme.
+     * @param username the username to use.
+     * @param password the password to use.
+     * @return an en encoded token.
+     */
+    public static String basicAuthToken(String username, String password) {
+        String decoded = String.format("%s:%s", username, password);
+        String encoded = Base64.getEncoder().encodeToString(decoded.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encoded;
+    }
+
+    /**
+     * Replace final static field for unit testing purpose.
+     *
+     * @param field the final static field to be replaced
+     * @param newValue the object to replace the existing final static field
+     * @throws Exception when the operation cannot be completed
+     */
+    public static void setFinalStatic(Field field, Object newValue) throws Exception {
+        field.setAccessible(true);
+        Field modifiersField = Field.class.getDeclaredField("modifiers");
+        modifiersField.setAccessible(true);
+        modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
+        field.set(null, newValue);
+    }
+
 }

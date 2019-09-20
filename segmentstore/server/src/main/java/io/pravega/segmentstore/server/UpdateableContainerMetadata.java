@@ -23,14 +23,6 @@ public interface UpdateableContainerMetadata extends ContainerMetadata, Recovera
     UpdateableSegmentMetadata mapStreamSegmentId(String streamSegmentName, long streamSegmentId);
 
     /**
-     * Marks the StreamSegment as deleted.
-     *
-     * @param streamSegmentName The name of the StreamSegment to delete.
-     * @return The deleted StreamSegment's Metadata, or null if this Segment is not registered.
-     */
-    SegmentMetadata deleteStreamSegment(String streamSegmentName);
-
-    /**
      * Gets the next available Operation Sequence Number. Atomically increments the value by 1 with every call.
      *
      * @return The next available Operation Sequence Number.

@@ -9,30 +9,30 @@
  */
 package io.pravega.client.stream.impl;
 
-import io.pravega.client.segment.impl.Segment;
+import com.google.common.collect.ImmutableMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.ToString;
 
 /**
  * The successor segments of a given segment.
  */
 @EqualsAndHashCode
+@ToString(exclude = "delegationToken")
 public class StreamSegmentsWithPredecessors {
-    private final Map<Segment, List<Long>> segmentWithPredecessors;
+    private final Map<SegmentWithRange, List<Long>> segmentWithPredecessors;
     private final Map<Long, List<SegmentWithRange>> replacementRanges;
     @Getter
     private final String delegationToken;
 
     public StreamSegmentsWithPredecessors(final Map<SegmentWithRange, List<Long>> segments, String delegationToken) {
-        segmentWithPredecessors = Collections.unmodifiableMap(segments.entrySet().stream().collect(
-                Collectors.toMap(entry -> entry.getKey().getSegment(), Map.Entry::getValue)));
+        this.segmentWithPredecessors = ImmutableMap.copyOf(segments);
 
         Map<Long, List<SegmentWithRange>> replacementRanges = new HashMap<>();
         for (Entry<SegmentWithRange, List<Long>> entry : segments.entrySet()) {
@@ -52,9 +52,9 @@ public class StreamSegmentsWithPredecessors {
     /**
      * Get Segment to Predecessor mapping.
      *
-     * @return A {@link Map} with {@link Segment} as key and {@link List} of {@link Integer} as value.
+     * @return A {@link Map} with {@link SegmentWithRange} as key and {@link List} of {@link Integer} as value.
      */
-    public Map<Segment, List<Long>> getSegmentToPredecessor() {
+    public Map<SegmentWithRange, List<Long>> getSegmentToPredecessor() {
         return segmentWithPredecessors;
     }
 

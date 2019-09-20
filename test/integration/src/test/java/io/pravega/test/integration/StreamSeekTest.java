@@ -9,7 +9,8 @@
  */
 package io.pravega.test.integration;
 
-import io.pravega.client.ClientFactory;
+import io.pravega.client.ClientConfig;
+import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
@@ -27,9 +28,11 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
+import io.pravega.segmentstore.contracts.tables.TableStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
 import io.pravega.segmentstore.server.store.ServiceBuilderConfig;
+import io.pravega.shared.NameUtils;
 import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.demo.ControllerWrapper;
@@ -46,6 +49,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import lombok.Cleanup;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
@@ -53,6 +57,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -84,8 +89,9 @@ public class StreamSeekTest {
         serviceBuilder = ServiceBuilder.newInMemoryBuilder(ServiceBuilderConfig.getDefaultConfig());
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
+        TableStore tableStore = serviceBuilder.createTableStoreService();
 
-        server = new PravegaConnectionListener(false, servicePort, store);
+        server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(),
@@ -114,15 +120,20 @@ public class StreamSeekTest {
         createStream(STREAM2);
 
         @Cleanup
-        ClientFactory clientFactory = ClientFactory.withScope(SCOPE, controllerUri);
+        EventStreamClientFactory clientFactory = EventStreamClientFactory.withScope(SCOPE, ClientConfig.builder().controllerURI(controllerUri).build());
         @Cleanup
         EventStreamWriter<String> writer1 = clientFactory.createEventWriter(STREAM1, serializer,
                 EventWriterConfig.builder().build());
 
         @Cleanup
         ReaderGroupManager groupManager = ReaderGroupManager.withScope(SCOPE, controllerUri);
-        groupManager.createReaderGroup("group", ReaderGroupConfig
-                .builder().disableAutomaticCheckpoints().stream(Stream.of(SCOPE, STREAM1)).stream(Stream.of(SCOPE, STREAM2)).build());
+        groupManager.createReaderGroup("group",
+                                       ReaderGroupConfig.builder()
+                                                        .disableAutomaticCheckpoints()
+                                                        .groupRefreshTimeMillis(0)
+                                                        .stream(Stream.of(SCOPE, STREAM1))
+                                                        .stream(Stream.of(SCOPE, STREAM2))
+                                                        .build());
         @Cleanup
         ReaderGroup readerGroup = groupManager.getReaderGroup("group");
 
@@ -151,7 +162,9 @@ public class StreamSeekTest {
         //Offset of a streamCut is always set to zero.
         Map<Stream, StreamCut> streamCut1 = readerGroup.getStreamCuts(); //Stream cut 1
         readAndVerify(reader, 1, 2);
-        readAndVerify(reader, 3, 4, 5);
+        assertNull(reader.readNextEvent(100).getEvent()); //Sees the segments are empty prior to scaling
+        readerGroup.initiateCheckpoint("cp1", executor); //Checkpoint to move past the scale
+        readAndVerify(reader, 3, 4, 5); // Old segments are released and new ones can be read
         Map<Stream, StreamCut> streamCut2 = readerGroup.getStreamCuts(); //Stream cut 2
 
         readerGroup.resetReaderGroup(ReaderGroupConfig.builder().startFromStreamCuts(streamCut1).build()); //reset the readers to offset 0.
@@ -209,10 +222,11 @@ public class StreamSeekTest {
     private void createStream(String streamName) throws Exception {
         Controller controller = controllerWrapper.getController();
         StreamConfiguration config = StreamConfiguration.builder()
-                                                        .scope(SCOPE)
-                                                        .streamName(streamName)
                                                         .scalingPolicy(ScalingPolicy.fixed(1))
                                                         .build();
-        controller.createStream(config).get();
+        val f1 = controller.createStream(SCOPE, streamName, config);
+        val f2 = controller.createStream(SCOPE, NameUtils.getMarkStreamForStream(streamName), config);
+        f1.get();
+        f2.get();
     }
 }

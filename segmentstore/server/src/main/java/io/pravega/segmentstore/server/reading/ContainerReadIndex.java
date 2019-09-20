@@ -9,9 +9,11 @@
  */
 package io.pravega.segmentstore.server.reading;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.ObjectClosedException;
+import io.pravega.common.util.BufferView;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
 import io.pravega.segmentstore.server.CacheManager;
@@ -120,9 +122,9 @@ public class ContainerReadIndex implements ReadIndex {
     //region ReadIndex Implementation
 
     @Override
-    public void append(long streamSegmentId, long offset, byte[] data) throws StreamSegmentNotExistsException {
+    public void append(long streamSegmentId, long offset, BufferView data) throws StreamSegmentNotExistsException {
         Exceptions.checkNotClosed(this.closed.get(), this);
-        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, streamSegmentId, offset, data.length);
+        log.debug("{}: append (StreamSegmentId = {}, Offset = {}, DataLength = {}).", this.traceObjectId, streamSegmentId, offset, data.getLength());
 
         // Append the data to the StreamSegment Index. It performs further validation with respect to offsets, etc.
         StreamSegmentReadIndex index = getOrCreateIndex(streamSegmentId);
@@ -245,15 +247,16 @@ public class ContainerReadIndex implements ReadIndex {
             }
 
             for (long streamSegmentId : segmentIds) {
-                SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                boolean wasRemoved = false;
-                if (segmentMetadata == null || segmentMetadata.isDeleted() || !segmentMetadata.isActive()) {
-                    wasRemoved = closeIndex(streamSegmentId, true);
-                }
-
-                if (wasRemoved) {
+                StreamSegmentReadIndex index = this.readIndices.get(streamSegmentId);
+                if (index != null && !index.isActive()) {
+                    // This index is registered, but its metadata indicates it is no longer active - close it.
+                    closeIndex(streamSegmentId, true);
+                    removed.add(streamSegmentId);
+                } else if (index == null) {
+                    // This index is not registered.
                     removed.add(streamSegmentId);
                 } else {
+                    // This index is registered, but its metadata indicates it is still active; don't do anything.
                     notRemoved.add(streamSegmentId);
                 }
             }
@@ -263,7 +266,7 @@ public class ContainerReadIndex implements ReadIndex {
             log.debug("{}: Unable to clean up ReadIndex for Segments {} because no such index exists or the Segments are not deleted.", this.traceObjectId, notRemoved);
         }
 
-        log.info("{}: Cleaned up ReadIndices for deleted Segments {}.", this.traceObjectId, removed);
+        log.info("{}: Cleaned up ReadIndices for {} inactive or deleted Segments.", this.traceObjectId, removed);
     }
 
     @Override
@@ -326,6 +329,16 @@ public class ContainerReadIndex implements ReadIndex {
         return this.cacheManager.getCacheUtilization();
     }
 
+    @Override
+    public double getCacheTargetUtilization() {
+        return this.cacheManager.getCacheTargetUtilization();
+    }
+
+    @Override
+    public double getCacheMaxUtilization() {
+        return this.cacheManager.getCacheMaxUtilization();
+    }
+
     //endregion
 
     //region Helpers
@@ -341,7 +354,8 @@ public class ContainerReadIndex implements ReadIndex {
      *
      * @param streamSegmentId The Id of the StreamSegment whose ReadIndex to get.
      */
-    private StreamSegmentReadIndex getIndex(long streamSegmentId) {
+    @VisibleForTesting
+    StreamSegmentReadIndex getIndex(long streamSegmentId) {
         synchronized (this.lock) {
             return this.readIndices.getOrDefault(streamSegmentId, null);
         }
@@ -358,12 +372,21 @@ public class ContainerReadIndex implements ReadIndex {
         synchronized (this.lock) {
             // Try to see if we have the index already in memory.
             index = getIndex(streamSegmentId);
+            if (index != null && !index.isActive()) {
+                // Index is registered, but it points to a segment metadata that is inactive. We should not be using
+                // it anymore.
+                closeIndex(streamSegmentId, true);
+                index = null;
+            }
+
             if (index == null) {
-                // We don't have it, create one.
+                // Create a new Segment Read Index.
                 SegmentMetadata segmentMetadata = this.metadata.getStreamSegmentMetadata(streamSegmentId);
-                Exceptions.checkArgument(segmentMetadata != null, "streamSegmentId",
-                        "StreamSegmentId %s does not exist in the metadata.", streamSegmentId);
-                if (segmentMetadata.isDeleted()) {
+                if (segmentMetadata == null) {
+                    throw new IllegalArgumentException(String.format("Segment Id %d does not exist in the metadata.", streamSegmentId));
+                } else if (!segmentMetadata.isActive()) {
+                    throw new IllegalArgumentException(String.format("Segment Id %d does exist in the metadata but is inactive.", streamSegmentId));
+                } else if (segmentMetadata.isDeleted()) {
                     throw new StreamSegmentNotExistsException(segmentMetadata.getName());
                 }
 

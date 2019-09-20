@@ -22,10 +22,11 @@ public class CheckpointStoreFactory {
         switch (storeClient.getType()) {
             case InMemory:
                 return new InMemoryCheckpointStore();
+            case PravegaTable: 
             case Zookeeper:
                 return new ZKCheckpointStore((CuratorFramework) storeClient.getClient());
             default:
-                return null;
+                throw new IllegalArgumentException();
         }
     }
 

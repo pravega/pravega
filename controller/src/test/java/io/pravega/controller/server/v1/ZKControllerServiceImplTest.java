@@ -9,8 +9,6 @@
  */
 package io.pravega.controller.server.v1;
 
-import io.pravega.client.ClientConfig;
-import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.stream.ScalingPolicy;
 import io.pravega.client.stream.impl.ModelHelper;
 import io.pravega.common.cluster.Cluster;
@@ -18,6 +16,7 @@ import io.pravega.common.cluster.ClusterType;
 import io.pravega.common.cluster.Host;
 import io.pravega.common.cluster.zkImpl.ClusterZKImpl;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.ControllerEventStreamWriterMock;
 import io.pravega.controller.mocks.EventStreamWriterMock;
 import io.pravega.controller.mocks.SegmentHelperMock;
@@ -30,20 +29,23 @@ import io.pravega.controller.server.eventProcessor.requesthandlers.SealStreamTas
 import io.pravega.controller.server.eventProcessor.requesthandlers.StreamRequestHandler;
 import io.pravega.controller.server.eventProcessor.requesthandlers.TruncateStreamTask;
 import io.pravega.controller.server.eventProcessor.requesthandlers.UpdateStreamTask;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.v1.ControllerServiceImpl;
 import io.pravega.controller.store.client.StoreClient;
 import io.pravega.controller.store.client.StoreClientFactory;
 import io.pravega.controller.store.host.HostControllerStore;
 import io.pravega.controller.store.host.HostStoreFactory;
 import io.pravega.controller.store.host.impl.HostMonitorConfigImpl;
+import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.controller.store.task.TaskMetadataStore;
-import io.pravega.controller.store.task.TaskStoreFactory;
+import io.pravega.controller.store.task.TaskStoreFactoryForTests;
 import io.pravega.controller.stream.api.grpc.v1.Controller;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.TestingServerStarter;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
@@ -65,17 +67,18 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
     private StoreClient storeClient;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamRequestHandler streamRequestHandler;
+    private TaskMetadataStore taskMetadataStore;
 
     private ScheduledExecutorService executorService;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Cluster cluster;
+    private StreamMetadataStore streamStore;
 
     @Override
     public void setup() throws Exception {
-        final StreamMetadataStore streamStore;
         final HostControllerStore hostStore;
-        final TaskMetadataStore taskMetadataStore;
-        final SegmentHelper segmentHelper;
+        final SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        final RequestTracker requestTracker = new RequestTracker(true);
 
         zkServer = new TestingServerStarter().start();
         zkServer.start();
@@ -85,29 +88,27 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
 
         storeClient = StoreClientFactory.createZKStoreClient(zkClient);
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
-        taskMetadataStore = TaskStoreFactory.createStore(storeClient, executorService);
+        taskMetadataStore = TaskStoreFactoryForTests.createStore(storeClient, executorService);
         hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
         streamStore = StreamStoreFactory.createZKStore(zkClient, executorService);
-        segmentHelper = SegmentHelperMock.getSegmentHelperMock();
+        BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
 
-        ConnectionFactoryImpl connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
-        streamMetadataTasks = new StreamMetadataTasks(streamStore, hostStore, taskMetadataStore, segmentHelper,
-                executorService, "host", connectionFactory,  false, "");
-        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(
-                streamStore, hostStore, segmentHelper, executorService, "host", connectionFactory, false, "");
+        streamMetadataTasks = new StreamMetadataTasks(streamStore, bucketStore, taskMetadataStore, segmentHelper,
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper(), requestTracker);
+        streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore, segmentHelper,
+                executorService, "host", GrpcAuthHelper.getDisabledAuthHelper());
         this.streamRequestHandler = new StreamRequestHandler(new AutoScaleTask(streamMetadataTasks, streamStore, executorService),
                 new ScaleOperationTask(streamMetadataTasks, streamStore, executorService),
-                new UpdateStreamTask(streamMetadataTasks, streamStore, executorService),
+                new UpdateStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new SealStreamTask(streamMetadataTasks, streamTransactionMetadataTasks, streamStore, executorService),
-                new DeleteStreamTask(streamMetadataTasks, streamStore, executorService),
+                new DeleteStreamTask(streamMetadataTasks, streamStore, bucketStore, executorService),
                 new TruncateStreamTask(streamMetadataTasks, streamStore, executorService),
                 streamStore,
                 executorService);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executorService));
 
-        streamTransactionMetadataTasks.initializeStreamWriters("commitStream", new EventStreamWriterMock<>(),
-                "abortStream", new EventStreamWriterMock<>());
+        streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
         cluster = new ClusterZKImpl(zkClient, ClusterType.CONTROLLER);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -115,9 +116,9 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
-        ControllerService controller = new ControllerService(streamStore, hostStore, streamMetadataTasks,
-                streamTransactionMetadataTasks, new SegmentHelper(), executorService, cluster);
-        controllerService = new ControllerServiceImpl(controller, "", false);
+        ControllerService controller = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
+                streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
+        controllerService = new ControllerServiceImpl(controller, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }
 
     @Override
@@ -131,6 +132,7 @@ public class ZKControllerServiceImplTest extends ControllerServiceImplTest {
         if (streamTransactionMetadataTasks != null) {
             streamTransactionMetadataTasks.close();
         }
+        streamStore.close();
         if (cluster != null) {
             cluster.close();
         }

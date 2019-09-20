@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.logs.operations;
 
 import io.pravega.segmentstore.contracts.AttributeUpdate;
+import io.pravega.segmentstore.server.SegmentOperation;
 import java.util.Collection;
 
 /**
