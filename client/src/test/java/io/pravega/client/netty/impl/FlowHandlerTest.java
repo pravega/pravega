@@ -220,6 +220,10 @@ public class FlowHandlerTest {
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, Assert::assertNotNull);
         clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
+        
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        flowHandler.completeWhenRegistered(result);
+        assertEquals(true, result.isCompletedExceptionally());
     }
 
     @Test
@@ -280,7 +284,7 @@ public class FlowHandlerTest {
         doAnswer((Answer<Void>) invocation -> {
             throw new RuntimeException("ReplyProcessorError");
         }).when(processor).process(any(Reply.class));
-        
+ 
         WireCommands.DataAppended msg = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1, 0);
         flowHandler.channelRead(ctx, msg);
         verify(processor).process(msg);

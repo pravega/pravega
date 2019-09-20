@@ -301,7 +301,7 @@ public class PravegaRequestProcessorTest {
         // so createSegmentStats may record 1 or 2 createSegment operation here.
     }
 
-    @Test//(timeout = 20000)
+    @Test(timeout = 20000)
     public void testTransaction() throws Exception {
         String streamSegmentName = "scope/stream/testTxn";
         UUID txnid = UUID.randomUUID();
