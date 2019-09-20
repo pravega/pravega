@@ -80,7 +80,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
         MockSegmentIoStreams outputStream = new MockSegmentIoStreams(segment);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory,
                 new JavaSerializer<>(), config, executorService(), executorService());
         writer.writeEvent("Foo");
         writer.writeEvent("Bar");
@@ -121,7 +121,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment));
         SegmentOutputStream outputStream = Mockito.mock(SegmentOutputStream.class);
         Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment), any(), any(), any())).thenReturn(outputStream);
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory,
                 new JavaSerializer<>(), config, executorService(), executorService());
         Mockito.doThrow(new RuntimeException("Intentional exception")).when(outputStream).close();
         writer.writeEvent("Foo");
@@ -201,6 +201,15 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
             return segment.getScopedName();
         }
 
+        @Override
+        public long getLastObservedWriteOffset() {
+            long result = 0;
+            for (PendingEvent value : unacked) {
+                result += value.getData().capacity();
+            }
+            return result;
+        }
+
     }
 
     @NotThreadSafe
@@ -247,6 +256,11 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
             return segment.getScopedName();
         }
 
+        @Override
+        public long getLastObservedWriteOffset() {
+            return -1;
+        }
+
     }
 
     @Test
@@ -278,7 +292,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
                .thenReturn(getSegmentsFuture(segment1))
                .thenReturn(getSegmentsFuture(segment2));
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
 
         writer.writeEvent(routingKey, "Foo");
@@ -329,7 +343,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
                 .thenReturn(getSegmentsFuture(segment1))
                 .thenReturn(getSegmentsFuture(segment2));
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
 
         writer.writeEvent(routingKey, "Foo");
@@ -383,7 +397,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         Transaction<String> txn = writer.beginTxn();
         txn.writeEvent("Foo");
@@ -418,7 +432,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         Transaction<String> txn = writer.beginTxn();
         outputStream.invokeSealedCallBack();
@@ -447,7 +461,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
 
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
@@ -482,7 +496,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         });
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
@@ -515,7 +529,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
                 });
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
@@ -554,7 +568,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
                 });
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
@@ -600,7 +614,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
                 });
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
@@ -646,7 +660,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
                 });
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
@@ -691,7 +705,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
                 });
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.writeEvent("Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
@@ -746,7 +760,7 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
                 });
         JavaSerializer<String> serializer = new JavaSerializer<>();
         @Cleanup
-        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, controller, streamFactory, serializer,
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
                 config, executorService(), executorService());
         writer.writeEvent(routingKey, "Foo");
         Mockito.verify(controller).getCurrentSegments(any(), any());
