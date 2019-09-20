@@ -9,17 +9,25 @@ You may obtain a copy of the License at
 -->
 # Running Pravega in Local Machine
 
-As an alternative to running Pravega on a cluster of machines, you may run Pravega on a local machine. Running Pravega locally on a single host, allows you to get started with Pravega quickly. Running Pravega locally is especially suitable for development and testing purposes.
+As an alternative to running Pravega on a cluster of machines, you may run Pravega on a local/single machine. Running Pravega locally on a single host allows you to get started with Pravega quickly. Running Pravega locally is especially suitable for development and testing purposes.
 
-You may run Pravega in local machine either in either standalone mode or in distributed mode using Docker Compose.
+You may run Pravega on local machine using either of these two options:
+
+1. [Standalone mode](#standalone-mode) deployment: In this option, Pravega server runs on a single process.
+2. Distributed mode [Docker compose](#docker-compose-distributed-mode) deployment: In this option, Pravega components run on separate processes within the same host.
+
+These options are explained in below subsections.
 
 ## Standalone Mode
 
-In standalone mode, the Pravega cluster is accessible from clients through the `localhost` interface only. Controller REST API's, however, are accessible from remote hosts/machines.
+In standalone mode, the Pravega server is accessible from clients through the `localhost` interface only. Controller REST APIs, however, are accessible from remote hosts/machines.
 
 Security is off by default in Pravega. Please see [this](../security/securing-standalone-mode-cluster.md) document to find how to enable security in standalone mode.
 
-You can launch a standalone mode cluster either from the source, or from the installation package. We discuss these two options in the subsections below.
+You can launch a standalone mode server using the following options:
+1. From [source code](#from-source)
+2. From [installation package](##from-installation-package)
+3. From [Docker image](#from-docker-image)
 
 ### From Source
 
@@ -51,7 +59,7 @@ Run Pravega Standalone:
 $ pravega-<version>/bin/pravega-standalone
 ```
 
-### From Docker Container
+### From Docker Image
 
 The below command will download and run Pravega from the container image on docker hub.
 

@@ -8,20 +8,20 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 -->
 
-# Setting Up Security for a Standalone Mode Cluster
+# Setting Up Security for a Standalone Mode Server
 
-Security in Pravega is off by default. You may start Pravega Standalone mode with security enabled, by modifying the security configuration before launching it.
+Security in Pravega is off by default. You may start Pravega Standalone mode server with security enabled by modifying the security configuration before launching it.
 
 Depending on how you configure security, either or both of the following occurs:
 
 1. Client-server and internal communications are encrypted using SSL/TLS
 2. Server authenticates and authorizes client requests
 
-For standalone mode clusters, you may enable SSL/TLS, and/ `auth` (short for Authentication and Authorization). We recommend that you enable both. The subsections below describe how to enable them.
+For standalone mode servers, you may enable SSL/TLS, and/ `auth` (short for Authentication and Authorization). We recommend that you enable both. The subsections below describe how to enable them.
 
 ## Enabling SSL/TLS and Auth
 
-The configuration parameter `singlenode.enableTls` determines whether SSL/TLS is enabled in a standalone mode cluster. It's default value is `false`, and therefore, SSL/TLS is disabled by default.
+The configuration parameter `singlenode.enableTls` determines whether SSL/TLS is enabled in a standalone mode server. Its default value is `false`, and therefore, SSL/TLS is disabled by default.
 
 Similarly, the configuration parameter `singlenode.enableAuth` determines whether `auth` is enabled. It is disabled by default as well.
 
@@ -29,7 +29,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
 
 1. Locate the `standalone-config.properties` file.
 
-   If you are running standalone mode cluster from source, you can find it under the `/path/to/pravega/config` directory.
+   If you are running standalone mode server from source, you can find it under the `/path/to/pravega/config` directory.
 
    If you are running it from the distribution instead, you can find it under the `/path/to/pravega-<version>/conf` directory.
 
@@ -78,7 +78,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
 
 4. If enabling SSL/TLS, ensure that the server's certificate is trusted.
 
-   Note: This step is only needed the first time you run SSL/TLS-enabled standalone mode with a certificate.If you have already imported the certificate earlier, you don't need to do it again the next time you launch the server.
+   Note: This step is only needed the first time you run SSL/TLS-enabled standalone mode with a certificate. If you have already imported the certificate earlier, you don't need to do it again the next time you launch the server.
 
    A server certificate can be rendered trusted via either Chain of Trust or via Direct Trust.
 
@@ -116,7 +116,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
 
    Note: If you want to use a custom truststore instead of adding the certificate to the system truststore, create a new truststore using Java keytool utility, add the certificate to it and configure the JVM to use it by setting the system properties `javax.net.ssl.trustStore` and `javax.net.ssl.trustStorePassword`.
 
-Now that you have enabled and configured security, restart the standalone mode cluster and [verify](#verifying-security) that security is working.
+Now that you have enabled and configured security, restart the standalone mode server and [verify](#verifying-security) that security is working.
 
 ## Verifying Security
 
@@ -154,5 +154,5 @@ Now that you have enabled and configured security, restart the standalone mode c
   You can find a client example with security enabled [here](https://github.com/pravega/pravega-samples/tree/master/pravega-client-examples/src/main/java/io/pravega/example/secure).
 
   Note:
-  * Remember that clients can access standalone mode clusters through the localhost interface only. Therefore, the hostname in the Controller URI should be specified as `localhost` in client applications when accessing standalone mode cluster.
+  * Remember that clients can access standalone mode servers through the localhost interface only. Therefore, the hostname in the Controller URI should be specified as `localhost` in client applications when accessing standalone mode servers.
   * `.validateHostName(false)` disables hostname verification for client-to-segment-store communications.
