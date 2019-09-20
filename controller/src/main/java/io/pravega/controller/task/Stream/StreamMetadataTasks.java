@@ -659,11 +659,32 @@ public class StreamMetadataTasks extends TaskBase {
     @VisibleForTesting
     <T> CompletableFuture<T> addIndexAndSubmitTask(ControllerEvent event, Supplier<CompletableFuture<T>> futureSupplier) {
         String id = UUID.randomUUID().toString();
-        return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event)
-                           .thenCompose(v -> futureSupplier.get())
-                           .thenCompose(t -> RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event), e -> { }, executor)
-                                                        .thenCompose(v -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
-                                                        .thenApply(v -> t));
+        // We first add index and then call the metadata update.
+        //  While trying to perform a metadata update, upon getting a connection exception or a write conflict exception 
+        // (which can also occur if we had retried on a store exception), we will still post the event because we
+        //  don't know whether our update succeeded. Posting the event is harmless, though. If the update
+        // has succeeded, then the event will be used for processing. If the update had failed, then the event
+        // will be discarded. We will throw the exception that we received from running futureSupplier or return the
+        // successful value
+        return streamMetadataStore.addRequestToIndex(context.getHostId(), id, event) 
+            .thenCompose(v -> Futures.handleCompose(futureSupplier.get(),
+                (r, e) -> {
+                    if (e == null || (Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException ||
+                            Exceptions.unwrap(e) instanceof StoreException.WriteConflictException)) {
+                        return RetryHelper.withIndefiniteRetriesAsync(() -> writeEvent(event),
+                                ex -> log.warn("writing event failed with {}", ex.getMessage()), executor)
+                                          .thenCompose(z -> streamMetadataStore.removeTaskFromIndex(context.getHostId(), id))
+                                          .thenApply(vd -> {
+                                              if (e != null) {
+                                                  throw new CompletionException(e);
+                                              } else {
+                                                  return r;
+                                              }
+                                          });
+                    } else {
+                        throw new CompletionException(e);
+                    }
+                }));
     }
     
     public CompletableFuture<Void> writeEvent(ControllerEvent event) {
