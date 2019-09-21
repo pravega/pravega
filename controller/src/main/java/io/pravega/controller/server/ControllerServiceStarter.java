@@ -31,11 +31,13 @@ import io.pravega.controller.server.bucket.BucketServiceFactory;
 import io.pravega.controller.metrics.StreamMetrics;
 import io.pravega.controller.metrics.TransactionMetrics;
 import io.pravega.controller.server.bucket.PeriodicRetention;
+import io.pravega.controller.server.bucket.PeriodicWatermarking;
 import io.pravega.controller.server.eventProcessor.ControllerEventProcessors;
 import io.pravega.controller.server.eventProcessor.LocalController;
 import io.pravega.controller.server.rest.RESTServer;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.server.rpc.grpc.GRPCServer;
+import io.pravega.controller.server.rpc.grpc.GRPCServerConfig;
 import io.pravega.controller.store.checkpoint.CheckpointStore;
 import io.pravega.controller.store.checkpoint.CheckpointStoreFactory;
 import io.pravega.controller.store.client.StoreClient;
@@ -83,12 +85,14 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
     private ScheduledExecutorService controllerExecutor;
     private ScheduledExecutorService retentionExecutor;
+    private ScheduledExecutorService watermarkingExecutor;
 
     private ConnectionFactory connectionFactory;
     private StreamMetadataStore streamStore;
     private StreamMetadataTasks streamMetadataTasks;
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private BucketManager retentionService;
+    private BucketManager watermarkingService;
     private SegmentContainerMonitor monitor;
     private ControllerClusterListener controllerClusterListener;
     private SegmentHelper segmentHelper;
@@ -163,6 +167,9 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             retentionExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.RETENTION_THREAD_POOL_SIZE,
                                                                                "retentionpool");
+
+            watermarkingExecutor = ExecutorServiceHelpers.newScheduledThreadPool(Config.WATERMARKING_THREAD_POOL_SIZE,
+                                                                               "watermarkingpool");
             
             log.info("Creating the bucket store");
             bucketStore = StreamStoreFactory.createBucketStore(storeClient, controllerExecutor);
@@ -182,7 +189,8 @@ public class ControllerServiceStarter extends AbstractIdleService {
             Host host = new Host(hostName, getPort(), UUID.randomUUID().toString());
 
             // Create a RequestTracker instance to trace client requests end-to-end.
-            RequestTracker requestTracker = new RequestTracker(serviceConfig.getGRPCServerConfig().get().isRequestTracingEnabled());
+            GRPCServerConfig grpcServerConfig = serviceConfig.getGRPCServerConfig().get();
+            RequestTracker requestTracker = new RequestTracker(grpcServerConfig.isRequestTracingEnabled());
 
             if (serviceConfig.getHostMonitorConfig().isHostMonitorEnabled()) {
                 //Start the Segment Container Monitor.
@@ -195,22 +203,23 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // This client config is used by the segment store helper (SegmentHelper) to connect to the segment store.
             ClientConfig.ClientConfigBuilder clientConfigBuilder = ClientConfig.builder()
-                    .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
-                            "tls://" : "tcp://") + "localhost"))
-                    .trustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
+                    .controllerURI(URI.create((grpcServerConfig.isTlsEnabled() ?
+                            "tls://" : "tcp://") + "localhost:" + grpcServerConfig.getPort()))
+                    .trustStore(grpcServerConfig.getTlsTrustStore())
                     .validateHostName(false);
 
             Optional<Boolean> tlsEnabledForSegmentStore = BooleanUtils.extract(serviceConfig.getTlsEnabledForSegmentStore());
             if (tlsEnabledForSegmentStore.isPresent()) {
                 clientConfigBuilder.enableTlsToSegmentStore(tlsEnabledForSegmentStore.get());
             }
-
-            connectionFactory = connectionFactoryRef.orElse(new ConnectionFactoryImpl(clientConfigBuilder.build()));
+            
+            ClientConfig clientConfig = clientConfigBuilder.build();
+            connectionFactory = connectionFactoryRef.orElse(new ConnectionFactoryImpl(clientConfig));
             segmentHelper = segmentHelperRef.orElse(new SegmentHelper(connectionFactory, hostStore));
 
             GrpcAuthHelper authHelper = new GrpcAuthHelper(serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey(),
-                    serviceConfig.getGRPCServerConfig().get().getAccessTokenTTLInSeconds());
+                                                           grpcServerConfig.getTokenSigningKey(),
+                                                           grpcServerConfig.getAccessTokenTTLInSeconds());
 
             log.info("Creating the stream store");
             streamStore = streamMetadataStoreRef.orElse(StreamStoreFactory.createStore(storeClient, segmentHelper, authHelper, controllerExecutor));
@@ -220,15 +229,25 @@ public class ControllerServiceStarter extends AbstractIdleService {
             streamTransactionMetadataTasks = new StreamTransactionMetadataTasks(streamStore,
                     segmentHelper, controllerExecutor, host.getHostId(), serviceConfig.getTimeoutServiceConfig(), authHelper);
 
-            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000, retentionExecutor);
-            Duration executionDuration = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
+            BucketServiceFactory bucketServiceFactory = new BucketServiceFactory(host.getHostId(), bucketStore, 1000);
+            Duration executionDurationRetention = Duration.ofMinutes(Config.MINIMUM_RETENTION_FREQUENCY_IN_MINUTES);
 
             PeriodicRetention retentionWork = new PeriodicRetention(streamStore, streamMetadataTasks, retentionExecutor, requestTracker);
-            retentionService = bucketServiceFactory.createRetentionService(executionDuration, retentionWork::retention);
+            retentionService = bucketServiceFactory.createRetentionService(executionDurationRetention, retentionWork::retention, retentionExecutor);
 
             log.info("starting background periodic service for retention");
             retentionService.startAsync();
             retentionService.awaitRunning();
+
+            Duration executionDurationWatermarking = Duration.ofSeconds(Config.MINIMUM_WATERMARKING_FREQUENCY_IN_SECONDS);
+            PeriodicWatermarking watermarkingWork = new PeriodicWatermarking(streamStore, bucketStore,
+                    clientConfig, watermarkingExecutor);
+            watermarkingService = bucketServiceFactory.createWatermarkingService(executionDurationWatermarking, 
+                    watermarkingWork::watermark, watermarkingExecutor);
+
+            log.info("starting background periodic service for watermarking");
+            watermarkingService.startAsync();
+            watermarkingService.awaitRunning();
 
             // Controller has a mechanism to track the currently active controller host instances. On detecting a failure of
             // any controller instance, the failure detector stores the failed HostId in a failed hosts directory (FH), and
@@ -250,12 +269,12 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             streamMetrics = new StreamMetrics();
             transactionMetrics = new TransactionMetrics();
-            controllerService = new ControllerService(streamStore, streamMetadataTasks,
+            controllerService = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                     streamTransactionMetadataTasks, segmentHelper, controllerExecutor, cluster, streamMetrics, transactionMetrics);
 
             // Setup event processors.
-            setController(new LocalController(controllerService, serviceConfig.getGRPCServerConfig().get().isAuthorizationEnabled(),
-                    serviceConfig.getGRPCServerConfig().get().getTokenSigningKey()));
+            setController(new LocalController(controllerService, grpcServerConfig.isAuthorizationEnabled(),
+                    grpcServerConfig.getTokenSigningKey()));
 
             CompletableFuture<Void> eventProcessorFuture = CompletableFuture.completedFuture(null); 
             if (serviceConfig.getEventProcessorConfig().isPresent()) {
@@ -290,7 +309,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Start RPC server.
             if (serviceConfig.getGRPCServerConfig().isPresent()) {
-                grpcServer = new GRPCServer(controllerService, serviceConfig.getGRPCServerConfig().get(), requestTracker);
+                grpcServer = new GRPCServer(controllerService, grpcServerConfig, requestTracker);
                 grpcServer.startAsync();
                 log.info("Awaiting start of rpc server");
                 grpcServer.awaitRunning();
@@ -364,6 +383,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 retentionService.stopAsync();
             }
 
+            if (watermarkingService != null) {
+                log.info("Stopping watermarking service");
+                watermarkingService.stopAsync();
+            }
+
             log.info("Closing stream metadata tasks");
             streamMetadataTasks.close();
 
@@ -400,6 +424,11 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 log.info("Awaiting termination of auto retention");
                 retentionService.awaitTerminated();
             }
+
+            if (watermarkingService != null) {
+                log.info("Awaiting termination of watermarking service");
+                watermarkingService.awaitTerminated();
+            }
         } catch (Exception e) {
             log.error("Controller Service Starter threw exception during shutdown", e);
             throw e;
@@ -409,7 +438,7 @@ public class ControllerServiceStarter extends AbstractIdleService {
 
             // Next stop all executors
             log.info("Stopping controller executor");
-            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor);
+            ExecutorServiceHelpers.shutdown(Duration.ofSeconds(5), controllerExecutor, retentionExecutor, watermarkingExecutor);
 
             if (cluster != null) {
                 log.info("Closing controller cluster instance");

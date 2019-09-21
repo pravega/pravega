@@ -11,6 +11,8 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import io.pravega.client.BatchClientFactory;
 import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.ClientConfig;
@@ -51,9 +53,16 @@ import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.Serializer;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.TransactionalEventStreamWriter;
+import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.NameUtils;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
+
+import static io.pravega.common.concurrent.ExecutorServiceHelpers.newScheduledThreadPool;
+
+import java.util.UUID;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Supplier;
 import lombok.val;
@@ -69,6 +78,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     private final ConditionalOutputStreamFactory condFactory;
     private final SegmentMetadataClientFactory metaFactory;
     private final ConnectionFactory connectionFactory;
+    private final ScheduledExecutorService watermarkReaderThreads = newScheduledThreadPool(getThreadPoolSize(), "WatermarkReader");
 
     /**
      * Creates a new instance of ClientFactory class.
@@ -127,19 +137,27 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     @Override
     @SuppressWarnings("deprecation")
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+        return createEventWriter(UUID.randomUUID().toString(), streamName, s, config);
+    }
+    
+    @Override
+    public <T> EventStreamWriter<T> createEventWriter(String writerId, String streamName, Serializer<T> s,
+                                                      EventWriterConfig config) {
         log.info("Creating writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
         ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());
-        return new EventStreamWriterImpl<T>(stream, controller, outFactory, s, config, retransmitPool, connectionFactory.getInternalExecutor());
+        return new EventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, retransmitPool, connectionFactory.getInternalExecutor());
     }
-    
+
     @Override
     @SuppressWarnings("deprecation")
-    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String writerId, String streamName,
+                                                                                Serializer<T> s,
+                                                                                EventWriterConfig config) {
         log.info("Creating transactional writer for stream: {} with configuration: {}", streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
-        return new TransactionalEventStreamWriterImpl<T>(stream, controller, outFactory, s, config, connectionFactory.getInternalExecutor());
+        return new TransactionalEventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, connectionFactory.getInternalExecutor());
     }
 
     @Override
@@ -162,7 +180,17 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                 synchronizerConfig);
         ReaderGroupStateManager stateManager = new ReaderGroupStateManager(readerId, sync, controller, nanoTime);
         stateManager.initializeReader(config.getInitialAllocationDelay());
-        return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config);
+        Builder<Stream, WatermarkReaderImpl> watermarkReaders = ImmutableMap.builder();
+        if (!config.isDisableTimeWindows()) {
+            for (Stream stream : stateManager.getStreams()) {
+                String streamName = StreamSegmentNameUtils.getMarkForStream(stream.getStreamName());
+                val client = createRevisionedStreamClient(getSegmentForRevisionedClient(stream.getScope(), streamName),
+                                                          new WatermarkSerializer(),
+                                                          SynchronizerConfig.builder().readBufferSize(4096).build());
+                watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, watermarkReaderThreads));
+            }
+        }
+        return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config, watermarkReaders.build());
     }
     
     @Override
@@ -170,12 +198,12 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> RevisionedStreamClient<T> createRevisionedStreamClient(String streamName, Serializer<T> serializer,
                                                                       SynchronizerConfig config) {
         log.info("Creating revisioned stream client for stream: {} with synchronizer configuration: {}", streamName, config);
-        return createRevisionedStreamClient(getSegmentForRevisionedClient(streamName), serializer, config);
+        return createRevisionedStreamClient(getSegmentForRevisionedClient(scope, streamName), serializer, config);
     }
 
     private <T> RevisionedStreamClient<T> createRevisionedStreamClient(Segment segment, Serializer<T> serializer,
                                                                        SynchronizerConfig config) {
-        EventSegmentReader in = inFactory.createEventReaderForSegment(segment);
+        EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
                                                                                                           segment.getStreamName()), RuntimeException::new);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
@@ -192,11 +220,11 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                                 SynchronizerConfig config) {
         log.info("Creating state synchronizer with stream: {} and configuration: {}", streamName, config);
         val serializer = new UpdateOrInitSerializer<>(updateSerializer, initialSerializer);
-        val segment = getSegmentForRevisionedClient(streamName);
+        val segment = getSegmentForRevisionedClient(scope, streamName);
         return new StateSynchronizerImpl<StateT>(segment, createRevisionedStreamClient(segment, serializer, config));
     }
 
-    private Segment getSegmentForRevisionedClient(String streamName) {
+    private Segment getSegmentForRevisionedClient(String scope, String streamName) {
         // This validates if the stream exists and returns zero segments if the stream is sealed.
         StreamSegments currentSegments = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, streamName), InvalidStreamException::new);
         if ( currentSegments == null || currentSegments.getSegments().size() == 0) {
@@ -239,6 +267,14 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public void close() {
         controller.close();
         connectionFactory.close();
+    }
+    
+    private int getThreadPoolSize() {
+        String configuredThreads = System.getProperty("pravega.client.internal.threadpool.size", null);
+        if (configuredThreads != null) {
+            return Integer.parseInt(configuredThreads);
+        }
+        return Runtime.getRuntime().availableProcessors();
     }
 
 }
