@@ -361,7 +361,7 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 AuthHandler.Permissions.READ_UPDATE),
                 delegationToken -> controllerService.commitTransaction(request.getStreamInfo().getScope(),
                         request.getStreamInfo().getStream(),
-                        request.getTxnId()),
+                        request.getTxnId(), request.getWriterId(), request.getTimestamp()),
                 responseObserver);
     }
 
@@ -498,7 +498,35 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                 },
                 responseObserver);
     }
+    // region watermarking apis
+    
+    @Override
+    public void noteTimestampFromWriter(Controller.TimestampFromWriter request, StreamObserver<Controller.TimestampResponse> responseObserver) {
+        StreamInfo streamInfo = request.getPosition().getStreamInfo();
+        log.info("noteWriterMark called for stream {}/{}, writer={} time={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter(), request.getTimestamp());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.noteTimestampFromWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter(), request.getTimestamp(), request.getPosition().getCutMap()),
+                responseObserver);
+    }
 
+    @Override
+    public void removeWriter(Controller.RemoveWriterRequest request, StreamObserver<Controller.RemoveWriterResponse> responseObserver) {
+        StreamInfo streamInfo = request.getStream();
+        log.info("writerShutdown called for stream {}/{}, writer={}", streamInfo.getScope(),
+                streamInfo.getStream(), request.getWriter());
+        authenticateExecuteAndProcessResults(() -> this.grpcAuthHelper.checkAuthorization(
+                AuthResourceRepresentation.ofStreamInScope(streamInfo.getScope(), streamInfo.getStream()),
+                AuthHandler.Permissions.READ_UPDATE),
+                delegationToken  -> controllerService.removeWriter(streamInfo.getScope(),
+                        streamInfo.getStream(), request.getWriter()),
+                responseObserver);
+    }
+    // endregion
+    
     private void logIfEmpty(String delegationToken, String requestName, String scopeName, String streamName) {
         if (isAuthEnabled() && Strings.isNullOrEmpty(delegationToken)) {
             log.warn("Delegation token for request [{}] with scope [{}] and stream [{}], is: [{}]",
@@ -519,10 +547,9 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
                             Throwable cause = Exceptions.unwrap(ex);
                             logError(requestTag, cause);
                             String errorDescription = replyWithStackTraceOnError ? "controllerStackTrace=" + Throwables.getStackTraceAsString(ex) : cause.getMessage();
-                            streamObserver.onError(Status.INTERNAL
-                                    .withCause(cause)
-                                    .withDescription(errorDescription)
-                                    .asRuntimeException());
+                            streamObserver.onError(getStatusFromException(cause).withCause(cause)
+                                                                                .withDescription(errorDescription)
+                                                                                .asRuntimeException());
                         } else if (value != null) {
                             streamObserver.onNext(value);
                             streamObserver.onCompleted();
@@ -541,6 +568,32 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
     private <T> void authenticateExecuteAndProcessResults(Supplier<String> authenticator, Function<String, CompletableFuture<T>> call,
                                                           final StreamObserver<T> streamObserver) {
         authenticateExecuteAndProcessResults(authenticator, call, streamObserver, null);
+    }
+    
+    @SuppressWarnings("checkstyle:ReturnCount")
+    private Status getStatusFromException(Throwable cause) {
+        if (cause instanceof StoreException.DataExistsException) {
+            return Status.ALREADY_EXISTS;
+        }
+        if (cause instanceof StoreException.DataNotFoundException) {
+            return Status.NOT_FOUND;
+        }
+        if (cause instanceof StoreException.DataNotEmptyException) {
+            return Status.FAILED_PRECONDITION;
+        }
+        if (cause instanceof StoreException.WriteConflictException) {
+            return Status.FAILED_PRECONDITION;
+        }
+        if (cause instanceof StoreException.IllegalStateException) {
+            return Status.INTERNAL;
+        }
+        if (cause instanceof StoreException.OperationNotAllowedException) {
+            return Status.PERMISSION_DENIED;
+        }
+        if (cause instanceof StoreException.StoreConnectionException) {
+            return Status.INTERNAL;
+        }
+        return Status.UNKNOWN;
     }
 
     private void logAndUntrackRequestTag(RequestTag requestTag) {

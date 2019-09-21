@@ -21,6 +21,7 @@ import io.pravega.client.stream.Position;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReinitializationRequiredException;
 import io.pravega.client.stream.impl.PositionImpl;
+import io.pravega.client.stream.impl.SegmentWithRange;
 import io.pravega.controller.eventProcessor.CheckpointConfig;
 import io.pravega.controller.eventProcessor.EventProcessorConfig;
 import io.pravega.controller.eventProcessor.EventProcessorGroupConfig;
@@ -177,7 +178,7 @@ public class EventProcessorTest {
         MockEventRead(long position, T value) {
             this.value = value;
             Segment segment = new Segment(SCOPE, STREAM_NAME, 0);
-            this.position = new PositionImpl(Collections.singletonMap(segment, position));
+            this.position = new PositionImpl(Collections.singletonMap(new SegmentWithRange(segment, 0, 1), position));
         }
 
         @Override
