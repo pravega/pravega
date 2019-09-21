@@ -1,5 +1,5 @@
 <!--
-Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ As an alternative to running Pravega on a cluster of machines, you may run Prave
 You may run Pravega on local machine using either of these two options:
 
 1. [Standalone mode](#standalone-mode) deployment: In this option, Pravega server runs on a single process.
-2. Distributed mode [Docker compose](#docker-compose-distributed-mode) deployment: In this option, Pravega components run on separate processes within the same host.
+2. Distributed mode [Docker Compose](#docker-compose-distributed-mode) deployment: In this option, Pravega components run on separate processes within the same host.
 
 These options are explained in below subsections.
 
@@ -25,11 +25,12 @@ In standalone mode, the Pravega server is accessible from clients through the `l
 Security is off by default in Pravega. Please see [this](../security/securing-standalone-mode-cluster.md) document to find how to enable security in standalone mode.
 
 You can launch a standalone mode server using the following options:
-1. From [source code](#from-source)
-2. From [installation package](##from-installation-package)
+
+1. From [source code](#from-source-code)
+2. From [installation package](#from-installation-package)
 3. From [Docker image](#from-docker-image)
 
-### From Source
+### From Source Code
 
 Checkout the source code:
 

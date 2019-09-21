@@ -51,7 +51,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
    singlenode.keyStoreJKSPasswordFile=../config/server.keystore.jks.passwd
    singlenode.trustStoreJKS=../config/client.truststore.jks
    ```
-   For descriptions of these properties, see [Pravega Security Configurations](security-configurations.md).  
+   For descriptions of these properties, see [Pravega Security Configurations](./security-configurations.md).  
 
 3. If enabling `auth`, configure `auth` parameters.
 
@@ -61,7 +61,7 @@ The following steps explain how to enable and configure SSL/TLS and/ `auth`:
    singlenode.passwd=1111_aaaa
    singlenode.passwdFile=../config/passwd
    ```
-   For descriptions of these properties, see [Pravega Security Configurations](security-configurations.md).
+   For descriptions of these properties, see [Pravega Security Configurations](./security-configurations.md).
 
    Note:
    * The default Password Auth Handler supports `Basic` authentication for client-server communications. You may deploy additional Auth Handler plugins by placing them in the classpath.
