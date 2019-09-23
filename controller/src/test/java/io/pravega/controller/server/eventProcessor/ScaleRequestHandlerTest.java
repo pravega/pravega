@@ -276,13 +276,13 @@ public abstract class ScaleRequestHandlerTest {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
                 null, null, null, null, streamStore, executor);
-        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
 
         // 1 create transaction on old epoch and set it to committing
         UUID txnIdOldEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnData = streamStore.createTransaction(scope, stream, txnIdOldEpoch, 10000, 10000,
                 null, executor).join();
-        streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
 
         EpochRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(0, epochZero.getEpoch());
@@ -302,7 +302,7 @@ public abstract class ScaleRequestHandlerTest {
         UUID txnIdNewEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnDataNew = streamStore.createTransaction(scope, stream, txnIdNewEpoch, 10000, 10000,
                 null, executor).join();
-        streamStore.sealTransaction(scope, stream, txnDataNew.getId(), true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnDataNew.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
 
         // 5. commit on old epoch. this should roll over
         assertTrue(Futures.await(commitRequestHandler.processEvent(new CommitEvent(scope, stream, txnData.getEpoch()))));
@@ -347,18 +347,18 @@ public abstract class ScaleRequestHandlerTest {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
                 null, null, null, null, streamStore, executor);
-        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
 
         // 1 create transaction on old epoch and set it to committing
         UUID txnIdOldEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnData = streamStore.createTransaction(scope, stream, txnIdOldEpoch, 10000, 10000,
                 null, executor).join();
-        streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
 
         UUID txnIdOldEpoch2 = streamStore.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnData2 = streamStore.createTransaction(scope, stream, txnIdOldEpoch2, 10000, 10000,
                 null, executor).join();
-        streamStore.sealTransaction(scope, stream, txnData2.getId(), true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnData2.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
 
         EpochRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(0, epochZero.getEpoch());
@@ -405,18 +405,18 @@ public abstract class ScaleRequestHandlerTest {
         ScaleOperationTask scaleRequestHandler = new ScaleOperationTask(streamMetadataTasks, streamStore, executor);
         StreamRequestHandler requestHandler = new StreamRequestHandler(null, scaleRequestHandler,
                 null, null, null, null, streamStore, executor);
-        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, executor);
+        CommitRequestHandler commitRequestHandler = new CommitRequestHandler(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, bucketStore, executor);
 
         // 1 create transaction on old epoch and set it to committing
         UUID txnIdOldEpoch = streamStore.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnData = streamStore.createTransaction(scope, stream, txnIdOldEpoch, 10000, 10000,
                 null, executor).join();
-        streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnData.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
 
         UUID txnIdOldEpoch2 = streamStore.generateTransactionId(scope, stream, null, executor).join();
         VersionedTransactionData txnData2 = streamStore.createTransaction(scope, stream, txnIdOldEpoch2, 10000, 10000,
                 null, executor).join();
-        streamStore.sealTransaction(scope, stream, txnData2.getId(), true, Optional.empty(), null, executor).join();
+        streamStore.sealTransaction(scope, stream, txnData2.getId(), true, Optional.empty(), "", Long.MIN_VALUE, null, executor).join();
 
         EpochRecord epochZero = streamStore.getActiveEpoch(scope, stream, null, true, executor).join();
         assertEquals(0, epochZero.getEpoch());
@@ -881,6 +881,11 @@ public abstract class ScaleRequestHandlerTest {
         @Override
         public void close() {
 
+        }
+
+        @Override
+        public void noteTime(long timestamp) {
+            
         }
     }
 }

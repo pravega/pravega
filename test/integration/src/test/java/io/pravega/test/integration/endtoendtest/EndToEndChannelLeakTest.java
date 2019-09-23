@@ -135,7 +135,7 @@ public class EndToEndChannelLeakTest {
 
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().disableTimeWindows(true).build());
         //Write an event.
         writer.writeEvent("0", "zero").get();
 
@@ -181,7 +181,7 @@ public class EndToEndChannelLeakTest {
         assertChannelCount(5, connectionPool);
     }
 
-    @Test//(timeout = 30000)
+    @Test(timeout = 30000)
     public void testDetectChannelLeakMultiReaderPooled() throws Exception {
         StreamConfiguration config = StreamConfiguration.builder()
                                                         .scalingPolicy(ScalingPolicy.byEventRate(10, 2, 1))
@@ -219,7 +219,7 @@ public class EndToEndChannelLeakTest {
         //create a reader and read an event.
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().disableTimeWindows(true).build());
         //Creating a reader spawns a revisioned stream client which opens 4 sockets ( read, write, metadataClient and conditionalUpdates).
         EventRead<String> event = reader1.readNextEvent(10000);
         //reader creates a new connection to the segment 0;
@@ -313,7 +313,7 @@ public class EndToEndChannelLeakTest {
 
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().disableTimeWindows(true).build());
         
         channelCount += 4; //One for segment 3 for state synchronizer
         assertChannelCount(channelCount, connectionPool);
@@ -424,7 +424,7 @@ public class EndToEndChannelLeakTest {
         //create a reader and read an event.
         @Cleanup
         EventStreamReader<String> reader1 = clientFactory.createReader("readerId1", READER_GROUP, serializer,
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().disableTimeWindows(true).build());
         //Creating a reader spawns a revisioned stream client which opens 4 sockets ( read, write, metadataClient and conditionalUpdates).
         expectedChannelCount += 4;
         EventRead<String> event = reader1.readNextEvent(10000);
@@ -476,7 +476,7 @@ public class EndToEndChannelLeakTest {
         //Add a new reader
         @Cleanup
         EventStreamReader<String> reader2 = clientFactory.createReader("readerId2", READER_GROUP, serializer,
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().disableTimeWindows(true).build());
         //Creating a reader spawns a revisioned stream client which opens 4 sockets ( read, write, metadataClient and conditionalUpdates).
         expectedChannelCount += 4;
         assertChannelCount(expectedChannelCount, connectionPool);

@@ -9,19 +9,21 @@
  */
 package io.pravega.local;
 
+import java.net.URI;
+
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import io.grpc.StatusRuntimeException;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.admin.StreamManager;
 import io.pravega.client.stream.impl.DefaultCredentials;
-import io.pravega.test.common.SecurityConfigDefaults;
+import io.pravega.common.Exceptions;
 import io.pravega.test.common.AssertExtensions;
-import java.net.URI;
+import io.pravega.test.common.SecurityConfigDefaults;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
 
 /**
  * This class contains tests for auth enabled in-process standalone cluster. It inherits the test methods defined
@@ -84,13 +86,13 @@ public class AuthEnabledInProcPravegaClusterTest extends InProcPravegaClusterTes
     }
 
     private boolean hasAuthExceptionAsRootCause(Throwable e) {
-        Throwable innermostException = ExceptionUtils.getRootCause(e);
+        Throwable unwrapped = Exceptions.unwrap(e);
 
         // Depending on an exception message for determining whether the given exception represents auth failure
         // is not a good thing to do, but we have no other choice here because auth failures are represented as the
         // overly general io.grpc.StatusRuntimeException.
-        return innermostException instanceof StatusRuntimeException &&
-             innermostException.getMessage().toUpperCase().contains("UNAUTHENTICATED");
+        return unwrapped instanceof StatusRuntimeException &&
+                unwrapped.getMessage().toUpperCase().contains("UNAUTHENTICATED");
     }
 
     @After

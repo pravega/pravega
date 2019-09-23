@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.segment.impl.Segment;
+import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.StreamConfiguration;
@@ -18,7 +19,6 @@ import io.pravega.client.stream.Transaction;
 import io.pravega.client.stream.TxnFailedException;
 import io.pravega.common.util.AsyncIterator;
 import io.pravega.shared.protocol.netty.PravegaNodeUri;
-
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -191,10 +191,12 @@ public interface Controller extends AutoCloseable {
      * {@link TxnFailedException} if the transaction has already been committed or aborted.
      * 
      * @param stream Stream name
+     * @param writerId The writer that is comiting the transaction.
+     * @param timestamp The timestamp the writer provided for the commit (or null if they did not specify one).
      * @param txId Transaction id
      * @return Void or TxnFailedException
      */
-    CompletableFuture<Void> commitTransaction(final Stream stream, final UUID txId);
+    CompletableFuture<Void> commitTransaction(final Stream stream, final String writerId, final Long timestamp, final UUID txId);
 
     /**
      * Aborts a transaction. No events written to it may be read, and no further events may be
@@ -290,6 +292,32 @@ public interface Controller extends AutoCloseable {
      * @return Pravega node URI.
      */
     CompletableFuture<PravegaNodeUri> getEndpointForSegment(final String qualifiedSegmentName);
+    
+    /**
+     * Notifies that the specified writer has noted the provided timestamp when it was at
+     * lastWrittenPosition.
+     * 
+     * This is called by writers via {@link EventStreamWriter#noteTime(long)} or
+     * {@link Transaction#commit(long)}. The controller should aggrigate this information and write
+     * it to the stream's marks segment so that it read by readers who will in turn ultimately
+     * surface this information through the {@link EventStreamReader#getCurrentTimeWindow()} API.
+     * 
+     * @param writer The name of the writer. (User defined)
+     * @param stream The stream the timestamp is associated with.
+     * @param timestamp The new timestamp for the writer on the stream.
+     * @param lastWrittenPosition The position the writer was at when it noted the time.
+     */
+    CompletableFuture<Void> noteTimestampFromWriter(String writer, Stream stream, long timestamp, WriterPosition lastWrittenPosition);
+
+    /**
+     * Notifies the controller that the specified writer is shutting down gracefully and no longer
+     * needs to be considered for calculating entries for the marks segment. This may not be called
+     * in the event that writer crashes. 
+     * 
+     * @param writerId The name of the writer. (User defined)
+     * @param stream The stream the writer was on.
+     */
+    CompletableFuture<Void> removeWriter(String writerId, Stream stream);
 
     /**
      * Closes controller client.

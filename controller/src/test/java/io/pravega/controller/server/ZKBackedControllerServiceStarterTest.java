@@ -211,7 +211,7 @@ public abstract class ZKBackedControllerServiceStarterTest extends ControllerSer
                             }
                         });
                         rp.process(new WireCommands.DataAppended(conditionalAppend.getRequestId(), conditionalAppend.getWriterId(),
-                                conditionalAppend.getEventNumber(), 0L));
+                                conditionalAppend.getEventNumber(), 0L, 0L));
                     }
                     break;
 
