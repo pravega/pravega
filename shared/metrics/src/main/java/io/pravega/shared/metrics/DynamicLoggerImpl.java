@@ -136,8 +136,8 @@ public class DynamicLoggerImpl implements DynamicLogger {
         MetricsNames.MetricKey keys = metricKey(name, tags);
         Counter counter = countersCache.getIfPresent(keys.getCacheKey());
         if (counter != null) {
-            metrics.remove(counter.getId());
-            LoggerHelpers.traceLeave(log, "metrics.remove", traceId, counter.getId());
+            counter.close();
+            LoggerHelpers.traceLeave(log, "counter.close():", traceId, counter.getId());
         }
         countersCache.invalidate(keys.getRegistryKey());
         LoggerHelpers.traceLeave(log, "counterCache.invalidate", traceId, keys.getRegistryKey());
@@ -170,8 +170,8 @@ public class DynamicLoggerImpl implements DynamicLogger {
         MetricsNames.MetricKey keys = metricKey(name, tags);
         Gauge gauge = gaugesCache.getIfPresent(keys.getCacheKey());
         if (gauge != null) {
-            metrics.remove(gauge.getId());
-            LoggerHelpers.traceLeave(log, "metrics.remove", traceId, gauge.getId());
+            gauge.close();
+            LoggerHelpers.traceLeave(log, "gauge.close():", traceId, gauge.getId());
         }
         gaugesCache.invalidate(keys.getCacheKey());
         LoggerHelpers.traceLeave(log, "gaugeCache.invalidate", traceId, keys.getCacheKey());
@@ -196,5 +196,18 @@ public class DynamicLoggerImpl implements DynamicLogger {
         } catch (ExecutionException e) {
             log.error("Error while metersCache create meter", e);
         }
+    }
+
+    @Override
+    public void freezeMeter(String name, String... tags) {
+        long traceId = LoggerHelpers.traceEnter(log, "freezeMeter", name, tags);
+        MetricsNames.MetricKey keys = metricKey(name, tags);
+        Meter meter = metersCache.getIfPresent(keys.getCacheKey());
+        if (meter != null) {
+            meter.close();
+            LoggerHelpers.traceLeave(log, "meter.close():", traceId, meter.getId());
+        }
+        metersCache.invalidate(keys.getCacheKey());
+        LoggerHelpers.traceLeave(log, "metersCache.invalidate", traceId, keys.getCacheKey());
     }
 }
