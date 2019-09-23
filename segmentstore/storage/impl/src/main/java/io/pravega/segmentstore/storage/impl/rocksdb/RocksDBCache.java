@@ -281,7 +281,7 @@ class RocksDBCache implements Cache {
             Env env = new RocksMemEnv();
             options.setEnv(env);
         }
-
+        
         return options;
     }
 
