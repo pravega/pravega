@@ -22,6 +22,7 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -126,21 +127,23 @@ public class PeriodicWatermarking {
             WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
 
             watermarkClient.reinitialize();
-            return filterWritersAndComputeWatermark(scope, streamName, context, watermarkClient, writers);
+            return streamMetadataStore.getConfiguration(scope, streamName, context, executor)
+                .thenCompose(config -> filterWritersAndComputeWatermark(scope, streamName, context, watermarkClient, writers, config));
         }).exceptionally(e -> {
             log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e);
             return null;
         });
     }
 
-    private CompletionStage<Void> filterWritersAndComputeWatermark(String scope, String streamName, OperationContext context, 
-                                                                   WatermarkClient watermarkClient, Map<String, WriterMark> writers) {
+    private CompletionStage<Void> filterWritersAndComputeWatermark(String scope, String streamName, OperationContext context,
+                                                                   WatermarkClient watermarkClient, Map<String, WriterMark> writers,
+                                                                   StreamConfiguration config) {
         // 1. filter writers that are active.
         List<Entry<String, WriterMark>> activeWriters = new ArrayList<>();
         List<Entry<String, WriterMark>> inactiveWriters = new ArrayList<>();
         AtomicBoolean allActiveAreParticipating = new AtomicBoolean(true);
         writers.entrySet().forEach(x -> {
-            if (watermarkClient.isWriterActive(x.getValue().getTimestamp())) {
+            if (watermarkClient.isWriterActive(x, config.getTimestampAggregationTimeout())) {
                 activeWriters.add(x);
                 if (!watermarkClient.isWriterParticipating(x.getValue().getTimestamp())) {
                     allActiveAreParticipating.set(false);
@@ -155,7 +158,7 @@ public class PeriodicWatermarking {
                 Futures.allOfWithResults(inactiveWriters.stream().map(x ->
                         Futures.exceptionallyExpecting(
                                 streamMetadataStore.removeWriter(scope, streamName, x.getKey(),
-                                x.getValue(), context, executor), 
+                                x.getValue(), context, executor).thenAccept(v -> watermarkClient.untrackWriterInactivity(x.getKey())), 
                                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null))
                                                         .collect(Collectors.toList()));
 
@@ -368,6 +371,14 @@ public class PeriodicWatermarking {
         private AtomicInteger windowStart;
         private final int windowSize;
 
+        /**
+         * Map to track inactive writers for their timeouts. This map records wall clock time when
+         * this writer was found to be inactive. If in subsequent cycles
+         * it continues to be inactive and the time elapsed is greater than
+         * {@link StreamConfiguration#timestampAggregationTimeout}, then it is declared timedout.
+         */
+        private ConcurrentHashMap<String, Long> inactiveWriters;
+        
         WatermarkClient(Stream stream, ClientConfig clientConfig) {
             this(stream, SynchronizerClientFactory.withScope(stream.getScope(), clientConfig));
         }
@@ -379,6 +390,7 @@ public class PeriodicWatermarking {
                     new WatermarkSerializer(), SynchronizerConfig.builder().build());
             this.windowStart = new AtomicInteger();
             windowSize = WINDOW_SIZE;
+            this.inactiveWriters = new ConcurrentHashMap<>();
         }
 
         @Synchronized
@@ -417,6 +429,8 @@ public class PeriodicWatermarking {
          * Active window: A reference to an existing older watermark.   
          * Only active writers are considered for emitting watermarks. A watermark is emitted only if all participating 
          * writers have reported times greater than last watermark.  
+         * Inactive writer: Writer which has not reported a mark for at least {@link StreamConfiguration#timestampAggregationTimeout}
+         * or has been explicitly shutdown.
          * Active window is progressed forward in each iteration conditionally. We try to maintain an active window of 
          * last two watermarks. 
          * Bootstrap: If there are less than 2 watermarks, active window is null. If no new watermark is emitted in current 
@@ -500,14 +514,23 @@ public class PeriodicWatermarking {
             }
         }
         
-        boolean isWriterActive(long time) {
+        boolean isWriterActive(Entry<String, WriterMark> writerMark, long timeout) {
             Map.Entry<Revision, Watermark> active = getEntryAt(windowStart.get());
             
-            if (active == null) {
+            boolean aheadOfActiveWindow = active == null || writerMark.getValue().getTimestamp() > active.getValue().getLowerTimeBound();
+
+            if (!aheadOfActiveWindow) {
+                // if writer is behind active window, we will start tracking it for inactivity and time it out. 
+                long currentTime = System.currentTimeMillis();
+                inactiveWriters.putIfAbsent(writerMark.getKey(), currentTime);
+                Long time = inactiveWriters.getOrDefault(writerMark.getKey(), currentTime);
+
+                boolean timedOut = currentTime - time >= timeout;
+                return writerMark.getValue().isAlive() && !timedOut;
+            } else {
+                inactiveWriters.remove(writerMark.getKey());
                 return true;
             }
-            
-            return time > active.getValue().getLowerTimeBound();
         }
 
         boolean isWriterParticipating(long time) {
@@ -518,6 +541,15 @@ public class PeriodicWatermarking {
             }
             
             return time > latest.getValue().getLowerTimeBound();
+        }
+
+        private void untrackWriterInactivity(String writerId) {
+            inactiveWriters.remove(writerId);
+        }
+        
+        @VisibleForTesting
+        boolean isWriterTracked(String writerId) {
+            return inactiveWriters.containsKey(writerId);
         }
     }
 }
