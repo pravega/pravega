@@ -158,30 +158,28 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     @Override
     public long fetchCurrentSegmentLength() {
         Exceptions.checkNotClosed(closed.get(), this);
-        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+        val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());
-        return Futures.getThrowingException(future).getWriteOffset();
+                                   .run(() -> Futures.getThrowingException(getStreamSegmentInfo(delegationToken)));
+        return result.getWriteOffset();
     }
 
     @Override
     public long fetchProperty(SegmentAttribute attribute) {
         Exceptions.checkNotClosed(closed.get(), this);
-        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+        val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> getPropertyAsync(attribute.getValue(), delegationToken),
-                                             connectionFactory.getInternalExecutor());
-        return Futures.getThrowingException(future).getValue();
+                                   .run(() -> Futures.getThrowingException(getPropertyAsync(attribute.getValue(), delegationToken)));
+        return result.getValue();
     }
 
     @Override
     public boolean compareAndSetAttribute(SegmentAttribute attribute, long expectedValue, long newValue) {
         Exceptions.checkNotClosed(closed.get(), this);
-        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+        val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> updatePropertyAsync(attribute.getValue(), expectedValue, newValue, delegationToken),
-                                             connectionFactory.getInternalExecutor());
-        return Futures.getThrowingException(future).isSuccess();
+                                   .run(() -> Futures.getThrowingException(updatePropertyAsync(attribute.getValue(), expectedValue, newValue, delegationToken)));
+        return result.isSuccess();
     }
 
     @Override
@@ -194,30 +192,27 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     @Override
     public SegmentInfo getSegmentInfo() {
-        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                                   .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());
-        StreamSegmentInfo info = Futures.getThrowingException(future);
+        StreamSegmentInfo info = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
+                .throwingOn(NoSuchSegmentException.class)
+                .run(() -> Futures.getThrowingException(getStreamSegmentInfo(delegationToken)));
         return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(),
                                info.getLastModified());
     }
 
     @Override
     public void truncateSegment(long offset) {
-        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                                   .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> truncateSegmentAsync(segmentId, offset, delegationToken),
-                                             connectionFactory.getInternalExecutor());
-        future.join();
+        RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(NoSuchSegmentException.class).run(() -> {
+            truncateSegmentAsync(segmentId, offset, delegationToken).join();
+            return null;
+        });
     }
 
     @Override
     public void sealSegment() {
-        val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
-                                   .throwingOn(NoSuchSegmentException.class)
-                                   .runAsync(() -> sealSegmentAsync(segmentId, delegationToken),
-                                             connectionFactory.getInternalExecutor());
-        future.join();
+        RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class).throwingOn(NoSuchSegmentException.class).run(() -> {
+            sealSegmentAsync(segmentId, delegationToken).join();
+            return null;
+        });
     }
 
 }

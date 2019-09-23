@@ -93,7 +93,7 @@ public class PravegaControllerDockerService extends DockerBasedService {
         final TaskSpec taskSpec = TaskSpec
                 .builder()
                 .networks(NetworkAttachmentConfig.builder().target(DOCKER_NETWORK).aliases(serviceName).build())
-                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + "nautilus/pravega:" + PRAVEGA_VERSION)
+                .containerSpec(ContainerSpec.builder().image(IMAGE_PATH + IMAGE_PREFIX + PRAVEGA_IMAGE_NAME + PRAVEGA_VERSION)
                         .healthcheck(ContainerConfig.Healthcheck.builder().test(defaultHealthCheck(controllerPort)).build())
                         .mounts(Arrays.asList(mount))
                         .hostname(serviceName)

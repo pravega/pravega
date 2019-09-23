@@ -9,20 +9,21 @@
  */
 package io.pravega.controller.server.bucket;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 import io.pravega.test.common.TestingServerStarter;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.test.TestingServer;
 import org.junit.After;
 import org.junit.Before;
-import java.util.concurrent.ScheduledExecutorService;
 
-public class PravegaTablesStoreRetentionTest extends BucketServiceTest {
+public class PravegaTablesStoreBucketServiceTest extends BucketServiceTest {
     private TestingServer zkServer;
     private CuratorFramework zkClient;
 
@@ -51,11 +52,13 @@ public class PravegaTablesStoreRetentionTest extends BucketServiceTest {
     @Override
     StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
         return StreamStoreFactory.createPravegaTablesStore(SegmentHelperMock.getSegmentHelperMockForTables(executor), 
-                GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
+                                                           GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
     }
 
     @Override
     BucketStore createBucketStore(int bucketCount) {
-        return StreamStoreFactory.createZKBucketStore(bucketCount, zkClient, executor);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, bucketCount,
+                BucketStore.ServiceType.WatermarkingService, bucketCount);
+        return StreamStoreFactory.createZKBucketStore(map, zkClient, executor);
     }
 }

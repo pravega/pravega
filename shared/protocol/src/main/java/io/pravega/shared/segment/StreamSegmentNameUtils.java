@@ -11,6 +11,7 @@ package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.shared.NameUtils;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -70,6 +71,7 @@ public final class StreamSegmentNameUtils {
      * This is used in composing table names as `scope`/_tables
      */
     private static final String TABLES = "_tables";
+    private static final String MARK = "_MARK";
 
     //endregion
 
@@ -364,6 +366,12 @@ public final class StreamSegmentNameUtils {
         Preconditions.checkArgument(tokens.length > 2);
 
         return tokens[1].equals(TABLES);
+    }
+    // endregion
+    
+    // region watermark
+    public static String getMarkForStream(String stream) {
+        return NameUtils.getMarkStreamForStream(stream);
     }
     // endregion
 }

@@ -9,13 +9,14 @@
  */
 package io.pravega.controller.server.bucket;
 
+import com.google.common.collect.ImmutableMap;
 import io.pravega.controller.store.stream.BucketStore;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 
 import java.util.concurrent.ScheduledExecutorService;
 
-public class InMemoryStoreRetentionTest extends BucketServiceTest {
+public class InMemoryStoreBucketServiceTest extends BucketServiceTest {
 
     @Override
     public StreamMetadataStore createStreamStore(ScheduledExecutorService executor) {
@@ -24,6 +25,9 @@ public class InMemoryStoreRetentionTest extends BucketServiceTest {
 
     @Override
     public BucketStore createBucketStore(int bucketCount) {
-        return StreamStoreFactory.createInMemoryBucketStore(bucketCount);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, bucketCount,
+                BucketStore.ServiceType.WatermarkingService, bucketCount);
+
+        return StreamStoreFactory.createInMemoryBucketStore(map);
     }
 }

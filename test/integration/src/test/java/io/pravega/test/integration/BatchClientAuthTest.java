@@ -82,6 +82,7 @@ public class BatchClientAuthTest extends BatchClientTest {
         return ServiceBuilder.newInMemoryBuilder(configBuilder.build());
     }
 
+    @Override
     protected ControllerWrapper createControllerWrapper() {
         return new ControllerWrapper(zkTestServer.getConnectString(),
                 false, true,
