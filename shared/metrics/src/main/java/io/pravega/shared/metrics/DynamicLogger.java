@@ -66,4 +66,12 @@ public interface DynamicLogger {
      * @param tags   the tags associated with the Meter.
      */
     void recordMeterEvents(String name, long number, String... tags);
+
+    /**
+     * Notifies that the meter will no longer be reported.
+     *
+     * @param name  the name of the meter
+     * @param tags  the tags associated with the meter.
+     */
+    void freezeMeter(String name, String... tags);
 }
