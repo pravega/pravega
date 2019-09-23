@@ -271,6 +271,7 @@ class RocksDBCache implements Cache {
                 .setSkipStatsUpdateOnDbOpen(true)
                 .optimizeForPointLookup(readCacheSizeMB * 1024L * 1024L)
                 .setIncreaseParallelism(INTERNAL_ROCKSDB_PARALLELISM)
+                .setMaxBackgroundFlushes(INTERNAL_ROCKSDB_PARALLELISM / 2)
                 .setMaxBackgroundJobs(INTERNAL_ROCKSDB_PARALLELISM)
                 .setCompactionStyle(CompactionStyle.LEVEL)
                 .optimizeLevelStyleCompaction()
