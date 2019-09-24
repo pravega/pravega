@@ -530,7 +530,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         try {
             newEntry = new CacheIndexEntry(offset, data.getLength(), dataAddress);
             synchronized (this.lock) {
-                newEntry = new CacheIndexEntry(offset, data.getLength(), dataAddress);
                 oldEntry = addToIndex(newEntry);
             }
         } catch (Throwable ex) {
