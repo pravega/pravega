@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.TokenException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -938,11 +939,14 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BYTE_BUFFER, requestId), failureHandler);
         } else if (u instanceof CancellationException) {
             log.info(requestId, "Closing connection {} while performing {} due to {}.",
-                     connection, operation, u.toString());
+                    connection, operation, u.toString());
             connection.close();
+        } else if (u instanceof TokenExpiredException) {
+            log.warn(requestId, "Token was found as expired during operation '{}'.", operation, u);
+            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace, true), failureHandler);
         } else if (u instanceof TokenException) {
-            log.warn(requestId, "Token verification failed during '{}'.", operation);
-            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace), failureHandler);
+            log.warn(requestId, "Token exception encountered during operation '{}'.", operation, u);
+            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace, false), failureHandler);
         } else if (u instanceof UnsupportedOperationException) {
             log.warn(requestId, "Unsupported Operation '{}'.", operation, u);
             invokeSafely(connection::send, new OperationUnsupported(requestId, operation, clientReplyStackTrace), failureHandler);

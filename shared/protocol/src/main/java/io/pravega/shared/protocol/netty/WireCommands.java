@@ -1517,22 +1517,37 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.AUTH_TOKEN_CHECK_FAILED;
         final long requestId;
         final String serverStackTrace;
+        final boolean isTokenExpired;
+
+        public AuthTokenCheckFailed(long requestId, String serverStackTrace) {
+            this(requestId, serverStackTrace, false);
+        }
+
+        public AuthTokenCheckFailed(long requestId, String stackTrace, boolean isTokenExpired) {
+            this.requestId = requestId;
+            this.serverStackTrace = stackTrace;
+            this.isTokenExpired = isTokenExpired;
+        }
 
         @Override
         public void process(ReplyProcessor cp) {
             cp.authTokenCheckFailed(this);
+
+            //new AuthTokenCheckFailed()
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(serverStackTrace);
+            out.writeBoolean(isTokenExpired);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            return new AuthTokenCheckFailed(requestId, serverStackTrace);
+            boolean isTokenExpired = in.readBoolean();
+            return new AuthTokenCheckFailed(requestId, serverStackTrace, isTokenExpired);
         }
     }
 
