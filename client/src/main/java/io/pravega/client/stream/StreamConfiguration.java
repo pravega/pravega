@@ -34,6 +34,15 @@ public class StreamConfiguration implements Serializable {
      *
      */
     private final RetentionPolicy retentionPolicy;
+    
+    /**
+     * The duration after the last call to {@link EventStreamWriter#noteTime(long)} which the
+     * timestamp should be considered valid before it is forgotten. Meaning that after this long of
+     * not calling {@link EventStreamWriter#noteTime(long)} the writer will be forgotten.
+     * If there are no known writers, readers that call {@link EventStreamReader#getCurrentTimeWindow()}
+     * will receive a `null` when they are at the corresponding position in the stream.
+     */
+    private final long timestampAggregationTimeout;
 
     public static final class StreamConfigurationBuilder {
         private ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1);

@@ -56,14 +56,14 @@ class EventSegmentReaderImpl implements EventSegmentReader {
     @Synchronized
     public ByteBuffer read(long timeout) throws EndOfSegmentException, SegmentTruncatedException {
         long originalOffset = in.getOffset();
-        long traceId = LoggerHelpers.traceEnter(log, "read", getSegmentId(), originalOffset, timeout);
+        long traceId = LoggerHelpers.traceEnter(log, "read", in.getSegmentId(), originalOffset, timeout);
         boolean success = false;
         try {
             ByteBuffer result = readEvent(timeout);
             success = true;
             return result;
         } finally {
-            LoggerHelpers.traceLeave(log, "read", traceId, getSegmentId(), originalOffset, timeout, success);
+            LoggerHelpers.traceLeave(log, "read", traceId, in.getSegmentId(), originalOffset, timeout, success);
             if (!success) {
                 in.setOffset(originalOffset);
             }
@@ -110,16 +110,15 @@ class EventSegmentReaderImpl implements EventSegmentReader {
     }    
 
     @Override
-    public Segment getSegmentId() {
-        return in.getSegmentId();
-    }
-
-    @Override
     @Synchronized
     public boolean isSegmentReady() {
         int bytesInBuffer = in.bytesInBuffer();
         return bytesInBuffer >= WireCommands.TYPE_PLUS_LENGTH_SIZE || bytesInBuffer < 0;
     }
 
+    @Override
+    public Segment getSegmentId() {
+        return in.getSegmentId();
+    }
 
 }

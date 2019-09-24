@@ -143,6 +143,7 @@ public class ClusterWrapper implements AutoCloseable {
         log.info("Done starting Segment Store");
     }
 
+    @Override
     public void close() {
         ExecutorServiceHelpers.shutdown(executor);
         try {
