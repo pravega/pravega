@@ -59,7 +59,6 @@ public abstract class BucketStoreTest {
         String stream1 = "stream1";
 
         int bucketCount = bucketStore.getBucketCount(serviceType);
-
         
         bucketStore.addStreamToBucketStore(serviceType, scope, stream1, executorService).join();
         int bucket = BucketStore.getBucket(scope, stream1, bucketCount);
