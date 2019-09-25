@@ -144,7 +144,10 @@ public abstract class StreamMetadataTasksTest {
 
         StreamMetadataStore streamStore = getStore();
         streamStorePartialMock = spy(streamStore); //create a partial mock.
-        bucketStore = StreamStoreFactory.createInMemoryBucketStore(1);
+        ImmutableMap<BucketStore.ServiceType, Integer> map = ImmutableMap.of(BucketStore.ServiceType.RetentionService, 1,
+                BucketStore.ServiceType.WatermarkingService, 1);
+
+        bucketStore = StreamStoreFactory.createInMemoryBucketStore(map);
         
         TaskMetadataStore taskMetadataStore = TaskStoreFactory.createZKStore(zkClient, executor);
         HostControllerStore hostStore = HostStoreFactory.createInMemoryStore(HostMonitorConfigImpl.dummyConfig());
@@ -166,7 +169,7 @@ public abstract class StreamMetadataTasksTest {
                 new TruncateStreamTask(streamMetadataTasks, streamStorePartialMock, executor),
                 streamStorePartialMock,
                 executor);
-        consumer = new ControllerService(streamStorePartialMock, streamMetadataTasks,
+        consumer = new ControllerService(streamStorePartialMock, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelperMock, executor, null);
         streamTransactionMetadataTasks.initializeStreamWriters(new EventStreamWriterMock<>(), new EventStreamWriterMock<>());
 
@@ -961,7 +964,8 @@ public abstract class StreamMetadataTasksTest {
                 .get().getKey();
 
         // set transaction to committing
-        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), null, executor).join();
+        streamStorePartialMock.sealTransaction(SCOPE, streamWithTxn, committingTxn.getId(), true, Optional.empty(), 
+                "", Long.MIN_VALUE, null, executor).join();
 
         // Mock getActiveTransactions call such that we return committing txn as OPEN txn.
         Map<UUID, ActiveTxnRecord> activeTxns = streamStorePartialMock.getActiveTxns(SCOPE, streamWithTxn, null, executor).join();
@@ -1286,6 +1290,35 @@ public abstract class StreamMetadataTasksTest {
                 e -> Exceptions.unwrap(e) instanceof TaskExceptions.PostEventException);
     }
 
+    @Test(timeout = 10000)
+    public void testAddIndexAndSubmitTask() {
+        WriterMock requestEventWriter = new WriterMock(streamMetadataTasks, executor);
+        streamMetadataTasks.setRequestEventWriter(requestEventWriter);
+
+        UpdateStreamEvent updateEvent = new UpdateStreamEvent("scope", "stream", 0L);
+        AssertExtensions.assertFutureThrows("throw Connection error", streamMetadataTasks.addIndexAndSubmitTask(updateEvent,
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.CONNECTION_ERROR, "Connection"))), 
+                e -> Exceptions.unwrap(e) instanceof StoreException.StoreConnectionException);
+        // verify that the event is posted
+        assertFalse(requestEventWriter.eventQueue.isEmpty());
+        assertEquals(requestEventWriter.eventQueue.poll(), updateEvent);
+
+        TruncateStreamEvent truncateEvent = new TruncateStreamEvent("scope", "stream", 0L);
+
+        AssertExtensions.assertFutureThrows("throw write conflict", streamMetadataTasks.addIndexAndSubmitTask(truncateEvent,
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.WRITE_CONFLICT, "write conflict"))),
+                e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException);
+        // verify that the event is posted
+        assertFalse(requestEventWriter.eventQueue.isEmpty());
+        assertEquals(requestEventWriter.eventQueue.poll(), truncateEvent);
+
+        AssertExtensions.assertFutureThrows("any other exception", streamMetadataTasks.addIndexAndSubmitTask(truncateEvent,
+                () -> Futures.failedFuture(StoreException.create(StoreException.Type.DATA_NOT_FOUND, "data not found"))),
+                e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException);
+        // no event should be posted for any other failure
+        assertTrue(requestEventWriter.eventQueue.isEmpty());
+    }
+    
     @Test(timeout = 30000)
     public void concurrentCreateStreamTest() {
         TaskMetadataStore taskMetadataStore = spy(TaskStoreFactory.createZKStore(zkClient, executor));
@@ -1420,6 +1453,11 @@ public abstract class StreamMetadataTasksTest {
         @Override
         public void close() {
 
+        }
+
+        @Override
+        public void noteTime(long timestamp) {
+            
         }
     }
 }
