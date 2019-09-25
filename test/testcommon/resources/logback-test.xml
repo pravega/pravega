@@ -31,7 +31,7 @@ You may obtain a copy of the License at
   </appender>                                                                                                                                                                                                                                 
                                                                                                                                                                                                                                               
   <!-- Configure so that it outputs to both console and log file -->                                                                                                                                                                          
-  <root level="DEBUG">                                                                                                                                                                                                                        
+  <root level="WARN">
    <!-- <appender-ref ref="FILE" />        -->                                                                                                                                                                                                       
     <appender-ref ref="STDOUT" />                                                                                                                                                                                                             
   </root>                                                                                                                                                                                                                                     
