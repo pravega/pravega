@@ -99,17 +99,17 @@ public class ControllerBootstrapTest {
                                                                      .build();
         CompletableFuture<Boolean> streamStatus = controller.createStream(SCOPE, STREAM, streamConfiguration);
         Assert.assertTrue(!streamStatus.isDone());
-//        // Ensure that create stream succeeds.
-//
-//        Boolean status = streamStatus.join();
-//        Assert.assertEquals(true, status);
-//
-//        // Now create transaction should succeed.
-//        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
-//
-//        TxnSegments id = txIdFuture.join();
-//        Assert.assertNotNull(id);
-//
-//        controllerWrapper.awaitRunning();
+        // Ensure that create stream succeeds.
+
+        Boolean status = streamStatus.join();
+        Assert.assertEquals(true, status);
+
+        // Now create transaction should succeed.
+        CompletableFuture<TxnSegments> txIdFuture = controller.createTransaction(new StreamImpl(SCOPE, STREAM), 10000);
+
+        TxnSegments id = txIdFuture.join();
+        Assert.assertNotNull(id);
+
+        controllerWrapper.awaitRunning();
     }
 }

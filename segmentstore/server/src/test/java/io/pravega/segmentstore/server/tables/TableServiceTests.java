@@ -29,6 +29,7 @@ import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -73,7 +74,7 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             .builder()
             .include(ServiceConfig
                     .builder()
-                    .with(ServiceConfig.CONTAINER_COUNT, 4)
+                    .with(ServiceConfig.CONTAINER_COUNT, 1)
                     .with(ServiceConfig.THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE)
                     .with(ServiceConfig.STORAGE_THREAD_POOL_SIZE, THREADPOOL_SIZE_SEGMENT_STORE_STORAGE)
                     .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 16 * 1024 * 1024L)
@@ -92,9 +93,10 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             .include(WriterConfig
                     .builder()
                     .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
-                    .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
+                    .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 2L)
                     .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
-                    .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L));
+                    .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+            );
     private InMemoryStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory durableDataLogFactory;
 
@@ -123,6 +125,39 @@ public class TableServiceTests extends ThreadPooledTestSuite {
     }
 
     //endregion
+    @Test
+    public void testMe() throws Exception {
+        val rnd = new Random(0);
+        ArrayList<String> segmentNames;
+        HashMap<HashedArray, EntryData> keyInfo;
+
+        // Phase 1: Create some segments and update some data (unconditionally).
+        log.info("Starting Phase 1");
+        try (val builder = createBuilder()) {
+            val tableStore = builder.createTableStoreService();
+
+            // Create the Table Segments.
+            segmentNames = createSegments(tableStore);
+            log.info("Created Segments: {}.", String.join(", ", segmentNames));
+
+            val s1 = segmentNames.get(0);
+            for (int i = 0; i < 1000; i++) {
+                val e = TableEntry.unversioned(generateData(10, 20, rnd), generateData(1, 5, rnd));
+
+//                val r0 = tableStore.get(s1, Collections.singletonList(e.getKey().getKey()), TIMEOUT).join();
+//                Assert.assertTrue(r0 == null || r0.get(0) == null);
+//                Thread.sleep(rnd.nextInt(3));
+
+                tableStore.put(s1, Collections.singletonList(e), TIMEOUT).join();
+
+                Thread.sleep(3);
+                for(int j=0;j<100;j++) {
+                    val r = tableStore.get(s1, Collections.singletonList(e.getKey().getKey()), TIMEOUT).join();
+                    Assert.assertTrue(r != null && r.get(0) != null);
+                }
+            }
+        }
+    }
 
     /**
      * Tests an End-to-End scenario for a {@link TableStore} implementation using a real implementation of {@link StreamSegmentStore}
@@ -253,11 +288,11 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
             searchFutures.add(tableStore.get(segmentName, keys, TIMEOUT));
             iteratorFutures.add(tableStore.entryIterator(segmentName, null, TIMEOUT)
-                    .thenCompose(ei -> {
-                        val result = new ArrayList<TableEntry>();
-                        return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
-                                .thenApply(v -> result);
-                    }));
+                                          .thenCompose(ei -> {
+                                              val result = new ArrayList<TableEntry>();
+                                              return ei.forEachRemaining(i -> result.addAll(i.getEntries()), executorService())
+                                                       .thenApply(v -> result);
+                                          }));
         }
 
         // Check search results.
@@ -280,14 +315,14 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
         // Check iterator results. We sort it (and actualResults) by Version/Offset to ease the comparison.
         val actualIteratorResults = Futures.allOfWithResults(iteratorFutures).get(TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
-                .stream()
-                .flatMap(List::stream)
-                .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
-                .collect(Collectors.toList());
+                                           .stream()
+                                           .flatMap(List::stream)
+                                           .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
+                                           .collect(Collectors.toList());
         val expectedIteratorResults = actualResults.stream()
-                .filter(Objects::nonNull)
-                .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
-                .collect(Collectors.toList());
+                                                   .filter(Objects::nonNull)
+                                                   .sorted(Comparator.comparingLong(e -> e.getKey().getVersion()))
+                                                   .collect(Collectors.toList());
         AssertExtensions.assertListEquals("Unexpected result from entryIterator().", expectedIteratorResults, actualIteratorResults, TableEntry::equals);
 
     }
