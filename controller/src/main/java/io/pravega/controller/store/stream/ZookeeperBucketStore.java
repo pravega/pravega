@@ -79,7 +79,14 @@ public class ZookeeperBucketStore implements BucketStore {
         String bucketPath = getBucketPath(serviceType, bucket);
         String streamPath = ZKPaths.makePath(bucketPath, encodedScopedStreamName(scope, stream));
 
-        return Futures.toVoid(storeHelper.createZNodeIfNotExist(streamPath));
+        return storeHelper.checkExists(streamPath)
+            .thenCompose(exists -> {
+                if (exists) {
+                    return CompletableFuture.completedFuture(null);
+                } else {
+                    return Futures.toVoid(storeHelper.createZNodeIfNotExist(streamPath));
+                }
+            });
     }
 
     @Override
