@@ -377,7 +377,7 @@ public class PeriodicWatermarking {
          * it continues to be inactive and the time elapsed is greater than
          * {@link StreamConfiguration#timestampAggregationTimeout}, then it is declared timedout.
          */
-        private ConcurrentHashMap<String, Long> inactiveWriters;
+        private final ConcurrentHashMap<String, Long> inactiveWriters;
         
         WatermarkClient(Stream stream, ClientConfig clientConfig) {
             this(stream, SynchronizerClientFactory.withScope(stream.getScope(), clientConfig));
