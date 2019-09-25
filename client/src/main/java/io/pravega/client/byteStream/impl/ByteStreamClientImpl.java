@@ -13,6 +13,8 @@ import io.pravega.client.ByteStreamClientFactory;
 import io.pravega.client.byteStream.ByteStreamReader;
 import io.pravega.client.byteStream.ByteStreamWriter;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.DelegationTokenProxy;
+import io.pravega.client.security.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;
 import io.pravega.client.segment.impl.SegmentInputStreamFactoryImpl;
@@ -62,8 +64,11 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
+
+        DelegationTokenProxy tokenProxy = new DelegationTokenProxyImpl(delegationToken, controller, segment);
+
         return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, delegationToken),
-                                        metaStreamFactory.createSegmentMetadataClient(segment, delegationToken));
+                                        metaStreamFactory.createSegmentMetadataClient(segment, tokenProxy));
     }
 
     @Override
@@ -77,7 +82,7 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
                                                                                                                           config,
                                                                                                                           delegationToken),
                                                                          metaStreamFactory.createSegmentMetadataClient(segment,
-                                                                                                                       delegationToken)));
+                                                                                 new DelegationTokenProxyImpl(delegationToken, controller, scope, streamName))));
     }
 
     @Override

@@ -12,6 +12,8 @@ package io.pravega.client.stream.impl;
 import com.google.common.base.Preconditions;
 import io.pravega.client.SynchronizerClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.DelegationTokenProxy;
+import io.pravega.client.security.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentMetadataClientFactory;
@@ -291,8 +293,10 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
                 if (endPositions.containsKey(s)) {
                     totalLength += endPositions.get(s);
                 } else {
+                    DelegationTokenProxy delegationTokenProxy = new DelegationTokenProxyImpl(unreadVal.getDelegationToken(),
+                            controller, s);
                     @Cleanup
-                    SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, unreadVal.getDelegationToken());
+                    SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, delegationTokenProxy);
                     totalLength += metadataClient.fetchCurrentSegmentLength();
                 }
             }

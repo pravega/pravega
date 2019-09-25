@@ -37,6 +37,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.val;
 import lombok.extern.slf4j.Slf4j;
@@ -74,6 +76,7 @@ public class ReaderGroupStateManager {
     @Getter
     private final String readerId;
     private final StateSynchronizer<ReaderGroupState> sync;
+    @Getter(AccessLevel.PACKAGE)
     private final Controller controller;
     private final TimeoutTimer releaseTimer;
     private final TimeoutTimer acquireTimer;

@@ -10,6 +10,7 @@
 package io.pravega.client.admin.impl;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
@@ -72,7 +73,8 @@ public class StreamCutHelper {
 
     private SegmentInfo segmentToInfo(Segment s) {
         @Cleanup
-        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s, latestDelegationToken.get());
+        SegmentMetadataClient client = segmentMetadataClientFactory.createSegmentMetadataClient(s,
+                new DelegationTokenProxyImpl(latestDelegationToken.get(), controller, s));
         return client.getSegmentInfo();
     }
 }

@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.mock;
 
+import io.pravega.client.security.DelegationTokenProxy;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.EventSegmentReader;
@@ -77,7 +78,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentMetadataClient createSegmentMetadataClient(Segment segment, String delegationToken) {
+    public SegmentMetadataClient createSegmentMetadataClient(Segment segment, DelegationTokenProxy delegationToken) {
         return getMockStream(segment);
     }
 

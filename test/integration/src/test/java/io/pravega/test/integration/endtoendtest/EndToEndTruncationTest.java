@@ -18,6 +18,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.security.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
@@ -163,7 +164,7 @@ public class EndToEndTruncationTest {
         SegmentMetadataClientFactory metadataClientFactory = new SegmentMetadataClientFactoryImpl(controller,
                                                                                                   streamManager.getConnectionFactory());
         Segment segment = new Segment(scope, streamName, 0);
-        SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment, "");
+        SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segment, new DelegationTokenProxyImpl());
         assertEquals(0, metadataClient.getSegmentInfo().getStartingOffset());
         long writeOffset = metadataClient.getSegmentInfo().getWriteOffset();
         assertEquals(writeOffset, metadataClient.fetchCurrentSegmentLength());

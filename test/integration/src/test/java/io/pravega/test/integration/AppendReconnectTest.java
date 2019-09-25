@@ -20,6 +20,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.netty.impl.ConnectionPoolImpl;
+import io.pravega.client.security.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.Segment;
@@ -147,7 +148,7 @@ public class AppendReconnectTest {
         out.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(payload), ack2));
         ack.get(5, TimeUnit.SECONDS);
         ack2.get(5, TimeUnit.SECONDS);
-        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment, "");
+        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment, new DelegationTokenProxyImpl());
         assertEquals(payload.length * 2, metadataClient.fetchCurrentSegmentLength());
     }
     
@@ -180,7 +181,7 @@ public class AppendReconnectTest {
             c.close();
         }
         assertTrue(out.write(ByteBuffer.wrap(payload), payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE));
-        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment, "");
+        SegmentMetadataClient metadataClient = new SegmentMetadataClientFactoryImpl(controller, clientCF).createSegmentMetadataClient(segment, new DelegationTokenProxyImpl());
         assertEquals((payload.length + WireCommands.TYPE_PLUS_LENGTH_SIZE) * 2,
                      metadataClient.fetchCurrentSegmentLength());
     }

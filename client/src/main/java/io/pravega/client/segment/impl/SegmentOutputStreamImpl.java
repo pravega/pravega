@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.auth.TokenException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
@@ -418,7 +419,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
 
         @Override
         public void authTokenCheckFailed(WireCommands.AuthTokenCheckFailed authTokenCheckFailed) {
-            failConnection(new TokenException(authTokenCheckFailed.toString()));
+            if (authTokenCheckFailed.isTokenExpired()) {
+                failConnection(new TokenExpiredException(authTokenCheckFailed.getServerStackTrace()));
+            } else {
+                failConnection(new TokenException(authTokenCheckFailed.toString()));
+            }
         }
     }
 
@@ -562,6 +567,9 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          }
                          return connectionSetupFuture.exceptionally(t -> {
                              Throwable exception = Exceptions.unwrap(t);
+
+                             //controller.getOrRefreshDelegationTokenFor()
+
                              if (exception instanceof TokenException) {
                                  log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
                                          writerId, segmentName);
