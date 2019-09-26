@@ -23,10 +23,10 @@ try:
     hdfs_url = get_config("HDFS_URL")
     zk_url = get_config("ZK_URL")
 
-    existing = subprocess.check_output("docker service ls --format '{{.Name}}:{{.Image}}' -f 'name=pravega_segmentstore'", shell=True)
+    existing = subprocess.check_output("docker service ls --format '{{.Name}},{{.Image}}' -f 'name=pravega_segmentstore'", shell=True)
     instances = set([int(instance[1]) for instance in re.findall("(pravega_segmentstore_(\d+))", existing)])
     instances.add(1) # add the first service
-    image=existing.split()[0].split(":")[1]+":"+existing.split()[0].split(":")[2]
+    image=existing.split()[0].split(",")[1]
 except Exception as e:
     print(e)
     print("pravega_segmentstore isn't running, can't be queried, or is improperly configured for scaling")
