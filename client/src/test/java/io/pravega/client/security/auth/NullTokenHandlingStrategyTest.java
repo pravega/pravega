@@ -9,7 +9,44 @@
  */
 package io.pravega.client.security.auth;
 
-public class NullTokenHandlingStrategyTest {
+import io.pravega.client.stream.impl.Controller;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
+import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
+import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+@Slf4j
+public class NullTokenHandlingStrategyTest extends ValidJwtTokenHandlingStrategyTest {
+
+    @Test
+    public void testRetrievesNewTokenFirstTime() {
+        // Setup mock
+        Controller mockController = mock(Controller.class);
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+            @Override
+            public String get() {
+                return String.format("newtokenheader.%s.signature", createJwtBody(
+                        JwtBody.builder().exp(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+            }
+        });
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+                .thenReturn(future);
+
+        // Setup the object under test
+        NullTokenHandlingStrategy objectUnderTest = new NullTokenHandlingStrategy(mockController,
+                "somescope", "somestream");
+
+        // Act
+        String token = objectUnderTest.retrieveToken();
+        log.debug(token);
+
+        assertTrue(token.startsWith("newtokenheader"));
+    }
 }

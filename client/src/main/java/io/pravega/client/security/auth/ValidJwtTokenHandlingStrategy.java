@@ -86,12 +86,15 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
 
     @Override
     public String refreshToken() {
-        if (delegationToken.get().getExpiryTime() != null) {
+        resetToken(newToken());
+        return delegationToken.get().getValue();
+
+        /*if (delegationToken.get().getExpiryTime() != null) {
             resetToken(newToken());
         } else {
             throw new IllegalStateException("Token expiry not set");
         }
-        return delegationToken.get().getValue();
+        return delegationToken.get().getValue();*/
     }
 
     protected String newToken() {

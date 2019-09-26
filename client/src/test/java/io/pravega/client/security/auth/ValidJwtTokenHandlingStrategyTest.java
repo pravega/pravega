@@ -9,17 +9,21 @@
  */
 package io.pravega.client.security.auth;
 
-import com.google.gson.Gson;
 import io.pravega.client.stream.impl.Controller;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import java.time.Instant;
-import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
-import static org.junit.Assert.*;
+import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
+import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +45,7 @@ public class ValidJwtTokenHandlingStrategyTest {
     @Test
     public void testRetrievesSameTokenPassedDuringConstruction() {
         String token = String.format("header.%s.signature", createJwtBody(
-                JwtBody.builder().exp(Long.MAX_VALUE).build()));
+                JwtBody.builder().exp(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         ValidJwtTokenHandlingStrategy objectUnderTest = new ValidJwtTokenHandlingStrategy(
                 token, mock(Controller.class), "somescope", "somestream");
         assertEquals(token, objectUnderTest.retrieveToken());
@@ -120,14 +124,5 @@ public class ValidJwtTokenHandlingStrategyTest {
         log.debug(newToken);
 
         assertTrue(newToken.startsWith("newtokenheader"));
-    }
-
-    private String createJwtBody(JwtBody jwt) {
-        String json = new Gson().toJson(jwt);
-        return Base64.getEncoder().encodeToString(json.getBytes());
-    }
-
-    private String dummyToken() {
-        return String.format("header.%s.signature", createJwtBody(JwtBody.builder().exp(Long.MAX_VALUE).build()));
     }
 }

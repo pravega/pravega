@@ -46,6 +46,10 @@ public class DelegationTokenProxyImpl implements DelegationTokenProxy {
         this(token, controllerClient, segment.getScope(), segment.getStreamName());
     }
 
+    public DelegationTokenProxyImpl(@NonNull Controller controllerClient, Segment segment) {
+        this(null, controllerClient, segment.getScope(), segment.getStreamName());
+    }
+
     public DelegationTokenProxyImpl(String token, @NonNull Controller controllerClient,
                                     @NonNull String scopeName, @NonNull String streamName) {
         if (token == null) {

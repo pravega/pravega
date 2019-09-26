@@ -16,6 +16,7 @@ import org.junit.Test;
 import java.time.Instant;
 import java.util.Base64;
 
+import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -80,11 +81,6 @@ public class DelegationTokenProxyImplTest {
 
         DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(token, dummyController, "testscope", "teststream");
         assertEquals(token, proxy.retrieveToken());
-    }
-
-    private String createJwtBody(JwtBody jwt) {
-        String json = new Gson().toJson(jwt);
-        return Base64.getEncoder().encodeToString(json.getBytes());
     }
 }
 

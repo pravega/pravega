@@ -21,20 +21,10 @@ public class NullTokenHandlingStrategy extends ValidJwtTokenHandlingStrategy {
 
     @Override
     public String retrieveToken() {
-        if (this.getDelegationToken() == null) {
+        if (this.getDelegationToken().get() == null) {
             return this.refreshToken();
         } else {
-            return this.retrieveToken();
-        }
-    }
-
-    @Override
-    public String refreshToken() {
-        if (this.getDelegationToken() == null) {
-            resetToken(newToken());
-            return this.getDelegationToken().get().getValue();
-        } else {
-            return super.refreshToken();
+            return super.retrieveToken();
         }
     }
 }
