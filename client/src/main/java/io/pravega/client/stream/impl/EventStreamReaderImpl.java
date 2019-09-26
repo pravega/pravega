@@ -11,7 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import io.pravega.client.security.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;

@@ -9,7 +9,7 @@
  */
 package io.pravega.client.batch.impl;
 
-import io.pravega.client.security.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;

@@ -9,7 +9,7 @@
  */
 package io.pravega.client.stream.mock;
 
-import io.pravega.client.security.DelegationTokenProxy;
+import io.pravega.client.security.auth.DelegationTokenProxy;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.EventSegmentReader;

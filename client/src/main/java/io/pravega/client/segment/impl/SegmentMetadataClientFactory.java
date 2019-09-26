@@ -9,7 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.security.DelegationTokenProxy;
+import io.pravega.client.security.auth.DelegationTokenProxy;
 
 /**
  * Creates {@link SegmentMetadataClient} for metadata operations on existing segments.

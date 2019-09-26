@@ -19,7 +19,7 @@ import io.pravega.client.batch.SegmentIterator;
 import io.pravega.client.batch.SegmentRange;
 import io.pravega.client.batch.StreamSegmentsIterator;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.security.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentInfo;
 import io.pravega.client.segment.impl.SegmentInputStreamFactory;

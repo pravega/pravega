@@ -20,7 +20,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.netty.impl.ConnectionPoolImpl;
-import io.pravega.client.security.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
 import io.pravega.client.segment.impl.Segment;

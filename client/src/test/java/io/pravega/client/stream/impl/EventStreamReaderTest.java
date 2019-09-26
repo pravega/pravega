@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableSet;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateInitSerializer;
 import io.pravega.client.admin.impl.ReaderGroupManagerImpl.ReaderGroupStateUpdatesSerializer;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -475,7 +476,7 @@ public class EventStreamReaderTest {
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
                                                                                        writerConfig, "");
-        SegmentMetadataClient metadataClient = segmentStreamFactory.createSegmentMetadataClient(segment, "");
+        SegmentMetadataClient metadataClient = segmentStreamFactory.createSegmentMetadataClient(segment, new DelegationTokenProxyImpl());
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         ByteBuffer buffer3 = writeInt(stream, 3);

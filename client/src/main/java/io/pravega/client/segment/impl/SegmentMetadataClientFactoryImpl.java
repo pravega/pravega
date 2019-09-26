@@ -10,7 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.security.DelegationTokenProxy;
+import io.pravega.client.security.auth.DelegationTokenProxy;
 import io.pravega.client.stream.impl.Controller;
 import lombok.RequiredArgsConstructor;
 

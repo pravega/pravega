@@ -7,21 +7,17 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.client.security;
+package io.pravega.client.security.auth;
 
-import lombok.Getter;
-import lombok.Setter;
+public class EmptyTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
 
-@Getter
-@Setter
-class Jwt {
+    @Override
+    public String retrieveToken() {
+        return "";
+    }
 
-    private String sub;
-
-    private String aud;
-
-    private Integer iat;
-
-    private Integer exp;
+    @Override
+    public String refreshToken() {
+        return "";
+    }
 }
-
