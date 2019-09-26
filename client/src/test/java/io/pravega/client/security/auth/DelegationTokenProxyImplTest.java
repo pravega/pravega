@@ -9,12 +9,9 @@
  */
 package io.pravega.client.security.auth;
 
-import com.google.gson.Gson;
 import io.pravega.client.stream.impl.Controller;
-import org.junit.Test;
-
 import java.time.Instant;
-import java.util.Base64;
+import org.junit.Test;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static org.junit.Assert.assertEquals;
@@ -83,4 +80,3 @@ public class DelegationTokenProxyImplTest {
         assertEquals(token, proxy.retrieveToken());
     }
 }
-

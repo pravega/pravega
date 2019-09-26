@@ -9,18 +9,26 @@
  */
 package io.pravega.client.security.auth;
 
+/**
+ * A client-side proxy for obtaining a delegation token.
+ *
+ * Note:
+ * Delegation tokens are used by Segment Store services to authorize requests. They are created by Controllers.
+ *
+ */
 public interface DelegationTokenProxy {
 
     /**
      * Retrieve delegation token.
      *
-     * @return
+     * @return a delegation token in JWT format
      */
     String retrieveToken();
 
     /**
      * Refresh and retrieve delegation token.
-     * @return
+     *
+     * @return a new delegation token in JWT format
      */
     String refreshToken();
 }
