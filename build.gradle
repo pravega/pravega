@@ -568,12 +568,6 @@ project('shared:controller-api') {
 }
 
 project('controller') {
-    
-    //TODO: Work around deprication warning in generated code caused by https://github.com/FasterXML/jackson-databind/issues/1786
-    compileJava {
-        options.compilerArgs.remove("-Werror")
-    }
-
     sourceSets {
         main.resources.srcDirs += "$projectDir/src/conf"
         test.resources.srcDirs += "$rootDir/config"
