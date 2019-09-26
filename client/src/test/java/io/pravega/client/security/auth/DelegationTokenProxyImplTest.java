@@ -9,11 +9,20 @@
  */
 package io.pravega.client.security.auth;
 
+import com.google.gson.Gson;
+import io.pravega.client.stream.impl.Controller;
 import org.junit.Test;
 
+import java.time.Instant;
+import java.util.Base64;
+
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 public class DelegationTokenProxyImplTest {
+
+    private Controller dummyController = mock(Controller.class);
 
     @Test
     public void testDefaultCtorReturnsEmptyToken() {
@@ -25,35 +34,57 @@ public class DelegationTokenProxyImplTest {
         assertEquals("", new DelegationTokenProxyImpl().refreshToken());
     }
 
-
-
-
     @Test
     public void testReturnsExistingTokenIfExpiryIsNotSet() {
         String token = String.format("%s.%s.%s",
                 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", // header
                 "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ", // body
                 "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"); // signature
-        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(token, new FakeController(),
+        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(token, dummyController,
                 "testscope", "teststream");
         assertEquals(token, proxy.retrieveToken());
     }
 
-    /*@Test
-    public void testReturnsExistingTokenIfNotNearingExpiry() {
-        // See decoded parts at https://jwt.io/.
-        //
-        // The body decodes to:
-        //     {
-        //        "sub": "jdoe",
-        //        "aud": "segmentstore",
-        //         "iat": 1569324678,
-        //         "exp": 2147483647
-        //     }
+    @Test
+    public void testUsesEmptyTokenHandlingStrategyForEmptyToken() {
+        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl("", dummyController,
+                "testscope", "teststream");
+        assertTrue(proxy.getStrategy() instanceof EmptyTokenHandlingStrategy);
+    }
+
+    @Test
+    public void testUsesNullTokenHandlingStrategyForNullToken() {
+        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(null, dummyController,
+                "testscope", "teststream");
+        assertTrue(proxy.getStrategy() instanceof NullTokenHandlingStrategy);
+    }
+
+    @Test
+    public void testUsesValidTokenHandlingStrategyForValidTokenWithExpiry() {
         String token = String.format("%s.%s.%s",
-                "eyJhbGciOiJIUzUxMiJ9", // header
-                "eyJzdWIiOiJqZG9lIiwiYXVkIjoic2VnbWVudHN0b3JlIiwiaWF0IjoxNTY5MzI0Njc4LCJleHAiOjIxNDc0ODM2NDd9", // body
-                "7fcgsw5T2VThK48mLG_z1QCxiYCHlGdGao2LprF9cs4-5xd7mIRGuX6sQnYgwA1pB47X-5ShGeU3HKyELkrMiA"); // signature
-    }*/
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", // header
+                "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ", // body
+                "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"); // signature
+
+        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(token, dummyController,
+                "testscope", "teststream");
+        assertTrue(proxy.getStrategy() instanceof ValidJwtTokenHandlingStrategy);
+    }
+
+    @Test
+    public void testReturnsExistingTokenIfNotNearingExpiry() {
+        String encodedJwtBody = createJwtBody(JwtBody.builder()
+                .exp(Instant.now().plusSeconds(10000).getEpochSecond())
+                .build());
+        String token = String.format("header.%s.signature", encodedJwtBody);
+
+        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(token, dummyController, "testscope", "teststream");
+        assertEquals(token, proxy.retrieveToken());
+    }
+
+    private String createJwtBody(JwtBody jwt) {
+        String json = new Gson().toJson(jwt);
+        return Base64.getEncoder().encodeToString(json.getBytes());
+    }
 }
 

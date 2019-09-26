@@ -10,13 +10,12 @@
 package io.pravega.client.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.gson.Gson;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.Controller;
+import lombok.AccessLevel;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
-
-import java.util.Base64;
 
 @Slf4j
 public class DelegationTokenProxyImpl implements DelegationTokenProxy {
@@ -24,6 +23,8 @@ public class DelegationTokenProxyImpl implements DelegationTokenProxy {
     /**
      * The delegate.
      */
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
     private final DelegationTokenHandlingStrategy strategy;
 
     /**

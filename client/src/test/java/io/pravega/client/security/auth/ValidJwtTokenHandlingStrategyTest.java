@@ -41,7 +41,7 @@ public class ValidJwtTokenHandlingStrategyTest {
     @Test
     public void testRetrievesSameTokenPassedDuringConstruction() {
         String token = String.format("header.%s.signature", createJwtBody(
-                Jwt.builder().exp(Long.MAX_VALUE).build()));
+                JwtBody.builder().exp(Long.MAX_VALUE).build()));
         ValidJwtTokenHandlingStrategy objectUnderTest = new ValidJwtTokenHandlingStrategy(
                 token, mock(Controller.class), "somescope", "somestream");
         assertEquals(token, objectUnderTest.retrieveToken());
@@ -96,7 +96,7 @@ public class ValidJwtTokenHandlingStrategyTest {
     @Test
     public void testRetrievesNewTokenIfTokenIsNearingExpiry() {
         String token = String.format("header.%s.signature", createJwtBody(
-                Jwt.builder().exp(Instant.now().minusSeconds(1).getEpochSecond()).build()));
+                JwtBody.builder().exp(Instant.now().minusSeconds(1).getEpochSecond()).build()));
         log.debug("token: {}", token);
 
         // Setup mock
@@ -105,7 +105,7 @@ public class ValidJwtTokenHandlingStrategyTest {
             @Override
             public String get() {
                 return String.format("newtokenheader.%s.signature", createJwtBody(
-                        Jwt.builder().exp(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+                        JwtBody.builder().exp(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
             }
         });
         when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
@@ -122,12 +122,12 @@ public class ValidJwtTokenHandlingStrategyTest {
         assertTrue(newToken.startsWith("newtokenheader"));
     }
 
-    private String createJwtBody(Jwt jwt) {
+    private String createJwtBody(JwtBody jwt) {
         String json = new Gson().toJson(jwt);
         return Base64.getEncoder().encodeToString(json.getBytes());
     }
 
     private String dummyToken() {
-        return String.format("header.%s.signature", createJwtBody(Jwt.builder().exp(Long.MAX_VALUE).build()));
+        return String.format("header.%s.signature", createJwtBody(JwtBody.builder().exp(Long.MAX_VALUE).build()));
     }
 }

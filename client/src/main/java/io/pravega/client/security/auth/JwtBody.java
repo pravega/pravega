@@ -16,7 +16,7 @@ import lombok.Setter;
 @Builder
 @Getter
 @Setter
-class Jwt {
+class JwtBody {
 
     private String sub;
 
