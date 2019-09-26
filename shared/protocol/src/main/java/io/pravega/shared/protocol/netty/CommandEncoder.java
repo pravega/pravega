@@ -9,6 +9,7 @@
  */
 package io.pravega.shared.protocol.netty;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.channel.Channel;
@@ -386,7 +387,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     }
 
     @SneakyThrows(IOException.class)
-    private int writeMessage(WireCommand msg, ByteBuf out) {
+    @VisibleForTesting
+    static int writeMessage(WireCommand msg, ByteBuf out) {
         int startIdx = out.writerIndex();
         ByteBufOutputStream bout = new ByteBufOutputStream(out);
         bout.writeInt(msg.getType().getCode());
