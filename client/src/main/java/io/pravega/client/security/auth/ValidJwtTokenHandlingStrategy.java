@@ -77,7 +77,7 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
     @Override
     public String retrieveToken() {
         if (isTokenNearingExpiry()) {
-            log.debug("Token is nearing expiry, so refreshing it");
+            log.info("Token is nearing expiry, so refreshing it");
             return refreshToken();
         } else {
             return delegationToken.get().getValue();
@@ -99,7 +99,7 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
                 controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName), RuntimeException::new);
     }
 
-    private boolean isTokenNearingExpiry() {
+    private synchronized boolean isTokenNearingExpiry() {
         Long currentTokenExpirationTime = this.delegationToken.get().getExpiryTime();
 
         // currentTokenExpirationTime can be null if the server returns a null delegation token
