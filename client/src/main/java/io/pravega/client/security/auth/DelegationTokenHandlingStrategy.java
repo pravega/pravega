@@ -11,6 +11,11 @@ package io.pravega.client.security.auth;
 
 public interface DelegationTokenHandlingStrategy {
 
+    /**
+     * Represents the threshold for triggering delegation token refresh.
+     */
+    static final int REFRESH_THRESHOLD = 10;
+
     String retrieveToken();
 
     String refreshToken();

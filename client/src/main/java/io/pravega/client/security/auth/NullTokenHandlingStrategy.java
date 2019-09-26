@@ -16,7 +16,7 @@ public class NullTokenHandlingStrategy extends ValidJwtTokenHandlingStrategy {
 
     public NullTokenHandlingStrategy(@NonNull Controller controllerClient,
                                      @NonNull String scopeName, @NonNull String streamName) {
-        super(null, controllerClient, scopeName, streamName);
+            super(controllerClient, scopeName, streamName);
     }
 
     @Override
@@ -24,7 +24,17 @@ public class NullTokenHandlingStrategy extends ValidJwtTokenHandlingStrategy {
         if (this.getDelegationToken() == null) {
             return this.refreshToken();
         } else {
-            return super.retrieveToken();
+            return this.retrieveToken();
+        }
+    }
+
+    @Override
+    public String refreshToken() {
+        if (this.getDelegationToken() == null) {
+            resetToken(newToken());
+            return this.getDelegationToken().get().getValue();
+        } else {
+            return super.refreshToken();
         }
     }
 }

@@ -27,6 +27,11 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
 
     /**
+     * Represents the threshold for triggering delegation token refresh.
+     */
+    private static final int REFRESH_THRESHOLD = 10;
+
+    /**
      * The Controller gRPC client used for interacting with the server.
      */
     @Getter(AccessLevel.PROTECTED)
@@ -41,6 +46,16 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
     @Getter(AccessLevel.PROTECTED)
     @Setter(AccessLevel.PROTECTED)
     private AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
+
+    ValidJwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName) {
+        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
+        Preconditions.checkNotNull(controllerClient, "controllerClient is null");
+        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
+
+        this.scopeName = scopeName;
+        this.streamName = streamName;
+        this.controllerClient = controllerClient;
+    }
 
     public ValidJwtTokenHandlingStrategy(String token, Controller controllerClient, String scopeName, String streamName) {
         Exceptions.checkNotNullOrEmpty(token, "token");
@@ -68,31 +83,37 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
 
     @Override
     public String refreshToken() {
-        resetToken(newToken());
+        if (delegationToken.get().getExpiryTime() != null) {
+            resetToken(newToken());
+        } else {
+            throw new IllegalStateException("Token expiry not set");
+        }
         return delegationToken.get().getValue();
     }
 
-    private String newToken() {
+    protected String newToken() {
         return Futures.getAndHandleExceptions(
                 controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName), RuntimeException::new);
     }
 
-    protected boolean isTokenNearingExpiry() {
+    private boolean isTokenNearingExpiry() {
         Long currentTokenExpirationTime = this.delegationToken.get().getExpiryTime();
 
         // currentTokenExpirationTime can be null if the server returns a null delegation token
-        if (currentTokenExpirationTime != null && isWithinThresholdForRefresh(currentTokenExpirationTime)) {
-            return true;
-        } else {
-            return false;
-        }
+        return currentTokenExpirationTime != null && isWithinRefreshThreshold(currentTokenExpirationTime);
     }
 
-    protected boolean isWithinThresholdForRefresh(Long expirationTime) {
-        return (Instant.now().getEpochSecond() - expirationTime) <= 10;
+    private boolean isWithinRefreshThreshold(Long expirationTime) {
+        Preconditions.checkNotNull(expirationTime);
+        return isWithinRefreshThreshold(Instant.now(), Instant.ofEpochSecond(expirationTime));
     }
 
-    private void resetToken(String newToken) {
+    @VisibleForTesting
+    boolean isWithinRefreshThreshold(Instant currentInstant, Instant expiration) {
+        return currentInstant.plusSeconds(REFRESH_THRESHOLD).getEpochSecond() >= expiration.getEpochSecond();
+    }
+
+    protected void resetToken(String newToken) {
         delegationToken.set(new DelegationToken(newToken, extractExpirationTime(newToken)));
     }
 

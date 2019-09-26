@@ -9,21 +9,7 @@
  */
 package io.pravega.client.security.auth;
 
-import lombok.Builder;
-import lombok.Getter;
-import lombok.Setter;
+public class NullTokenHandlingStrategyTest {
 
-@Builder
-@Getter
-@Setter
-class Jwt {
 
-    private String sub;
-
-    private String aud;
-
-    private Long iat;
-
-    private Long exp;
 }
-
