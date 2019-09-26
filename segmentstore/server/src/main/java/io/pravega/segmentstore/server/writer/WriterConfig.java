@@ -15,7 +15,6 @@ import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
 import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import java.time.Duration;
-
 import lombok.Getter;
 
 /**
@@ -146,10 +145,7 @@ public class WriterConfig {
         this.flushTimeout = Duration.ofMillis(properties.getLong(FLUSH_TIMEOUT_MILLIS));
         this.ackTimeout = Duration.ofMillis(properties.getLong(ACK_TIMEOUT_MILLIS));
         this.shutdownTimeout = Duration.ofMillis(properties.getLong(SHUTDOWN_TIMEOUT_MILLIS));
-        this.maxRolloverSize = properties.getLong(MAX_ROLLOVER_SIZE);
-        if (this.maxRolloverSize <= 0) {
-            throw new ConfigurationException(String.format("Property '%s' must be a positive number.", MAX_ROLLOVER_SIZE));
-        }
+        this.maxRolloverSize = Math.max(0, properties.getLong(MAX_ROLLOVER_SIZE));
     }
 
     /**
