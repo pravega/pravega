@@ -19,11 +19,13 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicReference;
 
+@Slf4j
 public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
 
     /**
@@ -75,6 +77,7 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
     @Override
     public String retrieveToken() {
         if (isTokenNearingExpiry()) {
+            log.debug("Token is nearing expiry, so refreshing it");
             return refreshToken();
         } else {
             return delegationToken.get().getValue();

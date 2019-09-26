@@ -74,19 +74,4 @@ public class DelegationTokenProxyImpl implements DelegationTokenProxy {
     public String refreshToken() {
         return strategy.refreshToken();
     }
-
-    @VisibleForTesting
-    Long extractExpirationTime(@NonNull String token) {
-        if (token == null || token.trim().equals("")) {
-            return null;
-        }
-        String[] tokenParts = token.split("\\.");
-
-        // JWT is of the format abc.def.ghe. The middle part is the body.
-        String encodedBody = tokenParts[1];
-        String decodedBody = new String(Base64.getDecoder().decode(encodedBody));
-
-        Jwt jwt = new Gson().fromJson(decodedBody, Jwt.class);
-        return jwt.getExp();
-    }
 }

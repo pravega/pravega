@@ -11,14 +11,19 @@ package io.pravega.client.security.auth;
 
 import com.google.gson.Gson;
 import io.pravega.client.stream.impl.Controller;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import java.time.Instant;
 import java.util.Base64;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+@Slf4j
 public class ValidJwtTokenHandlingStrategyTest {
 
     @Test
@@ -88,9 +93,37 @@ public class ValidJwtTokenHandlingStrategyTest {
         assertNotNull(objectUnderTest.extractExpirationTime(token));
     }
 
+    @Test
+    public void testRetrievesNewTokenIfTokenIsNearingExpiry() {
+        String token = String.format("header.%s.signature", createJwtBody(
+                Jwt.builder().exp(Instant.now().minusSeconds(1).getEpochSecond()).build()));
+        log.debug("token: {}", token);
+
+        // Setup mock
+        Controller mockController = mock(Controller.class);
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+            @Override
+            public String get() {
+                return String.format("newtokenheader.%s.signature", createJwtBody(
+                        Jwt.builder().exp(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+            }
+        });
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+                .thenReturn(future);
+
+        // Setup the object under test
+        ValidJwtTokenHandlingStrategy objectUnderTest = new ValidJwtTokenHandlingStrategy(
+                token, mockController, "somescope", "somestream");
+
+        // Act
+        String newToken = objectUnderTest.retrieveToken();
+        log.debug(newToken);
+
+        assertTrue(newToken.startsWith("newtokenheader"));
+    }
+
     private String createJwtBody(Jwt jwt) {
         String json = new Gson().toJson(jwt);
-        System.out.println(json);
         return Base64.getEncoder().encodeToString(json.getBytes());
     }
 
