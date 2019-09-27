@@ -10,6 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.security.auth.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -338,7 +339,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : txnSegments.getSteamSegments().getSegments()) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
-                    config, txnSegments.getSteamSegments().getDelegationToken());
+                    config, new DelegationTokenProxyImpl(txnSegments.getSteamSegments().getDelegationToken(),
+                            controller, s));
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
@@ -362,7 +364,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config, segments.getDelegationToken());
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config,
+                    new DelegationTokenProxyImpl(segments.getDelegationToken(), controller, s));
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

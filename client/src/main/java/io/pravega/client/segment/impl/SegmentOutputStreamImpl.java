@@ -16,6 +16,7 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.netty.impl.Flow;
 import io.pravega.client.netty.impl.ClientConnection;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProxy;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
@@ -81,7 +82,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     private final ResponseProcessor responseProcessor = new ResponseProcessor();
     private final RetryWithBackoff retrySchedule;
     private final Object writeOrderLock = new Object();
-    private final String delegationToken;
+    private final DelegationTokenProxy delegationToken;
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
@@ -572,7 +573,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          return establishConnection(uri);
                      }, connectionFactory.getInternalExecutor()).thenComposeAsync(connection -> {
                          CompletableFuture<Void> connectionSetupFuture = state.newConnection(connection);
-                         SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, delegationToken);
+                         SetupAppend cmd = new SetupAppend(requestId, writerId, segmentName, delegationToken.retrieveToken());
                          try {
                              connection.send(cmd);
                          } catch (ConnectionFailedException e1) {

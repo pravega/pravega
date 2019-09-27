@@ -32,7 +32,8 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
 
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
-                                                                EventWriterConfig config, String delegationToken) {
+                                                                EventWriterConfig config,
+                                                                DelegationTokenProxy delegationToken) {
         throw new UnsupportedOperationException();
     }
 
@@ -43,17 +44,18 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
     
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
+                                                            EventWriterConfig config, DelegationTokenProxy delegationToken) {
         return getMockStream(segment);
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, DelegationTokenProxy delegationToken) {
         return getMockStream(segment);
     }
 
     @Override
-    public ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config) {
+    public ConditionalOutputStream createConditionalOutputStream(Segment segment, DelegationTokenProxy delegationToken, EventWriterConfig config) {
         return getMockStream(segment);
     }
 
@@ -81,5 +83,4 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     public SegmentMetadataClient createSegmentMetadataClient(Segment segment, DelegationTokenProxy delegationToken) {
         return getMockStream(segment);
     }
-
 }

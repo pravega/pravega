@@ -208,13 +208,13 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                                                                        SynchronizerConfig config) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
-                                                                                                          segment.getStreamName()), RuntimeException::new);
-        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
 
+                                                                                                          segment.getStreamName()), RuntimeException::new);
         DelegationTokenProxy delegationTokenProxy = new DelegationTokenProxyImpl(delegationToken, controller,
                 segment.getScope(), segment.getStreamName());
+        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProxy, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProxy);
-        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationToken);
+        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProxy);
     }
 
     @Override

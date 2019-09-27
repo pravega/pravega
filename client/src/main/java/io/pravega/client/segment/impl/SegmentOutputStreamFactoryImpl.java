@@ -11,6 +11,7 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
+import io.pravega.client.security.auth.DelegationTokenProxy;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.function.Callbacks;
@@ -34,14 +35,15 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config,
-                                                                String delegationToken) {
+                                                                DelegationTokenProxy delegationToken) {
         return new SegmentOutputStreamImpl(StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId),
                                            config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(), nopSegmentSealedCallback,
                                            getRetryFromConfig(config), delegationToken);
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
+                                                            EventWriterConfig config, DelegationTokenProxy delegationToken) {
         SegmentOutputStreamImpl result =
                 new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(), segmentSealedCallback,
                                             getRetryFromConfig(config), delegationToken);
@@ -54,7 +56,8 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config,
+                                                            DelegationTokenProxy delegationToken) {
         return new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(),
                                            Callbacks::doNothing, getRetryFromConfig(config), delegationToken);
     }

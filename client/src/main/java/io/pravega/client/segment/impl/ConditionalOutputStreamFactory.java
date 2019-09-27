@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.security.auth.DelegationTokenProxy;
 import io.pravega.client.stream.EventWriterConfig;
 
 /**
@@ -26,6 +27,6 @@ public interface ConditionalOutputStreamFactory {
      * @param config output writer configuration.
      * @return New instance of ConditionalOutputStream for the provided segment.
      */
-    ConditionalOutputStream createConditionalOutputStream(Segment segment, String delegationToken, EventWriterConfig config);
+    ConditionalOutputStream createConditionalOutputStream(Segment segment, DelegationTokenProxy delegationToken, EventWriterConfig config);
 
 }

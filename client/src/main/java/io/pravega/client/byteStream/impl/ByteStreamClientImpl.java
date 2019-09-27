@@ -78,9 +78,11 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
         Segment segment = segments.getSegments().iterator().next();
         EventWriterConfig config = EventWriterConfig.builder().build();
         String delegationToken = segments.getDelegationToken();
+
+        DelegationTokenProxy delegationTokenProxy = new DelegationTokenProxyImpl(delegationToken, controller, segment);
         return new BufferedByteStreamWriterImpl(new ByteStreamWriterImpl(outputStreamFactory.createOutputStreamForSegment(segment,
                                                                                                                           config,
-                                                                                                                          delegationToken),
+                                                                                                                          delegationTokenProxy),
                                                                          metaStreamFactory.createSegmentMetadataClient(segment,
                                                                                  new DelegationTokenProxyImpl(delegationToken, controller, scope, streamName))));
     }

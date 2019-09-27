@@ -20,6 +20,7 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import io.pravega.client.ClientConfig;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.netty.impl.ConnectionPoolImpl;
+import io.pravega.client.security.auth.DelegationTokenProxyFactory;
 import io.pravega.client.security.auth.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -138,7 +139,8 @@ public class AppendReconnectTest {
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
-        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(), "");
+        SegmentOutputStream out = segmentClient.createOutputStreamForSegment(segment, segmentSealedCallback, EventWriterConfig.builder().build(),
+                DelegationTokenProxyFactory.createWithEmptyToken());
         CompletableFuture<Void> ack = new CompletableFuture<>();
         out.write(PendingEvent.withoutHeader(null, ByteBuffer.wrap(payload), ack));
         for (Channel c : ((ConnectionPoolImpl) clientCF.getConnectionPool()).getActiveChannels()) {
@@ -175,7 +177,7 @@ public class AppendReconnectTest {
 
         Segment segment = Futures.getAndHandleExceptions(controller.getCurrentSegments(scope, stream), RuntimeException::new).getSegments().iterator().next();
         @Cleanup
-        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, "", EventWriterConfig.builder().build());
+        ConditionalOutputStream out = segmentClient.createConditionalOutputStream(segment, DelegationTokenProxyFactory.createWithEmptyToken(), EventWriterConfig.builder().build());
         assertTrue(out.write(ByteBuffer.wrap(payload), 0));
         for (Channel c : ((ConnectionPoolImpl) (clientCF.getConnectionPool())).getActiveChannels()) {
             c.close();

@@ -9,6 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
+import io.pravega.client.security.auth.DelegationTokenProxy;
 import io.pravega.client.stream.EventWriterConfig;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -27,7 +28,8 @@ public interface SegmentOutputStreamFactory {
      * @param delegationToken token to pass on to segmentstore to authenticate access to the segment.
      * @return New instance of SegmentOutputStream with an open transaction.
      */
-    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config, String delegationToken);
+    SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config,
+                                                         DelegationTokenProxy delegationToken);
 
     /**
      * Creates a stream for an existing segment. This operation will fail if the segment does not
@@ -42,7 +44,8 @@ public interface SegmentOutputStreamFactory {
      * @param delegationToken token to pass on to segmentstore to authenticate access to the segment.
      * @return New instance of SegmentOutputStream for writing.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback, EventWriterConfig config, String delegationToken);
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
+                                                     EventWriterConfig config, DelegationTokenProxy delegationToken);
     
     /**
      * Creates a SegmentOutputStream for an existing segment. This operation will fail if the
@@ -56,5 +59,6 @@ public interface SegmentOutputStreamFactory {
      *            segment.
      * @return New instance of SegmentOutputStream for writing.
      */
-    SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, String delegationToken);
+    SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config,
+                                                     DelegationTokenProxy delegationToken);
 }

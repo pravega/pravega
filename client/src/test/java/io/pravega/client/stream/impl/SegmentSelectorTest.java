@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.collect.ImmutableList;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import io.pravega.client.security.auth.DelegationTokenProxyImpl;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -146,9 +147,9 @@ public class SegmentSelectorTest {
                 .thenReturn(ImmutableList.of(PendingEvent.withHeader("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
 
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), new DelegationTokenProxyImpl()))
                 .thenReturn(s0Writer);
-        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), new DelegationTokenProxyImpl()))
                 .thenReturn(s1Writer);
 
         Controller controller = Mockito.mock(Controller.class);
@@ -190,9 +191,9 @@ public class SegmentSelectorTest {
                 .thenReturn(ImmutableList.of(PendingEvent.withHeader("0", ByteBuffer.wrap("e".getBytes()), writerFuture)));
 
         SegmentOutputStreamFactory factory = Mockito.mock(SegmentOutputStreamFactory.class);
-        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), new DelegationTokenProxyImpl()))
                 .thenReturn(s0Writer);
-        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), new DelegationTokenProxyImpl()))
                 .thenReturn(s1Writer);
 
         Controller controller = Mockito.mock(Controller.class);
@@ -247,11 +248,11 @@ public class SegmentSelectorTest {
         Controller controller = Mockito.mock(Controller.class);
 
         when(s0Writer.getUnackedEventsOnSeal()).thenReturn(ImmutableList.of(pendingEvent));
-        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment0), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), new DelegationTokenProxyImpl()))
                 .thenReturn(s0Writer);
-        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment1), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), new DelegationTokenProxyImpl()))
                 .thenReturn(s1Writer);
-        when(factory.createOutputStreamForSegment(eq(segment2), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), anyString()))
+        when(factory.createOutputStreamForSegment(eq(segment2), ArgumentMatchers.<Consumer<Segment>>any(), any(EventWriterConfig.class), new DelegationTokenProxyImpl()))
                 .thenReturn(s2Writer);
         // get current segments returns segment 0
         when(controller.getCurrentSegments(scope, streamName))
