@@ -952,10 +952,12 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             connection.close();
         } else if (u instanceof TokenExpiredException) {
             log.warn(requestId, "Token was found as expired during operation '{}'.", operation, u);
-            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace, true), failureHandler);
+            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace,
+                    AuthTokenCheckFailed.ERROR_CODE_TOKEN_EXPIRED), failureHandler);
         } else if (u instanceof TokenException) {
             log.warn(requestId, "Token exception encountered during operation '{}'.", operation, u);
-            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace, false), failureHandler);
+            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace,
+                    AuthTokenCheckFailed.ERROR_CODE_TOKEN_CHECK_FAILED), failureHandler);
         } else if (u instanceof UnsupportedOperationException) {
             log.warn(requestId, "Unsupported Operation '{}'.", operation, u);
             invokeSafely(connection::send, new OperationUnsupported(requestId, operation, clientReplyStackTrace), failureHandler);

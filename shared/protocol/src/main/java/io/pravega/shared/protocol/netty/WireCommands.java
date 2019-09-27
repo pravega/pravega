@@ -1516,40 +1516,49 @@ public final class WireCommands {
 
     @Data
     public static final class AuthTokenCheckFailed implements Reply, WireCommand {
+        public final static int ERROR_CODE_TOKEN_CHECK_FAILED = 0;
+        public final static int ERROR_CODE_TOKEN_EXPIRED = 1;
         final WireCommandType type = WireCommandType.AUTH_TOKEN_CHECK_FAILED;
         final long requestId;
         final String serverStackTrace;
-        final boolean isTokenExpired;
+
+        // -1 indicates un-specified
+        // 1 indicates token has expired
+        final int errorCode;
 
         public AuthTokenCheckFailed(long requestId, String serverStackTrace) {
-            this(requestId, serverStackTrace, false);
+            this(requestId, serverStackTrace, -1);
         }
 
-        public AuthTokenCheckFailed(long requestId, String stackTrace, boolean isTokenExpired) {
+        public AuthTokenCheckFailed(long requestId, String stackTrace, int errorCode) {
             this.requestId = requestId;
             this.serverStackTrace = stackTrace;
-            this.isTokenExpired = isTokenExpired;
+            this.errorCode = errorCode;
+        }
+
+        public boolean isTokenExpired() {
+            return errorCode == ERROR_CODE_TOKEN_EXPIRED;
         }
 
         @Override
         public void process(ReplyProcessor cp) {
             cp.authTokenCheckFailed(this);
-
-            //new AuthTokenCheckFailed()
         }
 
         @Override
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(serverStackTrace);
-            out.writeBoolean(isTokenExpired);
+            out.writeInt(errorCode);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            boolean isTokenExpired = in.readBoolean();
-            return new AuthTokenCheckFailed(requestId, serverStackTrace, isTokenExpired);
+
+            // errorCode is a new field and wasn't present earlier. Doing this to allow it to work with older clients.
+            int errorCode = in.available()  >= Integer.BYTES ? in.readInt() : -1;
+            return new AuthTokenCheckFailed(requestId, serverStackTrace, errorCode);
         }
     }
 
