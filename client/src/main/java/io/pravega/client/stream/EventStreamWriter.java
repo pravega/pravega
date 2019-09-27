@@ -63,12 +63,12 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
     
     /**
      * Notes a time that can be seen by readers which read from this stream by
-     * {@link EventStreamReader#getCurrentTimeWindow()}. The semantics or meaning of the timestamp
+     * {@link EventStreamReader#getCurrentTimeWindow(Stream)}. The semantics or meaning of the timestamp
      * is left to the application. Readers might expect timestamps to be monotonic. So this is
      * recommended but not enforced.
      * 
      * There is no requirement to call this method. Never doing so will result in readers invoking
-     * {@link EventStreamReader#getCurrentTimeWindow()} receiving a null for both upper and lower times.
+     * {@link EventStreamReader#getCurrentTimeWindow(Stream)} receiving a null for both upper and lower times.
      * 
      * Calling this method can be automated by setting
      * {@link EventWriterConfigBuilder#automaticallyNoteTime(boolean)} to true when creating a
@@ -83,7 +83,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * Note that transactions can only be open for {@link StreamConfiguration#getTimestampAggregationTimeout()}.
      * 
      * @return A transaction through which multiple events can be written atomically.
-     * @deprecated Use {@link EventStreamClientFactory#createTransactionalEventWriter(String, Serializer, EventWriterConfig)} instead
+     * @deprecated Use {@link EventStreamClientFactory#createTransactionalEventWriter(String, String, Serializer, EventWriterConfig)} instead
      */
     @Deprecated
     Transaction<Type> beginTxn();
@@ -93,7 +93,7 @@ public interface EventStreamWriter<Type> extends AutoCloseable {
      * 
      * @param transactionId The result retained from calling {@link Transaction#getTxnId()}
      * @return Transaction object with given UUID
-     * @deprecated Use {@link EventStreamClientFactory#createTransactionalEventWriter(String, Serializer, EventWriterConfig)} instead
+     * @deprecated Use {@link EventStreamClientFactory#createTransactionalEventWriter(String, String, Serializer, EventWriterConfig)} instead
      */
     @Deprecated
     Transaction<Type> getTxn(UUID transactionId);
