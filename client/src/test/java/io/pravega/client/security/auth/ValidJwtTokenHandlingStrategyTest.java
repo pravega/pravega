@@ -45,7 +45,7 @@ public class ValidJwtTokenHandlingStrategyTest {
     @Test
     public void testRetrievesSameTokenPassedDuringConstruction() {
         String token = String.format("header.%s.signature", createJwtBody(
-                JwtBody.builder().exp(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+                JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
         ValidJwtTokenHandlingStrategy objectUnderTest = new ValidJwtTokenHandlingStrategy(
                 token, mock(Controller.class), "somescope", "somestream");
         assertEquals(token, objectUnderTest.retrieveToken());
@@ -100,7 +100,7 @@ public class ValidJwtTokenHandlingStrategyTest {
     @Test
     public void testRetrievesNewTokenIfTokenIsNearingExpiry() {
         String token = String.format("header.%s.signature", createJwtBody(
-                JwtBody.builder().exp(Instant.now().minusSeconds(1).getEpochSecond()).build()));
+                JwtBody.builder().expirationTime(Instant.now().minusSeconds(1).getEpochSecond()).build()));
         log.debug("token: {}", token);
 
         // Setup mock
@@ -109,7 +109,7 @@ public class ValidJwtTokenHandlingStrategyTest {
             @Override
             public String get() {
                 return String.format("newtokenheader.%s.signature", createJwtBody(
-                        JwtBody.builder().exp(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+                        JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
             }
         });
         when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))

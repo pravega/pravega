@@ -33,7 +33,7 @@ public class NullTokenHandlingStrategyTest extends ValidJwtTokenHandlingStrategy
             @Override
             public String get() {
                 return String.format("newtokenheader.%s.signature", createJwtBody(
-                        JwtBody.builder().exp(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+                        JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
             }
         });
         when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))

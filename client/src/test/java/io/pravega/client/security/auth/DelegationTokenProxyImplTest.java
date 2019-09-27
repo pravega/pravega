@@ -72,7 +72,7 @@ public class DelegationTokenProxyImplTest {
     @Test
     public void testReturnsExistingTokenIfNotNearingExpiry() {
         String encodedJwtBody = createJwtBody(JwtBody.builder()
-                .exp(Instant.now().plusSeconds(10000).getEpochSecond())
+                .expirationTime(Instant.now().plusSeconds(10000).getEpochSecond())
                 .build());
         String token = String.format("header.%s.signature", encodedJwtBody);
 

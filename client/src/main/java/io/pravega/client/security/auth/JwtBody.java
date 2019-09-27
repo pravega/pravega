@@ -9,6 +9,7 @@
  */
 package io.pravega.client.security.auth;
 
+import com.google.gson.annotations.SerializedName;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
@@ -23,22 +24,26 @@ class JwtBody {
     /**
      * The "sub" (for subject) claim of the JWT body.
      */
-    private final String sub;
+    @SerializedName("sub")
+    private final String subject;
 
     /**
      * The "aud" (for audience) claim of the JWT body.
      */
-    private final String aud;
+    @SerializedName("aud")
+    private final String audience;
 
     /**
      * The "iat" (for issued at) claim of the JWT body.
      */
-    private final Long iat;
+    @SerializedName("iat")
+    private final Long issuedAtTime;
 
     /**
      * The "exp" (for expiration time) claim of the JWT body. It identifies the time on or after which the JWT must not
      * be accepted for processing. The value represents seconds past 1970-01-01 00:00:00Z.
      */
-    private final Long exp;
+    @SerializedName("exp")
+    private final Long expirationTime;
 }
 

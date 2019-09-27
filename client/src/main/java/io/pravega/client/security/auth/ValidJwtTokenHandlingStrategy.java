@@ -128,7 +128,7 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
         String decodedBody = new String(Base64.getDecoder().decode(encodedBody));
 
         JwtBody jwt = new Gson().fromJson(decodedBody, JwtBody.class);
-        return jwt.getExp();
+        return jwt.getExpirationTime();
     }
 }
 

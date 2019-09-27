@@ -21,6 +21,7 @@ public class JwtTestUtils {
     }
 
     static String dummyToken() {
-        return String.format("header.%s.signature", createJwtBody(JwtBody.builder().exp(Long.MAX_VALUE).build()));
+        return String.format("header.%s.signature",
+                createJwtBody(JwtBody.builder().expirationTime(Long.MAX_VALUE).build()));
     }
 }
