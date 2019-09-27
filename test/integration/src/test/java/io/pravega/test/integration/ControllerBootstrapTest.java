@@ -46,7 +46,7 @@ public class ControllerBootstrapTest {
     private StreamSegmentStore store;
     private TableStore tableStore;
 
-    @Before
+    //@Before
     public void setup() throws Exception {
         final String serviceHost = "localhost";
         final int containerCount = 4;
@@ -59,7 +59,7 @@ public class ControllerBootstrapTest {
 
     }
 
-    @After
+    //@After
     public void cleanup() throws Exception {
         if (controllerWrapper != null) {
             controllerWrapper.close();
@@ -75,7 +75,19 @@ public class ControllerBootstrapTest {
         }
     }
 
-    @Test(timeout = 20000)
+    @Test
+    public void bootstrapTestContinuous() throws Exception{
+        for(int i =0;i< 10;i++){
+            try {
+                setup();
+                bootstrapTest();
+            }finally {
+                cleanup();
+            }
+        }
+    }
+
+    //@Test(timeout = 20000)
     public void bootstrapTest() throws Exception {
         Controller controller = controllerWrapper.getController();
 
