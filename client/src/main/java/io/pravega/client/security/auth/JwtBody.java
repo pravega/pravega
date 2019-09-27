@@ -18,12 +18,27 @@ import lombok.Setter;
 @Setter
 class JwtBody {
 
-    private String sub;
+    // See https://tools.ietf.org/html/rfc7519#page-9 for additional details about these fields.
 
-    private String aud;
+    /**
+     * The "sub" (for subject) claim of the JWT body.
+     */
+    private final String sub;
 
-    private Long iat;
+    /**
+     * The "aud" (for audience) claim of the JWT body.
+     */
+    private final String aud;
 
-    private Long exp;
+    /**
+     * The "iat" (for issued at) claim of the JWT body.
+     */
+    private final Long iat;
+
+    /**
+     * The "exp" (for expiration time) claim of the JWT body. It identifies the time on or after which the JWT must not
+     * be accepted for processing. The value represents seconds past 1970-01-01 00:00:00Z.
+     */
+    private final Long exp;
 }
 

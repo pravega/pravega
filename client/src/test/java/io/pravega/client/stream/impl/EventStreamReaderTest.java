@@ -78,10 +78,12 @@ public class EventStreamReaderTest {
         MockSegmentStreamFactory segmentStreamFactory = new MockSegmentStreamFactory();
         Orderer orderer = new Orderer();
         ReaderGroupStateManager groupState = Mockito.mock(ReaderGroupStateManager.class);
+
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(),
+                                                                           Mockito.mock(Controller.class));
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
                .thenReturn(ImmutableMap.of(segment, 0L))
@@ -132,7 +134,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(inputStreamFactory, segmentStreamFactory,
                 new ByteArraySerializer(), groupState,
                 orderer, clock::get,
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().build(), Mockito.mock(Controller.class));
 
         InOrder inOrder = Mockito.inOrder(segmentInputStream1, groupState);
         EventRead<byte[]> event = reader.readNextEvent(100L);
@@ -186,7 +188,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(inputStreamFactory, segmentStreamFactory,
                 new ByteArraySerializer(), groupState,
                 orderer, clock::get,
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().build(), Mockito.mock(Controller.class));
 
         assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(100L));
         //Validate that groupState.getOrRefreshDelegationTokenFor method is invoked.
@@ -202,7 +204,8 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(),
+                                                                           Mockito.mock(Controller.class));
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
@@ -226,7 +229,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(), Mockito.mock(Controller.class));
         Segment segment1 = Segment.fromScopedName("Foo/Bar/0");
         Segment segment2 = Segment.fromScopedName("Foo/Bar/1");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
@@ -274,7 +277,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(), Mockito.mock(Controller.class));
         Segment segment1 = Segment.fromScopedName("Foo/Bar/0");
         Segment segment2 = Segment.fromScopedName("Foo/Bar/1");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
@@ -310,7 +313,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(), Mockito.mock(Controller.class));
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
@@ -340,7 +343,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(), Mockito.mock(Controller.class));
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
@@ -370,7 +373,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(), Mockito.mock(Controller.class));
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
@@ -404,7 +407,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(), Mockito.mock(Controller.class));
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
                .thenReturn(ImmutableMap.of(segment, 0L))
@@ -448,7 +451,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(), Mockito.mock(Controller.class));
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L)).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, "");
@@ -468,7 +471,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            orderer, clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(), Mockito.mock(Controller.class));
         Segment segment = Segment.fromScopedName("Foo/Bar/0");
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
                .thenReturn(ImmutableMap.of(segment, 0L))
@@ -523,7 +526,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(segInputStreamFactory, segmentMetadataClientFactory,
                 new ByteArraySerializer(), groupState,
                 orderer, clock::get,
-                ReaderConfig.builder().build());
+                ReaderConfig.builder().build(), Mockito.mock(Controller.class));
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(0L))
                 .thenReturn(ImmutableMap.of(segment, 0L))
                 .thenReturn(Collections.emptyMap());
@@ -586,7 +589,7 @@ public class EventStreamReaderTest {
         EventStreamReaderImpl<byte[]> reader = new EventStreamReaderImpl<>(inputStreamFactory, segmentStreamFactory,
                                                                            new ByteArraySerializer(), groupState,
                                                                            new Orderer(), clock::get,
-                                                                           ReaderConfig.builder().build());
+                                                                           ReaderConfig.builder().build(), Mockito.mock(Controller.class));
 
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(anyLong()))
                .thenReturn(ImmutableMap.of(segment1, 0L))
@@ -728,7 +731,7 @@ public class EventStreamReaderTest {
         ReaderGroupStateManager groupState = new ReaderGroupStateManager(readerId, sync, controller, clock::get);
         groupState.initializeReader(0);
         return new EventStreamReaderImpl<>(segmentStreamFactory, segmentStreamFactory, new ByteArraySerializer(),
-                                           groupState, new Orderer(), clock::get, ReaderConfig.builder().build());
+                                           groupState, new Orderer(), clock::get, ReaderConfig.builder().build(), Mockito.mock(Controller.class));
     }
 
     private StateSynchronizer<ReaderGroupState> createStateSynchronizerForReaderGroup(ConnectionFactory connectionFactory,

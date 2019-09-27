@@ -42,7 +42,7 @@ public class DelegationTokenProxyImpl implements DelegationTokenProxy {
         log.debug("Set DelegationTokenHandlingStrategy as {}", NullTokenHandlingStrategy.class);
     }
 
-    public DelegationTokenProxyImpl(@NonNull String token, @NonNull Controller controllerClient, Segment segment) {
+    public DelegationTokenProxyImpl(String token, @NonNull Controller controllerClient, Segment segment) {
         this(token, controllerClient, segment.getScope(), segment.getStreamName());
     }
 

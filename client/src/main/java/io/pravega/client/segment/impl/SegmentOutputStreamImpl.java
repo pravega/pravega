@@ -567,9 +567,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          }
                          return connectionSetupFuture.exceptionally(t -> {
                              Throwable exception = Exceptions.unwrap(t);
-
-                             //controller.getOrRefreshDelegationTokenFor()
-
                              if (exception instanceof TokenException) {
                                  log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
                                          writerId, segmentName);

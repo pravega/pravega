@@ -88,13 +88,6 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
     public String refreshToken() {
         resetToken(newToken());
         return delegationToken.get().getValue();
-
-        /*if (delegationToken.get().getExpiryTime() != null) {
-            resetToken(newToken());
-        } else {
-            throw new IllegalStateException("Token expiry not set");
-        }
-        return delegationToken.get().getValue();*/
     }
 
     protected String newToken() {
@@ -102,7 +95,7 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
                 controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName), RuntimeException::new);
     }
 
-    private synchronized boolean isTokenNearingExpiry() {
+    private boolean isTokenNearingExpiry() {
         Long currentTokenExpirationTime = this.delegationToken.get().getExpiryTime();
 
         // currentTokenExpirationTime can be null if the server returns a null delegation token

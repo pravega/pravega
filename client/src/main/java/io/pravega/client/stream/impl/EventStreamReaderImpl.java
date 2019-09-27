@@ -73,10 +73,11 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private String atCheckpoint;
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
+    private final Controller controller;
 
     EventStreamReaderImpl(SegmentInputStreamFactory inputStreamFactory,
             SegmentMetadataClientFactory metadataClientFactory, Serializer<Type> deserializer,
-            ReaderGroupStateManager groupState, Orderer orderer, Supplier<Long> clock, ReaderConfig config) {
+            ReaderGroupStateManager groupState, Orderer orderer, Supplier<Long> clock, ReaderConfig config, Controller controller) {
         this.deserializer = deserializer;
         this.inputStreamFactory = inputStreamFactory;
         this.metadataClientFactory = metadataClientFactory;
@@ -85,6 +86,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         this.clock = clock;
         this.config = config;
         this.closed = false;
+        this.controller = controller;
     }
 
     @Override
@@ -274,7 +276,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
         @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
-                new DelegationTokenProxyImpl(delegationToken, groupState.getController(), segmentId));
+                new DelegationTokenProxyImpl(delegationToken, this.controller, segmentId));
         try {
             long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
             segmentReader.setOffset(startingOffset);
