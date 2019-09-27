@@ -497,7 +497,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
         log.debug("Closing writer: {}", writerId);
         // Wait until all the in-flight events are written
-        clearInFlight(new CloseAppend(writerId, segmentName));
+        flushInFlight(new CloseAppend(writerId, segmentName));
         state.setClosed(true);
         ClientConnection connection = state.getConnection();
         if (connection != null) {
@@ -510,10 +510,10 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     public void flush() throws SegmentSealedException {
-        clearInFlight(new Flush(writerId, segmentName));
+        flushInFlight(new Flush(writerId, segmentName));
     }
 
-    private void clearInFlight(WireCommand cmd) throws SegmentSealedException {
+    private void flushInFlight(WireCommand cmd) throws SegmentSealedException {
         int numInflight = state.getNumInflight();
         log.debug("Flushing writer: {} with {} inflight events", writerId, numInflight);
         if (numInflight != 0) {

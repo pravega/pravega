@@ -242,18 +242,18 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             session.flush(out);
             writeMessage(closeSetup, out);
             setupSegments.remove(sessionKey);
-        } else if (msg instanceof BlockTimeout) {
-            BlockTimeout timeoutMsg = (BlockTimeout) msg;
-            if (tokenCounter.get() == timeoutMsg.token) {
-                breakCurrentAppend(out);
-                flushAll(out);
-            }
-        } else if (msg instanceof Flush) {
+        } else  if (msg instanceof Flush) {
             Flush flush = (Flush) msg;
             Session session = setupSegments.get(new SimpleImmutableEntry<>(flush.getSegment(), flush.getWriterId()));
             if (!session.isFree()) {
                 breakCurrentAppend(out);
                 session.flush(out);
+            }
+        } else if (msg instanceof BlockTimeout) {
+            BlockTimeout timeoutMsg = (BlockTimeout) msg;
+            if (tokenCounter.get() == timeoutMsg.token) {
+                breakCurrentAppend(out);
+                flushAll(out);
             }
         } else if (msg instanceof WireCommand) {
             breakCurrentAppend(out);
