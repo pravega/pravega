@@ -58,4 +58,11 @@ public interface SegmentOutputStream extends AutoCloseable {
      * acknowledged as written. The iteration order in the List is from oldest to newest.
      */
     public abstract List<PendingEvent> getUnackedEventsOnSeal();
+    
+    /**
+     * This returns the write offset of a segment that was most recently observed from an Ack.
+     * This may not be the same as the current write offset. 
+     * If no acks have been observed on this segment it returns -1. 
+     */
+    public abstract long getLastObservedWriteOffset();
 }

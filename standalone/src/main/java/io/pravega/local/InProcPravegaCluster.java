@@ -71,6 +71,9 @@ public class InProcPravegaCluster implements AutoCloseable {
     @Builder.Default
     private boolean enableTls = false;
 
+    @Builder.Default
+    private boolean enableTlsReload = false;
+
     /*Controller related variables*/
     private boolean isInProcController;
     private int controllerCount;
@@ -151,7 +154,7 @@ public class InProcPravegaCluster implements AutoCloseable {
             if (this.isInMemStorage) {
                 this.isInProcHDFS = false;
             }
-            return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls,
+            return new InProcPravegaCluster(isInMemStorage, enableMetrics, enableAuth, enableTls, enableTlsReload,
                     isInProcController, controllerCount, controllerPorts, controllerURI,
                     restServerPort, isInProcSegmentStore, segmentStoreCount, segmentStorePorts, isInProcZK, zkPort, zkHost,
                     zkService, isInProcHDFS, hdfsUrl, containerCount, nodeServiceStarter, localHdfs, controllerServers, zkUrl,
@@ -276,6 +279,7 @@ public class InProcPravegaCluster implements AutoCloseable {
                         .with(ServiceConfig.ENABLE_TLS, this.enableTls)
                         .with(ServiceConfig.KEY_FILE, this.keyFile)
                         .with(ServiceConfig.CERT_FILE, this.certFile)
+                        .with(ServiceConfig.ENABLE_TLS_RELOAD, this.enableTlsReload)
                         .with(ServiceConfig.CACHE_POLICY_MAX_TIME, 60)
                         .with(ServiceConfig.CACHE_POLICY_MAX_SIZE, 128 * 1024 * 1024L)
                         .with(ServiceConfig.DATALOG_IMPLEMENTATION, isInMemStorage ?

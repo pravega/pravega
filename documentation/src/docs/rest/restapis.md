@@ -88,7 +88,6 @@ Create a new scope
 
 ##### Request body
 ```json
-json :
 {
   "scopeName" : "string"
 }
@@ -99,7 +98,6 @@ json :
 
 ##### Response 201
 ```json
-json :
 {
   "scopeName" : "string"
 }
@@ -143,7 +141,6 @@ List all available scopes in pravega
 
 ##### Response 200
 ```json
-json :
 {
   "scopes" : [ {
     "scopeName" : "string"
@@ -197,7 +194,6 @@ Retrieve details of an existing scope
 
 ##### Response 200
 ```json
-json :
 {
   "scopeName" : "string"
 }
@@ -286,7 +282,6 @@ List reader groups within the given scope
 
 ##### Response 200
 ```json
-json :
 {
   "readerGroups" : [ "object" ]
 }
@@ -339,7 +334,6 @@ Fetch the properties of an existing reader group
 
 ##### Response 200
 ```json
-json :
 {
   "scopeName" : "string",
   "readerGroupName" : "string",
@@ -408,7 +402,6 @@ Create a new stream
 
 ##### Request body
 ```json
-json :
 {
   "streamName" : "string",
   "scalingPolicy" : {
@@ -429,7 +422,6 @@ json :
 
 ##### Response 201
 ```json
-json :
 {
   "scopeName" : "string",
   "streamName" : "string",
@@ -489,20 +481,10 @@ List streams within the given scope
 ```
 
 
-##### Request query
-```json
-json :
-{
-  "showInternalStreams" : "string"
-}
-```
-
-
 #### Example HTTP response
 
 ##### Response 200
 ```json
-json :
 {
   "streams" : [ {
     "scopeName" : "string",
@@ -568,7 +550,6 @@ Fetch the properties of an existing stream
 
 ##### Response 200
 ```json
-json :
 {
   "scopeName" : "string",
   "streamName" : "string",
@@ -644,7 +625,6 @@ Update configuration of an existing stream
 
 ##### Request body
 ```json
-json :
 {
   "scalingPolicy" : {
     "type" : "string",
@@ -664,7 +644,6 @@ json :
 
 ##### Response 200
 ```json
-json :
 {
   "scopeName" : "string",
   "streamName" : "string",
@@ -760,17 +739,7 @@ Get scaling events for a given datetime period.
 
 ##### Request path
 ```
-/scopes/string/streams/string/scaling-events
-```
-
-
-##### Request query
-```json
-json :
-{
-  "from" : 0,
-  "to" : 0
-}
+/scopes/string/streams/string/scaling-events?from=0&to=0
 ```
 
 
@@ -778,7 +747,6 @@ json :
 
 ##### Response 200
 ```json
-json :
 {
   "scalingEvents" : [ {
     "timestamp" : 0,
@@ -787,7 +755,9 @@ json :
       "startTime" : 0,
       "keyStart" : 0,
       "keyEnd" : 0
-    } ]
+    } ],
+    "splits" : 0,
+    "merges" : 0
   } ]
 }
 ```
@@ -843,7 +813,6 @@ Updates the current state of the stream
 
 ##### Request body
 ```json
-json :
 {
   "streamState" : "string"
 }
@@ -854,7 +823,6 @@ json :
 
 ##### Response 200
 ```json
-json :
 {
   "streamState" : "string"
 }
@@ -906,7 +874,9 @@ json :
 
 |Name|Description|Schema|
 |---|---|---|
+|**merges**  <br>*optional*|**Example** : `0`|integer (int64)|
 |**segmentList**  <br>*optional*|**Example** : `[ "[segment](#segment)" ]`|< [Segment](#segment) > array|
+|**splits**  <br>*optional*|**Example** : `0`|integer (int64)|
 |**timestamp**  <br>*optional*|**Example** : `0`|integer (int64)|
 
 

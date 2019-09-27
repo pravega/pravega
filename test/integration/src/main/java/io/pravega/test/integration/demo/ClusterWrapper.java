@@ -134,7 +134,7 @@ public class ClusterWrapper implements AutoCloseable {
             passwordInputFile = createAuthFile(this.passwordAuthHandlerEntries);
         }
 
-        segmentStoreServer = new PravegaConnectionListener(false, "localhost", segmentStorePort, store, tableStore,
+        segmentStoreServer = new PravegaConnectionListener(false, false, "localhost", segmentStorePort, store, tableStore,
             SegmentStatsRecorder.noOp(), TableSegmentStatsRecorder.noOp(),
             new TokenVerifierImpl(isAuthEnabled, tokenSigningKeyBasis),
             null, null, true);
@@ -143,6 +143,7 @@ public class ClusterWrapper implements AutoCloseable {
         log.info("Done starting Segment Store");
     }
 
+    @Override
     public void close() {
         ExecutorServiceHelpers.shutdown(executor);
         try {

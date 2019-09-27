@@ -37,7 +37,7 @@ public class StartWriter {
                                                                                             .transactionTimeoutTime(60000)
                                                                                             .build());
         @Cleanup
-        TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter(StartLocalService.STREAM_NAME,
+        TransactionalEventStreamWriter<String> txnWriter = clientFactory.createTransactionalEventWriter("writer", StartLocalService.STREAM_NAME,
                                                                                                         new JavaSerializer<>(),
                                                                                                         EventWriterConfig.builder()
                                                                                                                          .transactionTimeoutTime(60000)
