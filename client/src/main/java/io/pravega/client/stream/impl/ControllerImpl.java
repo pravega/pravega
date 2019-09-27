@@ -947,6 +947,7 @@ public class ControllerImpl implements Controller {
             TxnRequest.Builder txnRequest = TxnRequest.newBuilder()
                                                       .setStreamInfo(ModelHelper.createStreamInfo(stream.getScope(),
                                                                                                   stream.getStreamName()))
+                                                      .setWriterId(writerId)
                                                       .setTxnId(ModelHelper.decode(txId));
             if (timestamp != null) {
                 txnRequest.setTimestamp(timestamp);
