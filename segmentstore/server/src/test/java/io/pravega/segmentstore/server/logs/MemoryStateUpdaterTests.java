@@ -281,6 +281,11 @@ public class MemoryStateUpdaterTests extends ThreadPooledTestSuite {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public void registerCleanupListener(CleanupListener listener) {
+            throw new UnsupportedOperationException();
+        }
+
         private void invoke(MethodInvocation methodInvocation) {
             Exceptions.checkNotClosed(this.closed, this);
             if (this.methodInvokeCallback != null) {

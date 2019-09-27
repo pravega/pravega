@@ -204,9 +204,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         long traceId = LoggerHelpers.traceEnter(log, "storeAppend", append);
         Timer timer = new Timer();
         storeAppend(append)
-                .whenComplete((v, e) -> {
-                    handleAppendResult(append, e, timer);
-                    LoggerHelpers.traceLeave(log, "storeAppend", traceId, v, e);
+                .whenComplete((length, e) -> {
+                    handleAppendResult(append, length, e, timer);
+                    LoggerHelpers.traceLeave(log, "storeAppend", traceId, append, e);
                 })
                 .whenComplete((v, e) -> append.getData().release());
     }
@@ -246,7 +246,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    private CompletableFuture<Void> storeAppend(Append append) {
+    private CompletableFuture<Long> storeAppend(Append append) {
         long lastEventNumber;
         synchronized (lock) {
             lastEventNumber = latestEventNumbers.get(Pair.of(append.getSegment(), append.getWriterId()));
@@ -263,7 +263,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
     }
 
-    private void handleAppendResult(final Append append, Throwable exception, Timer elapsedTimer) {
+    private void handleAppendResult(final Append append, Long newWriteOffset, Throwable exception, Timer elapsedTimer) {
         boolean success = exception == null;
         try {
             boolean conditionalFailed = !success && (Exceptions.unwrap(exception) instanceof BadOffsetException);
@@ -277,7 +277,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
             if (success) {
                 final DataAppended dataAppendedAck = new DataAppended(append.getRequestId(), append.getWriterId(), append.getEventNumber(),
-                        previousEventNumber);
+                        previousEventNumber, newWriteOffset);
                 log.trace("Sending DataAppended : {}", dataAppendedAck);
                 connection.send(dataAppendedAck);
             } else {

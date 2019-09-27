@@ -705,8 +705,8 @@ project('standalone') {
         main = "io.pravega.local.LocalPravegaEmulator"
         classpath = sourceSets.main.runtimeClasspath
         systemProperties System.getProperties()
-        systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
-        systemProperties 'singlenode.configurationFile' : new File("config/standalone-config.properties").absolutePath
+        systemProperties 'logback.configurationFile' : new File("${project.rootDir}/config/logback.xml")
+        systemProperties 'singlenode.configurationFile' : new File("${project.rootDir}/config/standalone-config.properties")
 
         if (systemProperties.get("extDirs") != null) {
             classpath += files(systemProperties.get("extDirs"))
@@ -852,6 +852,7 @@ project('test:system') {
         }
         
         systemProperty "securityEnabled", System.getProperty("securityEnabled", "false")
+        systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
        
         maxParallelForks = 1
     }
@@ -939,6 +940,7 @@ project('test:system') {
         }
         maxParallelForks = 1
         systemProperty "dockerImageRegistry", "${dockerRegistryUrl}"
+        systemProperty "logLevel", System.getProperty("log.level", "DEBUG")
 
     }
 

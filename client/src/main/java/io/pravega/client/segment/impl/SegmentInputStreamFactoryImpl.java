@@ -12,6 +12,7 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.impl.Controller;
+import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.Futures;
 import lombok.RequiredArgsConstructor;
 
@@ -43,7 +44,8 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, delegationToken);
-        async.getConnection();
+        async.getConnection();                      //Sanity enforcement
+        bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
         return getEventSegmentReader(async, 0, endOffset, bufferSize);
     }
 

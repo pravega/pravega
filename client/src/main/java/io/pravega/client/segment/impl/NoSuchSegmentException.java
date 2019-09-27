@@ -19,5 +19,9 @@ public class NoSuchSegmentException extends IllegalStateException {
     public NoSuchSegmentException(String segment) {
         super("Segment does not exist:" + segment);
     }
+    
+    public NoSuchSegmentException(String segment, Throwable t) {
+        super("Segment does not exist:" + segment, t);
+    }
 
 }
