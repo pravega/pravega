@@ -27,7 +27,7 @@ public class ExceptionLoggingHandler extends ChannelDuplexHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        log.error("Uncaught exception on connection " + connectionName, cause);
+        log.error("Uncaught exception on connection {}: {}", connectionName, cause.toString());
         super.exceptionCaught(ctx, cause);
     }
 
@@ -36,7 +36,7 @@ public class ExceptionLoggingHandler extends ChannelDuplexHandler {
         try {
             super.channelRead(ctx, msg);
         } catch (Exception e) {
-            log.error("Uncaught exception on connection " + connectionName, e);
+            log.error("Uncaught exception on connection {}: {}", connectionName, e);
             throw e;
         }
     }

@@ -107,9 +107,9 @@ public class RawClient implements AutoCloseable {
 
     private void closeConnection(Throwable exceptionToInflightRequests) {
         if (closed.get() || exceptionToInflightRequests instanceof ConnectionClosedException) {
-            log.debug("Closing connection with exception", exceptionToInflightRequests);
+            log.debug("Closing connection with exception {}", exceptionToInflightRequests.toString());
         } else {
-            log.warn("Closing connection with exception", exceptionToInflightRequests);
+            log.warn("Closing connection with exception {}", exceptionToInflightRequests.toString());
         }
         if (closed.compareAndSet(false, true)) {
             connection.thenAccept(c -> {
