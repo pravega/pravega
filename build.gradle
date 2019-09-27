@@ -444,7 +444,7 @@ project('test:integration') {
     applicationName = "pravega-selftest"
     mainClassName = "io.pravega.test.integration.selftest.SelfTestRunner"
     test {
-        testLogging.showStandardStreams = true
+         testLogging.showStandardStreams = true
     }
 
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
