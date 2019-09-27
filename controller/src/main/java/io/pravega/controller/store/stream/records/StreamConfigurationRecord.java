@@ -195,7 +195,8 @@ public class StreamConfigurationRecord {
 
         @Override
         protected void declareVersions() {
-            version(0).revision(0, this::write00, this::read00);
+            version(0).revision(0, this::write00, this::read00)
+                      .revision(1, this::write01, this::read01);
         }
 
         @Override
@@ -225,6 +226,21 @@ public class StreamConfigurationRecord {
             StreamConfigurationRecord.RetentionPolicyRecord.SERIALIZER.serialize(revisionDataOutput,
                     new StreamConfigurationRecord.RetentionPolicyRecord(streamConfigurationRecord.getStreamConfiguration().getRetentionPolicy()));
             revisionDataOutput.writeBoolean(streamConfigurationRecord.isUpdating());
+        }
+
+        private void read01(RevisionDataInput revisionDataInput,
+                            StreamConfigurationRecordBuilder configurationRecordBuilder)
+                throws IOException {
+            StreamConfiguration.StreamConfigurationBuilder streamConfigurationBuilder = StreamConfiguration.builder();
+            streamConfigurationBuilder.scalingPolicy(configurationRecordBuilder.streamConfiguration.getScalingPolicy())
+                                      .retentionPolicy(configurationRecordBuilder.streamConfiguration.getRetentionPolicy())
+                                      .timestampAggregationTimeout(revisionDataInput.readLong());
+            configurationRecordBuilder.streamConfiguration(streamConfigurationBuilder.build());
+        }
+
+        private void write01(StreamConfigurationRecord streamConfigurationRecord, RevisionDataOutput revisionDataOutput)
+                throws IOException {
+            revisionDataOutput.writeLong(streamConfigurationRecord.streamConfiguration.getTimestampAggregationTimeout());
         }
 
         @Override
