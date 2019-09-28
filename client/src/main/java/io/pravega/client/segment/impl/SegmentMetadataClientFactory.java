@@ -9,7 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.security.auth.DelegationTokenProxy;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 
 /**
  * Creates {@link SegmentMetadataClient} for metadata operations on existing segments.
@@ -23,9 +23,9 @@ public interface SegmentMetadataClientFactory {
      * process space).
      *
      * @param segment The segment to create a metadata client for.
-     * @param delegationTokenProxy token proxy to be passed on to segmentstore for validation.
+     * @param tokenProvider token proxy to be passed on to segmentstore for validation.
      * @return New instance of SegmentMetadataClient for the provided segment.
      */
-    SegmentMetadataClient createSegmentMetadataClient(Segment segment, DelegationTokenProxy delegationTokenProxy);
+    SegmentMetadataClient createSegmentMetadataClient(Segment segment, DelegationTokenProvider tokenProvider);
 
 }

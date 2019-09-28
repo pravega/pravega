@@ -18,7 +18,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public class DelegationTokenProxyImpl implements DelegationTokenProxy {
+public class DelegationTokenProviderImpl implements DelegationTokenProvider {
 
     /**
      * The delegate.
@@ -28,39 +28,47 @@ public class DelegationTokenProxyImpl implements DelegationTokenProxy {
     private final DelegationTokenHandlingStrategy strategy;
 
     /**
-     * Creates an object containing an empty ("") delegation token. Useful mainly for testing purposes.
+     * Creates an object containing the specified delegation token. Intended for use mainly for testing purposes.
      */
     @VisibleForTesting
-    public DelegationTokenProxyImpl() {
-        strategy = new EmptyTokenHandlingStrategy();
-        log.debug("Set DelegationTokenHandlingStrategy as {}", EmptyTokenHandlingStrategy.class);
+    DelegationTokenProviderImpl(@NonNull String token) {
+        if (token.trim().equals("")) {
+            strategy = new EmptyTokenHandlingStrategy();
+            log.debug("Set DelegationTokenHandlingStrategy as {}", EmptyTokenHandlingStrategy.class);
+        } else {
+            strategy = new NonJwtTokenHandlingStrategy(token);
+            log.debug("Set DelegationTokenHandlingStrategy as {}", ValidJwtTokenHandlingStrategy.class);
+        }
     }
 
-    public DelegationTokenProxyImpl(@NonNull Controller controllerClient,
-                                    @NonNull String scopeName, @NonNull String streamName) {
+    public DelegationTokenProviderImpl(@NonNull Controller controllerClient,
+                                       @NonNull String scopeName, @NonNull String streamName) {
         strategy = new NullTokenHandlingStrategy(controllerClient, scopeName, streamName);
         log.debug("Set DelegationTokenHandlingStrategy as {}", NullTokenHandlingStrategy.class);
     }
 
-    public DelegationTokenProxyImpl(String token, @NonNull Controller controllerClient, Segment segment) {
+    public DelegationTokenProviderImpl(String token, @NonNull Controller controllerClient, Segment segment) {
         this(token, controllerClient, segment.getScope(), segment.getStreamName());
     }
 
-    public DelegationTokenProxyImpl(@NonNull Controller controllerClient, Segment segment) {
+    public DelegationTokenProviderImpl(@NonNull Controller controllerClient, Segment segment) {
         this(null, controllerClient, segment.getScope(), segment.getStreamName());
     }
 
-    public DelegationTokenProxyImpl(String token, @NonNull Controller controllerClient,
-                                    @NonNull String scopeName, @NonNull String streamName) {
+    public DelegationTokenProviderImpl(String token, @NonNull Controller controllerClient,
+                                       @NonNull String scopeName, @NonNull String streamName) {
         if (token == null) {
             strategy = new NullTokenHandlingStrategy(controllerClient, scopeName, streamName);
             log.debug("Set DelegationTokenHandlingStrategy as {}", NullTokenHandlingStrategy.class);
         } else if (token.equals("")) {
             strategy = new EmptyTokenHandlingStrategy();
             log.debug("Set DelegationTokenHandlingStrategy as {}", EmptyTokenHandlingStrategy.class);
-        } else {
+        } else if (token.split("\\.").length == 3) {
             strategy = new ValidJwtTokenHandlingStrategy(token, controllerClient, scopeName,
                     streamName);
+            log.debug("Set DelegationTokenHandlingStrategy as {}", ValidJwtTokenHandlingStrategy.class);
+        } else {
+            strategy = new NonJwtTokenHandlingStrategy(token);
             log.debug("Set DelegationTokenHandlingStrategy as {}", ValidJwtTokenHandlingStrategy.class);
         }
     }

@@ -10,7 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.security.auth.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
 import java.util.UUID;
@@ -51,7 +51,7 @@ public class SegmentOutputStreamFactoryTest {
         EventWriterConfig writerConfig = EventWriterConfig.builder().build();
 
         SegmentOutputStreamImpl segWriter = (SegmentOutputStreamImpl) factory.createOutputStreamForTransaction(segment, txId, writerConfig,
-                new DelegationTokenProxyImpl());
+                DelegationTokenProviderFactory.createWithEmptyToken());
         assertTrue(isTransactionSegment(segWriter.getSegmentName()));
         assertEquals(writerConfig.isEnableConnectionPooling(), segWriter.isUseConnectionPooling());
     }
@@ -59,7 +59,8 @@ public class SegmentOutputStreamFactoryTest {
     @Test
     public void createOutputStreamForSegment() {
         EventWriterConfig writerConfig = EventWriterConfig.builder().enableConnectionPooling(false).build();
-        SegmentOutputStreamImpl segWriter = (SegmentOutputStreamImpl) factory.createOutputStreamForSegment(segment, writerConfig, new DelegationTokenProxyImpl());
+        SegmentOutputStreamImpl segWriter = (SegmentOutputStreamImpl) factory.createOutputStreamForSegment(segment, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(segment.getScopedName(), segWriter.getSegmentName());
         assertEquals(writerConfig.isEnableConnectionPooling(), segWriter.isUseConnectionPooling());
     }
@@ -68,7 +69,7 @@ public class SegmentOutputStreamFactoryTest {
     public void createOutputStreamForSegmentAndconnect() {
         EventWriterConfig writerConfig = EventWriterConfig.builder().enableConnectionPooling(false).build();
         SegmentOutputStreamImpl segWriter = (SegmentOutputStreamImpl) factory.createOutputStreamForSegment(segment, s -> {
-        }, writerConfig, new DelegationTokenProxyImpl());
+        }, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         assertEquals(segment.getScopedName(), segWriter.getSegmentName());
         assertEquals(writerConfig.isEnableConnectionPooling(), segWriter.isUseConnectionPooling());
     }

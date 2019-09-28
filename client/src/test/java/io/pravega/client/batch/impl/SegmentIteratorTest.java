@@ -9,7 +9,7 @@
  */
 package io.pravega.client.batch.impl;
 
-import io.pravega.client.security.auth.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentMetadataClient;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -38,11 +38,11 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, new DelegationTokenProxyImpl());
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, DelegationTokenProviderFactory.createWithEmptyToken());
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
-        SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment, new DelegationTokenProxyImpl());
+        SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment, DelegationTokenProviderFactory.createWithEmptyToken());
         long length = metadataClient.getSegmentInfo().getWriteOffset();
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
@@ -62,11 +62,13 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, new DelegationTokenProxyImpl());
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
-        SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment, new DelegationTokenProxyImpl());
+        SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         long length = metadataClient.getSegmentInfo().getWriteOffset();
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);
@@ -89,11 +91,13 @@ public class SegmentIteratorTest {
         MockSegmentStreamFactory factory = new MockSegmentStreamFactory();
         Segment segment = new Segment("Scope", "Stream", 1);
         EventWriterConfig config = EventWriterConfig.builder().build();
-        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config, new DelegationTokenProxyImpl());
+        SegmentOutputStream outputStream = factory.createOutputStreamForSegment(segment, c -> { }, config,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         sendData("1", outputStream);
         sendData("2", outputStream);
         sendData("3", outputStream);
-        SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment, new DelegationTokenProxyImpl());
+        SegmentMetadataClient metadataClient = factory.createSegmentMetadataClient(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         long length = metadataClient.getSegmentInfo().getWriteOffset();
         @Cleanup
         SegmentIteratorImpl<String> iter = new SegmentIteratorImpl<>(factory, segment, stringSerializer, 0, length);

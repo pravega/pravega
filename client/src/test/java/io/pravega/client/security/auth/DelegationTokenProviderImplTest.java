@@ -18,18 +18,18 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-public class DelegationTokenProxyImplTest {
+public class DelegationTokenProviderImplTest {
 
     private Controller dummyController = mock(Controller.class);
 
     @Test
     public void testDefaultCtorReturnsEmptyToken() {
-        assertEquals("", new DelegationTokenProxyImpl().retrieveToken());
+        assertEquals("", DelegationTokenProviderFactory.createWithEmptyToken().retrieveToken());
     }
 
     @Test
     public void testDefaultCtorReturnsEmptyTokenOnRefresh() {
-        assertEquals("", new DelegationTokenProxyImpl().refreshToken());
+        assertEquals("", DelegationTokenProviderFactory.createWithEmptyToken().refreshToken());
     }
 
     @Test
@@ -38,21 +38,21 @@ public class DelegationTokenProxyImplTest {
                 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", // header
                 "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ", // body
                 "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"); // signature
-        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(token, dummyController,
+        DelegationTokenProviderImpl proxy = new DelegationTokenProviderImpl(token, dummyController,
                 "testscope", "teststream");
         assertEquals(token, proxy.retrieveToken());
     }
 
     @Test
     public void testUsesEmptyTokenHandlingStrategyForEmptyToken() {
-        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl("", dummyController,
+        DelegationTokenProviderImpl proxy = new DelegationTokenProviderImpl("", dummyController,
                 "testscope", "teststream");
         assertTrue(proxy.getStrategy() instanceof EmptyTokenHandlingStrategy);
     }
 
     @Test
     public void testUsesNullTokenHandlingStrategyForNullToken() {
-        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(null, dummyController,
+        DelegationTokenProviderImpl proxy = new DelegationTokenProviderImpl(null, dummyController,
                 "testscope", "teststream");
         assertTrue(proxy.getStrategy() instanceof NullTokenHandlingStrategy);
     }
@@ -64,7 +64,7 @@ public class DelegationTokenProxyImplTest {
                 "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ", // body
                 "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"); // signature
 
-        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(token, dummyController,
+        DelegationTokenProviderImpl proxy = new DelegationTokenProviderImpl(token, dummyController,
                 "testscope", "teststream");
         assertTrue(proxy.getStrategy() instanceof ValidJwtTokenHandlingStrategy);
     }
@@ -76,7 +76,7 @@ public class DelegationTokenProxyImplTest {
                 .build());
         String token = String.format("header.%s.signature", encodedJwtBody);
 
-        DelegationTokenProxyImpl proxy = new DelegationTokenProxyImpl(token, dummyController, "testscope", "teststream");
+        DelegationTokenProviderImpl proxy = new DelegationTokenProviderImpl(token, dummyController, "testscope", "teststream");
         assertEquals(token, proxy.retrieveToken());
     }
 }

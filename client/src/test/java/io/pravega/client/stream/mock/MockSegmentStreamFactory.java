@@ -9,7 +9,7 @@
  */
 package io.pravega.client.stream.mock;
 
-import io.pravega.client.security.auth.DelegationTokenProxy;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.EventSegmentReader;
@@ -33,7 +33,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
                                                                 EventWriterConfig config,
-                                                                DelegationTokenProxy delegationToken) {
+                                                                DelegationTokenProvider delegationToken) {
         throw new UnsupportedOperationException();
     }
 
@@ -45,17 +45,17 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
-                                                            EventWriterConfig config, DelegationTokenProxy delegationToken) {
+                                                            EventWriterConfig config, DelegationTokenProvider delegationToken) {
         return getMockStream(segment);
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, DelegationTokenProxy delegationToken) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, DelegationTokenProvider delegationToken) {
         return getMockStream(segment);
     }
 
     @Override
-    public ConditionalOutputStream createConditionalOutputStream(Segment segment, DelegationTokenProxy delegationToken, EventWriterConfig config) {
+    public ConditionalOutputStream createConditionalOutputStream(Segment segment, DelegationTokenProvider tokenProvider, EventWriterConfig config) {
         return getMockStream(segment);
     }
 
@@ -80,7 +80,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     }
 
     @Override
-    public SegmentMetadataClient createSegmentMetadataClient(Segment segment, DelegationTokenProxy delegationToken) {
+    public SegmentMetadataClient createSegmentMetadataClient(Segment segment, DelegationTokenProvider tokenProvider) {
         return getMockStream(segment);
     }
 }

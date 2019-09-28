@@ -24,8 +24,8 @@ import io.pravega.client.batch.impl.BatchClientFactoryImpl;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
-import io.pravega.client.security.auth.DelegationTokenProxy;
-import io.pravega.client.security.auth.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderImpl;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -210,11 +210,11 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
 
                                                                                                           segment.getStreamName()), RuntimeException::new);
-        DelegationTokenProxy delegationTokenProxy = new DelegationTokenProxyImpl(delegationToken, controller,
+        DelegationTokenProvider delegationTokenProvider = new DelegationTokenProviderImpl(delegationToken, controller,
                 segment.getScope(), segment.getStreamName());
-        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProxy, config.getEventWriterConfig());
-        SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProxy);
-        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProxy);
+        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
+        SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
+        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
     }
 
     @Override

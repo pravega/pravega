@@ -10,7 +10,7 @@
 package io.pravega.client.segment.impl;
 
 import io.pravega.client.netty.impl.ClientConnection;
-import io.pravega.client.security.auth.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderImpl;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.mock.MockConnectionFactoryImpl;
 import io.pravega.client.stream.mock.MockController;
@@ -45,7 +45,7 @@ public class ConditionalOutputStreamTest {
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);       
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
-                new DelegationTokenProxyImpl("token", controller, segment), EventWriterConfig.builder().build());
+                new DelegationTokenProviderImpl("token", controller, segment), EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
         
         ClientConnection mock = Mockito.mock(ClientConnection.class);
@@ -78,7 +78,7 @@ public class ConditionalOutputStreamTest {
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);       
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
-                new DelegationTokenProxyImpl("token", controller, segment), EventWriterConfig.builder().build());
+                new DelegationTokenProviderImpl("token", controller, segment), EventWriterConfig.builder().build());
         cOut.close();
         AssertExtensions.assertThrows(IllegalStateException.class, () -> cOut.write(ByteBufferUtils.EMPTY, 0));
     }
@@ -90,7 +90,7 @@ public class ConditionalOutputStreamTest {
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);       
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
-                new DelegationTokenProxyImpl("token", controller, segment), EventWriterConfig.builder().build());
+                new DelegationTokenProviderImpl("token", controller, segment), EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
         
         ClientConnection mock = Mockito.mock(ClientConnection.class);
@@ -136,7 +136,7 @@ public class ConditionalOutputStreamTest {
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);       
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
-                new DelegationTokenProxyImpl("token", controller, segment), EventWriterConfig.builder().build());
+                new DelegationTokenProviderImpl("token", controller, segment), EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
 
         String mockClientReplyStackTrace = "SomeException";
@@ -167,7 +167,7 @@ public class ConditionalOutputStreamTest {
         ConditionalOutputStreamFactory factory = new ConditionalOutputStreamFactoryImpl(controller, connectionFactory);
         Segment segment = new Segment("scope", "testWrite", 1);       
         ConditionalOutputStream cOut = factory.createConditionalOutputStream(segment,
-                new DelegationTokenProxyImpl("token", controller, segment), EventWriterConfig.builder().build());
+                new DelegationTokenProviderImpl("token", controller, segment), EventWriterConfig.builder().build());
         ByteBuffer data = ByteBuffer.allocate(10);
         ClientConnection mock = Mockito.mock(ClientConnection.class);
         PravegaNodeUri location = new PravegaNodeUri("localhost", 0);

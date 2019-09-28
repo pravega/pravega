@@ -12,7 +12,7 @@ package io.pravega.client.segment.impl;
 import io.netty.buffer.Unpooled;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
-import io.pravega.client.security.auth.DelegationTokenProxy;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.util.Retry.RetryWithBackoff;
@@ -50,7 +50,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
     @GuardedBy("lock")
     private RawClient client = null;
     
-    private final DelegationTokenProxy delegationToken;
+    private final DelegationTokenProvider tokenProvider;
     private final Supplier<Long> requestIdGenerator = new AtomicLong()::incrementAndGet;
     private final RetryWithBackoff retrySchedule;
     
@@ -72,7 +72,7 @@ class ConditionalOutputStreamImpl implements ConditionalOutputStream {
                             log.debug("Setting up append on segment: {}", segmentId);
                             SetupAppend setup = new SetupAppend(requestId, writerId,
                                                                 segmentId.getScopedName(),
-                                                                delegationToken.retrieveToken());
+                                                                tokenProvider.retrieveToken());
                             val reply = client.sendRequest(requestId, setup);
                             AppendSetup appendSetup = transformAppendSetup(reply.join());
                             if (appendSetup.getLastEventNumber() >= appendSequence) {

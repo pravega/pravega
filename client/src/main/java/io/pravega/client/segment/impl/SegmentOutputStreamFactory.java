@@ -9,7 +9,7 @@
  */
 package io.pravega.client.segment.impl;
 
-import io.pravega.client.security.auth.DelegationTokenProxy;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventWriterConfig;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -29,7 +29,7 @@ public interface SegmentOutputStreamFactory {
      * @return New instance of SegmentOutputStream with an open transaction.
      */
     SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config,
-                                                         DelegationTokenProxy delegationToken);
+                                                         DelegationTokenProvider delegationToken);
 
     /**
      * Creates a stream for an existing segment. This operation will fail if the segment does not
@@ -45,7 +45,7 @@ public interface SegmentOutputStreamFactory {
      * @return New instance of SegmentOutputStream for writing.
      */
     SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
-                                                     EventWriterConfig config, DelegationTokenProxy delegationToken);
+                                                     EventWriterConfig config, DelegationTokenProvider delegationToken);
     
     /**
      * Creates a SegmentOutputStream for an existing segment. This operation will fail if the
@@ -60,5 +60,5 @@ public interface SegmentOutputStreamFactory {
      * @return New instance of SegmentOutputStream for writing.
      */
     SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config,
-                                                     DelegationTokenProxy delegationToken);
+                                                     DelegationTokenProvider delegationToken);
 }

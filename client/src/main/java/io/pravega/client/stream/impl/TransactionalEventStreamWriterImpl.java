@@ -10,8 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
-import io.pravega.client.security.auth.DelegationTokenProxy;
-import io.pravega.client.security.auth.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderImpl;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -179,10 +179,10 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : txnSegments.getSteamSegments().getSegments()) {
-            DelegationTokenProxy delegationToken = new DelegationTokenProxyImpl(
+            DelegationTokenProvider tokenProvider = new DelegationTokenProviderImpl(
                     txnSegments.getSteamSegments().getDelegationToken(), controller, s);
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
-                    config, delegationToken);
+                    config, tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
@@ -202,7 +202,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : segments.getSegments()) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config,
-                    new DelegationTokenProxyImpl(segments.getDelegationToken(), controller, s));
+                    new DelegationTokenProviderImpl(segments.getDelegationToken(), controller, s));
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

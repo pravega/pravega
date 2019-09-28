@@ -11,7 +11,7 @@ package io.pravega.client.segment.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
-import io.pravega.client.security.auth.DelegationTokenProxy;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.function.Callbacks;
@@ -35,7 +35,7 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config,
-                                                                DelegationTokenProxy delegationToken) {
+                                                                DelegationTokenProvider delegationToken) {
         return new SegmentOutputStreamImpl(StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId),
                                            config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(), nopSegmentSealedCallback,
                                            getRetryFromConfig(config), delegationToken);
@@ -43,10 +43,10 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
-                                                            EventWriterConfig config, DelegationTokenProxy delegationToken) {
+                                                            EventWriterConfig config, DelegationTokenProvider tokenProvider) {
         SegmentOutputStreamImpl result =
                 new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(), segmentSealedCallback,
-                                            getRetryFromConfig(config), delegationToken);
+                                            getRetryFromConfig(config), tokenProvider);
         try {
             result.getConnection();
         } catch (RetriesExhaustedException | SegmentSealedException | NoSuchSegmentException e) {
@@ -57,9 +57,9 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config,
-                                                            DelegationTokenProxy delegationToken) {
+                                                            DelegationTokenProvider tokenProvider) {
         return new SegmentOutputStreamImpl(segment.getScopedName(), config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(),
-                                           Callbacks::doNothing, getRetryFromConfig(config), delegationToken);
+                                           Callbacks::doNothing, getRetryFromConfig(config), tokenProvider);
     }
 
     private RetryWithBackoff getRetryFromConfig(EventWriterConfig config) {

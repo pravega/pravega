@@ -16,7 +16,7 @@ package io.pravega.client.security.auth;
  * Delegation tokens are used by Segment Store services to authorize requests. They are created by Controllers.
  *
  */
-public interface DelegationTokenProxy {
+public interface DelegationTokenProvider {
 
     /**
      * Retrieve delegation token.

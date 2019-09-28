@@ -28,8 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-import io.pravega.client.security.auth.DelegationTokenProxyFactory;
-import io.pravega.client.security.auth.DelegationTokenProxyImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import org.junit.Assert;
 import org.junit.Test;
 import org.mockito.InOrder;
@@ -101,7 +100,8 @@ public class EventStreamReaderTest {
                .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
                .thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, new DelegationTokenProxyImpl());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ByteBuffer buffer = writeInt(stream, 1);
         EventRead<byte[]> read = reader.readNextEvent(0);
         byte[] event = read.getEvent();
@@ -130,7 +130,8 @@ public class EventStreamReaderTest {
         Mockito.when(segmentInputStream1.getSegmentId()).thenReturn(segment);
 
         EventSegmentReader segmentInputStream2 = Mockito.mock(EventSegmentReader.class);
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, new DelegationTokenProxyImpl());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(buffer);
         Mockito.when(segmentInputStream2.getSegmentId()).thenReturn(Segment.fromScopedName("Foo/test/0"));
@@ -185,7 +186,8 @@ public class EventStreamReaderTest {
         Mockito.when(segmentInputStream1.getSegmentId()).thenReturn(segment);
 
         EventSegmentReader segmentInputStream2 = Mockito.mock(EventSegmentReader.class);
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig, new DelegationTokenProxyImpl());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(buffer);
         Mockito.when(segmentInputStream2.getSegmentId()).thenReturn(Segment.fromScopedName("Foo/test/0"));
@@ -223,7 +225,8 @@ public class EventStreamReaderTest {
         SegmentWithRange segment = new SegmentWithRange(Segment.fromScopedName("Foo/Bar/0"), 0, 1);
         Mockito.when(groupState.acquireNewSegmentsIfNeeded(eq(0L), any())).thenReturn(ImmutableMap.of(segment, 0L)).thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
-        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment.getSegment(), segmentSealedCallback, writerConfig, new DelegationTokenProxyImpl());
+        SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment.getSegment(), segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         ByteBuffer buffer3 = writeInt(stream, 3);
@@ -252,8 +255,10 @@ public class EventStreamReaderTest {
                .thenReturn(ImmutableMap.of(new SegmentWithRange(segment1, 0, 0.5), 0L, new SegmentWithRange(segment2, 0, 0.5), 0L))
                .thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
-        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, new DelegationTokenProxyImpl());
-        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, new DelegationTokenProxyImpl());
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         writeInt(stream1, 1);
         writeInt(stream2, 2);
         reader.readNextEvent(0);
@@ -303,8 +308,10 @@ public class EventStreamReaderTest {
                .thenReturn(ImmutableMap.of(new SegmentWithRange(segment2, 0.5, 1.0), 0L))
                .thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
-        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, new DelegationTokenProxyImpl());
-        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, new DelegationTokenProxyImpl());
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         writeInt(stream1, 1);
         writeInt(stream1, 2);
         writeInt(stream2, 3);
@@ -340,7 +347,7 @@ public class EventStreamReaderTest {
                .thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
-                writerConfig, new DelegationTokenProxyImpl());
+                writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         ByteBuffer buffer3 = writeInt(stream, 3);
@@ -375,7 +382,7 @@ public class EventStreamReaderTest {
                .thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
-                writerConfig, new DelegationTokenProxyImpl());
+                writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.when(groupState.getCheckpoint()).thenReturn("Foo").thenReturn(null);
         EventRead<byte[]> eventRead = reader.readNextEvent(0);
@@ -410,7 +417,7 @@ public class EventStreamReaderTest {
                .thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
-                writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+                writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.doReturn(true).when(groupState).isCheckpointSilent(Mockito.eq(ReaderGroupImpl.SILENT + "Foo"));
         Mockito.when(groupState.getCheckpoint())
@@ -448,7 +455,7 @@ public class EventStreamReaderTest {
                .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
                .thenReturn(Collections.emptyMap());
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
-                                                                                       writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+                                                                                       writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         ByteBuffer buffer = writeInt(stream, 1);
         Mockito.doReturn(true).when(groupState).isCheckpointSilent(Mockito.startsWith(ReaderGroupImpl.SILENT));
         Mockito.when(groupState.getCheckpoint())
@@ -493,7 +500,7 @@ public class EventStreamReaderTest {
                .thenReturn(ImmutableMap.of(new SegmentWithRange(segment, 0, 1), 0L))
                .thenReturn(Collections.emptyMap());
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
-                                                                                       writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+                                                                                       writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         writeInt(stream, 1);
         Mockito.when(groupState.getCheckpoint()).thenThrow(new ReinitializationRequiredException());
         assertThrows(ReinitializationRequiredException.class, () -> reader.readNextEvent(0)); 
@@ -518,8 +525,9 @@ public class EventStreamReaderTest {
                .thenReturn(Collections.emptyMap());
         Mockito.when(groupState.getEndOffsetForSegment(any(Segment.class))).thenReturn(Long.MAX_VALUE);
         SegmentOutputStream stream = segmentStreamFactory.createOutputStreamForSegment(segment, segmentSealedCallback,
-                                                                                       writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
-        SegmentMetadataClient metadataClient = segmentStreamFactory.createSegmentMetadataClient(segment, new DelegationTokenProxyImpl());
+                                                                                       writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
+        SegmentMetadataClient metadataClient = segmentStreamFactory.createSegmentMetadataClient(segment,
+                DelegationTokenProviderFactory.createWithEmptyToken());
         ByteBuffer buffer1 = writeInt(stream, 1);
         ByteBuffer buffer2 = writeInt(stream, 2);
         writeInt(stream, 3);
@@ -610,14 +618,14 @@ public class EventStreamReaderTest {
         Segment segment2 = Segment.fromScopedName("Foo/Bar/2");
         SegmentWithRange s2range = new SegmentWithRange(segment2, 0, 0.5);
         EventSegmentReader segmentInputStream2 = Mockito.mock(EventSegmentReader.class);
-        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         Mockito.when(segmentInputStream2.read(anyLong())).thenReturn(writeInt(stream2, 2));
         Mockito.when(segmentInputStream2.getSegmentId()).thenReturn(segment2);
         
         Segment segment3 = Segment.fromScopedName("Foo/Bar/3");
         SegmentWithRange s3range = new SegmentWithRange(segment3, 0.5, 1.0);
         EventSegmentReader segmentInputStream3 = Mockito.mock(EventSegmentReader.class);
-        SegmentOutputStream stream3 = segmentStreamFactory.createOutputStreamForSegment(segment3, segmentSealedCallback, writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+        SegmentOutputStream stream3 = segmentStreamFactory.createOutputStreamForSegment(segment3, segmentSealedCallback, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         Mockito.when(segmentInputStream3.read(anyLong())).thenReturn(writeInt(stream3, 3));
         Mockito.when(segmentInputStream3.getSegmentId()).thenReturn(segment3);
 
@@ -678,13 +686,13 @@ public class EventStreamReaderTest {
         //Mock for the two SegmentInputStreams.
         Segment segment1 = new Segment(scope, stream, 0);
         @Cleanup
-        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         writeInt(stream1, 1);
         writeInt(stream1, 1);
         writeInt(stream1, 1);
         Segment segment2 = new Segment(scope, stream, 1);
         @Cleanup
-        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         writeInt(stream2, 2);
         writeInt(stream2, 2);
         writeInt(stream2, 2);
@@ -722,11 +730,11 @@ public class EventStreamReaderTest {
         //Mock for the two SegmentInputStreams.
         Segment segment1 = new Segment(scope, stream, 0);
         @Cleanup
-        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         writeInt(stream1, 1);
         Segment segment2 = new Segment(scope, stream, 1);
         @Cleanup
-        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         writeInt(stream2, 2);
         writeInt(stream2, 2);
         writeInt(stream2, 2);
@@ -809,9 +817,9 @@ public class EventStreamReaderTest {
         Segment segment1 = new Segment(scope, streamName, 0);
         Segment segment2 = new Segment(scope, streamName, 1);
         @Cleanup
-        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+        SegmentOutputStream stream1 = segmentStreamFactory.createOutputStreamForSegment(segment1, segmentSealedCallback, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         @Cleanup
-        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, DelegationTokenProxyFactory.createWithEmptyToken());
+        SegmentOutputStream stream2 = segmentStreamFactory.createOutputStreamForSegment(segment2, segmentSealedCallback, writerConfig, DelegationTokenProviderFactory.createWithEmptyToken());
         
         //Write stream data
         writeInt(stream1, 1);

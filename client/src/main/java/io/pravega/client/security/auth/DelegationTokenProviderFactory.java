@@ -9,9 +9,15 @@
  */
 package io.pravega.client.security.auth;
 
-public class DelegationTokenProxyFactory {
+import lombok.NonNull;
 
-    public static DelegationTokenProxy createWithEmptyToken() {
-        return new DelegationTokenProxyImpl();
+public class DelegationTokenProviderFactory {
+
+    public static DelegationTokenProvider createWithEmptyToken() {
+        return new DelegationTokenProviderImpl("");
+    }
+
+    public static DelegationTokenProvider createWithNonJwtToken(@NonNull String token) {
+        return new DelegationTokenProviderImpl(token);
     }
 }
