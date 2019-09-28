@@ -18,7 +18,6 @@ import io.pravega.common.concurrent.Futures;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NonNull;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -36,17 +35,13 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
     /**
      * The Controller gRPC client used for interacting with the server.
      */
-    @Getter(AccessLevel.PROTECTED)
     private final Controller controllerClient;
 
-    @Getter(AccessLevel.PROTECTED)
     private final String scopeName;
 
-    @Getter(AccessLevel.PROTECTED)
     private final String streamName;
 
     @Getter(AccessLevel.PROTECTED)
-    @Setter(AccessLevel.PROTECTED)
     private AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
     ValidJwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName) {
@@ -66,8 +61,6 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
 
         Long expTime = extractExpirationTime(token);
-
-        // Preconditions.checkNotNull(expTime, "No expiry is set in the delegation token");
         delegationToken.set(new DelegationToken(token, expTime));
         this.scopeName = scopeName;
         this.streamName = streamName;

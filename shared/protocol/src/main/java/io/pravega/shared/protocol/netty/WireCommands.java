@@ -1522,8 +1522,9 @@ public final class WireCommands {
         final long requestId;
         final String serverStackTrace;
 
-        // -1 indicates un-specified
-        // 1 indicates token has expired
+        // -1 indicates un-specified (for backward compatibility)
+        // 0 / ERROR_CODE_TOKEN_CHECK_FAILED indicates a general token error
+        // 1 / ERROR_CODE_TOKEN_EXPIRED indicates token has expired
         final int errorCode;
 
         public AuthTokenCheckFailed(long requestId, String serverStackTrace) {
