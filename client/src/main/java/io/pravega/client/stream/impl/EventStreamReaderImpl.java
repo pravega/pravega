@@ -58,8 +58,8 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
 @Slf4j
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
-    // Sets the max blocking time for a reader on an idle segment waiting for new data to be read.
-    private static final int MAX_READER_IDLENESS_TIME_MS = 5;
+    // Base waiting time for a reader on an idle segment waiting for new data to be read.
+    private static final long READER_WAITING_TIME_MS = 5;
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
@@ -113,7 +113,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
     
     private EventRead<Type> readNextEventInternal(long timeout) throws ReaderNotInReaderGroupException, TruncatedDataException {
-        long waitTime = Math.min(timeout, MAX_READER_IDLENESS_TIME_MS);
+        int numReaders = (readers.isEmpty()) ? 1 : readers.size();
+        long waitTime = Math.min(timeout, Math.min(ReaderGroupStateManager.TIME_UNIT.toMillis(), READER_WAITING_TIME_MS * numReaders));
         Timer timer = new Timer();
         Segment segment = null;
         long offset = -1;
