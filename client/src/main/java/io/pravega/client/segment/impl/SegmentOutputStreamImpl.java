@@ -212,12 +212,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                     log.warn("Connection for segment {} on writer {} failed due to: {}", segmentName, writerId, message);
                 }
             }
-            if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException) {
+            if (throwable instanceof SegmentSealedException || throwable instanceof NoSuchSegmentException
+                    || throwable instanceof TokenException) {
                 setupConnection.releaseExceptionally(throwable);
-            } else if (throwable instanceof TokenException && !(throwable instanceof TokenExpiredException)) {
-                log.warn("Encountered TokenException", throwable);
             } else if (failSetupConnection) {
-                setupConnection.releaseExceptionallyAndReset(throwable);                
+                setupConnection.releaseExceptionallyAndReset(throwable);
             }
             if (oldConnectionSetupCompleted != null) {
                 oldConnectionSetupCompleted.completeExceptionally(throwable);
@@ -242,7 +241,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 return eventNumber;
             }
         }
-        
+
         /**
          * Remove all events with event numbers below the provided level from inflight and return them.
          */
@@ -306,7 +305,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         public void connectionDropped() {
             failConnection(new ConnectionFailedException("Connection dropped for writer " + writerId));
         }
-        
+
         @Override
         public void wrongHost(WrongHost wrongHost) {
             failConnection(new ConnectionFailedException(wrongHost.toString()));
@@ -474,7 +473,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
     }
-    
+
     /**
      * Establish a connection and wait for it to be setup. (Retries built in)
      */
@@ -492,7 +491,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         state.setupConnection.register(future);
         return future;
     }
-    
+
     /**
      * @see SegmentOutputStream#close()
      */
@@ -544,13 +543,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             }
         }
     }
-    
+
     private void failConnection(Throwable e) {
         log.warn("Failing connection for writer {} with exception {}", writerId, e.toString());
         state.failConnection(Exceptions.unwrap(e));
         reconnect();
     }
-    
+
     @VisibleForTesting
     void reconnect() {
         if (state.isClosed()) {
@@ -584,9 +583,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                          }
                          return connectionSetupFuture.exceptionally(t -> {
                              Throwable exception = Exceptions.unwrap(t);
-                             if (exception instanceof TokenException && !(exception instanceof TokenExpiredException)) {
-                                 // Except for TokenExpiredException, all TokenException should be returned back to
-                                 // client application.
+                             if (exception instanceof TokenException) {
                                  log.info("Ending reconnect attempts on writer {} to {} because token verification failed",
                                          writerId, segmentName);
                                  return null;

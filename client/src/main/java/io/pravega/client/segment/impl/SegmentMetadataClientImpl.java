@@ -58,9 +58,9 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     private final DelegationTokenProvider tokenProvider;
 
     public SegmentMetadataClientImpl(Segment segment, Controller controller, ConnectionFactory connectionFactory,
-                                     String tokenProvider) {
+                                     String delegationToken) {
         this(segment, controller, connectionFactory,
-                new DelegationTokenProviderImpl(tokenProvider, controller, segment));
+                new DelegationTokenProviderImpl(delegationToken, controller, segment));
     }
 
     private void closeConnection(Reply badReply) {

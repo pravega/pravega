@@ -67,7 +67,7 @@ public class ByteStreamClientImpl implements ByteStreamClientFactory, io.pravega
 
         DelegationTokenProvider tokenProvider = new DelegationTokenProviderImpl(delegationToken, controller, segment);
 
-        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, delegationToken),
+        return new ByteStreamReaderImpl(inputStreamFactory.createInputStreamForSegment(segment, tokenProvider),
                                         metaStreamFactory.createSegmentMetadataClient(segment, tokenProvider));
     }
 
