@@ -461,6 +461,10 @@ public class ReaderGroupStateManager {
         return sync.getState().getLastReadPositions(stream);
     }
 
+    int getNumberOfReaders() {
+        return sync.getState().getNumberOfReaders();
+    }
+
     public String getOrRefreshDelegationTokenFor(Segment segmentId) {
             return getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segmentId.getScope(), segmentId.getStreamName()), RuntimeException::new);
     }

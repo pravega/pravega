@@ -113,7 +113,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
     
     private EventRead<Type> readNextEventInternal(long timeout) throws ReaderNotInReaderGroupException, TruncatedDataException {
-        int numReaders = (readers.isEmpty()) ? 1 : readers.size();
+        int numReaders = Math.max(1, groupState.getNumberOfReaders());
         long waitTime = Math.min(timeout, Math.min(ReaderGroupStateManager.TIME_UNIT.toMillis(), READER_WAITING_TIME_MS * numReaders));
         Timer timer = new Timer();
         Segment segment = null;
