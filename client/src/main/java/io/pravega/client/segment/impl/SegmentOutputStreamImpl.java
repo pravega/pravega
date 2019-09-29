@@ -497,7 +497,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
         log.debug("Closing writer: {}", writerId);
         // Wait until all the in-flight events are written
-        flushInFlight(new CloseAppend(writerId, segmentName));
+        flushInFlight(new CloseAppend(writerId));
         state.setClosed(true);
         ClientConnection connection = state.getConnection();
         if (connection != null) {

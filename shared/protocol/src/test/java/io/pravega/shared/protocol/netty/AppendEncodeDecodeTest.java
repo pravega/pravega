@@ -417,7 +417,7 @@ public class AppendEncodeDecodeTest {
         SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
         commandEncoder.encode(null, setupAppend, fakeNetwork);
         appendDecoder.processCommand(setupAppend);
-        CloseAppend closeAppend = new CloseAppend(writerId, "segment");
+        CloseAppend closeAppend = new CloseAppend(writerId);
         commandEncoder.encode(null, closeAppend, fakeNetwork);
         appendDecoder.processCommand(closeAppend);
         ArrayList<Object> received = new ArrayList<>();
