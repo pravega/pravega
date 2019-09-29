@@ -2108,7 +2108,6 @@ public final class WireCommands {
     public static final class Flush implements WireCommand {
         final WireCommandType type = WireCommandType.FLUSH_SEGMENT;
         final UUID writerId;
-        final String segment;
 
         @Override
         public void writeFields(DataOutput out) throws IOException {

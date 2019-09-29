@@ -513,7 +513,7 @@ public class AppendEncodeDecodeTest {
             return null;
         });
         commandEncoder.encode(ctx, msg, fakeNetwork);
-        Flush flush = new Flush(writerId, streamName);
+        Flush flush = new Flush(writerId);
         commandEncoder.encode(ctx, flush, fakeNetwork);
 
         read(fakeNetwork, received);

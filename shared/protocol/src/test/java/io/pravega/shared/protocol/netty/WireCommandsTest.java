@@ -673,9 +673,8 @@ public class WireCommandsTest {
     @Test(expected = IOException.class)
     public void testFlush() throws IOException {
         ByteArrayOutputStream bout = new ByteArrayOutputStream();
-        WireCommands.Flush flush = new WireCommands.Flush(uuid, testString1);
+        WireCommands.Flush flush = new WireCommands.Flush(uuid);
         assertEquals(uuid, flush.getWriterId());
-        assertEquals(testString1, flush.getSegment());
         flush.writeFields(new DataOutputStream(bout));
     }
 

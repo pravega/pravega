@@ -510,7 +510,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
      */
     @Override
     public void flush() throws SegmentSealedException {
-        flushInFlight(new Flush(writerId, segmentName));
+        flushInFlight(new Flush(writerId));
     }
 
     private void flushInFlight(WireCommand cmd) throws SegmentSealedException {

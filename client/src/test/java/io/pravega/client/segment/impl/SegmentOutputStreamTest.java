@@ -379,7 +379,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0, -1)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
-        order.verify(connection).send(new Flush(cid, SEGMENT));
+        order.verify(connection).send(new Flush(cid));
         
         CompletableFuture<Void> acked2 = new CompletableFuture<>();
         output.write(PendingEvent.withoutHeader(null, data, acked2));
@@ -389,7 +389,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 2, 1, -1)));
         assertEquals(false, acked2.isCompletedExceptionally());
         assertEquals(true, acked2.isDone());
-        order.verify(connection).send(new Flush(cid, SEGMENT));
+        order.verify(connection).send(new Flush(cid));
         order.verifyNoMoreInteractions();
     }
 
@@ -420,7 +420,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0, -1)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
-        order.verify(connection).send(new Flush(cid, SEGMENT));
+        order.verify(connection).send(new Flush(cid));
 
         //simulate missed ack
 
@@ -462,7 +462,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
                                       () -> cf.getProcessor(uri).dataAppended(new WireCommands.DataAppended(output.getRequestId(), cid, 1, 0, -1)));
         assertEquals(false, acked1.isCompletedExceptionally());
         assertEquals(true, acked1.isDone());
-        order.verify(connection).send(new Flush(cid, SEGMENT));
+        order.verify(connection).send(new Flush(cid));
 
         //simulate bad ack
 
@@ -746,7 +746,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         assertEquals(false, ack.isDone());
 
         final CountDownLatch connectionDroppedLatch = new CountDownLatch(1);
-        Mockito.doThrow(new ConnectionFailedException()).when(connection).send(new Flush(cid, SEGMENT));
+        Mockito.doThrow(new ConnectionFailedException()).when(connection).send(new Flush(cid));
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocation) throws Throwable {
@@ -880,7 +880,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
             cf.getProcessor(uri).segmentIsSealed(new WireCommands.SegmentIsSealed(output.getRequestId(), SEGMENT, "SomeException", 1));
             output.getUnackedEventsOnSeal();
         });
-        verify(connection).send(new Flush(cid, SEGMENT));
+        verify(connection).send(new Flush(cid));
         verify(connection).send(new Append(SEGMENT, cid, 1, 1, Unpooled.wrappedBuffer(data), null, output.getRequestId()));
         assertEquals(false, ack.isDone());
     }
