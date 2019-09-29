@@ -23,7 +23,6 @@ import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
 import io.pravega.shared.protocol.netty.WireCommands.Flush;
 import io.pravega.shared.protocol.netty.WireCommands.CloseAppend;
 import java.io.IOException;
-import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.UUID;
 import java.util.Map;
 import java.util.HashMap;
@@ -79,9 +78,8 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
-    private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
+    private final Map<UUID, Session> setupWriters = new HashMap<>();
     private final AtomicLong tokenCounter = new AtomicLong(0);
-    private String segmentBeingAppendedTo;
     private UUID writerIdPerformingAppends;
     private int currentBlockSize;
     private int bytesLeftInBlock;
@@ -190,7 +188,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         log.trace("Encoding message to send over the wire {}", msg);
         if (msg instanceof Append) {
             Append append = (Append) msg;
-            Session session = setupSegments.get(new SimpleImmutableEntry<>(append.getSegment(), append.getWriterId()));
+            Session session = setupWriters.get(append.getWriterId());
             validateAppend(append, session);
             final ByteBuf data = append.getData().slice();
             final AppendBatchSizeTracker blockSizeSupplier = (appendTracker == null) ? null :
@@ -215,7 +213,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
                 }
             } else {
                 session.record(append);
-                if (isChannelOwner(append.getWriterId(), append.getSegment())) {
+                if (isChannelOwner(append.getWriterId())) {
                     if (bytesLeftInBlock > data.readableBytes()) {
                         continueAppend(data, out);
                     } else {
@@ -232,19 +230,17 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
             flushAll(out);
             writeMessage((SetupAppend) msg, out);
             SetupAppend setup = (SetupAppend) msg;
-            setupSegments.put(new SimpleImmutableEntry<>(setup.getSegment(), setup.getWriterId()),
-                              new Session(setup.getWriterId(), setup.getRequestId()));
+            setupWriters.put(setup.getWriterId(), new Session(setup.getWriterId(), setup.getRequestId()));
         } else if (msg instanceof CloseAppend) {
             CloseAppend closeSetup = (CloseAppend) msg;
-            Map.Entry sessionKey = new SimpleImmutableEntry<>(closeSetup.getSegment(), closeSetup.getWriterId());
-            Session session = setupSegments.get(sessionKey);
+            Session session = setupWriters.get(closeSetup.getWriterId());
             breakCurrentAppend(out);
             session.flush(out);
             writeMessage(closeSetup, out);
-            setupSegments.remove(sessionKey);
+            setupWriters.remove(closeSetup.getWriterId());
         } else  if (msg instanceof Flush) {
             Flush flush = (Flush) msg;
-            Session session = setupSegments.get(new SimpleImmutableEntry<>(flush.getSegment(), flush.getWriterId()));
+            Session session = setupWriters.get(flush.getWriterId());
             if (!session.isFree()) {
                 breakCurrentAppend(out);
                 session.flush(out);
@@ -293,14 +289,13 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
 
     /**
      * Check/Confirm the Network channel Ownership.
-     * The Network channel ownership is associated with Writer ID and segment to which writes are performed.
+     * The Network channel ownership is associated with Writer ID from which writes are performed.
      *
      * @param writerID  Writer's UUID.
-     * @param segment   Segment.
      * @return true if channel is used by the given WriterId and Segment; false otherwise.
      */
-    private boolean isChannelOwner(UUID writerID, String segment) {
-        return writerID.equals(writerIdPerformingAppends) && segment.equals(segmentBeingAppendedTo);
+    private boolean isChannelOwner(UUID writerID) {
+        return writerID.equals(writerIdPerformingAppends);
     }
 
     /**
@@ -320,7 +315,6 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         if (blockSizeSupplier != null) {
             blockSize = blockSizeSupplier.getAppendBlockSize();
         }
-        segmentBeingAppendedTo = append.segment;
         writerIdPerformingAppends = append.writerId;
         if (ctx != null && blockSize > msgSize) {
             currentBlockSize = blockSize;
@@ -354,11 +348,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
      * @param out           channel Buffer.
      */
     private void completeAppend(ByteBuf pendingData, ByteBuf out) {
-        Session session = setupSegments.get(new SimpleImmutableEntry<>(segmentBeingAppendedTo, writerIdPerformingAppends));
+        Session session = setupWriters.get(writerIdPerformingAppends);
         session.flush(currentBlockSize - bytesLeftInBlock, pendingData, out);
         bytesLeftInBlock = 0;
         currentBlockSize = 0;
-        segmentBeingAppendedTo = null;
         writerIdPerformingAppends = null;
     }
 
