@@ -466,8 +466,7 @@ class SegmentMetadataUpdateTransaction implements UpdateableSegmentMetadata {
                     // Verify value against existing value, if any.
                     if (u.getComparisonValue() != previousValue || !hasValue) {
                         throw new BadAttributeUpdateException(this.name, u, !hasValue,
-                                String.format("Expected existing value to be '%s', actual '%s'.",
-                                        u.getComparisonValue(), previousValue));
+                                String.format("Expected '%s', given '%s'.", previousValue, u.getComparisonValue()));
                     }
 
                     break;
