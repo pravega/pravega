@@ -131,7 +131,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         }
     }
 
-    private CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo(DelegationTokenProvider tokenProvider) {
+    private CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo() {
         log.debug("Getting segment info for segment: {}", segmentId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
@@ -140,18 +140,16 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
                          .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
     }
     
-    private CompletableFuture<WireCommands.SegmentAttribute> getPropertyAsync(UUID attributeId,
-                                                                              DelegationTokenProvider tokenProvider) {
+    private CompletableFuture<WireCommands.SegmentAttribute> getPropertyAsync(UUID attributeId) {
         log.debug("Getting segment attribute: {}", attributeId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
-        return connection.sendRequest(requestId,
-                                      new GetSegmentAttribute(requestId, segmentId.getScopedName(), attributeId, tokenProvider.retrieveToken()))
+        return connection.sendRequest(requestId, new GetSegmentAttribute(requestId, segmentId.getScopedName(),
+                                                    attributeId, tokenProvider.retrieveToken()))
                          .thenApply(r -> transformReply(r, WireCommands.SegmentAttribute.class));
     }
 
-    private CompletableFuture<SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, long expected,                           long value,
-                                                                           DelegationTokenProvider tokenProvider) {
+    private CompletableFuture<SegmentAttributeUpdated> updatePropertyAsync(UUID attributeId, long expected, long value) {
         log.trace("Updating segment attribute: {}", attributeId);
         RawClient connection = getConnection();
         long requestId = connection.getFlow().getNextSequenceNumber();
@@ -183,7 +181,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         Exceptions.checkNotClosed(closed.get(), this);
         val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .run(() -> Futures.getThrowingException(getStreamSegmentInfo(tokenProvider)));
+                                   .run(() -> Futures.getThrowingException(getStreamSegmentInfo()));
         return result.getWriteOffset();
     }
 
@@ -192,7 +190,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         Exceptions.checkNotClosed(closed.get(), this);
         val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .run(() -> Futures.getThrowingException(getPropertyAsync(attribute.getValue(), tokenProvider)));
+                                   .run(() -> Futures.getThrowingException(getPropertyAsync(attribute.getValue())));
         return result.getValue();
     }
 
@@ -201,7 +199,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
         Exceptions.checkNotClosed(closed.get(), this);
         val result = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
-                                   .run(() -> Futures.getThrowingException(updatePropertyAsync(attribute.getValue(), expectedValue, newValue, tokenProvider)));
+                                   .run(() -> Futures.getThrowingException(updatePropertyAsync(attribute.getValue(), expectedValue, newValue)));
         return result.isSuccess();
     }
 
@@ -217,7 +215,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     public SegmentInfo getSegmentInfo() {
         StreamSegmentInfo info = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                 .throwingOn(NoSuchSegmentException.class)
-                .run(() -> Futures.getThrowingException(getStreamSegmentInfo(tokenProvider)));
+                .run(() -> Futures.getThrowingException(getStreamSegmentInfo()));
         return new SegmentInfo(segmentId, info.getStartOffset(), info.getWriteOffset(), info.isSealed(),
                                info.getLastModified());
     }

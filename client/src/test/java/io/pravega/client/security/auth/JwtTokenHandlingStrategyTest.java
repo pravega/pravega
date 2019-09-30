@@ -28,7 +28,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @Slf4j
-public class ValidJwtTokenHandlingStrategyTest {
+public class JwtTokenHandlingStrategyTest {
 
     @Test
     public void testIsWithinThresholdForRefresh() {

@@ -23,7 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @Slf4j
-public class NullTokenHandlingStrategyTest extends ValidJwtTokenHandlingStrategyTest {
+public class NullTokenHandlingStrategyTest extends JwtTokenHandlingStrategyTest {
 
     @Test
     public void testRetrievesNewTokenFirstTime() {
