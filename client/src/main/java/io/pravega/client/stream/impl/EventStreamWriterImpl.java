@@ -36,6 +36,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -98,6 +99,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         this.pinger = new Pinger(config, stream, controller, internalExecutor);
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
+        if (config.isAutomaticallyNoteTime()) {
+            //See: https://github.com/pravega/pravega/issues/4218
+            internalExecutor.scheduleWithFixedDelay(() -> noteTimeInternal(System.currentTimeMillis()), 5, 5, TimeUnit.SECONDS);
+        }
     }
 
     @Override
@@ -423,6 +428,11 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
 
     @Override
     public void noteTime(long timestamp) {
+        Preconditions.checkState(!config.isAutomaticallyNoteTime(), "To note time, automatic noting of time should be disabled.");
+        noteTimeInternal(timestamp);
+    }
+
+    private void noteTimeInternal(long timestamp) {
         Map<Segment, Long> offsets = selector.getWriters()
                                              .entrySet()
                                              .stream()
@@ -430,7 +440,6 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                                                                        e -> e.getValue().getLastObservedWriteOffset()));
         WriterPosition position = new WriterPosition(offsets);
         controller.noteTimestampFromWriter(writerId, stream, timestamp, position);
-        
     }
 
 }
