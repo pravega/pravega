@@ -9,6 +9,7 @@
  */
 package io.pravega.client.stream.impl;
 
+import com.google.common.collect.ImmutableMap;
 import io.netty.util.ResourceLeakDetector;
 import io.netty.util.ResourceLeakDetector.Level;
 import io.pravega.client.segment.impl.EndOfSegmentException;
@@ -26,6 +27,7 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.util.ReusableLatch;
 import io.pravega.shared.protocol.netty.WireCommands;
 import io.pravega.test.common.AssertExtensions;
+import io.pravega.test.common.CollectingExecutor;
 import io.pravega.test.common.ThreadPooledTestSuite;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -782,4 +784,80 @@ public class EventStreamWriterTest extends ThreadPooledTestSuite {
         assertEquals("Foo", serializer.deserialize(outputStream3.getAcked(0)));
         assertEquals("Bar", serializer.deserialize(outputStream3.getUnacked(0)));
     }
+    
+    @Test
+    public void testNoteTime() {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        EventWriterConfig config = EventWriterConfig.builder().build();
+
+        SegmentOutputStream mockOutputStream = Mockito.mock(SegmentOutputStream.class);       
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any())).thenReturn(mockOutputStream);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment1));
+        
+        Mockito.when(mockOutputStream.getLastObservedWriteOffset()).thenReturn(1111L);
+        
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService(), executorService());
+        writer.noteTime(123);
+        
+        ImmutableMap<Segment, Long> expectedOffsets = ImmutableMap.of(segment1, 1111L);
+        Mockito.verify(controller).noteTimestampFromWriter(eq("id"), eq(stream), eq(123L), eq(new WriterPosition(expectedOffsets)));
+    }
+    
+    @Test
+    public void testNoteTimeFail() {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        EventWriterConfig config = EventWriterConfig.builder().automaticallyNoteTime(true).build();
+
+        SegmentOutputStream mockOutputStream = Mockito.mock(SegmentOutputStream.class);       
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any())).thenReturn(mockOutputStream);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment1));
+
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executorService(), executorService());
+        AssertExtensions.assertThrows(IllegalStateException.class, () -> writer.noteTime(123));       
+    }
+    
+    @Test
+    public void testAutoNoteTime() {
+        String scope = "scope";
+        String streamName = "stream";
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        Segment segment1 = new Segment(scope, streamName, 0);
+        EventWriterConfig config = EventWriterConfig.builder().automaticallyNoteTime(true).build();
+
+        SegmentOutputStream mockOutputStream = Mockito.mock(SegmentOutputStream.class);       
+        SegmentOutputStreamFactory streamFactory = Mockito.mock(SegmentOutputStreamFactory.class);
+        Mockito.when(streamFactory.createOutputStreamForSegment(eq(segment1), any(), any(), any())).thenReturn(mockOutputStream);
+        Controller controller = Mockito.mock(Controller.class);
+        Mockito.when(controller.getCurrentSegments(scope, streamName)).thenReturn(getSegmentsFuture(segment1));
+        
+        Mockito.when(mockOutputStream.getLastObservedWriteOffset()).thenReturn(1111L);
+        
+        CollectingExecutor executor = new CollectingExecutor();
+        
+        JavaSerializer<String> serializer = new JavaSerializer<>();
+        EventStreamWriter<String> writer = new EventStreamWriterImpl<>(stream, "id", controller, streamFactory, serializer,
+                config, executor, executor);
+        
+        List<Runnable> tasks = executor.getScheduledTasks();
+        assertEquals(1, tasks.size());
+        tasks.get(0).run();
+        
+        ImmutableMap<Segment, Long> expectedOffsets = ImmutableMap.of(segment1, 1111L);
+        Mockito.verify(controller).noteTimestampFromWriter(eq("id"), eq(stream), Mockito.anyLong(), eq(new WriterPosition(expectedOffsets)));
+    }
+    
 }
