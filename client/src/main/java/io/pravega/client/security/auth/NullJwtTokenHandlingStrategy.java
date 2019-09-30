@@ -13,7 +13,7 @@ import io.pravega.client.stream.impl.Controller;
 import lombok.NonNull;
 
 /**
- * Strategy for handling null delegation tokens. This strategy is similar as ValidJwtTokenHandlingStrategy, except
+ * Strategy for handling null delegation tokens. This strategy is similar as {@link JwtTokenHandlingStrategy}, except
  * that it does not assume the presence of an initial delegation token.
  */
 public class NullJwtTokenHandlingStrategy extends JwtTokenHandlingStrategy {

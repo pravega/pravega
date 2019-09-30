@@ -30,16 +30,18 @@ import static org.mockito.Mockito.when;
 @Slf4j
 public class JwtTokenHandlingStrategyTest {
 
+    private Controller dummyController = mock(Controller.class);
+
     @Test
     public void testIsWithinThresholdForRefresh() {
         JwtTokenHandlingStrategy strategy = new JwtTokenHandlingStrategy(
-                dummyToken(), mock(Controller.class), "somescope", "somestream");
+                dummyToken(), dummyController, "somescope", "somestream");
 
         assertFalse(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(10), Instant.ofEpochSecond(30)));
         assertFalse(strategy.isWithinRefreshThreshold(Instant.now(), Instant.now().plusSeconds(11)));
         assertTrue(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(40)));
         assertTrue(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(55)));
-        assertTrue(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(60)));
+        assertTrue(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(53)));
     }
 
     @Test
@@ -93,7 +95,7 @@ public class JwtTokenHandlingStrategyTest {
                 "eyJzdWIiOiJqZG9lIiwiYXVkIjoic2VnbWVudHN0b3JlIiwiaWF0IjoxNTY5MzI0Njc4LCJleHAiOjE1NjkzMjQ2ODN9", // body
                 "EKvw5oVkIihOvSuKlxiX7q9_OAYz7m64wsFZjJTBkoqg4oidpFtdlsldXHToe30vrPnX45l8QAG4DoShSMdw"); // signature
         JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
-                token, mock(Controller.class), "somescope", "somestream");
+                token, dummyController, "somescope", "somestream");
         assertNotNull(objectUnderTest.extractExpirationTime(token));
     }
 
@@ -124,5 +126,19 @@ public class JwtTokenHandlingStrategyTest {
         log.debug(newToken);
 
         assertTrue(newToken.startsWith("newtokenheader"));
+    }
+
+    @Test
+    public void testReturnsNullExpirationTimeForNullToken() {
+        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+                dummyToken(), dummyController, "some-scope", "some-stream");
+        assertNull(objectUnderTest.extractExpirationTime(null));
+    }
+
+    @Test
+    public void testReturnsNullExpirationTimeForEmptyToken() {
+        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+                dummyToken(), dummyController, "some-scope", "some-stream");
+        assertNull(objectUnderTest.extractExpirationTime(null));
     }
 }

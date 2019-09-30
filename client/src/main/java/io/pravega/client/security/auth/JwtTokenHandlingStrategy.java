@@ -17,7 +17,6 @@ import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -30,7 +29,7 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
     /**
      * Represents the threshold for triggering delegation token refresh.
      */
-    private static final int REFRESH_THRESHOLD = 10;
+    private static final int REFRESH_THRESHOLD = 5;
 
     /**
      * The Controller gRPC client used for interacting with the server.
@@ -110,7 +109,7 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
     }
 
     @VisibleForTesting
-    Long extractExpirationTime(@NonNull String token) {
+    Long extractExpirationTime(String token) {
         if (token == null || token.trim().equals("")) {
             return null;
         }
