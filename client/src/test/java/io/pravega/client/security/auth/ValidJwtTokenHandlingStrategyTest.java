@@ -32,7 +32,7 @@ public class ValidJwtTokenHandlingStrategyTest {
 
     @Test
     public void testIsWithinThresholdForRefresh() {
-        ValidJwtTokenHandlingStrategy strategy = new ValidJwtTokenHandlingStrategy(
+        JwtTokenHandlingStrategy strategy = new JwtTokenHandlingStrategy(
                 dummyToken(), mock(Controller.class), "somescope", "somestream");
 
         assertFalse(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(10), Instant.ofEpochSecond(30)));
@@ -46,7 +46,7 @@ public class ValidJwtTokenHandlingStrategyTest {
     public void testRetrievesSameTokenPassedDuringConstruction() {
         String token = String.format("header.%s.signature", createJwtBody(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
-        ValidJwtTokenHandlingStrategy objectUnderTest = new ValidJwtTokenHandlingStrategy(
+        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
                 token, mock(Controller.class), "somescope", "somestream");
         assertEquals(token, objectUnderTest.retrieveToken());
     }
@@ -67,7 +67,7 @@ public class ValidJwtTokenHandlingStrategyTest {
                 "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ", // body
                 "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"); // signature
 
-        ValidJwtTokenHandlingStrategy objectUnderTest = new ValidJwtTokenHandlingStrategy(
+        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
                 token, mock(Controller.class), "somescope", "somestream");
 
         assertNull(objectUnderTest.extractExpirationTime(token));
@@ -92,7 +92,7 @@ public class ValidJwtTokenHandlingStrategyTest {
                 "eyJhbGciOiJIUzUxMiJ9", // header
                 "eyJzdWIiOiJqZG9lIiwiYXVkIjoic2VnbWVudHN0b3JlIiwiaWF0IjoxNTY5MzI0Njc4LCJleHAiOjE1NjkzMjQ2ODN9", // body
                 "EKvw5oVkIihOvSuKlxiX7q9_OAYz7m64wsFZjJTBkoqg4oidpFtdlsldXHToe30vrPnX45l8QAG4DoShSMdw"); // signature
-        ValidJwtTokenHandlingStrategy objectUnderTest = new ValidJwtTokenHandlingStrategy(
+        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
                 token, mock(Controller.class), "somescope", "somestream");
         assertNotNull(objectUnderTest.extractExpirationTime(token));
     }
@@ -116,7 +116,7 @@ public class ValidJwtTokenHandlingStrategyTest {
                 .thenReturn(future);
 
         // Setup the object under test
-        ValidJwtTokenHandlingStrategy objectUnderTest = new ValidJwtTokenHandlingStrategy(
+        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
                 token, mockController, "somescope", "somestream");
 
         // Act

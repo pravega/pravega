@@ -14,6 +14,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Represents a JWT body for serialization/deserialization purposes.
+ */
 @Builder
 @Getter
 @Setter

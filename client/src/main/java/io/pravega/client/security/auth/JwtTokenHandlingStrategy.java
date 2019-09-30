@@ -25,7 +25,7 @@ import java.util.Base64;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
-public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
+public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
 
     /**
      * Represents the threshold for triggering delegation token refresh.
@@ -44,7 +44,7 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
     @Getter(AccessLevel.PROTECTED)
     private AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
-    ValidJwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName) {
+    JwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
@@ -54,7 +54,7 @@ public class ValidJwtTokenHandlingStrategy implements DelegationTokenHandlingStr
         this.controllerClient = controllerClient;
     }
 
-    public ValidJwtTokenHandlingStrategy(String token, Controller controllerClient, String scopeName, String streamName) {
+    public JwtTokenHandlingStrategy(String token, Controller controllerClient, String scopeName, String streamName) {
         Exceptions.checkNotNullOrEmpty(token, "token");
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");

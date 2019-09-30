@@ -9,12 +9,10 @@
  */
 package io.pravega.client.security.auth;
 
+/**
+ * Strategy for handling delegation tokens of various kinds, such as null, empty, JWT, non-JWT strings, etc.
+ */
 public interface DelegationTokenHandlingStrategy {
-
-    /**
-     * Represents the threshold for triggering delegation token refresh.
-     */
-    static final int REFRESH_THRESHOLD = 10;
 
     String retrieveToken();
 

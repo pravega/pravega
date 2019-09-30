@@ -33,7 +33,7 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId,
                                                                 EventWriterConfig config,
-                                                                DelegationTokenProvider delegationToken) {
+                                                                DelegationTokenProvider tokenProvider) {
         throw new UnsupportedOperationException();
     }
 
@@ -45,12 +45,12 @@ public class MockSegmentStreamFactory implements SegmentInputStreamFactory, Segm
     
     @Override
     public SegmentOutputStream createOutputStreamForSegment(Segment segment, Consumer<Segment> segmentSealedCallback,
-                                                            EventWriterConfig config, DelegationTokenProvider delegationToken) {
+                                                            EventWriterConfig config, DelegationTokenProvider tokenProvider) {
         return getMockStream(segment);
     }
 
     @Override
-    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, DelegationTokenProvider delegationToken) {
+    public SegmentOutputStream createOutputStreamForSegment(Segment segment, EventWriterConfig config, DelegationTokenProvider tokenProvider) {
         return getMockStream(segment);
     }
 

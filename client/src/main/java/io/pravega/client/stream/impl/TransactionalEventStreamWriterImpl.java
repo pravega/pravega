@@ -11,7 +11,7 @@ package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
 import io.pravega.client.security.auth.DelegationTokenProvider;
-import io.pravega.client.security.auth.DelegationTokenProviderImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -179,7 +179,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : txnSegments.getSteamSegments().getSegments()) {
-            DelegationTokenProvider tokenProvider = new DelegationTokenProviderImpl(
+            DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(
                     txnSegments.getSteamSegments().getDelegationToken(), controller, s);
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
                     config, tokenProvider);
@@ -202,7 +202,7 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         for (Segment s : segments.getSegments()) {
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config,
-                    new DelegationTokenProviderImpl(segments.getDelegationToken(), controller, s));
+                    DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, s));
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

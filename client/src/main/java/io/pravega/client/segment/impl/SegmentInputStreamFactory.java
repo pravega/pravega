@@ -26,7 +26,7 @@ public interface SegmentInputStreamFactory {
      * process space).
      *
      * @param segment The segment to create an input for.
-     * @param tokenProvider The provider of the delegation token used to connect to the server.
+     * @param tokenProvider The {@link DelegationTokenProvider} instance to be used for obtaining a delegation token.
      * @return New instance of SegmentInputStream for reading.
      */
     SegmentInputStream createInputStreamForSegment(Segment segment, DelegationTokenProvider tokenProvider);

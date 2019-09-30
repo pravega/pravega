@@ -12,7 +12,7 @@ package io.pravega.client.segment.impl;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.security.auth.DelegationTokenProvider;
-import io.pravega.client.security.auth.DelegationTokenProviderImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.MathHelpers;
 import io.pravega.common.concurrent.Futures;
@@ -45,7 +45,7 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
-        DelegationTokenProvider tokenProvider = new DelegationTokenProviderImpl(delegationToken, controller, segment);
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
         AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, tokenProvider);
         async.getConnection();                      //Sanity enforcement
         bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);

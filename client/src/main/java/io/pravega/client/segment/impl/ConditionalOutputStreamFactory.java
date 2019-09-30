@@ -23,7 +23,7 @@ public interface ConditionalOutputStreamFactory {
      * conditional clients in the same process space).
      *
      * @param segment The segment to create a conditional client for.
-     * @param tokenProvider token to be passed on to segmentstore for validation.
+     * @param tokenProvider The {@link DelegationTokenProvider} instance to be used for obtaining a delegation token.
      * @param config output writer configuration.
      * @return New instance of ConditionalOutputStream for the provided segment.
      */

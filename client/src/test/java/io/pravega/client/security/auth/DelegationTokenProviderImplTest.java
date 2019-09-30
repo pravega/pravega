@@ -66,7 +66,7 @@ public class DelegationTokenProviderImplTest {
 
         DelegationTokenProviderImpl proxy = new DelegationTokenProviderImpl(token, dummyController,
                 "testscope", "teststream");
-        assertTrue(proxy.getStrategy() instanceof ValidJwtTokenHandlingStrategy);
+        assertTrue(proxy.getStrategy() instanceof JwtTokenHandlingStrategy);
     }
 
     @Test

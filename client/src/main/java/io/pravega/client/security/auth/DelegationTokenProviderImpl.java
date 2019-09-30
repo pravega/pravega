@@ -10,7 +10,6 @@
 package io.pravega.client.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.Controller;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -28,7 +27,10 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
     private final DelegationTokenHandlingStrategy strategy;
 
     /**
-     * Creates an object containing the specified delegation token. Intended for use mainly for testing purposes.
+     * Constructs a new object with the specified specified delegation token.
+     *
+     * <p>
+     * Intended for use mainly for testing purposes.
      */
     @VisibleForTesting
     DelegationTokenProviderImpl(@NonNull String token) {
@@ -37,39 +39,46 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
             log.debug("Set DelegationTokenHandlingStrategy as {}", EmptyTokenHandlingStrategy.class);
         } else {
             strategy = new NonJwtTokenHandlingStrategy(token);
-            log.debug("Set DelegationTokenHandlingStrategy as {}", ValidJwtTokenHandlingStrategy.class);
+            log.debug("Set DelegationTokenHandlingStrategy as {}", JwtTokenHandlingStrategy.class);
         }
     }
 
-    public DelegationTokenProviderImpl(@NonNull Controller controllerClient,
-                                       @NonNull String scopeName, @NonNull String streamName) {
-        strategy = new NullTokenHandlingStrategy(controllerClient, scopeName, streamName);
+    /**
+     * Constructs a new object with the specified {@code controller}, {@code scopeName} and {@code streamName}.
+     *
+     * @param controller the {@link Controller} client used for obtaining a delegation token from the Controller
+     * @param scopeName the name of the scope tied to the segment, for which a delegation token is to be obtained
+     * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
+     */
+    DelegationTokenProviderImpl(@NonNull Controller controller, @NonNull String scopeName, @NonNull String streamName) {
+        strategy = new NullTokenHandlingStrategy(controller, scopeName, streamName);
         log.debug("Set DelegationTokenHandlingStrategy as {}", NullTokenHandlingStrategy.class);
     }
 
-    public DelegationTokenProviderImpl(String token, @NonNull Controller controllerClient, Segment segment) {
-        this(token, controllerClient, segment.getScope(), segment.getStreamName());
-    }
-
-    public DelegationTokenProviderImpl(@NonNull Controller controllerClient, Segment segment) {
-        this(null, controllerClient, segment.getScope(), segment.getStreamName());
-    }
-
-    public DelegationTokenProviderImpl(String token, @NonNull Controller controllerClient,
+    /**
+     * Constructs a new object with the specified {delegationToken}, {@code Controller}, {@code scopeName} and
+     * {@code streamName}.
+     *
+     * @param delegationToken the initial delegation token
+     * @param controller the {@link Controller} client used for obtaining a delegation token from the Controller
+     * @param scopeName the name of the scope tied to the segment, for which a delegation token is to be obtained
+     * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
+     */
+    DelegationTokenProviderImpl(String delegationToken, @NonNull Controller controller,
                                        @NonNull String scopeName, @NonNull String streamName) {
-        if (token == null) {
-            strategy = new NullTokenHandlingStrategy(controllerClient, scopeName, streamName);
+        if (delegationToken == null) {
+            strategy = new NullTokenHandlingStrategy(controller, scopeName, streamName);
             log.debug("Set DelegationTokenHandlingStrategy as {}", NullTokenHandlingStrategy.class);
-        } else if (token.equals("")) {
+        } else if (delegationToken.equals("")) {
             strategy = new EmptyTokenHandlingStrategy();
             log.debug("Set DelegationTokenHandlingStrategy as {}", EmptyTokenHandlingStrategy.class);
-        } else if (token.split("\\.").length == 3) {
-            strategy = new ValidJwtTokenHandlingStrategy(token, controllerClient, scopeName,
+        } else if (delegationToken.split("\\.").length == 3) {
+            strategy = new JwtTokenHandlingStrategy(delegationToken, controller, scopeName,
                     streamName);
-            log.debug("Set DelegationTokenHandlingStrategy as {}", ValidJwtTokenHandlingStrategy.class);
+            log.debug("Set DelegationTokenHandlingStrategy as {}", JwtTokenHandlingStrategy.class);
         } else {
-            strategy = new NonJwtTokenHandlingStrategy(token);
-            log.debug("Set DelegationTokenHandlingStrategy as {}", ValidJwtTokenHandlingStrategy.class);
+            strategy = new NonJwtTokenHandlingStrategy(delegationToken);
+            log.debug("Set DelegationTokenHandlingStrategy as {}", JwtTokenHandlingStrategy.class);
         }
     }
 
@@ -83,7 +92,6 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
         return strategy.retrieveToken();
     }
 
-    @Override
     public String refreshToken() {
         return strategy.refreshToken();
     }

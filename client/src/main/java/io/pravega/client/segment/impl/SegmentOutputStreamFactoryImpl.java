@@ -35,10 +35,10 @@ public class SegmentOutputStreamFactoryImpl implements SegmentOutputStreamFactor
 
     @Override
     public SegmentOutputStream createOutputStreamForTransaction(Segment segment, UUID txId, EventWriterConfig config,
-                                                                DelegationTokenProvider delegationToken) {
+                                                                DelegationTokenProvider tokenProvider) {
         return new SegmentOutputStreamImpl(StreamSegmentNameUtils.getTransactionNameFromId(segment.getScopedName(), txId),
                                            config.isEnableConnectionPooling(), controller, cf, UUID.randomUUID(), nopSegmentSealedCallback,
-                                           getRetryFromConfig(config), delegationToken);
+                                           getRetryFromConfig(config), tokenProvider);
     }
 
     @Override

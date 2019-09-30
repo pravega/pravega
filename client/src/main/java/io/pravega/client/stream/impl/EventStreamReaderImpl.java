@@ -12,7 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import io.pravega.client.security.auth.DelegationTokenProviderImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -296,7 +296,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
         @Cleanup
         SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
-                new DelegationTokenProviderImpl(delegationToken, controller, segmentId));
+                DelegationTokenProviderFactory.create(delegationToken, controller, segmentId));
         try {
             long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
             segmentReader.setOffset(startingOffset);

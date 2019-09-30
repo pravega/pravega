@@ -9,6 +9,9 @@
  */
 package io.pravega.client.security.auth;
 
+/**
+ * Strategy for handling empty delegation tokens.
+ */
 public class EmptyTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
 
     @Override

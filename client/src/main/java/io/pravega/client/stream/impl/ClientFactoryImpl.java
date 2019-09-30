@@ -25,7 +25,7 @@ import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
 import io.pravega.client.security.auth.DelegationTokenProvider;
-import io.pravega.client.security.auth.DelegationTokenProviderImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -210,8 +210,8 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
 
                                                                                                           segment.getStreamName()), RuntimeException::new);
-        DelegationTokenProvider delegationTokenProvider = new DelegationTokenProviderImpl(delegationToken, controller,
-                segment.getScope(), segment.getStreamName());
+        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(
+                delegationToken, controller, segment);
         ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
         SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
         return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);

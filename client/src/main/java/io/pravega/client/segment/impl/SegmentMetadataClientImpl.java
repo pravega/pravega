@@ -14,7 +14,7 @@ import io.pravega.auth.TokenExpiredException;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.RawClient;
 import io.pravega.client.security.auth.DelegationTokenProvider;
-import io.pravega.client.security.auth.DelegationTokenProviderImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
@@ -60,7 +60,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
     public SegmentMetadataClientImpl(Segment segment, Controller controller, ConnectionFactory connectionFactory,
                                      String delegationToken) {
         this(segment, controller, connectionFactory,
-                new DelegationTokenProviderImpl(delegationToken, controller, segment));
+                DelegationTokenProviderFactory.create(delegationToken, controller, segment));
     }
 
     private void closeConnection(Reply badReply) {

@@ -11,6 +11,9 @@ package io.pravega.client.security.auth;
 
 import io.pravega.common.Exceptions;
 
+/**
+ * Strategy for handling non-JWT, non-empty delegation tokens. Used mainly for testing purposes. 
+ */
 public class NonJwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
 
     private final String token;

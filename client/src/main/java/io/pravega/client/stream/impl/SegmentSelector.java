@@ -10,7 +10,7 @@
 package io.pravega.client.stream.impl;
 
 import io.pravega.client.security.auth.DelegationTokenProvider;
-import io.pravega.client.security.auth.DelegationTokenProviderImpl;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.NoSuchSegmentException;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
@@ -179,11 +179,11 @@ public class SegmentSelector {
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack, String delegationToken) {
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
-                DelegationTokenProvider delegationTokenProvider = new DelegationTokenProviderImpl(delegationToken, controller,
-                        segment);
+                DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken,
+                        controller, segment);
                 log.debug("Creating writer for segment {}", segment);
                 SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
-                        segmentSealedCallBack, config, delegationTokenProvider);
+                        segmentSealedCallBack, config, tokenProvider);
                 writers.put(segment, out);
             }
         }

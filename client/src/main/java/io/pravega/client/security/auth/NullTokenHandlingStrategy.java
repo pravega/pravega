@@ -12,7 +12,11 @@ package io.pravega.client.security.auth;
 import io.pravega.client.stream.impl.Controller;
 import lombok.NonNull;
 
-public class NullTokenHandlingStrategy extends ValidJwtTokenHandlingStrategy {
+/**
+ * Strategy for handling null delegation tokens. This strategy is similar as ValidJwtTokenHandlingStrategy, except
+ * that it does not assume the presence of an initial delegation token.
+ */
+public class NullTokenHandlingStrategy extends JwtTokenHandlingStrategy {
 
     public NullTokenHandlingStrategy(@NonNull Controller controllerClient,
                                      @NonNull String scopeName, @NonNull String streamName) {
