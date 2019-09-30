@@ -443,9 +443,6 @@ project('test:integration') {
     apply plugin: 'application'
     applicationName = "pravega-selftest"
     mainClassName = "io.pravega.test.integration.selftest.SelfTestRunner"
-    test {
-         testLogging.showStandardStreams = true
-    }
 
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
                                  "-Dlog.dir=PRAVEGA_APP_HOME/logs",

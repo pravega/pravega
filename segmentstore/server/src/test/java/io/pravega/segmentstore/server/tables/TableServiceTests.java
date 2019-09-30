@@ -59,8 +59,8 @@ import org.junit.rules.Timeout;
 public class TableServiceTests extends ThreadPooledTestSuite {
     //region Config and Setup
 
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 2;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 2;
     private static final int THREADPOOL_SIZE_TEST = 3;
     private static final int SEGMENT_COUNT = 10;
     private static final int KEY_COUNT = 1000;
@@ -142,19 +142,17 @@ public class TableServiceTests extends ThreadPooledTestSuite {
 
             val s1 = segmentNames.get(0);
             for (int i = 0; i < 1000; i++) {
-                val e = TableEntry.unversioned(generateData(10, 20, rnd), generateData(1, 5, rnd));
+                System.out.println("i: " + i);
+                val e = TableEntry.notExists(generateData(10, 20, rnd), generateData(1, 5, rnd));
 
 //                val r0 = tableStore.get(s1, Collections.singletonList(e.getKey().getKey()), TIMEOUT).join();
 //                Assert.assertTrue(r0 == null || r0.get(0) == null);
-//                Thread.sleep(rnd.nextInt(3));
+                //Thread.sleep(rnd.nextInt(100));
 
                 tableStore.put(s1, Collections.singletonList(e), TIMEOUT).join();
 
-                Thread.sleep(3);
-                for(int j=0;j<100;j++) {
                     val r = tableStore.get(s1, Collections.singletonList(e.getKey().getKey()), TIMEOUT).join();
                     Assert.assertTrue(r != null && r.get(0) != null);
-                }
             }
         }
     }
