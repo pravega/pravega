@@ -929,7 +929,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             invokeSafely(connection::send, new SegmentAlreadyExists(requestId, segment, clientReplyStackTrace), failureHandler);
 
         } else if (u instanceof StreamSegmentNotExistsException) {
-            log.warn(requestId, "Segment '{}' does not exist and cannot perform operation '{}'.",
+            log.error(requestId, "Segment '{}' does not exist and cannot perform operation '{}'.",
                      segment, operation, u);
             invokeSafely(connection::send, new NoSuchSegment(requestId, segment, clientReplyStackTrace, offset), failureHandler);
         } else if (u instanceof StreamSegmentSealedException) {
