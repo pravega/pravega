@@ -439,7 +439,7 @@ public class WatermarkingTest {
         assertEquals(102L, watermark2.getUpperTimeBound());
 
         // stream cut should be same
-        assertTrue(watermark2.getStreamCut().entrySet().stream().allMatch(x -> watermark1.getStreamCut().get(x.getKey()) == x.getValue()));
+        assertTrue(watermark2.getStreamCut().entrySet().stream().allMatch(x -> watermark1.getStreamCut().get(x.getKey()).equals(x.getValue())));
 
         // bring back writer1 and post an event with note time smaller than current watermark
         writer1.writeEvent("3").get();
