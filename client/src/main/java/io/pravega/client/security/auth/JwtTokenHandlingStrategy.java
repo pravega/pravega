@@ -15,6 +15,7 @@ import com.google.gson.Gson;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.util.ConfigurationOptionsExtractor;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +30,11 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
     /**
      * Represents the threshold for triggering delegation token refresh.
      */
-    private static final int REFRESH_THRESHOLD = 5;
+    @VisibleForTesting
+    static final int DEFAULT_REFRESH_THRESHOLD = 5;
+
+    @Getter(AccessLevel.PROTECTED)
+    private static final int REFRESH_THRESHOLD;
 
     /**
      * The Controller gRPC client used for interacting with the server.
@@ -42,6 +47,13 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
 
     @Getter(AccessLevel.PROTECTED)
     private AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
+
+    static {
+        REFRESH_THRESHOLD = ConfigurationOptionsExtractor.extractInt(
+                "pravega.client.auth.token-refresh.threshold",
+                "pravega_client_auth_token-refresh.threshold",
+                DEFAULT_REFRESH_THRESHOLD);
+    }
 
     JwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");

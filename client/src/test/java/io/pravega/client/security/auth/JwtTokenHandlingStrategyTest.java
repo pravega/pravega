@@ -19,11 +19,7 @@ import java.util.function.Supplier;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -140,5 +136,11 @@ public class JwtTokenHandlingStrategyTest {
         JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
                 dummyToken(), dummyController, "some-scope", "some-stream");
         assertNull(objectUnderTest.extractExpirationTime(null));
+    }
+
+    @Test
+    public void testDefaultTokenRefreshThreshold() {
+        assertSame(JwtTokenHandlingStrategy.DEFAULT_REFRESH_THRESHOLD,
+                JwtTokenHandlingStrategy.getREFRESH_THRESHOLD());
     }
 }
