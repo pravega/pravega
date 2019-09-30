@@ -54,7 +54,7 @@ public class DelegationTokenProviderImplTest {
     public void testUsesNullTokenHandlingStrategyForNullToken() {
         DelegationTokenProviderImpl proxy = new DelegationTokenProviderImpl(null, dummyController,
                 "testscope", "teststream");
-        assertTrue(proxy.getStrategy() instanceof NullTokenHandlingStrategy);
+        assertTrue(proxy.getStrategy() instanceof NullJwtTokenHandlingStrategy);
     }
 
     @Test

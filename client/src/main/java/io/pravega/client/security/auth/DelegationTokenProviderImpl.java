@@ -38,7 +38,7 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
             strategy = new EmptyTokenHandlingStrategy();
             log.debug("Set DelegationTokenHandlingStrategy as {}", EmptyTokenHandlingStrategy.class);
         } else {
-            strategy = new NonJwtTokenHandlingStrategy(token);
+            strategy = new StringTokenHandlingStrategy(token);
             log.debug("Set DelegationTokenHandlingStrategy as {}", JwtTokenHandlingStrategy.class);
         }
     }
@@ -51,8 +51,8 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
      * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
      */
     DelegationTokenProviderImpl(@NonNull Controller controller, @NonNull String scopeName, @NonNull String streamName) {
-        strategy = new NullTokenHandlingStrategy(controller, scopeName, streamName);
-        log.debug("Set DelegationTokenHandlingStrategy as {}", NullTokenHandlingStrategy.class);
+        strategy = new NullJwtTokenHandlingStrategy(controller, scopeName, streamName);
+        log.debug("Set DelegationTokenHandlingStrategy as {}", NullJwtTokenHandlingStrategy.class);
     }
 
     /**
@@ -67,8 +67,8 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
     DelegationTokenProviderImpl(String delegationToken, @NonNull Controller controller,
                                        @NonNull String scopeName, @NonNull String streamName) {
         if (delegationToken == null) {
-            strategy = new NullTokenHandlingStrategy(controller, scopeName, streamName);
-            log.debug("Set DelegationTokenHandlingStrategy as {}", NullTokenHandlingStrategy.class);
+            strategy = new NullJwtTokenHandlingStrategy(controller, scopeName, streamName);
+            log.debug("Set DelegationTokenHandlingStrategy as {}", NullJwtTokenHandlingStrategy.class);
         } else if (delegationToken.equals("")) {
             strategy = new EmptyTokenHandlingStrategy();
             log.debug("Set DelegationTokenHandlingStrategy as {}", EmptyTokenHandlingStrategy.class);
@@ -77,7 +77,7 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
                     streamName);
             log.debug("Set DelegationTokenHandlingStrategy as {}", JwtTokenHandlingStrategy.class);
         } else {
-            strategy = new NonJwtTokenHandlingStrategy(delegationToken);
+            strategy = new StringTokenHandlingStrategy(delegationToken);
             log.debug("Set DelegationTokenHandlingStrategy as {}", JwtTokenHandlingStrategy.class);
         }
     }

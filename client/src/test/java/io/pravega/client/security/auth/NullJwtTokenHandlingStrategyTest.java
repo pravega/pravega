@@ -23,7 +23,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @Slf4j
-public class NullTokenHandlingStrategyTest extends JwtTokenHandlingStrategyTest {
+public class NullJwtTokenHandlingStrategyTest extends JwtTokenHandlingStrategyTest {
 
     @Test
     public void testRetrievesNewTokenFirstTime() {
@@ -40,7 +40,7 @@ public class NullTokenHandlingStrategyTest extends JwtTokenHandlingStrategyTest 
                 .thenReturn(future);
 
         // Setup the object under test
-        NullTokenHandlingStrategy objectUnderTest = new NullTokenHandlingStrategy(mockController,
+        NullJwtTokenHandlingStrategy objectUnderTest = new NullJwtTokenHandlingStrategy(mockController,
                 "somescope", "somestream");
 
         // Act

@@ -14,11 +14,11 @@ import io.pravega.common.Exceptions;
 /**
  * Strategy for handling non-JWT, non-empty delegation tokens. Used mainly for testing purposes. 
  */
-public class NonJwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
+public class StringTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
 
     private final String token;
 
-    public NonJwtTokenHandlingStrategy(String token) {
+    public StringTokenHandlingStrategy(String token) {
         Exceptions.checkNotNullOrEmpty(token, "token");
         this.token = token;
     }

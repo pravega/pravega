@@ -16,10 +16,10 @@ import lombok.NonNull;
  * Strategy for handling null delegation tokens. This strategy is similar as ValidJwtTokenHandlingStrategy, except
  * that it does not assume the presence of an initial delegation token.
  */
-public class NullTokenHandlingStrategy extends JwtTokenHandlingStrategy {
+public class NullJwtTokenHandlingStrategy extends JwtTokenHandlingStrategy {
 
-    public NullTokenHandlingStrategy(@NonNull Controller controllerClient,
-                                     @NonNull String scopeName, @NonNull String streamName) {
+    public NullJwtTokenHandlingStrategy(@NonNull Controller controllerClient,
+                                        @NonNull String scopeName, @NonNull String streamName) {
             super(controllerClient, scopeName, streamName);
     }
 
