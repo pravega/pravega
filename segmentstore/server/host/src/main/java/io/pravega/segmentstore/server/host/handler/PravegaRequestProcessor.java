@@ -951,11 +951,11 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
                     connection, operation, u.toString());
             connection.close();
         } else if (u instanceof TokenExpiredException) {
-            log.warn(requestId, "Token was found as expired during operation '{}'.", operation, u);
+            log.warn(requestId, "Expired token during operation {}", operation);
             invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace,
                     AuthTokenCheckFailed.ERROR_CODE_TOKEN_EXPIRED), failureHandler);
         } else if (u instanceof TokenException) {
-            log.warn(requestId, "Token exception encountered during operation '{}'.", operation, u);
+            log.warn(requestId, "Token exception encountered during operation {}.", operation, u);
             invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace,
                     AuthTokenCheckFailed.ERROR_CODE_TOKEN_CHECK_FAILED), failureHandler);
         } else if (u instanceof UnsupportedOperationException) {

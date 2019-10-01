@@ -120,7 +120,6 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
             if (authTokenCheckReply.isTokenExpired()) {
                 log.info("Delegation token expired");
                 throw new TokenExpiredException(authTokenCheckReply.toString());
-                // closeConnection(reply);
             } else {
                 log.info("Delegation token invalid");
                 throw new TokenException(authTokenCheckReply.toString());

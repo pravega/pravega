@@ -357,11 +357,11 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
             connection.close();
         } else if (u instanceof TokenExpiredException) {
-            log.warn("Token was found as expired when writer {} was writing on segment {}", writerId, segment, u);
+            log.warn("Token expired for writer {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
                     WireCommands.AuthTokenCheckFailed.ERROR_CODE_TOKEN_EXPIRED));
         } else if (u instanceof TokenException) {
-            log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
+            log.warn("Token check failed or writer {} on segment {}.", writerId, segment, u);
             connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
                     WireCommands.AuthTokenCheckFailed.ERROR_CODE_TOKEN_CHECK_FAILED));
         } else if (u instanceof UnsupportedOperationException) {

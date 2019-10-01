@@ -14,7 +14,17 @@ package io.pravega.client.security.auth;
  */
 public interface DelegationTokenHandlingStrategy {
 
+    /**
+     * Retrieve delegation token.
+     *
+     * @return a delegation token
+     */
     String retrieveToken();
 
+    /**
+     * Refresh and retrieve delegation token.
+     *
+     * @return a new delegation token
+     */
     String refreshToken();
 }

@@ -36,10 +36,8 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
     DelegationTokenProviderImpl(@NonNull String token) {
         if (token.trim().equals("")) {
             strategy = new EmptyTokenHandlingStrategy();
-            log.debug("Set DelegationTokenHandlingStrategy as {}", EmptyTokenHandlingStrategy.class);
         } else {
             strategy = new StringTokenHandlingStrategy(token);
-            log.debug("Set DelegationTokenHandlingStrategy as {}", JwtTokenHandlingStrategy.class);
         }
     }
 
@@ -52,7 +50,6 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
      */
     DelegationTokenProviderImpl(@NonNull Controller controller, @NonNull String scopeName, @NonNull String streamName) {
         strategy = new NullJwtTokenHandlingStrategy(controller, scopeName, streamName);
-        log.debug("Set DelegationTokenHandlingStrategy as {}", NullJwtTokenHandlingStrategy.class);
     }
 
     /**
@@ -68,17 +65,13 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
                                        @NonNull String scopeName, @NonNull String streamName) {
         if (delegationToken == null) {
             strategy = new NullJwtTokenHandlingStrategy(controller, scopeName, streamName);
-            log.debug("Set DelegationTokenHandlingStrategy as {}", NullJwtTokenHandlingStrategy.class);
         } else if (delegationToken.equals("")) {
             strategy = new EmptyTokenHandlingStrategy();
-            log.debug("Set DelegationTokenHandlingStrategy as {}", EmptyTokenHandlingStrategy.class);
         } else if (delegationToken.split("\\.").length == 3) {
             strategy = new JwtTokenHandlingStrategy(delegationToken, controller, scopeName,
                     streamName);
-            log.debug("Set DelegationTokenHandlingStrategy as {}", JwtTokenHandlingStrategy.class);
         } else {
             strategy = new StringTokenHandlingStrategy(delegationToken);
-            log.debug("Set DelegationTokenHandlingStrategy as {}", JwtTokenHandlingStrategy.class);
         }
     }
 
@@ -88,10 +81,12 @@ public class DelegationTokenProviderImpl implements DelegationTokenProvider {
      *
      * @return String the delegation token JWT compact value
      */
+    @Override
     public String retrieveToken() {
         return strategy.retrieveToken();
     }
 
+    @Override
     public String refreshToken() {
         return strategy.refreshToken();
     }

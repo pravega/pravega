@@ -11,8 +11,22 @@ package io.pravega.common.util;
 
 import lombok.NonNull;
 
+/**
+ * A utility class for processing configuration items specified via system properties and/ environment variables.
+ */
 public class ConfigurationOptionsExtractor {
 
+    /**
+     * Extracts a configuration value as String from the specified from system property or environment variable. If
+     * both are specified, the value from system property is returned. If neither are specified, it returns
+     * the {code defaultValue}.
+     *
+     * @param systemProperty the system property to extract the configuration value from
+     * @param environmentVariable the environment variable to extract the configuration value from
+     * @param defaultValue the value to be returned if neither {@code systemProperty} or {@code environmentVariable} is
+     *                     specified
+     * @return the specified or default configuration value
+     */
     public static String extractString(@NonNull String systemProperty, @NonNull String environmentVariable,
                                        @NonNull String defaultValue) {
         String result = null;
@@ -30,6 +44,17 @@ public class ConfigurationOptionsExtractor {
         return result;
     }
 
+    /**
+     * Extracts a configuration value as integer from the specified from system property or environment variable.
+     * If both are specified, the value from system property is returned. If neither are specified, it returns
+     * the {code defaultValue}. If the configuration value isn't an integer, it returns the default value.
+     *
+     * @param systemProperty the system property to extract the configuration value from
+     * @param environmentVariable the environment variable to extract the configuration value from
+     * @param defaultValue the value to be returned if neither {@code systemProperty} or {@code environmentVariable} is
+     *                     specified
+     * @return the specified or default configuration value
+     */
     public static Integer extractInt(@NonNull String systemProperty, @NonNull String environmentVariable,
                                      @NonNull Integer defaultValue) {
         String property = extractString(systemProperty, environmentVariable, defaultValue + "");

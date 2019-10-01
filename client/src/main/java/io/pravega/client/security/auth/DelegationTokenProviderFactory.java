@@ -9,13 +9,11 @@
  */
 package io.pravega.client.security.auth;
 
-import com.google.common.base.Preconditions;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.Controller;
-import io.pravega.common.Exceptions;
 
 /**
- * Creates a {@link DelegationTokenProvider} instance.
+ * Factory class for {@link DelegationTokenProvider} instances.
  */
 public class DelegationTokenProviderFactory {
 
@@ -39,9 +37,6 @@ public class DelegationTokenProviderFactory {
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} is empty
      */
     public static DelegationTokenProvider create(Controller controller, String scopeName, String streamName) {
-        Preconditions.checkNotNull(controller, "Argument controller is null");
-        Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
-        Exceptions.checkNotNullOrEmpty(streamName, "streamName");
         return new DelegationTokenProviderImpl(controller, scopeName, streamName);
     }
 
@@ -67,8 +62,6 @@ public class DelegationTokenProviderFactory {
      */
     public static DelegationTokenProvider create(String delegationToken, Controller controller,
                                                  Segment segment) {
-        Preconditions.checkNotNull(controller, "Argument controller is null");
-        Preconditions.checkNotNull(segment, "Argument segment is null");
         return new DelegationTokenProviderImpl(delegationToken, controller, segment.getScope(), segment.getStreamName());
     }
 }

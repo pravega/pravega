@@ -33,6 +33,10 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
     @VisibleForTesting
     static final int DEFAULT_REFRESH_THRESHOLD = 5;
 
+    private static final String REFRESH_THRESHOLD_SYSTEM_PROPERTY = "pravega.client.auth.token-refresh.threshold";
+
+    private static final String REFRESH_THRESHOLD_ENV_VARIABLE = "pravega_client_auth_token-refresh.threshold";
+
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
     private final int tokenRefreshThreshold;
@@ -50,9 +54,7 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
 
     JwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName) {
         this(controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
-                "pravega.client.auth.token-refresh.threshold",
-                "pravega_client_auth_token-refresh.threshold",
-                DEFAULT_REFRESH_THRESHOLD));
+                REFRESH_THRESHOLD_SYSTEM_PROPERTY, REFRESH_THRESHOLD_ENV_VARIABLE, DEFAULT_REFRESH_THRESHOLD));
     }
 
     JwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName, int tokenRefreshThreshold) {

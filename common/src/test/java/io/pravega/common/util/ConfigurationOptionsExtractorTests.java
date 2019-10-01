@@ -18,19 +18,25 @@ public class ConfigurationOptionsExtractorTests {
     @Test
     public void testExtractInteger() {
         String propertyName = this.getClass().getSimpleName() + ".testExtractInteger." + ".test.property";
-        System.setProperty(propertyName, "5");
-        assertSame(5, ConfigurationOptionsExtractor.extractInt(propertyName,
-                "test_property_1", 1));
-        System.clearProperty(propertyName);
+        try {
+            System.setProperty(propertyName, "5");
+            assertSame(5, ConfigurationOptionsExtractor.extractInt(propertyName,
+                    "test_property_1", 1));
+        } finally {
+            System.clearProperty(propertyName);
+        }
     }
 
     @Test
     public void testExtractString() {
         String propertyName = this.getClass().getSimpleName() + ".testExtractInteger." + ".test.property";
-        System.setProperty(propertyName, "5");
-        assertSame("5", ConfigurationOptionsExtractor.extractString(propertyName,
-                "test_property_1", "1"));
-        System.clearProperty(propertyName);
+        try {
+            System.setProperty(propertyName, "5");
+            assertSame("5", ConfigurationOptionsExtractor.extractString(propertyName,
+                    "test_property_1", "1"));
+        } finally {
+            System.clearProperty(propertyName);
+        }
     }
 
     @Test
