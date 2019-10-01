@@ -59,7 +59,7 @@ import org.junit.rules.Timeout;
 public class TableServiceTests extends ThreadPooledTestSuite {
     //region Config and Setup
 
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 2;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 5;
     private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 2;
     private static final int THREADPOOL_SIZE_TEST = 3;
     private static final int SEGMENT_COUNT = 10;
@@ -92,10 +92,10 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                     .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
             .include(WriterConfig
                     .builder()
-                    .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 1)
-                    .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 2L)
-                    .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 10L)
-                    .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 250L)
+                    .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 0)
+                    .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 0L)
+                    .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 0L)
+                    .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 2L)
             );
     private InMemoryStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory durableDataLogFactory;
@@ -145,14 +145,17 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                 System.out.println("i: " + i);
                 val e = TableEntry.notExists(generateData(10, 20, rnd), generateData(1, 5, rnd));
 
-//                val r0 = tableStore.get(s1, Collections.singletonList(e.getKey().getKey()), TIMEOUT).join();
-//                Assert.assertTrue(r0 == null || r0.get(0) == null);
-                //Thread.sleep(rnd.nextInt(100));
-
                 tableStore.put(s1, Collections.singletonList(e), TIMEOUT).join();
 
-                    val r = tableStore.get(s1, Collections.singletonList(e.getKey().getKey()), TIMEOUT).join();
+                val resultFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
+                for(int j=0;j<50000;j++) {
+                    val r = tableStore.get(s1, Collections.singletonList(e.getKey().getKey()), TIMEOUT);
+                    resultFutures.add(r);
+                }
+                val results = Futures.allOfWithResults(resultFutures).join();
+                for(val r : results) {
                     Assert.assertTrue(r != null && r.get(0) != null);
+                }
             }
         }
     }
