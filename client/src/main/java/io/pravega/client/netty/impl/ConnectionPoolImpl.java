@@ -223,7 +223,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
     /**
      * Create a Channel Initializer which is to to setup {@link ChannelPipeline}.
      */
-    private ChannelInitializer<SocketChannel> getChannelInitializer(final PravegaNodeUri location,
+    @VisibleForTesting
+    ChannelInitializer<SocketChannel> getChannelInitializer(final PravegaNodeUri location,
                                                                     final FlowHandler handler) {
         final SslContext sslCtx = getSslContext();
 
@@ -255,7 +256,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
     /**
      * Obtain {@link SslContext} based on {@link ClientConfig}.
      */
-    private SslContext getSslContext() {
+    @VisibleForTesting
+    SslContext getSslContext() {
         final SslContext sslCtx;
         if (clientConfig.isEnableTlsToSegmentStore()) {
             log.debug("Setting up an SSL/TLS Context");
