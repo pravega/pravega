@@ -140,7 +140,9 @@ public class JwtTokenHandlingStrategyTest {
 
     @Test
     public void testDefaultTokenRefreshThreshold() {
+        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+                dummyToken(), dummyController, "some-scope", "some-stream");
         assertSame(JwtTokenHandlingStrategy.DEFAULT_REFRESH_THRESHOLD,
-                JwtTokenHandlingStrategy.getREFRESH_THRESHOLD());
+                objectUnderTest.getTokenRefreshThreshold());
     }
 }

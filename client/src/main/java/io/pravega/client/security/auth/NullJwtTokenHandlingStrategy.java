@@ -25,7 +25,7 @@ public class NullJwtTokenHandlingStrategy extends JwtTokenHandlingStrategy {
 
     @Override
     public String retrieveToken() {
-        if (this.getDelegationToken().get() == null) {
+        if (this.getCurrentToken() == null) {
             return this.refreshToken();
         } else {
             return super.retrieveToken();

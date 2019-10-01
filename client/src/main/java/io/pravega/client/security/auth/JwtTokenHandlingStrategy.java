@@ -33,8 +33,9 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
     @VisibleForTesting
     static final int DEFAULT_REFRESH_THRESHOLD = 5;
 
-    @Getter(AccessLevel.PROTECTED)
-    private static final int REFRESH_THRESHOLD;
+    @VisibleForTesting
+    @Getter(AccessLevel.PACKAGE)
+    private final int tokenRefreshThreshold;
 
     /**
      * The Controller gRPC client used for interacting with the server.
@@ -45,17 +46,16 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
 
     private final String streamName;
 
-    @Getter(AccessLevel.PROTECTED)
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
-    static {
-        REFRESH_THRESHOLD = ConfigurationOptionsExtractor.extractInt(
+    JwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName) {
+        this(controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
                 "pravega.client.auth.token-refresh.threshold",
                 "pravega_client_auth_token-refresh.threshold",
-                DEFAULT_REFRESH_THRESHOLD);
+                DEFAULT_REFRESH_THRESHOLD));
     }
 
-    JwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName) {
+    JwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName, int tokenRefreshThreshold) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
@@ -63,9 +63,18 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
         this.scopeName = scopeName;
         this.streamName = streamName;
         this.controllerClient = controllerClient;
+        this.tokenRefreshThreshold = tokenRefreshThreshold;
     }
 
     public JwtTokenHandlingStrategy(String token, Controller controllerClient, String scopeName, String streamName) {
+        this(token, controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
+                "pravega.client.auth.token-refresh.threshold",
+                "pravega_client_auth_token-refresh.threshold",
+                DEFAULT_REFRESH_THRESHOLD));
+    }
+
+    public JwtTokenHandlingStrategy(String token, Controller controllerClient, String scopeName, String streamName,
+                                    int tokenRefreshThreshold) {
         Exceptions.checkNotNullOrEmpty(token, "token");
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
@@ -76,6 +85,7 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
         this.scopeName = scopeName;
         this.streamName = streamName;
         this.controllerClient = controllerClient;
+        this.tokenRefreshThreshold = tokenRefreshThreshold;
     }
 
     @Override
@@ -99,6 +109,10 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
                 controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName), RuntimeException::new);
     }
 
+    protected DelegationToken getCurrentToken() {
+        return this.delegationToken.get();
+    }
+
     private boolean isTokenNearingExpiry() {
         Long currentTokenExpirationTime = this.delegationToken.get().getExpiryTime();
 
@@ -113,7 +127,7 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
 
     @VisibleForTesting
     boolean isWithinRefreshThreshold(Instant currentInstant, Instant expiration) {
-        return currentInstant.plusSeconds(REFRESH_THRESHOLD).getEpochSecond() >= expiration.getEpochSecond();
+        return currentInstant.plusSeconds(tokenRefreshThreshold).getEpochSecond() >= expiration.getEpochSecond();
     }
 
     protected void resetToken(String newToken) {
