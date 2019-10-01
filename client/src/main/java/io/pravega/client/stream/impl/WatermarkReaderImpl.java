@@ -35,7 +35,9 @@ import io.pravega.shared.watermarks.Watermark;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.Synchronized;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class WatermarkReaderImpl implements AutoCloseable {
 
     private final Stream stream;
@@ -64,6 +66,7 @@ public class WatermarkReaderImpl implements AutoCloseable {
             if (iter != null && iter.hasNext()) {
                 Entry<Revision, Watermark> next = iter.next();
                 location = next.getKey();
+                log.debug("fetch next mark found: {}", next.getValue());
                 return next.getValue();
             }
             if (location == null) {
@@ -73,8 +76,11 @@ public class WatermarkReaderImpl implements AutoCloseable {
             if (iter.hasNext()) {
                 Entry<Revision, Watermark> next = iter.next();
                 location = next.getKey();
+                log.debug("fetch next mark found: {}", next.getValue());
+
                 return next.getValue();
             }
+            log.debug("fetch next mark found nothing");
             return null;
         }
 
