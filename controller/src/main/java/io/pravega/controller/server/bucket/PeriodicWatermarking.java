@@ -362,7 +362,7 @@ public class PeriodicWatermarking {
     static class WatermarkClient {
         private final RevisionedStreamClient<Watermark> client;
         
-        private AtomicReference<Map.Entry<Revision, Watermark>> previousWatermark = new AtomicReference<>();
+        private final AtomicReference<Map.Entry<Revision, Watermark>> previousWatermark = new AtomicReference<>();
         private final AtomicReference<Revision> markRevision = new AtomicReference<>();
 
         /**
