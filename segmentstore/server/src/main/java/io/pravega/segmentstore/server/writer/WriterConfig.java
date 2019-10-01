@@ -13,8 +13,8 @@ import io.pravega.common.util.ConfigBuilder;
 import io.pravega.common.util.ConfigurationException;
 import io.pravega.common.util.Property;
 import io.pravega.common.util.TypedProperties;
+import io.pravega.segmentstore.storage.SegmentRollingPolicy;
 import java.time.Duration;
-
 import lombok.Getter;
 
 /**
@@ -33,6 +33,7 @@ public class WriterConfig {
     public static final Property<Long> FLUSH_TIMEOUT_MILLIS = Property.named("flushTimeoutMillis", 60 * 1000L);
     public static final Property<Long> ACK_TIMEOUT_MILLIS = Property.named("ackTimeoutMillis", 15 * 1000L);
     public static final Property<Long> SHUTDOWN_TIMEOUT_MILLIS = Property.named("shutdownTimeoutMillis", 10 * 1000L);
+    public static final Property<Long> MAX_ROLLOVER_SIZE = Property.named("maxRolloverSizeBytes", SegmentRollingPolicy.NO_ROLLING.getMaxLength());
     private static final String COMPONENT_CODE = "writer";
 
     //endregion
@@ -99,6 +100,13 @@ public class WriterConfig {
     @Getter
     private final Duration shutdownTimeout;
 
+    /**
+     * The maximum Rolling Size (in bytes) for a Segment in Storage. This will preempt any value configured on the Segment
+     * via the Segment's Attributes (no rolling size may exceed this value).
+     */
+    @Getter
+    private final long maxRolloverSize;
+
     //endregion
 
     //region Constructor
@@ -137,6 +145,7 @@ public class WriterConfig {
         this.flushTimeout = Duration.ofMillis(properties.getLong(FLUSH_TIMEOUT_MILLIS));
         this.ackTimeout = Duration.ofMillis(properties.getLong(ACK_TIMEOUT_MILLIS));
         this.shutdownTimeout = Duration.ofMillis(properties.getLong(SHUTDOWN_TIMEOUT_MILLIS));
+        this.maxRolloverSize = Math.max(0, properties.getLong(MAX_ROLLOVER_SIZE));
     }
 
     /**
