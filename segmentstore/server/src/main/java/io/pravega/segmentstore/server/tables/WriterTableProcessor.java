@@ -267,7 +267,7 @@ public class WriterTableProcessor implements WriterSegmentProcessor {
     private void flushComplete(long lastIndexedOffset) {
         this.aggregator.reset();
         this.aggregator.setLastIndexedOffset(lastIndexedOffset);
-        this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
+        //this.connector.notifyIndexOffsetChanged(this.aggregator.getLastIndexedOffset());
         log.debug("{}: FlushComplete (State={}).", this.traceObjectId, this.aggregator);
     }
 

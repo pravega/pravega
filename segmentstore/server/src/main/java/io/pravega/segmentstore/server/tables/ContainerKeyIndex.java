@@ -565,31 +565,31 @@ class ContainerKeyIndex implements AutoCloseable {
                     segment.getSegmentId(), tailIndexLength);
             return;
         }
-//
-//        // Read the tail section of the segment and process its updates. All of this should already be in the cache so
-//        // we are not going to do any Storage reads.
-//        log.debug("{}: Tail-caching started for Table Segment {}. LastIndexedOffset={}, SegmentLength={}.",
-//                this.traceObjectId, segment.getSegmentId(), lastIndexedOffset, segmentLength);
-//        ReadResult rr = segment.read(lastIndexedOffset, (int) tailIndexLength, getRecoveryTimeout());
-//        AsyncReadResultProcessor
-//                .processAll(rr, this.executor, getRecoveryTimeout())
-//                .thenAcceptAsync(inputStream -> {
-//                    // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
-//                    val updates = collectLatestOffsets(inputStream, lastIndexedOffset, (int) tailIndexLength);
-//
-//                    // Incorporate that into the cache.
-//                    this.cache.includeTailCache(segment.getSegmentId(), updates);
-//                    log.debug("{}: Tail-caching complete for Table Segment {}. Update Count={}.",
-//                            this.traceObjectId, segment.getSegmentId(), updates.size());
-//
-//                    // Notify the Recovery Tracker that this segment has been recovered, so it can unblock any calls it
-//                    // may have collected.
-//                    this.recoveryTracker.updateSegmentIndexOffset(segment.getSegmentId(), segmentLength, updates.size() > 0);
-//                }, this.executor)
-//                .exceptionally(ex -> {
-//                    log.warn("{}: Tail-caching failed for Table Segment {}.", this.traceObjectId, segment.getSegmentId(), Exceptions.unwrap(ex));
-//                    return null;
-//                });
+
+        // Read the tail section of the segment and process its updates. All of this should already be in the cache so
+        // we are not going to do any Storage reads.
+        log.debug("{}: Tail-caching started for Table Segment {}. LastIndexedOffset={}, SegmentLength={}.",
+                this.traceObjectId, segment.getSegmentId(), lastIndexedOffset, segmentLength);
+        ReadResult rr = segment.read(lastIndexedOffset, (int) tailIndexLength, getRecoveryTimeout());
+        AsyncReadResultProcessor
+                .processAll(rr, this.executor, getRecoveryTimeout())
+                .thenAcceptAsync(inputStream -> {
+                    // Parse out all Table Keys and collect their latest offsets, as well as whether they were deleted.
+                    val updates = collectLatestOffsets(inputStream, lastIndexedOffset, (int) tailIndexLength);
+
+                    // Incorporate that into the cache.
+                    this.cache.includeTailCache(segment.getSegmentId(), updates);
+                    log.debug("{}: Tail-caching complete for Table Segment {}. Update Count={}.",
+                            this.traceObjectId, segment.getSegmentId(), updates.size());
+
+                    // Notify the Recovery Tracker that this segment has been recovered, so it can unblock any calls it
+                    // may have collected.
+                    this.recoveryTracker.updateSegmentIndexOffset(segment.getSegmentId(), segmentLength, updates.size() > 0);
+                }, this.executor)
+                .exceptionally(ex -> {
+                    log.warn("{}: Tail-caching failed for Table Segment {}.", this.traceObjectId, segment.getSegmentId(), Exceptions.unwrap(ex));
+                    return null;
+                });
     }
 
     @SneakyThrows(IOException.class)
