@@ -206,8 +206,6 @@ public class EventStreamReaderTest {
                 ReaderConfig.builder().build(), createWatermarkReaders(), Mockito.mock(Controller.class));
 
         assertThrows(TruncatedDataException.class, () -> reader.readNextEvent(100L));
-        //Validate that groupState.getOrRefreshDelegationTokenFor method is invoked.
-        Mockito.verify(groupState, Mockito.times(1)).getOrRefreshDelegationTokenFor(segment);
     }
 
     @Test(timeout = 10000)

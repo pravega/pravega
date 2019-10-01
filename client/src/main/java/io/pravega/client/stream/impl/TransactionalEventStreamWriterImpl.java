@@ -178,9 +178,12 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                 RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        DelegationTokenProvider tokenProvider = null;
         for (Segment s : txnSegments.getSteamSegments().getSegments()) {
-            DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(
-                    txnSegments.getSteamSegments().getDelegationToken(), controller, s);
+            if (tokenProvider == null) {
+                tokenProvider = DelegationTokenProviderFactory.create(
+                        txnSegments.getSteamSegments().getDelegationToken(), controller, s);
+            }
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
                     config, tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
@@ -200,9 +203,13 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         }
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        DelegationTokenProvider tokenProvider = null;
         for (Segment s : segments.getSegments()) {
+            if (tokenProvider == null) {
+                tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, s);
+            }
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config,
-                    DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, s));
+                    tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

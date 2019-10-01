@@ -58,7 +58,7 @@ public class DelegationTokenProviderFactory {
     }
 
     /**
-     * Creates a {@link DelegationTokenProvider} instance with null delegation token.
+     * Creates a {@link DelegationTokenProvider} instance with the specified delegation token.
      *
      * @param delegationToken an existing delegation token to populate the {@link DelegationTokenProvider} instance with
      * @param controller  the {@link Controller} client used for obtaining a delegation token from the Controller

@@ -46,7 +46,7 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
     private final String streamName;
 
     @Getter(AccessLevel.PROTECTED)
-    private AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
+    private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
     static {
         REFRESH_THRESHOLD = ConfigurationOptionsExtractor.extractInt(

@@ -311,14 +311,17 @@ public class ReaderGroupImpl implements ReaderGroup, ReaderGroupMetrics {
         }
         return unread.thenApply(unreadVal -> {
             long totalLength = 0;
+            DelegationTokenProvider tokenProvider = null;
             for (Segment s : unreadVal.getSegments()) {
                 if (endPositions.containsKey(s)) {
                     totalLength += endPositions.get(s);
                 } else {
-                    DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(
-                            unreadVal.getDelegationToken(), controller, s);
+                    if (tokenProvider == null) {
+                        tokenProvider = DelegationTokenProviderFactory.create(
+                                unreadVal.getDelegationToken(), controller, s);
+                    }
                     @Cleanup
-                    SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, delegationTokenProvider);
+                    SegmentMetadataClient metadataClient = metaFactory.createSegmentMetadataClient(s, tokenProvider);
                     totalLength += metadataClient.fetchCurrentSegmentLength();
                 }
             }
