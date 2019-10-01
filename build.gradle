@@ -125,7 +125,7 @@ project('common') {
 
         }
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion  
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -142,7 +142,7 @@ project('shared:authplugin') {
         title = "Pravega Auth API"
         failOnError = false
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion   
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         source {
             sourceSets.main.java
@@ -169,7 +169,7 @@ project('shared:security') {
     javadoc {
         exclude 'io/pravega/shared/*'
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         source {
             sourceSets.main.java
@@ -191,7 +191,7 @@ project ('shared:cluster') {
     javadoc {
         exclude 'io/pravega/shared/*'
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion   
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
@@ -212,7 +212,7 @@ project ('shared:metrics') {
     javadoc {
         exclude 'io/pravega/shared/*'
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
@@ -262,7 +262,7 @@ project('test:testcommon') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
@@ -276,7 +276,7 @@ project('segmentstore:contracts') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:all,-reference", true)
@@ -293,7 +293,7 @@ project('segmentstore:storage') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
@@ -313,7 +313,7 @@ project('segmentstore:storage:impl') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
@@ -342,7 +342,7 @@ project ('bindings') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
@@ -359,7 +359,7 @@ project('segmentstore:server') {
     }
     javadoc {
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
@@ -543,7 +543,6 @@ project('shared:controller-api') {
         compile project(':common')
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile "io.grpc:grpc-netty:" + grpcVersion
         compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
@@ -556,7 +555,7 @@ project('shared:controller-api') {
     javadoc {
         exclude 'io/pravega/controller/*'
         dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
         }
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
