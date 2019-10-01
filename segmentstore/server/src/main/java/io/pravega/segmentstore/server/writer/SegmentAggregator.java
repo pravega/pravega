@@ -1165,10 +1165,9 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
         if (this.handle.get() == null) {
             // No handle so, the segment must not exist yet. Attempt to create it, then run what we wanted to.
             assert this.metadata.getStorageLength() == 0 : "no handle yet but metadata indicates Storage Segment not empty";
-            long rolloverSize = this.metadata.getAttributes().getOrDefault(Attributes.ROLLOVER_SIZE, SegmentRollingPolicy.NO_ROLLING.getMaxLength());
             return Futures
                     .exceptionallyComposeExpecting(
-                            this.storage.create(this.metadata.getName(), new SegmentRollingPolicy(rolloverSize), timeout),
+                            this.storage.create(this.metadata.getName(), new SegmentRollingPolicy(getRolloverSize()), timeout),
                             ex -> ex instanceof StreamSegmentExistsException,
                             () -> {
                                 // This happens if we have more than one concurrent instances of the owning SegmentContainer
@@ -1191,6 +1190,14 @@ class SegmentAggregator implements WriterSegmentProcessor, AutoCloseable {
             // Segment already exists. Execute what we were supposed to.
             return toRun.get();
         }
+    }
+
+    private long getRolloverSize() {
+        // Configured value.
+        long rolloverSize = this.metadata.getAttributes().getOrDefault(Attributes.ROLLOVER_SIZE, SegmentRollingPolicy.NO_ROLLING.getMaxLength());
+
+        // Make sure it does not exceed configured max value.
+        return Math.min(rolloverSize, this.config.getMaxRolloverSize());
     }
 
     //endregion
