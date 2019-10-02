@@ -521,7 +521,7 @@ class ContainerKeyIndex implements AutoCloseable {
      */
     void notifyIndexOffsetChanged(long segmentId, long indexOffset) {
         this.cache.updateSegmentIndexOffset(segmentId, indexOffset);
-        this.recoveryTracker.updateSegmentIndexOffset(segmentId, indexOffset);
+        //this.recoveryTracker.updateSegmentIndexOffset(segmentId, indexOffset);
     }
 
     /**
