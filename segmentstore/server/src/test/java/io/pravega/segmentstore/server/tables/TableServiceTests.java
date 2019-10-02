@@ -39,6 +39,7 @@ import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -59,8 +60,8 @@ import org.junit.rules.Timeout;
 public class TableServiceTests extends ThreadPooledTestSuite {
     //region Config and Setup
 
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 5;
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 2;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 20;
     private static final int THREADPOOL_SIZE_TEST = 3;
     private static final int SEGMENT_COUNT = 10;
     private static final int KEY_COUNT = 1000;
@@ -89,13 +90,13 @@ public class TableServiceTests extends ThreadPooledTestSuite {
                     .with(DurableLogConfig.CHECKPOINT_TOTAL_COMMIT_LENGTH, 10 * 1024 * 1024L))
             .include(ReadIndexConfig
                     .builder()
-                    .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
+                            .with(ReadIndexConfig.STORAGE_READ_ALIGNMENT, 1024))
             .include(WriterConfig
                     .builder()
-                    .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 0)
-                    .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 0L)
-                    .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 0L)
-                    .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 2L)
+                    .with(WriterConfig.FLUSH_THRESHOLD_BYTES, 13)
+                    .with(WriterConfig.FLUSH_THRESHOLD_MILLIS, 25L)
+                    .with(WriterConfig.MIN_READ_TIMEOUT_MILLIS, 2L)
+                    .with(WriterConfig.MAX_READ_TIMEOUT_MILLIS, 20L)
             );
     private InMemoryStorageFactory storageFactory;
     private InMemoryDurableDataLogFactory durableDataLogFactory;
@@ -141,22 +142,30 @@ public class TableServiceTests extends ThreadPooledTestSuite {
             log.info("Created Segments: {}.", String.join(", ", segmentNames));
 
             val s1 = segmentNames.get(0);
-            for (int i = 0; i < 1000; i++) {
-                System.out.println("i: " + i);
+            val futures = new ArrayList<CompletableFuture<Void>>();
+            val completeCount = new AtomicInteger();
+            for (int i = 0; i < 100000; i++) {
+                if (i % 1000 == 0) {
+                    System.out.println("Begin: " + i);
+                }
+
                 val e = TableEntry.notExists(generateData(10, 20, rnd), generateData(1, 5, rnd));
 
-                tableStore.put(s1, Collections.singletonList(e), TIMEOUT).join();
-
-                val resultFutures = new ArrayList<CompletableFuture<List<TableEntry>>>();
-                for(int j=0;j<50000;j++) {
-                    val r = tableStore.get(s1, Collections.singletonList(e.getKey().getKey()), TIMEOUT);
-                    resultFutures.add(r);
-                }
-                val results = Futures.allOfWithResults(resultFutures).join();
-                for(val r : results) {
-                    Assert.assertTrue(r != null && r.get(0) != null);
-                }
+                val f = tableStore.put(s1, Collections.singletonList(e), TIMEOUT)
+                        .thenAcceptAsync(versions -> {
+                            val v = versions.get(0);
+                            val result = tableStore.get(s1, Collections.singletonList(e.getKey().getKey()), TIMEOUT).join();
+                            if (completeCount.incrementAndGet() % 1000 == 0) {
+                                System.out.println("End: " + completeCount.get());
+                            }
+                            if (result.get(0) == null || result.get(0).getKey().getVersion() != v) {
+                                System.out.println("FOUND ONE");
+                            }
+                        }, executorService());
+                futures.add(f);
             }
+
+            Futures.allOf(futures).join();
         }
     }
 

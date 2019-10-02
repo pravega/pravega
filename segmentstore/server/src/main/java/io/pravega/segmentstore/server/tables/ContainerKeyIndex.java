@@ -38,6 +38,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -520,8 +521,8 @@ class ContainerKeyIndex implements AutoCloseable {
      *                    from memory and relevant resources can be freed.
      */
     void notifyIndexOffsetChanged(long segmentId, long indexOffset) {
-        this.cache.updateSegmentIndexOffset(segmentId, indexOffset);
-        //this.recoveryTracker.updateSegmentIndexOffset(segmentId, indexOffset);
+        //this.cache.updateSegmentIndexOffset(segmentId, indexOffset);
+        this.recoveryTracker.updateSegmentIndexOffset(segmentId, indexOffset);
     }
 
     /**
