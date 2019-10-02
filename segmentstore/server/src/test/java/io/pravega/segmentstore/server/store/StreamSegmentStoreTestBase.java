@@ -77,8 +77,8 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
     // Even though this should work with just 1-2 threads, doing so would cause this test to run for a long time. Choosing
     // a decent size so that the tests do finish up within a few seconds.
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 20;
-    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 10;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE = 2;
+    private static final int THREADPOOL_SIZE_SEGMENT_STORE_STORAGE = 2;
     private static final int THREADPOOL_SIZE_TEST = 3;
     private static final String EMPTY_SEGMENT_NAME = "Empty_Segment";
     private static final int SEGMENT_COUNT = 10;
@@ -145,6 +145,30 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
     }
 
     //endregion
+
+    @Test
+    public void testMe() throws Exception {
+        try (val builder = createBuilder(0)) {
+            val store = builder.createStreamSegmentService();
+
+            for (int i = 0; i < 10000; i++) {
+                val segmentName = "foo_" + i;
+                System.out.println("#"+i);
+                AssertExtensions.assertThrows("",
+                        () -> store.read(segmentName, 0, 1, TIMEOUT).join(),
+                        ex -> ex instanceof StreamSegmentNotExistsException);
+                store.createStreamSegment(segmentName, null, TIMEOUT).join();
+                store.read(segmentName, 0, 1, TIMEOUT).join();
+//                try {
+//                    store.read(segmentName, 0, 1, TIMEOUT).join();
+//                }catch (Exception ex){
+//                    System.out.println("READ FAILED!");
+//                    throw ex;
+//                }
+                store.deleteStreamSegment(segmentName, TIMEOUT).join();
+            }
+        }
+    }
 
     /**
      * Tests an end-to-end scenario for the SegmentStore, utilizing a read-write SegmentStore for making modifications
