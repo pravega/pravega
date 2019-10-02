@@ -137,7 +137,8 @@ public class ContainerTableExtensionImpl implements ContainerTableExtension {
             return Collections.emptyList();
         }
 
-        return Collections.singletonList(new WriterTableProcessor(new TableWriterConnectorImpl(metadata), this.executor));
+        return Collections.emptyList();
+//        return Collections.singletonList(new WriterTableProcessor(new TableWriterConnectorImpl(metadata), this.executor));
     }
 
     //endregion
