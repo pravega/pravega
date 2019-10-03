@@ -44,8 +44,8 @@ public class TLSConfigChangeFileConsumerTests {
 
     @Test
     public void testInvocationIncrementsReloadCounter() {
-        String pathToCertificateFile = "../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
-        String pathToKeyFile = "../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+        String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
+        String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
 
         AtomicReference<SslContext> sslCtx = new AtomicReference<>(TLSHelper.newServerSslContext(
                 new File(pathToCertificateFile), new File(pathToKeyFile)));
