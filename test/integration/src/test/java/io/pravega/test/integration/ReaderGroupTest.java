@@ -113,7 +113,7 @@ public class ReaderGroupTest {
         streamManager.deleteReaderGroup(READER_GROUP);
     }
     
-    @Test
+    @Test(timeout = 10000)
     public void testMultiSegmentsPerReader() throws Exception {
         String endpoint = "localhost";
         int servicePort = TestUtils.getAvailableListenPort();

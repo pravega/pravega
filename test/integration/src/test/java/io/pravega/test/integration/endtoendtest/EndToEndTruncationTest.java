@@ -9,8 +9,37 @@
  */
 package io.pravega.test.integration.endtoendtest;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
+import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
+import static io.pravega.test.integration.ReadWriteUtils.readEvents;
+import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
+import static java.util.stream.Collectors.toList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import java.net.URI;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import org.apache.curator.test.TestingServer;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+
 import io.pravega.client.ClientConfig;
 import io.pravega.client.EventStreamClientFactory;
 import io.pravega.client.admin.ReaderGroupManager;
@@ -28,6 +57,7 @@ import io.pravega.client.stream.EventRead;
 import io.pravega.client.stream.EventStreamReader;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
+import io.pravega.client.stream.InvalidStreamException;
 import io.pravega.client.stream.ReaderConfig;
 import io.pravega.client.stream.ReaderGroup;
 import io.pravega.client.stream.ReaderGroupConfig;
@@ -59,44 +89,17 @@ import io.pravega.test.common.TestUtils;
 import io.pravega.test.common.TestingServerStarter;
 import io.pravega.test.integration.ReadWriteUtils;
 import io.pravega.test.integration.demo.ControllerWrapper;
-import java.io.Serializable;
-import java.net.URI;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import lombok.Cleanup;
+import lombok.val;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.curator.test.TestingServer;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import static io.pravega.shared.segment.StreamSegmentNameUtils.computeSegmentId;
-import static io.pravega.test.common.AssertExtensions.assertFutureThrows;
-import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static io.pravega.test.integration.ReadWriteUtils.readEvents;
-import static io.pravega.test.integration.ReadWriteUtils.writeEvents;
-import static java.util.stream.Collectors.toList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 @Slf4j
 public class EndToEndTruncationTest {
 
-    private final int controllerPort = TestUtils.getAvailableListenPort();
     private final String serviceHost = "localhost";
-    private final URI controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
-    private final int servicePort = TestUtils.getAvailableListenPort();
     private final int containerCount = 4;
+    private int controllerPort;
+    private URI controllerURI; 
     private TestingServer zkTestServer;
     private PravegaConnectionListener server;
     private ControllerWrapper controllerWrapper;
@@ -112,6 +115,9 @@ public class EndToEndTruncationTest {
         serviceBuilder.initialize();
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
+        controllerPort = TestUtils.getAvailableListenPort();
+        controllerURI = URI.create("tcp://" + serviceHost + ":" + controllerPort);
+        int servicePort = TestUtils.getAvailableListenPort();
         server = new PravegaConnectionListener(false, servicePort, store, tableStore);
         server.startListening();
 
@@ -584,6 +590,8 @@ public class EndToEndTruncationTest {
      * reads all the events and reaches the end of segment, it contacts the Controller to retrieve subsequent segments
      * (if any). However, the Stream-related metadata to answer this request has been previously deleted.
      */
+    //@Ignore //TODO: The controller does not currently handle the stream being deleted properly.
+    //Once it does so the client will need to throw an appropriate exception, and this test should reflect it.
     @Test(timeout = 20000)
     public void testDeleteStreamWhileReading() {
         final String scope = "truncationTests";
@@ -612,11 +620,14 @@ public class EndToEndTruncationTest {
         assertEquals(totalEvents / 2, ReadWriteUtils.readEvents(reader, totalEvents / 2, 0));
         reader.close();
         
+        val readerRecreated = clientFactory.createReader(String.valueOf(0), readerGroup, new JavaSerializer<>(), ReaderConfig.builder().build());
+        
         assertTrue(streamManager.sealStream(scope, streamName));
         assertTrue(streamManager.deleteStream(scope, streamName));
-        //recreating reader to clear buffer.
-        @Cleanup
-        EventStreamReader<Serializable> readerRecreated = clientFactory.createReader(String.valueOf(0), readerGroup, new JavaSerializer<>(), ReaderConfig.builder().build());
+
+        assertThrows(InvalidStreamException.class, () -> 
+            clientFactory.createReader(String.valueOf(1), readerGroup, new JavaSerializer<>(), ReaderConfig.builder().build())
+        );
 
         // At the control plane, we expect a RetriesExhaustedException as readers try to get successor segments from a deleted stream.
         assertThrows(TruncatedDataException.class,
