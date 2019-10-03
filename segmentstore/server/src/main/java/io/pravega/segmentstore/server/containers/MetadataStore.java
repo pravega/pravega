@@ -477,7 +477,7 @@ public abstract class MetadataStore implements AutoCloseable {
      * Fails the assignment for the given StreamSegment Id with the given reason.
      */
     private void failAssignment(String streamSegmentName, Throwable reason) {
-        finishPendingRequests(streamSegmentName, PendingRequest::completeExceptionally, reason, true);
+        finishPendingRequests(streamSegmentName, PendingRequest::completeExceptionally, reason, false);
     }
 
     private <T> void finishPendingRequests(String streamSegmentName, BiConsumer<PendingRequest, T> completionMethod, T completionArgument, boolean isSuccess) {
