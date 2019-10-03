@@ -19,6 +19,7 @@ import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableFutureLatch;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
@@ -39,6 +40,8 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
 
     private static final int FLOW_DISABLED = 0;
     private final String connectionName;
+    @Getter
+    private final MetricNotifier updateMetric;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
@@ -53,7 +56,12 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
     private final AtomicBoolean disableFlow = new AtomicBoolean(false);
 
     public FlowHandler(String connectionName) {
+        this(connectionName, MetricNotifier.NO_OP_METRIC_NOTIFIER);
+    }
+
+    public FlowHandler(String connectionName, MetricNotifier updateMetric) {
         this.connectionName = connectionName;
+        this.updateMetric = updateMetric;
     }
 
     /**

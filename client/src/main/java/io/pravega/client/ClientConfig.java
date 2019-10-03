@@ -12,9 +12,11 @@ package io.pravega.client;
 import com.google.common.annotations.Beta;
 import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.stream.impl.Credentials;
+import io.pravega.shared.metrics.MetricListener;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
@@ -100,6 +102,21 @@ public class ClientConfig implements Serializable {
      */
     @Getter(AccessLevel.NONE) // Omit Lombok accessor as we are creating a custom one
     private final boolean enableTlsToSegmentStore;
+
+
+    /**
+     * A optional listener which can be used to get performance metrics from the client. The user
+     * can implement this interface to obtain performance metrics of the client.
+     */
+    private final MetricListener metricListener;
+
+    /**
+     * A method which returns the optional metric listener {@link MetricListener} .
+     * @return MetricListener.
+     */
+    public Optional<MetricListener> getMetricListener() {
+        return Optional.ofNullable(metricListener);
+    }
 
     /**
      * Returns whether TLS is enabled for client-to-server (Controller and Segment Store) communications.
@@ -190,7 +207,7 @@ public class ClientConfig implements Serializable {
                 maxConnectionsPerSegmentStore = DEFAULT_MAX_CONNECTIONS_PER_SEGMENT_STORE;
             }
             return new ClientConfig(controllerURI, credentials, trustStore, validateHostName, maxConnectionsPerSegmentStore,
-                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore);
+                    deriveTlsEnabledFromControllerURI, enableTlsToController, enableTlsToSegmentStore, metricListener);
         }
 
         /**

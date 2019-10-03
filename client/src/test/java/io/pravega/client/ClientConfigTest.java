@@ -94,4 +94,17 @@ public class ClientConfigTest {
                 .build();
         assertFalse("TLS is enabled", clientConfig.isEnableTls());
     }
+
+    @Test
+    public void testMetricsListener() {
+        ClientConfig clientConfig = ClientConfig.builder()
+                                                .controllerURI(URI.create("//hostname:9090"))
+                                                .build();
+        assertFalse("Metrics listener is not configured", clientConfig.getMetricListener().isPresent());
+        clientConfig = ClientConfig.builder()
+                                   .controllerURI(URI.create("//hostname:9090"))
+                                   .metricListener(null)
+                                   .build();
+        assertFalse("Metrics listener is not configured", clientConfig.getMetricListener().isPresent());
+    }
 }

@@ -14,7 +14,9 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.metrics.ClientMetricNames;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
@@ -22,6 +24,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.shared.metrics.ClientMetricNames.metricKey;
+import static io.pravega.shared.metrics.ClientMetricTags.segmentTags;
 
 @Slf4j
 public class ClientConnectionImpl implements ClientConnection {
@@ -50,9 +55,12 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void send(Append append) throws ConnectionFailedException {
+        Timer timer = new Timer();
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
+        nettyHandler.getUpdateMetric().updateSuccessMetric(metricKey(ClientMetricNames.CLIENT_APPEND_LATENCY, segmentTags(append.getSegment())),
+                                                           timer.getElapsedMillis());
     }
 
     @Override
