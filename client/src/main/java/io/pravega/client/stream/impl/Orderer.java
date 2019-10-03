@@ -85,7 +85,7 @@ public class Orderer {
         log.trace("All segments are idle, waiting for the first one to receive data. Waiting for {}ms.", timeout);
         return (T) Futures.getAndHandleExceptions(
                 CompletableFuture.anyOf(idleSegments.toArray(new CompletableFuture[0])),
-                t -> new RuntimeException("Problem while waiting on idle segments to receive data.", t),
+                t -> log.error("Problem while waiting on idle segments to receive data.", t),
                 timeout);
     }
 }
