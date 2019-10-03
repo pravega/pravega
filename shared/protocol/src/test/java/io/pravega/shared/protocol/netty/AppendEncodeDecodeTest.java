@@ -634,6 +634,44 @@ public class AppendEncodeDecodeTest {
     }
 
     @Test
+    public void testPendingSession() throws Exception {
+        final UUID writerId2 = new UUID(1, 3);
+        final UUID writerId3 = new UUID(1, 4);
+        @Cleanup("release")
+        ByteBuf fakeNetwork = ByteBufAllocator.DEFAULT.buffer();
+        byte[] content = new byte[100];
+        Arrays.fill(content, (byte) 1);
+        Event event = new Event(Unpooled.wrappedBuffer(content));
+        idBatchSizeTrackerMap.remove(1L);
+        idBatchSizeTrackerMap.put(1L, new FixedBatchSizeTracker(appendBlockSize));
+        CommandEncoder commandEncoder = new CommandEncoder(idBatchSizeTrackerMap::get);
+        ArrayList<Object> received = new ArrayList<>();
+        Mockito.when(ch.writeAndFlush(Mockito.any())).thenAnswer(i -> {
+            commandEncoder.encode(ctx, i.getArgument(0), fakeNetwork);
+            return null;
+        });
+
+        SetupAppend setupAppend = new SetupAppend(1, writerId, "segment", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        setupAppend = new SetupAppend(10, writerId2, "segment2", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        setupAppend = new SetupAppend(11, writerId3, "segment3", "");
+        commandEncoder.encode(ctx, setupAppend, fakeNetwork);
+        appendDecoder.processCommand(setupAppend);
+        commandEncoder.encode(ctx, new Append("segment", writerId, 1, event, 1), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment2", writerId2, 1, event, 10), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment3", writerId3, 1, event, 11), fakeNetwork);
+        commandEncoder.encode(ctx, new CloseAppend(writerId2), fakeNetwork);
+        commandEncoder.encode(ctx, new Append("segment3", writerId3, 2, event, 11), fakeNetwork);
+        read(fakeNetwork, received);
+        assertEquals(7, received.size());
+        Append readAppend = (Append) received.get(6);
+        assertEquals((content.length  + TYPE_PLUS_LENGTH_SIZE) * 2, readAppend.data.readableBytes());
+    }
+
+    @Test
     public void testSessionFlushAll() throws Exception {
         final UUID writerId2 = new UUID(1, 3);
         final UUID writerId3 = new UUID(1, 4);
