@@ -40,7 +40,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
-import static java.lang.Integer.valueOf;
 
 /**
  * Encodes data so that it can go out onto the wire.

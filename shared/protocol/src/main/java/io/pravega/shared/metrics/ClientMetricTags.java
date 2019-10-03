@@ -64,7 +64,7 @@ public class ClientMetricTags {
      */
     private static String getSegmentBaseName(String segmentQualifiedName) {
         int endOfStreamNamePos = segmentQualifiedName.lastIndexOf(TRANSACTION_DELIMITER);
-        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSACTION_DELIMITER.length() + Long.SIZE/2 > segmentQualifiedName.length()) {
+        if (endOfStreamNamePos < 0 || endOfStreamNamePos + TRANSACTION_DELIMITER.length() + Long.SIZE / 2 > segmentQualifiedName.length()) {
             //not a transaction segment.
             return segmentQualifiedName;
         }
