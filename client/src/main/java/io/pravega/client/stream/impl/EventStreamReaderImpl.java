@@ -34,7 +34,6 @@ import io.pravega.client.stream.Stream;
 import io.pravega.client.stream.TimeWindow;
 import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.SegmentWithRange.Range;
-import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.nio.ByteBuffer;
@@ -57,9 +56,6 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
 
 @Slf4j
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
-
-    // Base waiting time for a reader on an idle segment waiting for new data to be read.
-    private static final long READER_WAITING_TIME_MS = 5;
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
@@ -113,8 +109,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
     
     private EventRead<Type> readNextEventInternal(long timeout) throws ReaderNotInReaderGroupException, TruncatedDataException {
-        int numReaders = Math.max(1, groupState.getNumberOfReaders());
-        long waitTime = Math.min(timeout, Math.min(ReaderGroupStateManager.TIME_UNIT.toMillis(), READER_WAITING_TIME_MS * numReaders));
+        long waitTime = Math.min(timeout, ReaderGroupStateManager.TIME_UNIT.toMillis());
         Timer timer = new Timer();
         Segment segment = null;
         long offset = -1;
@@ -124,9 +119,8 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
             if (checkpoint != null) {
                 return createEmptyEvent(checkpoint);
             }
-            EventSegmentReader segmentReader = orderer.nextSegment(readers);
+            EventSegmentReader segmentReader = orderer.nextSegment(readers, waitTime);
             if (segmentReader == null) {
-                Exceptions.handleInterrupted(() -> Thread.sleep(waitTime));
                 buffer = null;
             } else {
                 segment = segmentReader.getSegmentId();
