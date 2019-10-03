@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) 2019 Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,18 +39,17 @@ import io.pravega.controller.store.task.TaskStoreFactoryForTests;
 import io.pravega.controller.task.Stream.StreamMetadataTasks;
 import io.pravega.controller.task.Stream.StreamTransactionMetadataTasks;
 import io.pravega.test.common.TestingServerStarter;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ScheduledExecutorService;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.test.TestingServer;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledExecutorService;
-
 /**
  * Zookeeper stream store configuration.
  */
-public class PravegaTableControllerServiceImplTest extends ControllerServiceImplTest {
+public class PravegaTablesControllerServiceImplTest extends ControllerServiceImplTest {
 
     private TestingServer zkServer;
     private CuratorFramework zkClient;
@@ -63,6 +62,7 @@ public class PravegaTableControllerServiceImplTest extends ControllerServiceImpl
     private StreamTransactionMetadataTasks streamTransactionMetadataTasks;
     private Cluster cluster;
     private StreamMetadataStore streamStore;
+    private SegmentHelper segmentHelper;
 
     @Override
     public void setup() throws Exception {
@@ -76,9 +76,9 @@ public class PravegaTableControllerServiceImplTest extends ControllerServiceImpl
 
         storeClient = StoreClientFactory.createZKStoreClient(zkClient);
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(20, "testpool");
-        SegmentHelper segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
+        segmentHelper = SegmentHelperMock.getSegmentHelperMockForTables(executorService);
         taskMetadataStore = TaskStoreFactoryForTests.createStore(storeClient, executorService);
-        streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(),
+        streamStore = StreamStoreFactory.createPravegaTablesStore(segmentHelper, GrpcAuthHelper.getDisabledAuthHelper(), 
                 zkClient, executorService);
         BucketStore bucketStore = StreamStoreFactory.createZKBucketStore(zkClient, executorService);
 
@@ -105,7 +105,7 @@ public class PravegaTableControllerServiceImplTest extends ControllerServiceImpl
         cluster.registerHost(new Host("localhost", 9090, null));
         latch.await();
 
-        ControllerService controller = new ControllerService(streamStore, streamMetadataTasks,
+        ControllerService controller = new ControllerService(streamStore, bucketStore, streamMetadataTasks,
                 streamTransactionMetadataTasks, segmentHelper, executorService, cluster);
         controllerService = new ControllerServiceImpl(controller, GrpcAuthHelper.getDisabledAuthHelper(), requestTracker, true, 2);
     }

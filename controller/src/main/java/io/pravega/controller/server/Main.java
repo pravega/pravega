@@ -100,6 +100,7 @@ public class Main {
                     .eventProcessorConfig(Optional.of(eventProcessorConfig))
                     .grpcServerConfig(Optional.of(grpcServerConfig))
                     .restServerConfig(Optional.of(restServerConfig))
+                    .tlsEnabledForSegmentStore(Config.TLS_ENABLED_FOR_SEGMENT_STORE)
                     .build();
 
             setUncaughtExceptionHandler(Main::logUncaughtException);

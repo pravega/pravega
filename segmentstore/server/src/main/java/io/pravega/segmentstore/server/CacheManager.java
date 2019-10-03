@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -55,6 +56,8 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     private final CachePolicy policy;
     private final AtomicBoolean closed;
     private final SegmentStoreMetrics.CacheManager metrics;
+    @GuardedBy("cleanupListeners")
+    private final HashSet<CleanupListener> cleanupListeners;
 
     //endregion
 
@@ -78,6 +81,7 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         this.executorService = executorService;
         this.closed = new AtomicBoolean();
         this.metrics = new SegmentStoreMetrics.CacheManager();
+        this.cleanupListeners = new HashSet<>();
     }
 
     //endregion
@@ -117,7 +121,10 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
         }
 
         try {
-            applyCachePolicy();
+            boolean anythingEvicted = applyCachePolicy();
+            if (anythingEvicted) {
+                notifyCleanupListeners();
+            }
         } catch (Throwable ex) {
             if (Exceptions.mustRethrow(ex)) {
                 throw ex;
@@ -152,6 +159,18 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
     @Override
     public double getCacheMaxUtilization() {
         return this.policy.getMaxUtilization();
+    }
+
+    @Override
+    public void registerCleanupListener(@NonNull CleanupListener listener) {
+        if (listener.isClosed()) {
+            log.warn("{} Attempted to register a closed Cleanup Listener ({}).", TRACE_OBJECT_ID, listener);
+            return;
+        }
+
+        synchronized (this.cleanupListeners) {
+            this.cleanupListeners.add(listener); // This is a Set, so we won't be adding the same listener twice.
+        }
     }
 
     //endregion
@@ -199,13 +218,13 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
     //region Helpers
 
-    protected void applyCachePolicy() {
+    protected boolean applyCachePolicy() {
         // Run through all the active clients and gather status.
         CacheStatus currentStatus = collectStatus();
         if (currentStatus == null || currentStatus.getSize() == 0) {
             // This indicates we have no clients or those clients have no data.
             this.cacheSize.set(0);
-            return;
+            return false;
         }
 
         // Increment current generation (if needed).
@@ -216,22 +235,25 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
 
         if (!currentChanged && !oldestChanged) {
             // Nothing changed, nothing to do.
-            return;
+            return false;
         }
 
         // Notify clients that something changed (if any of the above got changed). Run in a loop, until either we can't
         // adjust the oldest anymore or we are unable to trigger any changes to the clients.
         long sizeReduction;
+        boolean reducedOverall = false;
         do {
             sizeReduction = updateClients();
             if (sizeReduction > 0) {
                 currentStatus = currentStatus.withUpdatedSize(-sizeReduction);
                 logCurrentStatus(currentStatus);
                 oldestChanged = adjustOldestGeneration(currentStatus);
+                reducedOverall = true;
             }
         } while (sizeReduction > 0 && oldestChanged);
         this.cacheSize.set(currentStatus.getSize());
         this.metrics.report(currentStatus.getSize(), currentStatus.getNewestGeneration() - currentStatus.getOldestGeneration());
+        return reducedOverall;
     }
 
     private CacheStatus collectStatus() {
@@ -360,6 +382,34 @@ public class CacheManager extends AbstractScheduledService implements AutoClosea
                 this.oldestGeneration,
                 size,
                 status.getSize() / 1048576);
+    }
+
+    private void notifyCleanupListeners() {
+        ArrayList<CacheUtilizationProvider.CleanupListener> toNotify = new ArrayList<>();
+        ArrayList<CacheUtilizationProvider.CleanupListener> toRemove = new ArrayList<>();
+        synchronized (this.cleanupListeners) {
+            for (CacheUtilizationProvider.CleanupListener l : this.cleanupListeners) {
+                if (l.isClosed()) {
+                    toRemove.add(l);
+                } else {
+                    toNotify.add(l);
+                }
+            }
+
+            this.cleanupListeners.removeAll(toRemove);
+        }
+
+        for (CacheUtilizationProvider.CleanupListener l : toNotify) {
+            try {
+                l.cacheCleanupComplete();
+            } catch (Throwable ex) {
+                if (Exceptions.mustRethrow(ex)) {
+                    throw ex;
+                }
+
+                log.error("{}: Error while notifying cleanup listener {}.", TRACE_OBJECT_ID, l, ex);
+            }
+        }
     }
 
     //endregion

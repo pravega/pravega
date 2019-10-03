@@ -93,7 +93,7 @@ public class SegmentSelector {
                 controller.getSuccessors(sealedSegment), t -> {
                     log.error("Error while fetching successors for segment: {}", sealedSegment, t);
                     // Remove all writers and fail all pending writes
-                    Exception e = (t instanceof RetriesExhaustedException) ? new ControllerFailureException(t) : new NoSuchSegmentException(sealedSegment.toString());
+                    Exception e = (t instanceof RetriesExhaustedException) ? new ControllerFailureException(t) : new NoSuchSegmentException(sealedSegment.toString(), t);
                     removeAllWriters().forEach(event -> event.getAckFuture().completeExceptionally(e));
                     return null;
                 });
@@ -192,8 +192,8 @@ public class SegmentSelector {
     }
 
     @Synchronized
-    public List<SegmentOutputStream> getWriters() {
-        return new ArrayList<>(writers.values());
+    public Map<Segment, SegmentOutputStream> getWriters() {
+        return new HashMap<>(writers);
     }
 
 }

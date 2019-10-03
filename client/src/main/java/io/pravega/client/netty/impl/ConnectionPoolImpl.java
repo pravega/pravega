@@ -32,7 +32,6 @@ import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.SslHandler;
-import io.netty.handler.ssl.util.FingerprintTrustManagerFactory;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
@@ -45,7 +44,6 @@ import io.pravega.shared.protocol.netty.PravegaNodeUri;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
 import io.pravega.shared.protocol.netty.WireCommands;
 import java.io.File;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -204,11 +202,11 @@ public class ConnectionPoolImpl implements ConnectionPool {
         } catch (Exception e) {
             connectionComplete.completeExceptionally(new ConnectionFailedException(e));
         }
-
-        final CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //to track channel registration.
-        handler.completeWhenRegistered(channelRegisteredFuture);
-
-        return CompletableFuture.allOf(connectionComplete, channelRegisteredFuture);
+        return connectionComplete.thenCompose(v ->  {
+            CompletableFuture<Void> channelRegisteredFuture = new CompletableFuture<>(); //to track channel registration.
+            handler.completeWhenRegistered(channelRegisteredFuture);
+            return channelRegisteredFuture;
+        });
     }
 
     /**
@@ -225,7 +223,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
     /**
      * Create a Channel Initializer which is to to setup {@link ChannelPipeline}.
      */
-    private ChannelInitializer<SocketChannel> getChannelInitializer(final PravegaNodeUri location,
+    @VisibleForTesting
+    ChannelInitializer<SocketChannel> getChannelInitializer(final PravegaNodeUri location,
                                                                     final FlowHandler handler) {
         final SslContext sslCtx = getSslContext();
 
@@ -257,21 +256,25 @@ public class ConnectionPoolImpl implements ConnectionPool {
     /**
      * Obtain {@link SslContext} based on {@link ClientConfig}.
      */
-    private SslContext getSslContext() {
+    @VisibleForTesting
+    SslContext getSslContext() {
         final SslContext sslCtx;
-        if (clientConfig.isEnableTls()) {
+        if (clientConfig.isEnableTlsToSegmentStore()) {
+            log.debug("Setting up an SSL/TLS Context");
             try {
                 SslContextBuilder clientSslCtxBuilder = SslContextBuilder.forClient();
+
                 if (Strings.isNullOrEmpty(clientConfig.getTrustStore())) {
-                    clientSslCtxBuilder = clientSslCtxBuilder.trustManager(FingerprintTrustManagerFactory
-                                                                                   .getInstance(FingerprintTrustManagerFactory.getDefaultAlgorithm()));
-                    log.debug("SslContextBuilder was set to an instance of {}", FingerprintTrustManagerFactory.class);
+                    log.debug("Client truststore wasn't specified.");
+                    File clientTruststore = null; // variable for disambiguating method call
+                    clientSslCtxBuilder.trustManager(clientTruststore);
                 } else {
-                    clientSslCtxBuilder = SslContextBuilder.forClient()
-                                                           .trustManager(new File(clientConfig.getTrustStore()));
+                    clientSslCtxBuilder.trustManager(new File(clientConfig.getTrustStore()));
+                    log.debug("Client truststore: {}", clientConfig.getTrustStore());
                 }
+
                 sslCtx = clientSslCtxBuilder.build();
-            } catch (SSLException | NoSuchAlgorithmException e) {
+            } catch (SSLException e) {
                 throw new RuntimeException(e);
             }
         } else {

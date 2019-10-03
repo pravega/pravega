@@ -9,8 +9,28 @@
  */
 package io.pravega.client.stream.impl;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.nio.ByteBuffer;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
+
+import org.apache.commons.io.output.ByteArrayOutputStream;
+import org.apache.commons.lang3.RandomStringUtils;
+import org.junit.Test;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.state.InitialUpdate;
 import io.pravega.client.state.Update;
@@ -30,30 +50,16 @@ import io.pravega.client.stream.impl.ReaderGroupState.CompactReaderGroupState.Co
 import io.pravega.client.stream.impl.ReaderGroupState.CreateCheckpoint;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupInitSerializer;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit;
+import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupStateInit.ReaderGroupStateInitSerializer;
 import io.pravega.client.stream.impl.ReaderGroupState.ReaderGroupUpdateSerializer;
 import io.pravega.client.stream.impl.ReaderGroupState.ReleaseSegment;
 import io.pravega.client.stream.impl.ReaderGroupState.RemoveReader;
 import io.pravega.client.stream.impl.ReaderGroupState.SegmentCompleted;
 import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail;
+import io.pravega.client.stream.impl.ReaderGroupState.UpdateDistanceToTail.UpdateDistanceToTailSerializer;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.util.ByteArraySegment;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.nio.ByteBuffer;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.Callable;
 import lombok.Cleanup;
-import org.apache.commons.io.output.ByteArrayOutputStream;
-import org.apache.commons.lang3.RandomStringUtils;
-import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 
 public class SerializationTest {
     
@@ -61,7 +67,7 @@ public class SerializationTest {
 
     @Test
     public void testPosition() {
-        PositionImpl pos = new PositionImpl(ImmutableMap.of(Segment.fromScopedName("foo/bar/1"), 2L));
+        PositionImpl pos = new PositionImpl(ImmutableMap.of(new SegmentWithRange(Segment.fromScopedName("foo/bar/1"), 0, 1), 2L));
         ByteBuffer bytes = pos.toBytes();
         Position pos2 = Position.fromBytes(bytes);
         assertEquals(pos, pos2);
@@ -129,9 +135,9 @@ public class SerializationTest {
                                                     .groupRefreshTimeMillis(r.nextInt(1000))
                                                     .stream(createSegment().getStream())
                                                     .build();
-        verify(initSerializer, new ReaderGroupStateInit(config, createSegmentToLongMap(), createSegmentToLongMap()));
+        verify(initSerializer, new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap()));
         CompactReaderGroupStateBuilder builder = new CompactReaderGroupState.CompactReaderGroupStateBuilder();
-        builder.assignedSegments(createMap(this::createString, this::createSegmentToLongMap));
+        builder.assignedSegments(createMap(this::createString, this::createSegmentRangeMap));
         builder.checkpointState(new CheckpointState.CheckpointStateBuilder().checkpoints(createList(this::createString))
                                                                             .lastCheckpointPosition(createSegmentToLongMap())
                                                                             .checkpointPositions(createMap(this::createString,
@@ -142,10 +148,26 @@ public class SerializationTest {
         builder.config(config);
         builder.distanceToTail(createMap(this::createString, r::nextLong));
         builder.endSegments(createSegmentToLongMap());
-        builder.unassignedSegments(createSegmentToLongMap());
-        builder.futureSegments(createMap(this::createSegment, () -> new HashSet<>(createLongList())));
+        builder.unassignedSegments(createSegmentRangeMap());
+        builder.futureSegments(createMap(this::createSegmentWithRange, () -> new HashSet<>(createLongList())));
+        builder.lastReadPosition(createSegmentRangeMap());
         verify(initSerializer, builder.build());
 
+        ReaderGroupStateInitSerializer newSerializer = new ReaderGroupStateInit.ReaderGroupStateInitSerializer(); 
+        ReaderGroupStateInitSerializer oldSerializer = new ReaderGroupStateInit.ReaderGroupStateInitSerializer() {
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0,  this::write00, this::read00);
+            }
+        };
+        ReaderGroupStateInit init = new ReaderGroupStateInit(config, createSegmentRangeMap(), createSegmentToLongMap());
+        ReaderGroupStateInit oldFormat = newSerializer.deserialize(oldSerializer.serialize(init));
+        assertEquals(init.getStartingSegments()
+                         .keySet().stream().map(s -> s.getSegment()).collect(Collectors.toSet()),
+                     oldFormat.getStartingSegments()
+                         .keySet().stream().map(s -> s.getSegment()).collect(Collectors.toSet()));
+        assertEquals(init.getEndSegments(), oldFormat.getEndSegments());
+        assertEquals(init.getConfig(), oldFormat.getConfig());
     }
     
     @Test
@@ -155,12 +177,31 @@ public class SerializationTest {
         verify(serializer, new RemoveReader(createString(), createSegmentToLongMap()));
         verify(serializer, new ReleaseSegment(createString(), createSegment(), r.nextLong()));
         verify(serializer, new AcquireSegment(createString(), createSegment()));
-        verify(serializer, new UpdateDistanceToTail(createString(), r.nextLong()));
-        verify(serializer, new SegmentCompleted(createString(), createSegment(),
-                                                createMap(this::createSegment, this::createLongList)));
+        verify(serializer, new UpdateDistanceToTail(createString(), r.nextLong(), createSegmentRangeMap()));
+        verify(serializer, new SegmentCompleted(createString(), createSegmentWithRange(),
+                                                createMap(this::createSegmentWithRange, this::createLongList)));
         verify(serializer, new CheckpointReader(createString(), createString(), createSegmentToLongMap()));
         verify(serializer, new CreateCheckpoint(createString()));
         verify(serializer, new ClearCheckpointsBefore(createString()));
+    }
+    
+    @Test
+    public void testUpdateDistanceToTail() throws Exception {
+        UpdateDistanceToTailSerializer serializer = new UpdateDistanceToTail.UpdateDistanceToTailSerializer();
+        UpdateDistanceToTail update = new UpdateDistanceToTail(createString(), r.nextLong(), createSegmentRangeMap());
+        UpdateDistanceToTail deserialized = serializer.deserialize(serializer.serialize(update));
+        assertEquals(deserialized, update);
+
+        UpdateDistanceToTailSerializer oldSerializer = new UpdateDistanceToTailSerializer() {
+            @Override
+            protected void declareVersions() {
+                version(0).revision(0,  this::write00, this::read00);
+            }
+        };
+        UpdateDistanceToTail oldStyleUpdate = serializer.deserialize(oldSerializer.serialize(update));
+        assertEquals(update.getReaderId(), oldStyleUpdate.getReaderId());
+        assertEquals(update.getDistanceToTail(), oldStyleUpdate.getDistanceToTail());
+        assertEquals(null, oldStyleUpdate.getLastReadPositions());
     }
     
     private void verify(ReaderGroupInitSerializer serializer, InitialUpdate<ReaderGroupState> value) throws IOException {
@@ -195,6 +236,10 @@ public class SerializationTest {
     private Map<Segment, Long> createSegmentToLongMap() throws Exception {
         return createMap(this::createSegment, r::nextLong);
     }
+    
+    private Map<SegmentWithRange, Long> createSegmentRangeMap() throws Exception {
+        return createMap(this::createSegmentWithRange, r::nextLong);
+    }
 
     private <K, V> Map<K, V> createMap(Callable<K> keyGen, Callable<V> valueGen) throws Exception {
         int size = r.nextInt(3);
@@ -203,6 +248,12 @@ public class SerializationTest {
             builder.put(keyGen.call(), valueGen.call());
         }
         return builder.build();
+    }
+    
+    private SegmentWithRange createSegmentWithRange() {
+        float r1 = r.nextFloat();
+        float r2 = r.nextFloat();
+        return new SegmentWithRange(createSegment(), Math.min(r1, r2), Math.max(r1, r2));
     }
 
     private Segment createSegment() {

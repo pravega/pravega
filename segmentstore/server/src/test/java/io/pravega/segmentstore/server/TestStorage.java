@@ -61,6 +61,8 @@ public class TestStorage implements Storage {
     @Setter
     private ErrorInjector<Exception> existsErrorInjector;
     @Setter
+    private CreateInterceptor createInterceptor;
+    @Setter
     private WriteInterceptor writeInterceptor;
     @Setter
     private SealInterceptor sealInterceptor;
@@ -101,12 +103,21 @@ public class TestStorage implements Storage {
 
     @Override
     public CompletableFuture<SegmentHandle> create(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Duration timeout) {
-        return ErrorInjector.throwAsyncExceptionIfNeeded(this.createErrorInjector,
-                () -> this.wrappedStorage.create(streamSegmentName, rollingPolicy, timeout))
-                            .thenApply(sp -> {
-                                this.truncationOffsets.put(streamSegmentName, 0L);
-                                return sp;
-                            });
+        return ErrorInjector
+                .throwAsyncExceptionIfNeeded(this.createErrorInjector, () -> {
+                    CreateInterceptor ci = this.createInterceptor;
+                    CompletableFuture<Void> result = null;
+                    if (ci != null) {
+                        result = ci.apply(streamSegmentName, rollingPolicy, this.wrappedStorage);
+                    }
+
+                    return result != null ? result : CompletableFuture.completedFuture(null);
+                })
+                .thenCompose(v -> this.wrappedStorage.create(streamSegmentName, rollingPolicy, timeout))
+                .thenApply(sp -> {
+                    this.truncationOffsets.put(streamSegmentName, 0L);
+                    return sp;
+                });
     }
 
     @Override
@@ -225,6 +236,11 @@ public class TestStorage implements Storage {
 
     public long getTruncationOffset(String streamSegmentName) {
         return this.truncationOffsets.get(streamSegmentName);
+    }
+
+    @FunctionalInterface
+    public interface CreateInterceptor {
+        CompletableFuture<Void> apply(String streamSegmentName, SegmentRollingPolicy rollingPolicy, Storage wrappedStorage);
     }
 
     @FunctionalInterface
