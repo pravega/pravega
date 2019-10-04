@@ -22,6 +22,7 @@ import io.pravega.client.stream.TruncatedDataException;
 import io.pravega.client.stream.impl.StreamImpl;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.ExecutorServiceHelpers;
+import io.pravega.common.concurrent.Futures;
 import io.pravega.common.tracing.RequestTracker;
 import io.pravega.controller.mocks.SegmentHelperMock;
 import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
@@ -40,6 +41,8 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import io.pravega.shared.watermarks.Watermark;
 import io.pravega.test.common.AssertExtensions;
 import io.pravega.test.common.TestingServerStarter;
+
+import java.time.Duration;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,12 +67,10 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.*;
 
 public class WatermarkWorkflowTest {
     TestingServer zkServer;
@@ -122,118 +123,137 @@ public class WatermarkWorkflowTest {
         doAnswer(x -> revisionedClient).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
 
         PeriodicWatermarking.WatermarkClient client = new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
-        
-        // iteration 1
+        // iteration 1 ==> null -> w1
         client.reinitialize();
         // There is no watermark in the stream. All values should be null and all writers active and participating.
-        assertNull(revisionedClient.getMark());
+        assertEquals(revisionedClient.getMark(), MockRevision.EMPTY);
         assertTrue(revisionedClient.watermarks.isEmpty());
         assertEquals(client.getPreviousWatermark(), Watermark.EMPTY);
-        assertTrue(client.isWriterActive(0L));
+        Map.Entry<String, WriterMark> entry0 = new AbstractMap.SimpleEntry<>("writerId", new WriterMark(0L, ImmutableMap.of()));
+        Map.Entry<String, WriterMark> entry1 = new AbstractMap.SimpleEntry<>("writerId", new WriterMark(1L, ImmutableMap.of()));
+        Map.Entry<String, WriterMark> entry2 = new AbstractMap.SimpleEntry<>("writerId", new WriterMark(2L, ImmutableMap.of()));
+        Map.Entry<String, WriterMark> entry3 = new AbstractMap.SimpleEntry<>("writerId", new WriterMark(3L, ImmutableMap.of()));
+        Map.Entry<String, WriterMark> entry4 = new AbstractMap.SimpleEntry<>("writerId", new WriterMark(4L, ImmutableMap.of()));
+        Map.Entry<String, WriterMark> entry5 = new AbstractMap.SimpleEntry<>("writerId", new WriterMark(5L, ImmutableMap.of()));
+        assertTrue(client.isWriterActive(entry0, 0L));
         assertTrue(client.isWriterParticipating(0L));
         Watermark first = new Watermark(1L, 2L, ImmutableMap.of());
         client.completeIteration(first);
 
-        // iteration 2
+        // iteration 2 : do not emit ==> w1 -> w1
         client.reinitialize();
         // There is one watermark. All writers should be active and writers greater than last watermark should be participating 
-        assertNull(revisionedClient.getMark());
+        assertEquals(revisionedClient.getMark(), MockRevision.EMPTY);
         assertEquals(revisionedClient.watermarks.size(), 1);
         assertEquals(client.getPreviousWatermark(), first);
-        assertTrue(client.isWriterActive(0L));
+        assertTrue(client.isWriterActive(entry2, 0L));
+        assertFalse(client.isWriterActive(entry1, 0L));
+        assertTrue(client.isWriterTracked(entry1.getKey()));
         assertFalse(client.isWriterParticipating(1L));
         assertTrue(client.isWriterParticipating(2L));
+        // dont emit a watermark. Everything stays same as before. 
+        client.completeIteration(null);
         
+        // iteration 3 : emit ==> w1 -> w1 w2
+        client.reinitialize();
+        // There is one watermark. All writers should be active and writers greater than last watermark should be participating 
+        assertEquals(revisionedClient.getMark(), MockRevision.EMPTY);
+        assertEquals(revisionedClient.watermarks.size(), 1);
+        assertEquals(client.getPreviousWatermark(), first);
+        assertTrue(client.isWriterActive(entry2, 0L));
+        assertFalse(client.isWriterParticipating(1L));
+        assertTrue(client.isWriterParticipating(2L));
         // emit second watermark
         Watermark second = new Watermark(2L, 3L, ImmutableMap.of());
         client.completeIteration(second);
 
-        // iteration 3.. do not emit
+        // iteration 4: do not emit ==> w1 w2 -> w1 w2
         client.reinitialize();
-        // There are two watermarks. Window size is also 2. So all writers should be active. 
-        // All writers after second watermark should be participating. 
-        // Mark should be null. 
-        assertNull(revisionedClient.getMark());
+        assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(0).getKey());
         assertEquals(2, revisionedClient.watermarks.size());
         assertEquals(client.getPreviousWatermark(), second);
-        assertTrue(client.isWriterActive(0L));
+        assertFalse(client.isWriterActive(entry2, 0L));
+        assertTrue(client.isWriterTracked(entry2.getKey()));
+        assertTrue(client.isWriterActive(entry3, 0L));
         assertFalse(client.isWriterParticipating(2L));
         assertTrue(client.isWriterParticipating(3L));
+
+        assertTrue(client.isWriterActive(entry0, 1000L));
+        assertTrue(client.isWriterTracked(entry0.getKey()));
 
         // dont emit a watermark but complete this iteration. 
-        // This should proceed to shrink the active window.
         client.completeIteration(null);
 
-        // iteration 4.. do not emit
+        // iteration 6: emit ==> w1 w2 -> w1 w2 w3
         client.reinitialize();
-        // Mark should have been set to first watermark's revision
-        // writer's with time before first watermark will be inactive. Writers after second watermark should be participating.  
         assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(0).getKey());
-        assertEquals(revisionedClient.watermarks.size(), 2);
+        assertEquals(2, revisionedClient.watermarks.size());
         assertEquals(client.getPreviousWatermark(), second);
-        assertFalse(client.isWriterActive(1L));
-        assertTrue(client.isWriterActive(2L));
-        assertFalse(client.isWriterParticipating(2L));
-        assertTrue(client.isWriterParticipating(3L));
-
-        // dont emit a watermark but complete this iteration. This should shrink the window again. 
-        client.completeIteration(null);
-
-        // iteration 5
-        client.reinitialize();
-        // mark should be set to revision of second watermark.
-        // active writers should be ahead of second watermark. participating writers should be ahead of second watermark
-        assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(1).getKey());
-        assertEquals(revisionedClient.watermarks.size(), 2);
-        assertEquals(client.getPreviousWatermark(), second);
-        assertFalse(client.isWriterActive(2L));
-        assertTrue(client.isWriterActive(3L));
+        assertTrue(client.isWriterActive(entry3, 0L));
+        assertFalse(client.isWriterTracked(entry3.getKey()));
         assertFalse(client.isWriterParticipating(2L));
         assertTrue(client.isWriterParticipating(3L));
         // emit third watermark
         Watermark third = new Watermark(3L, 4L, ImmutableMap.of());
         client.completeIteration(third);
 
-        // iteration 6
+        // iteration 7: do not emit ==> w1 w2 w3 -> w1 w2 w3
         client.reinitialize();
-        // mark should still be set to revision of second watermark. 
+        // active writers should be ahead of first watermark. participating writers should be ahead of second watermark
         assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(1).getKey());
-        assertEquals(revisionedClient.watermarks.size(), 3);
+        assertEquals(3, revisionedClient.watermarks.size());
         assertEquals(client.getPreviousWatermark(), third);
-        assertFalse(client.isWriterActive(2L));
-        assertTrue(client.isWriterActive(3L));
+        assertFalse(client.isWriterActive(entry3, 0L));
+        assertTrue(client.isWriterActive(entry4, 0L));
         assertFalse(client.isWriterParticipating(3L));
         assertTrue(client.isWriterParticipating(4L));
         
+        client.completeIteration(null);
+
+        // iteration 8 : emit ==> w2 w3 -> w2 w3 w4
+        client.reinitialize();
+        assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(1).getKey());
+        // window = w2 w3
+        assertEquals(revisionedClient.watermarks.size(), 3);
+        assertEquals(client.getPreviousWatermark(), third);
+        assertFalse(client.isWriterActive(entry3, 0L));
+        assertTrue(client.isWriterActive(entry4, 0L));
+        assertFalse(client.isWriterParticipating(3L));
+        assertTrue(client.isWriterParticipating(4L));
+
         // emit fourth watermark
         Watermark fourth = new Watermark(4L, 5L, ImmutableMap.of());
         client.completeIteration(fourth);
 
-        // iteration 7
+        // iteration 9: do not emit ==> w1 w2 w3 w4 -> w1 w2 w3 w4.. check writer timeout
         client.reinitialize();
-        // mark should still be set to revision of second watermark. 
-        assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(1).getKey());
+        assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(2).getKey());
         assertEquals(revisionedClient.watermarks.size(), 4);
         assertEquals(client.getPreviousWatermark(), fourth);
-        assertFalse(client.isWriterActive(2L));
-        assertTrue(client.isWriterActive(3L));
+        assertFalse(client.isWriterActive(entry3, 0L));
+        assertTrue(client.isWriterTracked(entry4.getKey()));
         assertFalse(client.isWriterParticipating(4L));
         assertTrue(client.isWriterParticipating(5L));
 
-        // emit fifth watermark
-        Watermark fifth = new Watermark(5L, 6L, ImmutableMap.of());
-        client.completeIteration(fifth);
+        // verify that writer is active if we specify a higher timeout
+        assertTrue(client.isWriterActive(entry1, 1L));
+        assertTrue(client.isWriterTracked(entry1.getKey()));
+        // now that the writer is being tracked
+        assertFalse(Futures.delayedTask(() -> client.isWriterActive(entry1, 1L), Duration.ofSeconds(1), executor).join());
+        assertTrue(client.isWriterTracked(entry1.getKey()));
 
-        // iteration 8
+        // dont emit a watermark but complete this iteration. This should shrink the window again. 
+        client.completeIteration(null);
+
+        // iteration 10
         client.reinitialize();
-        // mark should progress to third watermark. 
         assertEquals(revisionedClient.getMark(), revisionedClient.watermarks.get(2).getKey());
-        assertEquals(revisionedClient.watermarks.size(), 5);
-        assertEquals(client.getPreviousWatermark(), fifth);
-        assertFalse(client.isWriterActive(3L));
-        assertTrue(client.isWriterActive(4L));
-        assertFalse(client.isWriterParticipating(5L));
-        assertTrue(client.isWriterParticipating(6L));
+        assertEquals(revisionedClient.watermarks.size(), 4);
+        assertEquals(client.getPreviousWatermark(), fourth);
+        assertFalse(client.isWriterActive(entry4, 0L));
+        assertTrue(client.isWriterActive(entry5, 0L));
+        assertFalse(client.isWriterParticipating(4L));
+        assertTrue(client.isWriterParticipating(5L));
     }
 
     @Test(timeout = 30000L)
@@ -270,7 +290,7 @@ public class WatermarkWorkflowTest {
         String streamName = "stream";
         String scope = "scope";
         streamMetadataStore.createScope(scope).join();
-        streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).build(), 
+        streamMetadataStore.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3)).timestampAggregationTimeout(10000L).build(), 
                 System.currentTimeMillis(), null, executor).join();
 
         streamMetadataStore.setState(scope, streamName, State.ACTIVE, null, executor).join();
@@ -359,11 +379,7 @@ public class WatermarkWorkflowTest {
         map2 = ImmutableMap.of(1L, 100L, 2L, 400L);
         streamMetadataStore.noteWriterMark(scope, streamName, writer2, 401L, map2, null, executor).join();
 
-        // run watermark workflow. there shouldn't be a watermark emitted until writer 3 times out and is excluded 
-        // from computation. That will happen for two iterations because our window size is 2. Third iteration will
-        // exclude writer 3 from watermark computation and remove it. 
-        periodicWatermarking.watermark(stream).join();
-        assertEquals(revisionedClient.watermarks.size(), 3);
+        // run watermark workflow. there shouldn't be a watermark emitted because writer 3 is active and has not reported a time. 
         periodicWatermarking.watermark(stream).join();
         assertEquals(revisionedClient.watermarks.size(), 3);
 
@@ -411,6 +427,129 @@ public class WatermarkWorkflowTest {
         assertEquals(getSegmentOffset(watermark, segment4), 500L);
     }
 
+    @Test(timeout = 30000L)
+    public void testWriterTimeout() {
+        SynchronizerClientFactory clientFactory = spy(SynchronizerClientFactory.class);
+
+        ConcurrentHashMap<String, MockRevisionedStreamClient> revisionedStreamClientMap = new ConcurrentHashMap<>();
+
+        doAnswer(x -> {
+            String streamName = x.getArgument(0);
+            return revisionedStreamClientMap.compute(streamName, (s, rsc) -> {
+                if (rsc != null) {
+                    return rsc;
+                } else {
+                    return new MockRevisionedStreamClient();
+                }
+            });
+        }).when(clientFactory).createRevisionedStreamClient(anyString(), any(), any());
+
+        ConcurrentHashMap<Stream, PeriodicWatermarking.WatermarkClient> watermarkClientMap = new ConcurrentHashMap<>();
+
+        Function<Stream, PeriodicWatermarking.WatermarkClient> supplier = stream -> {
+            return watermarkClientMap.compute(stream, (s, wc) -> {
+                if (wc != null) {
+                    return wc;
+                } else {
+                    return new PeriodicWatermarking.WatermarkClient(stream, clientFactory);
+                }
+            });
+        };
+
+        StreamMetadataStore streamMetadataStoreSpied = spy(this.streamMetadataStore);
+        BucketStore bucketStoreSpied = spy(this.bucketStore);
+        PeriodicWatermarking periodicWatermarking = new PeriodicWatermarking(streamMetadataStoreSpied, bucketStoreSpied, supplier, executor);
+
+        String streamName = "stream";
+        String scope = "scope";
+        streamMetadataStoreSpied.createScope(scope).join();
+        streamMetadataStoreSpied.createStream(scope, streamName, StreamConfiguration.builder().scalingPolicy(ScalingPolicy.fixed(3))
+                                                                               .timestampAggregationTimeout(3000L).build(),
+                System.currentTimeMillis(), null, executor).join();
+
+        streamMetadataStoreSpied.setState(scope, streamName, State.ACTIVE, null, executor).join();
+
+        // 2. note writer1, writer2, writer3 marks
+        // writer 1 reports segments 0, 1. 
+        // writer 2 reports segments 1, 2, 
+        // writer 3 reports segment 0, 2
+        String writer1 = "writer1";
+        streamMetadataStoreSpied.noteWriterMark(scope, streamName, writer1, 102L,
+                ImmutableMap.of(0L, 100L, 1L, 0L, 2L, 0L), null, executor).join();
+        String writer2 = "writer2";
+        streamMetadataStoreSpied.noteWriterMark(scope, streamName, writer2, 101L,
+                ImmutableMap.of(0L, 0L, 1L, 100L, 2L, 0L), null, executor).join();
+        String writer3 = "writer3";
+        streamMetadataStoreSpied.noteWriterMark(scope, streamName, writer3, 100L,
+                ImmutableMap.of(0L, 0L, 1L, 0L, 2L, 100L), null, executor).join();
+
+        // 3. run watermarking workflow. 
+        StreamImpl stream = new StreamImpl(scope, streamName);
+        periodicWatermarking.watermark(stream).join();
+
+        // verify that a watermark has been emitted. 
+        MockRevisionedStreamClient revisionedClient = revisionedStreamClientMap.get(NameUtils.getMarkStreamForStream(streamName));
+        assertEquals(revisionedClient.watermarks.size(), 1);
+
+        // Don't report time from writer3
+        streamMetadataStoreSpied.noteWriterMark(scope, streamName, writer1, 200L,
+                ImmutableMap.of(0L, 200L, 1L, 0L, 2L, 0L), null, executor).join();
+        streamMetadataStoreSpied.noteWriterMark(scope, streamName, writer2, 200L,
+                ImmutableMap.of(0L, 0L, 1L, 200L, 2L, 0L), null, executor).join();
+
+        // no new watermark should be emitted, writers should be tracked for inactivity
+        periodicWatermarking.watermark(stream).join();
+        assertEquals(revisionedClient.watermarks.size(), 1);
+        verify(streamMetadataStoreSpied, never()).removeWriter(anyString(), anyString(), anyString(), any(), any(), any());
+        verify(bucketStoreSpied, never()).removeStreamFromBucketStore(any(), anyString(), anyString(), any());
+
+        // call again. Still no new watermark should be emitted as writers have not timed out
+        periodicWatermarking.watermark(stream).join();
+        assertEquals(revisionedClient.watermarks.size(), 1);
+        verify(streamMetadataStoreSpied, never()).removeWriter(anyString(), anyString(), anyString(), any(), any(), any());
+        verify(bucketStoreSpied, never()).removeStreamFromBucketStore(any(), anyString(), anyString(), any());
+        
+        // call watermark after a delay of 5 more seconds. The writer3 should timeout because it has a timeout of 3 seconds.
+        Futures.delayedFuture(() -> periodicWatermarking.watermark(stream), 5000L, executor).join();
+
+        verify(streamMetadataStoreSpied, times(1)).removeWriter(anyString(), anyString(), anyString(), any(), any(), any());
+        verify(bucketStoreSpied, never()).removeStreamFromBucketStore(any(), anyString(), anyString(), any());
+        
+        // watermark should be emitted. without considering writer3 
+        assertEquals(revisionedClient.watermarks.size(), 2);
+        Watermark watermark = revisionedClient.watermarks.get(1).getValue();
+        assertEquals(watermark.getLowerTimeBound(), 200L);
+        assertEquals(watermark.getStreamCut().size(), 3);
+        assertEquals(getSegmentOffset(watermark, 0L), 200L);
+        assertEquals(getSegmentOffset(watermark, 1L), 200L);
+        assertEquals(getSegmentOffset(watermark, 2L), 100L);
+
+        // call watermark workflow again so that both writers are tracked for inactivity
+        periodicWatermarking.watermark(stream).join();
+        assertEquals(revisionedClient.watermarks.size(), 2);
+        verify(streamMetadataStoreSpied, times(1)).removeWriter(anyString(), anyString(), anyString(), any(), any(), any());
+        verify(bucketStoreSpied, never()).removeStreamFromBucketStore(any(), anyString(), anyString(), any());
+
+        // now introduce more delays and see all writers are removed and stream is discontinued from watermarking computation. 
+        Futures.delayedFuture(() -> periodicWatermarking.watermark(stream), 5000L, executor).join();
+
+        // verify that stream is discontinued from tracking for watermarking
+        verify(streamMetadataStoreSpied, times(3)).removeWriter(anyString(), anyString(), anyString(), any(), any(), any());
+        verify(bucketStoreSpied, times(1)).removeStreamFromBucketStore(any(), anyString(), anyString(), any());
+
+        // call note time for writer3 and verify that watermark is emitted. 
+        streamMetadataStoreSpied.noteWriterMark(scope, streamName, writer3, 300L,
+                ImmutableMap.of(0L, 300L, 1L, 0L, 2L, 0L), null, executor).join();
+        periodicWatermarking.watermark(stream).join();
+        assertEquals(revisionedClient.watermarks.size(), 3);
+        watermark = revisionedClient.watermarks.get(2).getValue();
+        assertEquals(watermark.getLowerTimeBound(), 300L);
+        assertEquals(watermark.getStreamCut().size(), 3);
+        assertEquals(getSegmentOffset(watermark, 0L), 300L);
+        assertEquals(getSegmentOffset(watermark, 1L), 200L);
+        assertEquals(getSegmentOffset(watermark, 2L), 100L);
+    }
+    
     private long getSegmentOffset(Watermark watermark, long segmentId) {
         return watermark.getStreamCut().entrySet().stream().filter(x -> x.getKey().getSegmentId() == segmentId)
                         .findFirst().get().getValue();
@@ -452,7 +591,7 @@ public class WatermarkWorkflowTest {
         @Override
         @Synchronized
         public Iterator<Map.Entry<Revision, Watermark>> readFrom(Revision start) throws TruncatedDataException {
-            int index = start.equals(MockRevision.EMPTY) ? 0 : ((MockRevision) start).id;
+            int index = start.equals(MockRevision.EMPTY) ? 0 : ((MockRevision) start).id + 1;
             return watermarks.stream().filter(x -> ((MockRevision) x.getKey()).id >= index).iterator();
         }
 

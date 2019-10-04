@@ -13,12 +13,14 @@ import io.pravega.client.segment.impl.Segment;
 import java.util.Collections;
 import java.util.Map;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 
 @Builder
 @RequiredArgsConstructor
 @ToString
+@EqualsAndHashCode
 public class WriterPosition {
 
     private final Map<Segment, Long> segments;

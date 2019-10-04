@@ -22,6 +22,7 @@ import io.pravega.client.state.Revision;
 import io.pravega.client.state.RevisionedStreamClient;
 import io.pravega.client.state.SynchronizerConfig;
 import io.pravega.client.stream.Stream;
+import io.pravega.client.stream.StreamConfiguration;
 import io.pravega.client.watermark.WatermarkSerializer;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -41,7 +42,6 @@ import lombok.Synchronized;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import javax.annotation.concurrent.GuardedBy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -56,7 +56,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -126,21 +125,23 @@ public class PeriodicWatermarking {
             WatermarkClient watermarkClient = watermarkClientCache.getUnchecked(stream);
 
             watermarkClient.reinitialize();
-            return filterWritersAndComputeWatermark(scope, streamName, context, watermarkClient, writers);
+            return streamMetadataStore.getConfiguration(scope, streamName, context, executor)
+                .thenCompose(config -> filterWritersAndComputeWatermark(scope, streamName, context, watermarkClient, writers, config));
         }).exceptionally(e -> {
             log.warn("Exception thrown while trying to perform periodic watermark computation. Logging and ignoring.", e);
             return null;
         });
     }
 
-    private CompletionStage<Void> filterWritersAndComputeWatermark(String scope, String streamName, OperationContext context, 
-                                                                   WatermarkClient watermarkClient, Map<String, WriterMark> writers) {
+    private CompletionStage<Void> filterWritersAndComputeWatermark(String scope, String streamName, OperationContext context,
+                                                                   WatermarkClient watermarkClient, Map<String, WriterMark> writers,
+                                                                   StreamConfiguration config) {
         // 1. filter writers that are active.
         List<Entry<String, WriterMark>> activeWriters = new ArrayList<>();
         List<Entry<String, WriterMark>> inactiveWriters = new ArrayList<>();
         AtomicBoolean allActiveAreParticipating = new AtomicBoolean(true);
         writers.entrySet().forEach(x -> {
-            if (watermarkClient.isWriterActive(x.getValue().getTimestamp())) {
+            if (watermarkClient.isWriterActive(x, config.getTimestampAggregationTimeout())) {
                 activeWriters.add(x);
                 if (!watermarkClient.isWriterParticipating(x.getValue().getTimestamp())) {
                     allActiveAreParticipating.set(false);
@@ -155,7 +156,7 @@ public class PeriodicWatermarking {
                 Futures.allOfWithResults(inactiveWriters.stream().map(x ->
                         Futures.exceptionallyExpecting(
                                 streamMetadataStore.removeWriter(scope, streamName, x.getKey(),
-                                x.getValue(), context, executor), 
+                                x.getValue(), context, executor).thenAccept(v -> watermarkClient.untrackWriterInactivity(x.getKey())), 
                                 e -> Exceptions.unwrap(e) instanceof StoreException.WriteConflictException, null))
                                                         .collect(Collectors.toList()));
 
@@ -223,7 +224,7 @@ public class PeriodicWatermarking {
                                  .collect(Collectors.toMap(y -> getSegmentWithRange(scope, streamName, context, y.getKey()),
                                          Entry::getValue)));
                     }).collect(Collectors.toList()));
-            
+            log.debug("Emitting watermark for stream {}/{} with time {}", scope, streamName, lowerBoundOnTime);
             return positionsFuture.thenAccept(listOfPositions -> listOfPositions.forEach(position -> {
                 // add writer positions to upperBound map. 
                 addToUpperBound(position, upperBound);
@@ -359,15 +360,19 @@ public class PeriodicWatermarking {
     }
 
     static class WatermarkClient {
-        private static final int WINDOW_SIZE = 2;
         private final RevisionedStreamClient<Watermark> client;
         
-        @GuardedBy("$Lock")
-        private List<Map.Entry<Revision, Watermark>> entries;
+        private final AtomicReference<Map.Entry<Revision, Watermark>> previousWatermark = new AtomicReference<>();
         private final AtomicReference<Revision> markRevision = new AtomicReference<>();
-        private AtomicInteger windowStart;
-        private final int windowSize;
 
+        /**
+         * Map to track inactive writers for their timeouts. This map records wall clock time when
+         * this writer was found to be inactive. If in subsequent cycles
+         * it continues to be inactive and the time elapsed is greater than
+         * {@link StreamConfiguration#timestampAggregationTimeout}, then it is declared timedout.
+         */
+        private final ConcurrentHashMap<String, Long> inactiveWriters;
+        
         WatermarkClient(Stream stream, ClientConfig clientConfig) {
             this(stream, SynchronizerClientFactory.withScope(stream.getScope(), clientConfig));
         }
@@ -377,53 +382,27 @@ public class PeriodicWatermarking {
             this.client = clientFactory.createRevisionedStreamClient(
                     NameUtils.getMarkStreamForStream(stream.getStreamName()), 
                     new WatermarkSerializer(), SynchronizerConfig.builder().build());
-            this.windowStart = new AtomicInteger();
-            windowSize = WINDOW_SIZE;
+            this.inactiveWriters = new ConcurrentHashMap<>();
         }
 
-        @Synchronized
-        private Map.Entry<Revision, Watermark> getLatestEntry() {
-            return entries.isEmpty() ? null : entries.get(entries.size() - 1);
-        }
-
-        @Synchronized
         Watermark getPreviousWatermark() {
-            Map.Entry<Revision, Watermark> watermark = getLatestEntry();
+            Map.Entry<Revision, Watermark> watermark = previousWatermark.get();
             return watermark == null ? Watermark.EMPTY : watermark.getValue(); 
         }
 
-        @Synchronized
-        private Map.Entry<Revision, Watermark> getEntryAt(int index) {
-            return index < 0 ? null : entries.get(index);
-        }
-
         /**
-         * This method is called every time a new watermark computation needs to be performed. It resets the window 
-         * and latest watermark. 
-         * We maintain an Active window of a maximum window size of 2. It spans from latest watermark to up to two preceding 
-         * watermarks. 
+         * This method is called every time a new watermark computation needs to be performed. 
          * 
-         * Only Writers that have reported time after the start of active window are considered to be active and participate
-         * in next watermark computation.
+         * Only Writers that have reported time after previous watermark are considered to participate
+         * in next watermark computation. Active writers are those that have either not been explicitly shutdown or timed out. 
          * 
          * A watermark is emitted only if all active writers have reported a time greater than previous watermark. 
          * The watermark computation is postponed if not all active writers have reported their marks.
-         * We keep shrinking the active window in each iteration. 
-         * This may result in writers becoming inactive and hence not a participant in current watermark computation.
-         * If active window only contains latest mark and none of the writers have progressed beyond last watermark, 
-         * then we shutdown the stream from periodic watermarking computation. 
          * 
-         * Active Writer: Writer which has reported a time greater than the active window. 
-         * Active window: A reference to an existing older watermark.   
-         * Only active writers are considered for emitting watermarks. A watermark is emitted only if all participating 
-         * writers have reported times greater than last watermark.  
-         * Active window is progressed forward in each iteration conditionally. We try to maintain an active window of 
-         * last two watermarks. 
-         * Bootstrap: If there are less than 2 watermarks, active window is null. If no new watermark is emitted in current 
-         * iteration then active window is progressed by one. If watermark is emitted and the distance between active window
-         * watermark and latest watermark is `2` or more, active window is progressed.  
-         * If distance between active window watermark and latest window watermark is less than 2, 
-         * active window is not progressed if a new watermark is emitted. 
+         * Active Writer: Writer which has reported a time greater than the active previous watermark OR has not been 
+         * timed out or shutdown. 
+         * Inactive writer: Writer which has not reported a mark for at least {@link StreamConfiguration#timestampAggregationTimeout}
+         * or has been explicitly shutdown.
          */
         @Synchronized
         void reinitialize() {
@@ -431,93 +410,69 @@ public class PeriodicWatermarking {
             // revision can be null if no window has been set yet. 
             if (revision == null) {
                 markRevision.set(client.fetchOldestRevision());
+                client.compareAndSetMark(null, markRevision.get());
             } else {
                 markRevision.set(revision);
             }
-            
-            entries = Lists.newArrayList(client.readFrom(markRevision.get()));
-            
-            // If there are no watermarks or there is no previous window recorded, in either case we set watermark start 
-            // to MIN_VALUE
-            int index = entries.isEmpty() || revision == null ? Integer.MIN_VALUE : 0;
-            
-            if (entries.size() > windowSize) {
-                index = entries.size() - windowSize - 1;
+
+            ArrayList<Entry<Revision, Watermark>> entries = Lists.newArrayList(client.readFrom(markRevision.get()));
+            if (!entries.isEmpty()) {
+                previousWatermark.set(entries.get(entries.size() - 1));
+            } else {
+                previousWatermark.set(null);
             }
-            
-            windowStart.set(index);
         }
 
         /**
          * This method should be called to complete the current iteration. 
-         * if watermark is emitted, progress window. 
-         * @param newWatermark
+         * @param newWatermark new watermark to emit
          */
         void completeIteration(Watermark newWatermark) {
-            Map.Entry<Revision, Watermark> latest = getLatestEntry();
-            Revision newRevision;
+            Map.Entry<Revision, Watermark> previous = previousWatermark.get();
             if (newWatermark != null) {
                 // conditional update
-                Revision revision = latest == null ? markRevision.get() : latest.getKey();
-                newRevision = client.writeConditionally(revision, newWatermark);
+                Revision revision = previous == null ? markRevision.get() : previous.getKey();
+                Revision newRevision = client.writeConditionally(revision, newWatermark);
                 if (newRevision == null) {
                     return;
+                } else if (previous != null) {
+                    client.compareAndSetMark(markRevision.get(), previous.getKey());
                 }
-            }
-
-            int start = windowStart.get();
-            int newWindowStart = entries.size() - windowSize;
-            
-            Map.Entry<Revision, Watermark> window = getEntryAt(start);
-
-            Revision key = window == null ? null : window.getKey();
-            
-            int nextIndex = start;
-
-            if (newWatermark != null) {
-                // watermark has been emitted. 
-                // if window = null. set window start if number of entries are sufficient.  
-
-                // if previous window doesn't exist - set window if progressing window maintains at least a distance of `windowSize`.
-                if (start < 0 && newWindowStart >= 0) {
-                    nextIndex = newWindowStart;
-                }
-
-                if (start >= 0 && entries.size() - start >= windowSize) {
-                    nextIndex = entries.size() - windowSize;
-                }
-            } else {
-                // no watermark is emitted. We should progress window.
-                nextIndex = start + 1 < entries.size() ? start + 1 : start;
-                
-                nextIndex = nextIndex < 0 ? 0 : nextIndex;
-            }
-
-            Map.Entry<Revision, Watermark> next = getEntryAt(nextIndex);
-            if (next != null) {
-                // set the window to next.revision
-                client.compareAndSetMark(key, next.getKey());
             }
         }
         
-        boolean isWriterActive(long time) {
-            Map.Entry<Revision, Watermark> active = getEntryAt(windowStart.get());
-            
-            if (active == null) {
+        boolean isWriterActive(Entry<String, WriterMark> writerMark, long timeout) {
+            if (!isWriterParticipating(writerMark.getValue().getTimestamp())) {
+                // if writer is behind previous watermark we will start tracking it for inactivity and time it out. 
+                long currentTime = System.currentTimeMillis();
+                inactiveWriters.putIfAbsent(writerMark.getKey(), currentTime);
+                Long time = inactiveWriters.getOrDefault(writerMark.getKey(), currentTime);
+
+                boolean timedOut = currentTime - time >= timeout;
+                return writerMark.getValue().isAlive() && !timedOut;
+            } else {
+                inactiveWriters.remove(writerMark.getKey());
                 return true;
             }
-            
-            return time > active.getValue().getLowerTimeBound();
         }
 
         boolean isWriterParticipating(long time) {
-            Map.Entry<Revision, Watermark> latest = getLatestEntry();
+            Map.Entry<Revision, Watermark> latest = previousWatermark.get();
             
             if (latest == null) {
                 return true;
             }
             
             return time > latest.getValue().getLowerTimeBound();
+        }
+
+        private void untrackWriterInactivity(String writerId) {
+            inactiveWriters.remove(writerId);
+        }
+        
+        @VisibleForTesting
+        boolean isWriterTracked(String writerId) {
+            return inactiveWriters.containsKey(writerId);
         }
     }
 }
