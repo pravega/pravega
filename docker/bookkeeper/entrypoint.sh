@@ -10,6 +10,18 @@
 #
 set -e
 
+# To create directories for multiple ledgers and journals if specified
+create_dir() {
+  IFS=',' read -ra directories <<< $1
+  for i in "${directories[@]}"
+  do
+      mkdir -p $i
+      if [ "$(id -u)" = '0' ]; then
+          chown -R "${BK_USER}:${BK_USER}" $i
+      fi
+  done
+}
+
 BOOKIE_PORT=${bookiePort:-${BOOKIE_PORT}}
 BOOKIE_PORT=${BOOKIE_PORT:-3181}
 BK_zkServers=$(echo "${ZK_URL:-127.0.0.1:2181}" | sed -r 's/;/,/g')
@@ -20,11 +32,14 @@ BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 BK_DIR="/bk"
 
+create_dir "${BK_journalDirectories}"
+create_dir "${BK_ledgerDirectories}"
+
 export BOOKIE_PORT=${BOOKIE_PORT}
 export BK_zkServers=${BK_zkServers}
 export BK_metadataServiceUri=zk://${ZK_URL}${BK_LEDGERS_PATH}
-export BK_journalDirectory=${BK_DIR}/journal
-export BK_ledgerDirectories=${BK_DIR}/ledgers
+export BK_journalDirectories=${BK_journalDirectories:-${BK_DIR}/journal}
+export BK_ledgerDirectories=${BK_ledgerDirectories:-${BK_DIR}/ledgers}
 export BK_indexDirectories=${BK_DIR}/index
 export BK_CLUSTER_ROOT_PATH=/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}
 
