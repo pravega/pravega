@@ -73,6 +73,15 @@ public final class StreamSegmentNameUtils {
     private static final String TABLES = "_tables";
     private static final String MARK = "_MARK";
 
+    /**
+     * This is used in composing segment tags.
+     */
+    static final String TAG_SCOPE = "scope";
+    static final String TAG_STREAM = "stream";
+    static final String TAG_SEGMENT = "segment";
+    static final String TAG_EPOCH = "epoch";
+    static final String TAG_DEFAULT = "default";
+
     //endregion
 
     /**
@@ -372,6 +381,54 @@ public final class StreamSegmentNameUtils {
     // region watermark
     public static String getMarkForStream(String stream) {
         return NameUtils.getMarkStreamForStream(stream);
+    }
+    // endregion
+
+    // region metrics
+    /**
+     * Generate segment tags (string array) on the input fully qualified segment name to be associated with a metric.
+     *
+     * @param qualifiedSegmentName fully qualified segment name.
+     * @return string array as segment tag of metric.
+     */
+    public static String[] segmentTags(String qualifiedSegmentName) {
+        Preconditions.checkNotNull(qualifiedSegmentName);
+        String[] tags = {TAG_SCOPE, null, TAG_STREAM, null, TAG_SEGMENT, null, TAG_EPOCH, null};
+
+        String segmentBaseName = getSegmentBaseName(qualifiedSegmentName);
+        String[] tokens = segmentBaseName.split("[/]");
+
+        int segmentIdIndex = (tokens.length == 1) ? 0 : (tokens.length) == 2 ? 1 : 2;
+        if (tokens[segmentIdIndex].contains(EPOCH_DELIMITER)) {
+            String[] segmentIdTokens = tokens[segmentIdIndex].split(EPOCH_DELIMITER);
+            tags[5] = segmentIdTokens[0];
+            tags[7] = segmentIdTokens[1];
+        } else {
+            tags[5] = tokens[segmentIdIndex];
+            tags[7] = "0";
+        }
+        if (tokens.length == 3) {
+            tags[1] = tokens[0];
+            tags[3] = tokens[1];
+        } else if (tokens.length == 1) {
+            tags[1] = TAG_DEFAULT;
+            tags[3] = TAG_DEFAULT;
+        } else {
+            tags[1] = TAG_DEFAULT;
+            tags[3] = tokens[0];
+        }
+        return tags;
+    }
+
+    /**
+     * Get base name of segment with the potential transaction delimiter removed.
+     *
+     * @param segmentQualifiedName fully qualified segment name.
+     * @return the base name of segment.
+     */
+    private static String getSegmentBaseName(String segmentQualifiedName) {
+        String segmentBaseName = StreamSegmentNameUtils.getParentStreamSegmentName(segmentQualifiedName);
+        return (segmentBaseName == null)? segmentQualifiedName : segmentBaseName;
     }
     // endregion
 }

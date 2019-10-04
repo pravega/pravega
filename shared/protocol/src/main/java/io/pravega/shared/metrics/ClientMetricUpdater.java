@@ -14,7 +14,11 @@ import io.pravega.common.concurrent.ExecutorServiceHelpers;
 import io.pravega.common.concurrent.MultiKeyLatestItemSequentialProcessor;
 import java.util.concurrent.ScheduledExecutorService;
 
-
+/**
+ * A MetricNotifier that invokes the {@link MetricListener} provided by the user. This notifier
+ * skips updates if multiple updates are performed while the MetricListener is processing, only the most
+ * recent update is used.
+ */
 public class ClientMetricUpdater implements MetricNotifier {
     private final MultiKeyLatestItemSequentialProcessor<String, Long> successProcessor;
     private final MultiKeyLatestItemSequentialProcessor<String, Long> failureProcessor;
@@ -28,13 +32,13 @@ public class ClientMetricUpdater implements MetricNotifier {
     }
 
     @Override
-    public void updateSuccessMetric(String metric, String[] metricTags, long value) {
-        successProcessor.updateItem(ClientMetricNames.metricKey(metric, metricTags), value);
+    public void updateSuccessMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
+        successProcessor.updateItem(metricKey.metric(metricTags), value);
     }
 
     @Override
-    public void updateFailureMetric(String metricKey, String[] metric,  long value) {
-        failureProcessor.updateItem(ClientMetricNames.metricKey(metricKey, metric), value);
+    public void updateFailureMetric(ClientMetricKeys metricKey, String[] metric,  long value) {
+        failureProcessor.updateItem(metricKey.metric(metric), value);
     }
 
     @Override

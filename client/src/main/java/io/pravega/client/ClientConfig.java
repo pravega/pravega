@@ -104,7 +104,7 @@ public class ClientConfig implements Serializable {
 
 
     /**
-     * A optional listener which can be used to get performance metrics from the client. The user
+     * An optional listener which can be used to get performance metrics from the client. The user
      * can implement this interface to obtain performance metrics of the client.
      */
     private final MetricListener metricListener;

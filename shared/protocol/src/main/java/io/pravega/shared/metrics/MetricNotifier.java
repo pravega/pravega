@@ -9,15 +9,19 @@
  */
 package io.pravega.shared.metrics;
 
+/**
+ * A notifier that is used to notify metrics to the user specified {@link MetricListener}.
+ *
+ */
 public interface MetricNotifier extends AutoCloseable {
 
     MetricNotifier NO_OP_METRIC_NOTIFIER = new MetricNotifier() {
         @Override
-        public void updateSuccessMetric(String metric, String[] metricTags, long value) {
+        public void updateSuccessMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
         }
 
         @Override
-        public void updateFailureMetric(String metric, String[] metricTags, long value) {
+        public void updateFailureMetric(ClientMetricKeys metricKey, String[] metricTags, long value) {
         }
 
         @Override
@@ -25,9 +29,21 @@ public interface MetricNotifier extends AutoCloseable {
         }
     };
 
-    void updateSuccessMetric(String metric, String[] metricTags, long value);
+    /**
+     * Notify a success metric to the user specified {@link MetricListener}.
+     * @param metricKey The metric key.
+     * @param metricTags Tags associated with the metric.
+     * @param value Value of the metric observed.
+     */
+    void updateSuccessMetric(ClientMetricKeys metricKey, String[] metricTags, long value);
 
-    void updateFailureMetric(String metric, String[] metricTags,  long value);
+    /**
+     * Notify a failure metric to the user specified {@link MetricListener}.
+     * @param metricKey The metric key.
+     * @param metricTags Tags associated with the metric.
+     * @param value Value of the metric observed.
+     */
+    void updateFailureMetric(ClientMetricKeys metricKey, String[] metricTags,  long value);
 
     @Override
     void close();

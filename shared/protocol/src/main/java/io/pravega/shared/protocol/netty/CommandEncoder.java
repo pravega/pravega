@@ -15,14 +15,13 @@ import io.netty.buffer.ByteBufOutputStream;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
-import io.pravega.shared.metrics.ClientMetricNames;
-import io.pravega.shared.metrics.ClientMetricTags;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
+import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.IOException;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.UUID;
@@ -38,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_BLOCK_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 
@@ -309,7 +309,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         int blockSize = 0;
         if (blockSizeSupplier != null) {
             blockSize = blockSizeSupplier.getAppendBlockSize();
-            metricNotifier.updateSuccessMetric(ClientMetricNames.CLIENT_APPEND_LATENCY, ClientMetricTags.segmentTags(append.getSegment()), (long) blockSize);
+            metricNotifier.updateSuccessMetric(CLIENT_APPEND_BLOCK_SIZE, StreamSegmentNameUtils.segmentTags(append.getSegment()),
+                                               (long) blockSize);
         }
         segmentBeingAppendedTo = append.segment;
         writerIdPerformingAppends = append.writerId;

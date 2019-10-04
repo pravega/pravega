@@ -16,6 +16,10 @@ import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
 
+import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_EPOCH;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_SCOPE;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_SEGMENT;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.TAG_STREAM;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -212,5 +216,62 @@ public class StreamSegmentNameUtilsTests {
         Assert.assertEquals(tokens.size(), 2);
         Assert.assertTrue(tokens.get(0).equals("stream"));
         Assert.assertTrue(tokens.get(1).equals("0"));
+    }
+
+    @Test
+    public void testSegmentTags() {
+        String[] tags = StreamSegmentNameUtils.segmentTags("scope/stream/segment.#epoch.1552095534");
+        assertEquals(8, tags.length);
+        assertEquals(TAG_SCOPE, tags[0]);
+        assertEquals("scope", tags[1]);
+        assertEquals(TAG_STREAM, tags[2]);
+        assertEquals("stream", tags[3]);
+        assertEquals(TAG_SEGMENT, tags[4]);
+        assertEquals("segment", tags[5]);
+        assertEquals(TAG_EPOCH, tags[6]);
+        assertEquals("1552095534", tags[7]);
+
+        //test missing scope and epoch
+        tags = StreamSegmentNameUtils.segmentTags("stream/segment");
+        assertEquals(8, tags.length);
+        assertEquals(TAG_SCOPE, tags[0]);
+        assertEquals("default", tags[1]);
+        assertEquals(TAG_STREAM, tags[2]);
+        assertEquals("stream", tags[3]);
+        assertEquals(TAG_SEGMENT, tags[4]);
+        assertEquals("segment", tags[5]);
+        assertEquals(TAG_EPOCH, tags[6]);
+        assertEquals("0", tags[7]);
+
+        // test missing scope, stream and epoch
+        tags = StreamSegmentNameUtils.segmentTags("segment");
+        assertEquals(8, tags.length);
+        assertEquals(TAG_SCOPE, tags[0]);
+        assertEquals("default", tags[1]);
+        assertEquals(TAG_STREAM, tags[2]);
+        assertEquals("default", tags[3]);
+        assertEquals(TAG_SEGMENT, tags[4]);
+        assertEquals("segment", tags[5]);
+        assertEquals(TAG_EPOCH, tags[6]);
+        assertEquals("0", tags[7]);
+    }
+
+    @Test
+    public void testSegmentTagsForTransactions() {
+        long segmentId = StreamSegmentNameUtils.computeSegmentId(10, 100);
+        String qualifiedName = StreamSegmentNameUtils.getQualifiedStreamSegmentName("scope", "stream", segmentId);
+        UUID transactionId = UUID.randomUUID();
+        String txnSegment = StreamSegmentNameUtils.getTransactionNameFromId(qualifiedName, transactionId);
+
+        String[] tags = StreamSegmentNameUtils.segmentTags(txnSegment);
+        assertEquals(8, tags.length);
+        assertEquals(TAG_SCOPE, tags[0]);
+        assertEquals("scope", tags[1]);
+        assertEquals(TAG_STREAM, tags[2]);
+        assertEquals("stream", tags[3]);
+        assertEquals(TAG_SEGMENT, tags[4]);
+        assertEquals("10", tags[5]);
+        assertEquals(TAG_EPOCH, tags[6]);
+        assertEquals("100", tags[7]);
     }
 }
