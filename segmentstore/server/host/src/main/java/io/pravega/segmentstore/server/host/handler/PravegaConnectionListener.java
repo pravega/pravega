@@ -39,9 +39,9 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
-import io.pravega.segmentstore.server.security.TLSConfigChangeFileConsumer;
-import io.pravega.segmentstore.server.security.TLSConfigChangeEventConsumer;
-import io.pravega.segmentstore.server.security.TLSHelper;
+import io.pravega.segmentstore.server.host.security.TLSConfigChangeFileConsumer;
+import io.pravega.segmentstore.server.host.security.TLSConfigChangeEventConsumer;
+import io.pravega.segmentstore.server.host.security.TLSHelper;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
