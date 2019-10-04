@@ -13,11 +13,11 @@ public interface MetricNotifier extends AutoCloseable {
 
     MetricNotifier NO_OP_METRIC_NOTIFIER = new MetricNotifier() {
         @Override
-        public void updateSuccessMetric(String metricName, long value) {
+        public void updateSuccessMetric(String metric, String[] metricTags, long value) {
         }
 
         @Override
-        public void updateFailureMetric(String metricName, long value) {
+        public void updateFailureMetric(String metric, String[] metricTags, long value) {
         }
 
         @Override
@@ -25,9 +25,9 @@ public interface MetricNotifier extends AutoCloseable {
         }
     };
 
-    void updateSuccessMetric(String metricName, long value);
+    void updateSuccessMetric(String metric, String[] metricTags, long value);
 
-    void updateFailureMetric(String metricName, long value);
+    void updateFailureMetric(String metric, String[] metricTags,  long value);
 
     @Override
     void close();

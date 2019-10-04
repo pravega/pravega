@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
-import static io.pravega.shared.metrics.ClientMetricNames.metricKey;
 import static io.pravega.shared.metrics.ClientMetricTags.segmentTags;
 
 @Slf4j
@@ -59,8 +58,8 @@ public class ClientConnectionImpl implements ClientConnection {
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
-        nettyHandler.getUpdateMetric().updateSuccessMetric(metricKey(ClientMetricNames.CLIENT_APPEND_LATENCY, segmentTags(append.getSegment())),
-                                                           timer.getElapsedMillis());
+        nettyHandler.getUpdateMetric()
+                    .updateSuccessMetric(ClientMetricNames.CLIENT_APPEND_LATENCY, segmentTags(append.getSegment()), timer.getElapsedMillis());
     }
 
     @Override

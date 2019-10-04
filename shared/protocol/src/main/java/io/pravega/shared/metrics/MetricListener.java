@@ -10,7 +10,7 @@
 
 package io.pravega.shared.metrics;
 
-public interface MetricListener {
+public interface MetricListener extends AutoCloseable {
 
     /**
      * An operation with the given value succeeded.
@@ -27,5 +27,8 @@ public interface MetricListener {
      * @param value the value
      */
     void reportFailValue(String operation, long value);
+
+    @Override
+    void close();
 
 }

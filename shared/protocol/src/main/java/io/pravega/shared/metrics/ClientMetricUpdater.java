@@ -19,7 +19,7 @@ public class ClientMetricUpdater implements MetricNotifier {
     private final MultiKeyLatestItemSequentialProcessor<String, Long> successProcessor;
     private final MultiKeyLatestItemSequentialProcessor<String, Long> failureProcessor;
 
-    private final ScheduledExecutorService clientMetricExecutor = ExecutorServiceHelpers.newScheduledThreadPool(2, "clientMetrics");
+    private final ScheduledExecutorService clientMetricExecutor = ExecutorServiceHelpers.newScheduledThreadPool(1, "clientMetrics");
 
     public ClientMetricUpdater(final MetricListener metricListener) {
         Preconditions.checkNotNull(metricListener);
@@ -28,13 +28,13 @@ public class ClientMetricUpdater implements MetricNotifier {
     }
 
     @Override
-    public void updateSuccessMetric(String metricName, long value) {
-        successProcessor.updateItem(metricName, value);
+    public void updateSuccessMetric(String metric, String[] metricTags, long value) {
+        successProcessor.updateItem(ClientMetricNames.metricKey(metric, metricTags), value);
     }
 
     @Override
-    public void updateFailureMetric(String metricName, long value) {
-        failureProcessor.updateItem(metricName, value);
+    public void updateFailureMetric(String metricKey, String[] metric,  long value) {
+        failureProcessor.updateItem(ClientMetricNames.metricKey(metricKey, metric), value);
     }
 
     @Override

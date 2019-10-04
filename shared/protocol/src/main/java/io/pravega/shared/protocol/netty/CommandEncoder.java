@@ -309,8 +309,7 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         int blockSize = 0;
         if (blockSizeSupplier != null) {
             blockSize = blockSizeSupplier.getAppendBlockSize();
-            metricNotifier.updateSuccessMetric(ClientMetricNames.metricKey(ClientMetricNames.CLIENT_APPEND_LATENCY,
-                                                                           ClientMetricTags.segmentTags(append.getSegment())), (long) blockSize);
+            metricNotifier.updateSuccessMetric(ClientMetricNames.CLIENT_APPEND_LATENCY, ClientMetricTags.segmentTags(append.getSegment()), (long) blockSize);
         }
         segmentBeingAppendedTo = append.segment;
         writerIdPerformingAppends = append.writerId;
