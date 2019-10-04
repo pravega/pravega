@@ -163,7 +163,7 @@ public class EventStreamReaderTest {
         assertFalse(event.isCheckpoint());
         // Now it is called.
         inOrder.verify(groupState, Mockito.times(1)).handleEndOfSegment(segmentWithRange);
-
+        
     }
 
     @SuppressWarnings("unchecked")
