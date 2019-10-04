@@ -32,9 +32,6 @@ BK_CLUSTER_NAME=${BK_CLUSTER_NAME:-"bookkeeper"}
 BK_LEDGERS_PATH="/${PRAVEGA_PATH}/${PRAVEGA_CLUSTER_NAME}/${BK_CLUSTER_NAME}/ledgers"
 BK_DIR="/bk"
 
-create_dir "${BK_journalDirectories}"
-create_dir "${BK_ledgerDirectories}"
-
 export BOOKIE_PORT=${BOOKIE_PORT}
 export BK_zkServers=${BK_zkServers}
 export BK_metadataServiceUri=zk://${ZK_URL}${BK_LEDGERS_PATH}
@@ -50,6 +47,10 @@ export BK_tlsKeyStorePasswordPath=/var/private/tls/bookie.keystore.passwd
 export BK_tlsTrustStoreType=JKS
 export BK_tlsTrustStore=/var/private/tls/bookie.truststore.jks
 export BK_tlsTrustStorePasswordPath=/var/private/tls/bookie.truststore.passwd
+
+echo "creating directories for ledger and journal"
+create_dir "${BK_journalDirectories}"
+create_dir "${BK_ledgerDirectories}"
 
 echo "wait for zookeeper"
 until zk-shell --run-once "ls /" ${BK_zkServers}; do sleep 5; done
