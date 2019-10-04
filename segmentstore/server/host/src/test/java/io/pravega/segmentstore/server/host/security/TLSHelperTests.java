@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.security;
+package io.pravega.segmentstore.server.host.security;
 
 import io.netty.handler.ssl.SslContext;
 import io.pravega.test.common.SecurityConfigDefaults;
@@ -26,8 +26,8 @@ public class TLSHelperTests {
 
     @Test
     public void testNewServerSslContextSucceedsWhenInputIsValid() {
-        String pathToCertificateFile = "../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
-        String pathToKeyFile = "../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
+        String pathToCertificateFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_CERT_FILE_NAME;
+        String pathToKeyFile = "../../../config/" + SecurityConfigDefaults.TLS_SERVER_PRIVATE_KEY_FILE_NAME;
 
         SslContext sslCtx = TLSHelper.newServerSslContext(new File(pathToCertificateFile),
                 new File(pathToKeyFile));
