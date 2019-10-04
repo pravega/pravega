@@ -102,7 +102,6 @@ public class ClientConfig implements Serializable {
     @Getter(AccessLevel.NONE) // Omit Lombok accessor as we are creating a custom one
     private final boolean enableTlsToSegmentStore;
 
-
     /**
      * An optional listener which can be used to get performance metrics from the client. The user
      * can implement this interface to obtain performance metrics of the client.

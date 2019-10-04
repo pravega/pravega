@@ -23,6 +23,15 @@ public final class StreamSegmentNameUtils {
     //region Members
 
     /**
+     * This is used for composing metric tags.
+     */
+    static final String TAG_SCOPE = "scope";
+    static final String TAG_STREAM = "stream";
+    static final String TAG_SEGMENT = "segment";
+    static final String TAG_EPOCH = "epoch";
+    static final String TAG_DEFAULT = "default";
+
+    /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
      */
     private static final String ATTRIBUTE_SUFFIX = "$attributes.index";
@@ -72,15 +81,6 @@ public final class StreamSegmentNameUtils {
      */
     private static final String TABLES = "_tables";
     private static final String MARK = "_MARK";
-
-    /**
-     * This is used in composing segment tags.
-     */
-    static final String TAG_SCOPE = "scope";
-    static final String TAG_STREAM = "stream";
-    static final String TAG_SEGMENT = "segment";
-    static final String TAG_EPOCH = "epoch";
-    static final String TAG_DEFAULT = "default";
 
     //endregion
 
@@ -428,7 +428,7 @@ public final class StreamSegmentNameUtils {
      */
     private static String getSegmentBaseName(String segmentQualifiedName) {
         String segmentBaseName = StreamSegmentNameUtils.getParentStreamSegmentName(segmentQualifiedName);
-        return (segmentBaseName == null)? segmentQualifiedName : segmentBaseName;
+        return (segmentBaseName == null) ? segmentQualifiedName : segmentBaseName;
     }
     // endregion
 }

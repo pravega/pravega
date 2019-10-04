@@ -18,7 +18,7 @@ import static org.junit.Assert.assertEquals;
 public class ClientMetricKeysTest {
 
     @Test
-    public void testMetricKey(){
+    public void testMetricKey() {
         String[] tags = StreamSegmentNameUtils.segmentTags("scope/stream/10.#epoch.123");
         String metric = CLIENT_APPEND_LATENCY.metric(tags);
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".scope.stream.10.123", metric);
