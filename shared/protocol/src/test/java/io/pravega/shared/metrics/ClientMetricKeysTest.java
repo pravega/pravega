@@ -13,6 +13,7 @@ import io.pravega.shared.segment.StreamSegmentNameUtils;
 import org.junit.Test;
 
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_LATENCY;
+import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
 
 public class ClientMetricKeysTest {
@@ -41,4 +42,11 @@ public class ClientMetricKeysTest {
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey(), metric);
     }
 
+    @Test
+    public void testMetricKeyErrorCase() {
+        assertThrows(IllegalArgumentException.class, () -> CLIENT_APPEND_LATENCY.metric( "scope"));
+        assertThrows(IllegalArgumentException.class, () -> CLIENT_APPEND_LATENCY.metric( "", ""));
+        assertThrows(IllegalArgumentException.class, () -> CLIENT_APPEND_LATENCY.metric( "", "scope1"));
+        assertThrows(IllegalArgumentException.class, () -> CLIENT_APPEND_LATENCY.metric( "scope", ""));
+    }
 }

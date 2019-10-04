@@ -46,7 +46,8 @@ public enum ClientMetricKeys {
             StringBuilder sb = new StringBuilder(metricKey);
             Preconditions.checkArgument((tags.length % 2) == 0, "Tags is a set of key/value pair so the size must be even: %s", tags.length);
             for (int i = 0; i < tags.length; i += 2) {
-                Preconditions.checkArgument(!Strings.isNullOrEmpty(tags[i]) || !Strings.isNullOrEmpty(tags[i + 1]), "Tag name or value cannot be empty or null");
+                Preconditions.checkArgument(!Strings.isNullOrEmpty(tags[i]) && !Strings.isNullOrEmpty(tags[i + 1]),
+                                            "Tag name or value cannot be empty or null");
                 sb.append('.').append(tags[i + 1]);
             }
             return sb.toString();
