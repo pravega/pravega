@@ -42,7 +42,6 @@ import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
 import io.pravega.segmentstore.server.security.TLSConfigChangeFileConsumer;
 import io.pravega.segmentstore.server.security.TLSConfigChangeEventConsumer;
 import io.pravega.segmentstore.server.security.TLSHelper;
-import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
