@@ -36,6 +36,7 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import io.pravega.client.ClientConfig;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.shared.metrics.MetricListener;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.metrics.ClientMetricUpdater;
 import io.pravega.shared.protocol.netty.CommandDecoder;
@@ -92,10 +93,8 @@ public class ConnectionPoolImpl implements ConnectionPool {
         this.clientConfig = clientConfig;
         // EventLoopGroup objects are expensive, do not create a new one for every connection.
         this.group = getEventLoopGroup();
-        this.metricNotifier = clientConfig.getMetricListener()
-                                          .map(metricListener -> (MetricNotifier) new ClientMetricUpdater(metricListener))
-                                          .orElse(NO_OP_METRIC_NOTIFIER);
-
+        MetricListener metricListener = clientConfig.getMetricListener();
+        this.metricNotifier = metricListener == null ? NO_OP_METRIC_NOTIFIER : new ClientMetricUpdater(metricListener);
     }
 
     @Override

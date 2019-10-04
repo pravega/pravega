@@ -13,6 +13,9 @@ import com.google.common.base.Preconditions;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.common.function.Callbacks.invokeSafely;
 
 /**
  * Provides a way to run a function on Key Value Pairs but guarantees that the function is only invoked for one item at a time per key.
@@ -23,6 +26,7 @@ import java.util.function.BiConsumer;
  * @param <KeyType> The type of the key to be processed.
  * @param <ItemType> The type of item to be processed.
  */
+@Slf4j
 public class MultiKeyLatestItemSequentialProcessor<KeyType, ItemType> {
 
     private final ConcurrentHashMap<KeyType, ItemType> toProcessKVP = new ConcurrentHashMap<>();
@@ -32,13 +36,12 @@ public class MultiKeyLatestItemSequentialProcessor<KeyType, ItemType> {
     public MultiKeyLatestItemSequentialProcessor(BiConsumer<KeyType, ItemType> processFunction, Executor executor) {
         this.processFunction = Preconditions.checkNotNull(processFunction);
         this.executor = Preconditions.checkNotNull(executor);
-        
     }
-    
+
     /**
-     * Updates the item and triggers it to be processed. 
+     * Updates the item and triggers it to be processed.
      *
-     * @param key The key of the item to be processed (Cannot be null)
+     * @param key     The key of the item to be processed (Cannot be null)
      * @param newItem The item to be processed. (Cannot be null)
      */
     public void updateItem(KeyType key, ItemType newItem) {
@@ -47,15 +50,13 @@ public class MultiKeyLatestItemSequentialProcessor<KeyType, ItemType> {
         if (toProcessKVP.put(key, newItem) == null) {
             executor.execute(() -> {
                 ItemType item = newItem;
-                processFunction.accept(key, item);
+                invokeSafely(processFunction, key, item, ex1 -> log.error("Error while invoking updateItem with key {} ", key, ex1));
                 while (!toProcessKVP.remove(key, item)) {
                     item = toProcessKVP.get(key);
-                    processFunction.accept(key, item);
+                    invokeSafely(processFunction, key, item, ex -> log.error("Error while invoking updateItem with key {} ", key, ex));
                 }
             });
         }
     }
-    
-    
 
 }

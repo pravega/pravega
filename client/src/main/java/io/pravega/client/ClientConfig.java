@@ -16,7 +16,6 @@ import io.pravega.shared.metrics.MetricListener;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
@@ -109,14 +108,6 @@ public class ClientConfig implements Serializable {
      * can implement this interface to obtain performance metrics of the client.
      */
     private final MetricListener metricListener;
-
-    /**
-     * A method which returns the optional metric listener {@link MetricListener} .
-     * @return MetricListener.
-     */
-    public Optional<MetricListener> getMetricListener() {
-        return Optional.ofNullable(metricListener);
-    }
 
     /**
      * Returns whether TLS is enabled for client-to-server (Controller and Segment Store) communications.
