@@ -59,7 +59,7 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     // Base waiting time for a reader on an idle segment waiting for new data to be read.
-    private static final long BASE_READER_WAITING_TIME_MS = 5;
+    private static final long BASE_READER_WAITING_TIME_MS = 10;
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
