@@ -59,7 +59,7 @@ import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
     // Base waiting time for a reader on an idle segment waiting for new data to be read.
-    private static final long BASE_READER_WAITING_TIME_MS = 4;
+    private static final long BASE_READER_WAITING_TIME_MS = 5;
 
     private final Serializer<Type> deserializer;
     private final SegmentInputStreamFactory inputStreamFactory;
@@ -113,8 +113,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     }
     
     private EventRead<Type> readNextEventInternal(long timeout) throws ReaderNotInReaderGroupException, TruncatedDataException {
-        long waitTime = Math.min(timeout, Math.min(ReaderGroupStateManager.TIME_UNIT.toMillis(),
-                BASE_READER_WAITING_TIME_MS + groupState.getNumberOfReaders()));
+        long waitTime = Math.min(timeout, BASE_READER_WAITING_TIME_MS);
         Timer timer = new Timer();
         Segment segment = null;
         long offset = -1;
