@@ -58,8 +58,9 @@ public class ClientConnectionImpl implements ClientConnection {
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
-        nettyHandler.getUpdateMetric()
-                    .updateSuccessMetric(CLIENT_APPEND_LATENCY, segmentTags(append.getSegment()), timer.getElapsedMillis());
+        nettyHandler.getMetricNotifier()
+                    .updateSuccessMetric(CLIENT_APPEND_LATENCY, segmentTags(append.getSegment(), append.getWriterId().toString()),
+                                         timer.getElapsedMillis());
     }
 
     @Override

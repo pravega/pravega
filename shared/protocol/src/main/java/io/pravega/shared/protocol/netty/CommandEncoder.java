@@ -21,7 +21,6 @@ import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
-import io.pravega.shared.segment.StreamSegmentNameUtils;
 import java.io.IOException;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.UUID;
@@ -40,6 +39,7 @@ import lombok.extern.slf4j.Slf4j;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_BLOCK_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.segmentTags;
 
 /**
  * Encodes data so that it can go out onto the wire.
@@ -309,8 +309,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         int blockSize = 0;
         if (blockSizeSupplier != null) {
             blockSize = blockSizeSupplier.getAppendBlockSize();
-            metricNotifier.updateSuccessMetric(CLIENT_APPEND_BLOCK_SIZE, StreamSegmentNameUtils.segmentTags(append.getSegment()),
-                                               (long) blockSize);
+            metricNotifier.updateSuccessMetric(CLIENT_APPEND_BLOCK_SIZE, segmentTags(append.getSegment(), append.getWriterId().toString()),
+                                               blockSize);
         }
         segmentBeingAppendedTo = append.segment;
         writerIdPerformingAppends = append.writerId;

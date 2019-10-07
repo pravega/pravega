@@ -35,13 +35,16 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_OUTSTANDING_APPEND_COUNT;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.writerTags;
+
 @Slf4j
 public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoCloseable {
 
     private static final int FLOW_DISABLED = 0;
     private final String connectionName;
     @Getter
-    private final MetricNotifier updateMetric;
+    private final MetricNotifier metricNotifier;
     private final AtomicReference<Channel> channel = new AtomicReference<>();
     private final AtomicReference<ScheduledFuture<?>> keepAliveFuture = new AtomicReference<>();
     private final AtomicBoolean recentMessage = new AtomicBoolean(false);
@@ -61,7 +64,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
 
     public FlowHandler(String connectionName, MetricNotifier updateMetric) {
         this.connectionName = connectionName;
-        this.updateMetric = updateMetric;
+        this.metricNotifier = updateMetric;
     }
 
     /**
@@ -246,7 +249,9 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
             final WireCommands.DataAppended dataAppended = (WireCommands.DataAppended) cmd;
             final AppendBatchSizeTracker batchSizeTracker = getAppendBatchSizeTracker(dataAppended.getRequestId());
             if (batchSizeTracker != null) {
-                batchSizeTracker.recordAck(dataAppended.getEventNumber());
+                long pendingAckCount = batchSizeTracker.recordAck(dataAppended.getEventNumber());
+                metricNotifier.updateSuccessMetric(CLIENT_OUTSTANDING_APPEND_COUNT, writerTags(dataAppended.getWriterId().toString()),
+                                                   pendingAckCount);
             }
         }
         // Obtain ReplyProcessor and process the reply.

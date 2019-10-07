@@ -19,8 +19,18 @@ import lombok.Getter;
  */
 public enum ClientMetricKeys {
 
+    /**
+     * Metric to track the amount of time in ms to perform an append to the Segment store.
+     */
     CLIENT_APPEND_LATENCY("client.segment.append_latency_ms"),
-    CLIENT_APPEND_BLOCK_SIZE("client.segment.append_block_size");
+    /**
+     * Metric to track the append block size for a given segment writer.
+     */
+    CLIENT_APPEND_BLOCK_SIZE("client.segment.append_block_size"),
+    /**
+     * Metric to track the number of appends which have not been acknowledged by the segment store.
+     */
+    CLIENT_OUTSTANDING_APPEND_COUNT("client.segment.outstanding_append_count");
 
     @VisibleForTesting
     @Getter
@@ -28,7 +38,7 @@ public enum ClientMetricKeys {
 
     ClientMetricKeys(String metricKey) {
         StringBuilder sb = new StringBuilder("pravega");
-        sb.append( ".");
+        sb.append(".");
         this.metricKey = sb.append(metricKey).toString();
     }
 

@@ -10,8 +10,10 @@
 package io.pravega.shared.metrics;
 
 import io.pravega.shared.segment.StreamSegmentNameUtils;
+import java.util.UUID;
 import org.junit.Test;
 
+import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_BLOCK_SIZE;
 import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_LATENCY;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
 import static org.junit.Assert.assertEquals;
@@ -40,6 +42,27 @@ public class ClientMetricKeysTest {
 
         metric = CLIENT_APPEND_LATENCY.metric();
         assertEquals(CLIENT_APPEND_LATENCY.getMetricKey(), metric);
+    }
+
+    @Test
+    public void testMetricKeyWriterId() {
+        String writerId = UUID.randomUUID().toString();
+        String[] tags = StreamSegmentNameUtils.writerTags(writerId);
+        String metric = CLIENT_APPEND_BLOCK_SIZE.metric(tags);
+        assertEquals(CLIENT_APPEND_BLOCK_SIZE.getMetricKey() + "." + writerId, metric);
+
+        tags = StreamSegmentNameUtils.segmentTags("scope/stream/10.#epoch.123", writerId);
+        metric = CLIENT_APPEND_LATENCY.metric(tags);
+        assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".scope.stream.10.123." + writerId, metric);
+
+        tags = StreamSegmentNameUtils.segmentTags("scope/stream/10", writerId);
+        metric = CLIENT_APPEND_LATENCY.metric(tags);
+        assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".scope.stream.10.0." + writerId, metric);
+
+        tags = StreamSegmentNameUtils.segmentTags("stream/10", writerId);
+        metric = CLIENT_APPEND_LATENCY.metric(tags);
+        assertEquals(CLIENT_APPEND_LATENCY.getMetricKey() + ".default.stream.10.0." + writerId, metric);
+
     }
 
     @Test

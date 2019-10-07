@@ -11,6 +11,7 @@ package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.NameUtils;
 import java.util.LinkedList;
 import java.util.List;
@@ -30,6 +31,7 @@ public final class StreamSegmentNameUtils {
     static final String TAG_SEGMENT = "segment";
     static final String TAG_EPOCH = "epoch";
     static final String TAG_DEFAULT = "default";
+    static final String TAG_WRITER = "writer";
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
@@ -388,13 +390,33 @@ public final class StreamSegmentNameUtils {
     /**
      * Generate segment tags (string array) on the input fully qualified segment name to be associated with a metric.
      *
-     * @param qualifiedSegmentName fully qualified segment name.
-     * @return string array as segment tag of metric.
+     * @param qualifiedSegmentName Fully qualified segment name.
+     * @return String array as segment tag of metric.
      */
     public static String[] segmentTags(String qualifiedSegmentName) {
         Preconditions.checkNotNull(qualifiedSegmentName);
         String[] tags = {TAG_SCOPE, null, TAG_STREAM, null, TAG_SEGMENT, null, TAG_EPOCH, null};
 
+        return updateSegmentTags(qualifiedSegmentName, tags);
+    }
+
+    /**
+     * Generate segment tags (string array) on the input fully qualified segment name and writer id to be associated with a metric.
+     * @param qualifiedSegmentName Fully qualified segment name.
+     * @param writerId The writer id.
+     * @return String arrays as a segment tag of metric.
+     */
+    public static String[] segmentTags(String qualifiedSegmentName, String writerId) {
+        Preconditions.checkNotNull(qualifiedSegmentName);
+        Exceptions.checkNotNullOrEmpty(writerId, "writerId");
+        String[] tags = {TAG_SCOPE, null, TAG_STREAM, null, TAG_SEGMENT, null, TAG_EPOCH, null, TAG_WRITER, null};
+
+        updateSegmentTags(qualifiedSegmentName, tags);
+        tags[9] = writerId; // update the writer id tag.
+        return tags;
+    }
+
+    private static String[] updateSegmentTags(String qualifiedSegmentName, String[] tags) {
         String segmentBaseName = getSegmentBaseName(qualifiedSegmentName);
         String[] tokens = segmentBaseName.split("[/]");
 
@@ -418,6 +440,17 @@ public final class StreamSegmentNameUtils {
             tags[3] = tokens[0];
         }
         return tags;
+    }
+
+    /**
+     * Generate writer tags (string array) based on the writerId.
+     *
+     * @param writerId Writer id.
+     * @return String array as writer tag of metric.
+     */
+    public static String[] writerTags(String writerId) {
+        Exceptions.checkNotNullOrEmpty(writerId, "writerId");
+        return new String[]{TAG_WRITER, writerId};
     }
 
     /**
