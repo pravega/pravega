@@ -37,7 +37,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import lombok.Getter;
@@ -69,7 +68,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
     private final DataFrameBuilder<Operation> dataFrameBuilder;
     @Getter
     private final SegmentStoreMetrics.OperationProcessor metrics;
-    private final ThrottlerCalculator throttlerCalculator;
+    private final Throttler throttler;
 
     //endregion
 
@@ -97,11 +96,14 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         val args = new DataFrameBuilder.Args(this.state::frameSealed, this.state::commit, this.state::fail, this.executor);
         this.dataFrameBuilder = new DataFrameBuilder<>(durableDataLog, OperationSerializer.DEFAULT, args);
         this.metrics = new SegmentStoreMetrics.OperationProcessor(this.metadata.getContainerId());
-        this.throttlerCalculator = ThrottlerCalculator.builder()
+        val throttlerCalculator = ThrottlerCalculator
+                .builder()
                 .cacheThrottler(stateUpdater::getCacheUtilization, stateUpdater.getCacheTargetUtilization(), stateUpdater.getCacheMaxUtilization())
                 .commitBacklogThrottler(this.commitQueue::size)
                 .batchingThrottler(durableDataLog::getQueueStatistics)
                 .build();
+        this.throttler = new Throttler(this.metadata.getContainerId(), throttlerCalculator, executor, this.metrics);
+        this.stateUpdater.registerCleanupListener(this.throttler);
     }
 
     //endregion
@@ -119,7 +121,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         // OperationProcessor starts and is shut down as soon as doStop() is invoked.
         val queueProcessor = Futures
                 .loop(this::isRunning,
-                        () -> throttle()
+                        () -> this.throttler.throttle()
                                 .thenComposeAsync(v -> this.operationQueue.take(MAX_READ_AT_ONCE), this.executor)
                                 .thenAcceptAsync(this::processOperations, this.executor),
                         this.executor);
@@ -157,6 +159,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         }
 
         this.state.fail(ex, null);
+        this.throttler.close();
         this.metrics.close();
         super.doStop();
     }
@@ -225,40 +228,6 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
         return result;
     }
 
-    //endregion
-
-    //region Queue Processing
-
-    private CompletableFuture<Void> throttle() {
-        val delay = new AtomicReference<ThrottlerCalculator.DelayResult>(this.throttlerCalculator.getThrottlingDelay());
-        if (!delay.get().isMaximum()) {
-            // We are not delaying the maximum amount. We only need to do this once.
-            return throttleOnce(delay.get());
-        } else {
-            // The initial delay calculation indicated that we need to throttle to the maximum, which means there's
-            // significant pressure. In order to protect downstream components, we need to run in a loop and delay as much
-            // as needed until the pressure is relieved.
-            return Futures.loop(
-                    () -> !delay.get().isMaximum(),
-                    () -> throttleOnce(delay.get())
-                            .thenRun(() -> delay.set(this.throttlerCalculator.getThrottlingDelay())),
-                    this.executor);
-        }
-    }
-
-    private CompletableFuture<Void> throttleOnce(ThrottlerCalculator.DelayResult delay) {
-        this.metrics.processingDelay(delay.getDurationMillis());
-        if (delay.isMaximum() || delay.getThrottlerName() == ThrottlerCalculator.ThrottlerName.CommitBacklog) {
-            // Increase logging visibility if we throttle at the maximum limit (which means we're likely to fully block
-            // processing of operations) or if this is due to the Commit Processor not being able to keep up.
-            log.warn("{}: Processing delay = {}.", this.traceObjectId, delay);
-        } else {
-            log.debug("{}: Processing delay = {}.", this.traceObjectId, delay);
-        }
-
-        return Futures.delayedFuture(Duration.ofMillis(delay.getDurationMillis()), this.executor);
-    }
-
     /**
      * Processes a set of pending operations (essentially a single iteration of the QueueProcessor).
      * Steps:
@@ -309,7 +278,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
                     this.metrics.processOperations(count, processTimer.getElapsedMillis());
                     processTimer = new Timer(); // Reset this timer since we may be pulling in new operations.
                     count = 0;
-                    if (!this.throttlerCalculator.isThrottlingRequired()) {
+                    if (!this.throttler.isThrottlingRequired()) {
                         // Only pull in new operations if we do not require throttling. If we do, we need to go back to
                         // the main OperationProcessor loop and delay processing the next batch of operations.
                         operations = this.operationQueue.poll(MAX_READ_AT_ONCE);

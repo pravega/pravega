@@ -331,6 +331,16 @@ class ThrottlerCalculator {
          */
         private final boolean maximum;
 
+        /**
+         * Creates a new {@link DelayResult} with the same information as this instance but the new given value as duration.
+         *
+         * @param durationMillis The new duration value, in milliseconds.
+         * @return A new {@link DelayResult} object.
+         */
+        DelayResult withNewDelay(int durationMillis) {
+            return new DelayResult(this.throttlerName, durationMillis, false);
+        }
+
         @Override
         public String toString() {
             return String.format("%dms (Max=%s, Reason=%s)", this.durationMillis, this.maximum, this.throttlerName);

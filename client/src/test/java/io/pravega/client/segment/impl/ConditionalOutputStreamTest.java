@@ -56,7 +56,7 @@ public class ConditionalOutputStreamTest {
                 ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
                 if (argument.getExpectedOffset() == 0 || argument.getExpectedOffset() == 2) {
-                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0));
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0, -1));
                 } else { 
                     processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber(), argument.getRequestId()));
                 }
@@ -102,7 +102,7 @@ public class ConditionalOutputStreamTest {
                 if (count.getAndIncrement() < 2) {
                     processor.connectionDropped();
                 } else {
-                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0));
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0, -1));
                 }                
                 return null;
             }
@@ -174,7 +174,7 @@ public class ConditionalOutputStreamTest {
                 ConditionalAppend argument = (ConditionalAppend) invocation.getArgument(0);
                 ReplyProcessor processor = connectionFactory.getProcessor(location);
                 if (replies.take()) {                    
-                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0));
+                    processor.process(new WireCommands.DataAppended(argument.getRequestId(), argument.getWriterId(), argument.getEventNumber(), 0, -1));
                 } else {
                     processor.process(new WireCommands.ConditionalCheckFailed(argument.getWriterId(), argument.getEventNumber(),
                                                                               argument.getRequestId()));

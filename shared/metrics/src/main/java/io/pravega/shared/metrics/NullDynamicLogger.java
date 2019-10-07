@@ -41,4 +41,9 @@ public class NullDynamicLogger implements DynamicLogger {
     public void recordMeterEvents(String name, long number, String... tags) {
         // nop
     }
+
+    @Override
+    public void freezeMeter(String name, String... tags) {
+        // no-op
+    }
 }
