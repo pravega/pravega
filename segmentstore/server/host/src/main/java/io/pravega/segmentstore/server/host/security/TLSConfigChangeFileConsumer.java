@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.segmentstore.server.security;
+package io.pravega.segmentstore.server.host.security;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.handler.ssl.SslContext;

@@ -405,7 +405,7 @@ public abstract class StreamSegmentStoreTestBase extends ThreadPooledTestSuite {
 
                 // Use Netty ByteBuf here - this mimics the behavior of AppendProcessor.
                 ByteBuf buf = Unpooled.wrappedBuffer(appendData);
-                result.add(store -> store.append(segmentName, new ByteBufWrapper(buf), createAttributeUpdates(), TIMEOUT));
+                result.add(store -> Futures.toVoid(store.append(segmentName, new ByteBufWrapper(buf), createAttributeUpdates(), TIMEOUT)));
                 if (appendBuffers != null) {
                     appendBuffers.add(buf);
                 }
