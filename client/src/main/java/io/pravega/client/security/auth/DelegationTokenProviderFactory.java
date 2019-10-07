@@ -11,6 +11,7 @@ package io.pravega.client.security.auth;
 
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.Controller;
+import lombok.NonNull;
 
 /**
  * Factory class for {@link DelegationTokenProvider} instances.
@@ -23,7 +24,7 @@ public class DelegationTokenProviderFactory {
      * @return a new {@link DelegationTokenProvider} instance
      */
     public static DelegationTokenProvider createWithEmptyToken() {
-        return new DelegationTokenProviderImpl("");
+        return new EmptyTokenProviderImpl();
     }
 
     /**
@@ -37,7 +38,7 @@ public class DelegationTokenProviderFactory {
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} is empty
      */
     public static DelegationTokenProvider create(Controller controller, String scopeName, String streamName) {
-        return new DelegationTokenProviderImpl(controller, scopeName, streamName);
+        return create(null, controller, scopeName, streamName);
     }
 
     /**
@@ -60,8 +61,22 @@ public class DelegationTokenProviderFactory {
      * @param segment the {@link Segment}, for which a delegation token is to be obtained
      * @return a new {@link DelegationTokenProvider} instance
      */
-    public static DelegationTokenProvider create(String delegationToken, Controller controller,
-                                                 Segment segment) {
-        return new DelegationTokenProviderImpl(delegationToken, controller, segment.getScope(), segment.getStreamName());
+    public static DelegationTokenProvider create(String delegationToken, @NonNull Controller controller,
+                                                 @NonNull Segment segment) {
+
+         return create(delegationToken, controller, segment.getScope(), segment.getStreamName());
+    }
+
+    public static DelegationTokenProvider create(String delegationToken, Controller controller, String scopeName,
+                                                 String streamName) {
+        if (delegationToken == null) {
+            return new NullInitializedTokenProviderImpl(controller, scopeName, streamName);
+        } else if (delegationToken.equals("")) {
+            return new EmptyTokenProviderImpl();
+        } else if (delegationToken.split("\\.").length == 3) {
+            return new JwtTokenProviderImpl(delegationToken, controller, scopeName, streamName);
+        } else {
+            return new StringTokenProviderImpl(delegationToken);
+        }
     }
 }

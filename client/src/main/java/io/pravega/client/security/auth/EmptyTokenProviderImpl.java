@@ -10,9 +10,9 @@
 package io.pravega.client.security.auth;
 
 /**
- * Strategy for handling empty delegation tokens.
+ * Provides empty delegation tokens. This provider is useful when auth is disabled.
  */
-public class EmptyTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
+public class EmptyTokenProviderImpl implements DelegationTokenProvider {
 
     @Override
     public String retrieveToken() {

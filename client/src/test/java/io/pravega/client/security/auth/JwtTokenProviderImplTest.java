@@ -24,27 +24,27 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @Slf4j
-public class JwtTokenHandlingStrategyTest {
+public class JwtTokenProviderImplTest {
 
     private Controller dummyController = mock(Controller.class);
 
     @Test
     public void testIsWithinThresholdForRefresh() {
-        JwtTokenHandlingStrategy strategy = new JwtTokenHandlingStrategy(
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 dummyToken(), dummyController, "somescope", "somestream");
 
-        assertFalse(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(10), Instant.ofEpochSecond(30)));
-        assertFalse(strategy.isWithinRefreshThreshold(Instant.now(), Instant.now().plusSeconds(11)));
-        assertTrue(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(40)));
-        assertTrue(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(55)));
-        assertTrue(strategy.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(53)));
+        assertFalse(objectUnderTest.isWithinRefreshThreshold(Instant.ofEpochSecond(10), Instant.ofEpochSecond(30)));
+        assertFalse(objectUnderTest.isWithinRefreshThreshold(Instant.now(), Instant.now().plusSeconds(11)));
+        assertTrue(objectUnderTest.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(40)));
+        assertTrue(objectUnderTest.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(55)));
+        assertTrue(objectUnderTest.isWithinRefreshThreshold(Instant.ofEpochSecond(50), Instant.ofEpochSecond(53)));
     }
 
     @Test
     public void testRetrievesSameTokenPassedDuringConstruction() {
         String token = String.format("header.%s.signature", createJwtBody(
                 JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
-        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 token, mock(Controller.class), "somescope", "somestream");
         assertEquals(token, objectUnderTest.retrieveToken());
     }
@@ -65,7 +65,7 @@ public class JwtTokenHandlingStrategyTest {
                 "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ", // body
                 "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"); // signature
 
-        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 token, mock(Controller.class), "somescope", "somestream");
 
         assertNull(objectUnderTest.extractExpirationTime(token));
@@ -90,7 +90,7 @@ public class JwtTokenHandlingStrategyTest {
                 "eyJhbGciOiJIUzUxMiJ9", // header
                 "eyJzdWIiOiJqZG9lIiwiYXVkIjoic2VnbWVudHN0b3JlIiwiaWF0IjoxNTY5MzI0Njc4LCJleHAiOjE1NjkzMjQ2ODN9", // body
                 "EKvw5oVkIihOvSuKlxiX7q9_OAYz7m64wsFZjJTBkoqg4oidpFtdlsldXHToe30vrPnX45l8QAG4DoShSMdw"); // signature
-        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 token, dummyController, "somescope", "somestream");
         assertNotNull(objectUnderTest.extractExpirationTime(token));
     }
@@ -114,7 +114,7 @@ public class JwtTokenHandlingStrategyTest {
                 .thenReturn(future);
 
         // Setup the object under test
-        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 token, mockController, "somescope", "somestream");
 
         // Act
@@ -126,23 +126,35 @@ public class JwtTokenHandlingStrategyTest {
 
     @Test
     public void testReturnsNullExpirationTimeForNullToken() {
-        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 dummyToken(), dummyController, "some-scope", "some-stream");
         assertNull(objectUnderTest.extractExpirationTime(null));
     }
 
     @Test
     public void testReturnsNullExpirationTimeForEmptyToken() {
-        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 dummyToken(), dummyController, "some-scope", "some-stream");
         assertNull(objectUnderTest.extractExpirationTime(null));
     }
 
     @Test
     public void testDefaultTokenRefreshThreshold() {
-        JwtTokenHandlingStrategy objectUnderTest = new JwtTokenHandlingStrategy(
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 dummyToken(), dummyController, "some-scope", "some-stream");
-        assertSame(JwtTokenHandlingStrategy.DEFAULT_REFRESH_THRESHOLD,
+        assertSame(JwtTokenProviderImpl.DEFAULT_REFRESH_THRESHOLD,
                 objectUnderTest.getTokenRefreshThreshold());
+    }
+
+    @Test
+    public void testReturnsExistingTokenIfNotNearingExpiry() {
+        String encodedJwtBody = createJwtBody(JwtBody.builder()
+                .expirationTime(Instant.now().plusSeconds(10000).getEpochSecond())
+                .build());
+        String token = String.format("header.%s.signature", encodedJwtBody);
+
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(token, dummyController, "testscope",
+                "teststream");
+        assertEquals(token, objectUnderTest.retrieveToken());
     }
 }

@@ -24,8 +24,11 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Provides JWT-based delegation tokens.
+ */
 @Slf4j
-public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy {
+public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     /**
      * Represents the threshold for triggering delegation token refresh.
@@ -52,12 +55,14 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
 
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
-    JwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName) {
+
+    protected JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
         this(controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
                 REFRESH_THRESHOLD_SYSTEM_PROPERTY, REFRESH_THRESHOLD_ENV_VARIABLE, DEFAULT_REFRESH_THRESHOLD));
     }
 
-    JwtTokenHandlingStrategy(Controller controllerClient, String scopeName, String streamName, int tokenRefreshThreshold) {
+    private JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName,
+                                 int tokenRefreshThreshold) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
@@ -68,16 +73,36 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
         this.tokenRefreshThreshold = tokenRefreshThreshold;
     }
 
-    public JwtTokenHandlingStrategy(String token, Controller controllerClient, String scopeName, String streamName) {
+    /**
+     * Constructs a new object with the specified {delegationToken}, {@code controllerClient}, {@code scopeName} and
+     * {@code streamName}.
+     *
+     * @param token the initial delegation token
+     * @param controllerClient the {@link Controller} client used for obtaining a delegation token from the Controller
+     * @param scopeName the name of the scope tied to the segment, for which a delegation token is to be obtained
+     * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
+     */
+    public JwtTokenProviderImpl(String token, Controller controllerClient, String scopeName,
+                                String streamName) {
         this(token, controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
                 "pravega.client.auth.token-refresh.threshold",
                 "pravega_client_auth_token-refresh.threshold",
                 DEFAULT_REFRESH_THRESHOLD));
     }
 
-    public JwtTokenHandlingStrategy(String token, Controller controllerClient, String scopeName, String streamName,
+    /**
+     * Constructs a new object with the specified {delegationToken}, {@code controllerClient}, {@code scopeName} and
+     * {@code streamName}.
+     *
+     * @param token the initial delegation token
+     * @param controllerClient the {@link Controller} client used for obtaining a delegation token from the Controller
+     * @param scopeName the name of the scope tied to the segment, for which a delegation token is to be obtained
+     * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
+     * @param tokenRefreshThreshold the time in seconds before expiry that should trigger a token refresh
+     */
+    public JwtTokenProviderImpl(String token, Controller controllerClient, String scopeName, String streamName,
                                     int tokenRefreshThreshold) {
-        Exceptions.checkNotNullOrEmpty(token, "token");
+        Exceptions.checkNotNullOrEmpty(token, "delegationToken");
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
@@ -90,6 +115,12 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
         this.tokenRefreshThreshold = tokenRefreshThreshold;
     }
 
+    /**
+     * Returns the delegation token. It returns existing delegation token if it is not close to expiry. If the token
+     * is close to expiry, it obtains a new delegation token and returns that one instead.
+     *
+     * @return String the delegation token JWT compact value
+     */
     @Override
     public String retrieveToken() {
         if (isTokenNearingExpiry()) {
@@ -102,8 +133,11 @@ public class JwtTokenHandlingStrategy implements DelegationTokenHandlingStrategy
 
     @Override
     public String refreshToken() {
+        log.info("refreshToken: - Enter");
         resetToken(newToken());
-        return delegationToken.get().getValue();
+        String result = delegationToken.get().getValue();
+        log.info("refreshToken- Leave {}", result);
+        return result;
     }
 
     protected String newToken() {

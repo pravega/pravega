@@ -13,13 +13,13 @@ import io.pravega.client.stream.impl.Controller;
 import lombok.NonNull;
 
 /**
- * Strategy for handling null delegation tokens. This strategy is similar as {@link JwtTokenHandlingStrategy}, except
+ * Provider for handling null initialized tokens. This provider is similar as {@link JwtTokenProviderImpl}, except
  * that it does not assume the presence of an initial delegation token.
  */
-public class NullJwtTokenHandlingStrategy extends JwtTokenHandlingStrategy {
+public class NullInitializedTokenProviderImpl extends JwtTokenProviderImpl {
 
-    public NullJwtTokenHandlingStrategy(@NonNull Controller controllerClient,
-                                        @NonNull String scopeName, @NonNull String streamName) {
+    public NullInitializedTokenProviderImpl(@NonNull Controller controllerClient,
+                                            @NonNull String scopeName, @NonNull String streamName) {
             super(controllerClient, scopeName, streamName);
     }
 
