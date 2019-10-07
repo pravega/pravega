@@ -15,6 +15,7 @@ import io.netty.buffer.ByteBufOutputStream;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
+import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
@@ -35,8 +36,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 
+import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_BLOCK_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_PLUS_LENGTH_SIZE;
 import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.segmentTags;
 
 /**
  * Encodes data so that it can go out onto the wire.
@@ -77,6 +80,7 @@ import static io.pravega.shared.protocol.netty.WireCommands.TYPE_SIZE;
 public class CommandEncoder extends MessageToByteEncoder<Object> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
     private final Function<Long, AppendBatchSizeTracker> appendTracker;
+    private final MetricNotifier metricNotifier;
     private final Map<Map.Entry<String, UUID>, Session> setupSegments = new HashMap<>();
     private final AtomicLong tokenCounter = new AtomicLong(0);
     private String segmentBeingAppendedTo;
@@ -84,6 +88,10 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
     private int currentBlockSize;
     private int bytesLeftInBlock;
     private final Map<UUID, Session> pendingWrites = new HashMap<>();
+
+    public CommandEncoder(Function<Long, AppendBatchSizeTracker> appendTracker) {
+        this(appendTracker, MetricNotifier.NO_OP_METRIC_NOTIFIER);
+    }
 
     @RequiredArgsConstructor
     private final class Session {
@@ -301,6 +309,8 @@ public class CommandEncoder extends MessageToByteEncoder<Object> {
         int blockSize = 0;
         if (blockSizeSupplier != null) {
             blockSize = blockSizeSupplier.getAppendBlockSize();
+            metricNotifier.updateSuccessMetric(CLIENT_APPEND_BLOCK_SIZE, segmentTags(append.getSegment(), append.getWriterId().toString()),
+                                               blockSize);
         }
         segmentBeingAppendedTo = append.segment;
         writerIdPerformingAppends = append.writerId;
