@@ -55,7 +55,7 @@ public class MetricsTagsTest {
         String envVarDefined = System.getenv().keySet().iterator().next();
         originalProperty = System.getProperty(envVarDefined);
 
-        assertEquals("which env var popped up first?", envVarDefined);
+        assertEquals("The value of env var TRAVIS_TAG", System.getenv("TRAVIS_TAG"));
 
         System.clearProperty(envVarDefined);
         assertEquals(System.getenv(envVarDefined), createHostTag(envVarDefined)[1]);
