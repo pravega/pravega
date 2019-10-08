@@ -56,7 +56,6 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
-
     protected JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
         this(controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
                 REFRESH_THRESHOLD_SYSTEM_PROPERTY, REFRESH_THRESHOLD_ENV_VARIABLE, DEFAULT_REFRESH_THRESHOLD));
@@ -206,8 +205,4 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         }
         return result;
     }
-
-
 }
-
-
