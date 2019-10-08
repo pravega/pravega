@@ -54,6 +54,9 @@ public class MetricsTagsTest {
         //Scenario 2: system property not defined, env var is defined - env var is taken
         String envVarDefined = System.getenv().keySet().iterator().next();
         originalProperty = System.getProperty(envVarDefined);
+
+        assertEquals("which env var popped up first?", originalProperty);
+
         System.clearProperty(envVarDefined);
         assertEquals(System.getenv(envVarDefined), createHostTag(envVarDefined)[1]);
         if (!Strings.isNullOrEmpty(originalProperty)) {
