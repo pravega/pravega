@@ -11,7 +11,6 @@ package io.pravega.client.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.gson.Gson;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -23,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Provides JWT-based delegation tokens.
@@ -179,11 +180,34 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
         // JWT is of the format abc.def.ghe. The middle part is the body.
         String encodedBody = tokenParts[1];
-        String decodedBody = new String(Base64.getDecoder().decode(encodedBody));
+        String decodedJsonBody = new String(Base64.getDecoder().decode(encodedBody));
 
-        JwtBody jwt = new Gson().fromJson(decodedBody, JwtBody.class);
-        return jwt.getExpirationTime();
+        return parseExpirationTime(decodedJsonBody);
     }
+
+    @VisibleForTesting
+    Long parseExpirationTime(String json) {
+        Long result = null;
+        if (json != null && !json.trim().equals("")) {
+            // Sample inputs:
+            //    {"sub":"subject","aud":"segmentstore","iat":1569837384,"exp":1569837434}
+            //    {"sub": "subject","aud": "segmentstore","iat": 1569837384,"exp": 1569837434}
+            Pattern pattern = Pattern.compile("\"exp\":\\s?(\\d+)");
+            Matcher matcher = pattern.matcher(json);
+            if (matcher.find()) {
+               // Will look like this, if a match is found: "exp": 1569837434
+               String matchedString = matcher.group();
+
+               String[] expiryTimeFieldParts = matchedString.split(":");
+               if (expiryTimeFieldParts != null && expiryTimeFieldParts.length == 2) {
+                   result = Long.parseLong(expiryTimeFieldParts[1].trim());
+               }
+            }
+        }
+        return result;
+    }
+
+
 }
 
 

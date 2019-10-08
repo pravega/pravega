@@ -238,8 +238,8 @@ project('client') {
         compile project(":shared:controller-api")
         compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
-        compile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         testCompile project(':test:testcommon')
+        testCompile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }

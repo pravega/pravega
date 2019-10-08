@@ -157,4 +157,28 @@ public class JwtTokenProviderImplTest {
                 "teststream");
         assertEquals(token, objectUnderTest.retrieveToken());
     }
+
+    @Test
+    public void testParseExpirationTimeExtractsExpiryTime() {
+        // Contains a space before each field value
+        String json1 = "{\"sub\": \"subject\",\"aud\": \"segmentstore\",\"iat\": 1569837384,\"exp\": 1569837434}";
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
+                dummyToken(), dummyController, "some-scope", "some-stream");
+        assertEquals(1569837434, objectUnderTest.parseExpirationTime(json1).longValue());
+
+        // Does not contain space before field values
+        String json2 = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\":1569837434}";
+        assertEquals(1569837434, objectUnderTest.parseExpirationTime(json2).longValue());
+    }
+
+    @Test
+    public void testParseExpirationTimeReturnsNullWhenExpiryIsNotSet() {
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
+                dummyToken(), dummyController, "some-scope", "some-stream");
+
+        // Does not contain expiry time
+        String json = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384}";
+
+        assertNull(objectUnderTest.parseExpirationTime(json));
+    }
 }

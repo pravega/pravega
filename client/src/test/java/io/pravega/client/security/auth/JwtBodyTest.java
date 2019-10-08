@@ -13,6 +13,8 @@ import com.google.gson.Gson;
 import org.junit.Test;
 
 import java.time.Instant;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -41,5 +43,21 @@ public class JwtBodyTest {
         assertEquals("segmentstore", jwtBody.getAudience());
         assertEquals(new Long(1569837384), jwtBody.getIssuedAtTime());
         assertEquals(new Long(1569837434), jwtBody.getExpirationTime());
+    }
+
+    @Test
+    public void test() {
+        String json = //"{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\":1569837434}";
+
+        "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\": 1569837434}";
+
+        Pattern p = Pattern.compile("\"exp\":\\s?(\\d+)");
+        Matcher matcher = p.matcher(json);
+
+        if (matcher.find()) {
+            System.out.println(matcher.group());
+
+            System.out.println(matcher.group().split(":")[1]);
+        }
     }
 }

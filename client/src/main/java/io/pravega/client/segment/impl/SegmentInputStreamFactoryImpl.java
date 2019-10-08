@@ -45,8 +45,8 @@ public class SegmentInputStreamFactoryImpl implements SegmentInputStreamFactory 
                                                                                                           segment.getStream()
                                                                                                                  .getStreamName()),
                                                                 RuntimeException::new);
-        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken, controller, segment);
-        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment, tokenProvider);
+        AsyncSegmentInputStreamImpl async = new AsyncSegmentInputStreamImpl(controller, cf, segment,
+                DelegationTokenProviderFactory.create(delegationToken, controller, segment));
         async.getConnection();                      //Sanity enforcement
         bufferSize = MathHelpers.minMax(bufferSize, SegmentInputStreamImpl.MIN_BUFFER_SIZE, SegmentInputStreamImpl.MAX_BUFFER_SIZE);
         return getEventSegmentReader(async, 0, endOffset, bufferSize);
