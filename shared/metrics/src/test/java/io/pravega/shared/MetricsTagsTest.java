@@ -55,9 +55,7 @@ public class MetricsTagsTest {
         //Scenario 2: environment var is defined, and system property not defined - env var is taken
         String envVarDefined = null;
         //go through the list to find the env var with non empty/null value
-        Iterator<String> envIterator = System.getenv().keySet().iterator();
-        while (envIterator.hasNext()) {
-            String envVarName = envIterator.next();
+        for (String envVarName: System.getenv().keySet()) {
             if (!Strings.isNullOrEmpty(System.getenv(envVarName))) {
                 envVarDefined = envVarName;
                 break;
