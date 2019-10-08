@@ -59,9 +59,11 @@ class AppendBatchSizeTrackerImpl implements AppendBatchSizeTracker {
     }
 
     @Override
-    public void recordAck(long eventNumber) {
+    public long recordAck(long eventNumber) {
         lastAckNumber.getAndSet(eventNumber);
-        appendsOutstanding.addNewSample(lastAppendNumber.get() - eventNumber);
+        long outstandingAppendCount = lastAppendNumber.get() - eventNumber;
+        appendsOutstanding.addNewSample(outstandingAppendCount);
+        return outstandingAppendCount;
     }
 
     /**

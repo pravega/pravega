@@ -11,6 +11,7 @@ package io.pravega.shared.segment;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+import io.pravega.common.Exceptions;
 import io.pravega.shared.NameUtils;
 import java.util.LinkedList;
 import java.util.List;
@@ -21,6 +22,16 @@ import java.util.UUID;
  */
 public final class StreamSegmentNameUtils {
     //region Members
+
+    /**
+     * This is used for composing metric tags.
+     */
+    static final String TAG_SCOPE = "scope";
+    static final String TAG_STREAM = "stream";
+    static final String TAG_SEGMENT = "segment";
+    static final String TAG_EPOCH = "epoch";
+    static final String TAG_DEFAULT = "default";
+    static final String TAG_WRITER = "writer";
 
     /**
      * This is appended to the end of the Segment/Transaction name to indicate it stores its extended attributes.
@@ -372,6 +383,85 @@ public final class StreamSegmentNameUtils {
     // region watermark
     public static String getMarkForStream(String stream) {
         return NameUtils.getMarkStreamForStream(stream);
+    }
+    // endregion
+
+    // region metrics
+    /**
+     * Generate segment tags (string array) on the input fully qualified segment name to be associated with a metric.
+     *
+     * @param qualifiedSegmentName Fully qualified segment name.
+     * @return String array as segment tag of metric.
+     */
+    public static String[] segmentTags(String qualifiedSegmentName) {
+        Preconditions.checkNotNull(qualifiedSegmentName);
+        String[] tags = {TAG_SCOPE, null, TAG_STREAM, null, TAG_SEGMENT, null, TAG_EPOCH, null};
+
+        return updateSegmentTags(qualifiedSegmentName, tags);
+    }
+
+    /**
+     * Generate segment tags (string array) on the input fully qualified segment name and writer id to be associated with a metric.
+     * @param qualifiedSegmentName Fully qualified segment name.
+     * @param writerId The writer id.
+     * @return String arrays as a segment tag of metric.
+     */
+    public static String[] segmentTags(String qualifiedSegmentName, String writerId) {
+        Preconditions.checkNotNull(qualifiedSegmentName);
+        Exceptions.checkNotNullOrEmpty(writerId, "writerId");
+        String[] tags = {TAG_SCOPE, null, TAG_STREAM, null, TAG_SEGMENT, null, TAG_EPOCH, null, TAG_WRITER, null};
+
+        updateSegmentTags(qualifiedSegmentName, tags);
+        tags[9] = writerId; // update the writer id tag.
+        return tags;
+    }
+
+    private static String[] updateSegmentTags(String qualifiedSegmentName, String[] tags) {
+        String segmentBaseName = getSegmentBaseName(qualifiedSegmentName);
+        String[] tokens = segmentBaseName.split("[/]");
+
+        int segmentIdIndex = (tokens.length == 1) ? 0 : (tokens.length) == 2 ? 1 : 2;
+        if (tokens[segmentIdIndex].contains(EPOCH_DELIMITER)) {
+            String[] segmentIdTokens = tokens[segmentIdIndex].split(EPOCH_DELIMITER);
+            tags[5] = segmentIdTokens[0];
+            tags[7] = segmentIdTokens[1];
+        } else {
+            tags[5] = tokens[segmentIdIndex];
+            tags[7] = "0";
+        }
+        if (tokens.length == 3) {
+            tags[1] = tokens[0];
+            tags[3] = tokens[1];
+        } else if (tokens.length == 1) {
+            tags[1] = TAG_DEFAULT;
+            tags[3] = TAG_DEFAULT;
+        } else {
+            tags[1] = TAG_DEFAULT;
+            tags[3] = tokens[0];
+        }
+        return tags;
+    }
+
+    /**
+     * Generate writer tags (string array) based on the writerId.
+     *
+     * @param writerId Writer id.
+     * @return String array as writer tag of metric.
+     */
+    public static String[] writerTags(String writerId) {
+        Exceptions.checkNotNullOrEmpty(writerId, "writerId");
+        return new String[]{TAG_WRITER, writerId};
+    }
+
+    /**
+     * Get base name of segment with the potential transaction delimiter removed.
+     *
+     * @param segmentQualifiedName fully qualified segment name.
+     * @return the base name of segment.
+     */
+    private static String getSegmentBaseName(String segmentQualifiedName) {
+        String segmentBaseName = StreamSegmentNameUtils.getParentStreamSegmentName(segmentQualifiedName);
+        return (segmentBaseName == null) ? segmentQualifiedName : segmentBaseName;
     }
     // endregion
 }
