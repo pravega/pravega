@@ -55,6 +55,19 @@ allprojects {
             testCompile group: 'com.github.spotbugs', name: 'spotbugs-annotations', version: spotbugsAnnotationsVersion
             compileOnly group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
             testCompile group: 'net.jcip', name: 'jcip-annotations', version: jcipAnnotationsVersion
+            compileOnly 'org.projectlombok:lombok:' + lombokVersion
+            testCompileOnly 'org.projectlombok:lombok:' + lombokVersion
+            annotationProcessor 'org.projectlombok:lombok:' + lombokVersion
+            testAnnotationProcessor 'org.projectlombok:lombok:' + lombokVersion
+        }
+        // Delombok sources.
+        task delombok(type: io.franzbecker.gradle.lombok.task.DelombokTask, dependsOn: compileJava) {
+            ext.outputDir = file("$buildDir/delombok")
+            outputs.dir(outputDir)
+            sourceSets.main.java.srcDirs.each {
+                inputs.dir(it)
+                args(it, "-d", outputDir)
+            }
         }
     }
     // Plugin configurations
@@ -94,14 +107,18 @@ allprojects {
     configurations.all {
         resolutionStrategy {
             //failOnVersionConflict()
-            force "org.slf4j:slf4j-api:" + slf4jApiVersion
-            force "org.apache.commons:commons-lang3:" + commonsLang3Version
-            force "org.apache.curator:curator-framework:" + apacheCuratorVersion
+            force "com.google.guava:guava:" + guavaVersion
             force "com.google.protobuf:protobuf-java:" + protobufProtocVersion
             force "io.grpc:grpc-context:" + grpcVersion
-            force "com.google.guava:guava:" + guavaVersion
+            force "commons-beanutils:commons-beanutils:" + commonsBeanutilsVersion
+            force "org.apache.commons:commons-compress:" + apacheCommonsCompressVersion
+            force "org.apache.commons:commons-lang3:" + commonsLang3Version
+            force "org.apache.curator:curator-framework:" + apacheCuratorVersion
             force "org.glassfish.jersey.core:jersey-common:" + jerseyVersion
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
+            force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion 
+            force "org.slf4j:slf4j-api:" + slf4jApiVersion
+
             dependencySubstitution {
                 substitute module("javax.ws.rs:jsr311-api") with module("javax.ws.rs:javax.ws.rs-api:" + javaxwsrsApiVersion)
             }
@@ -119,14 +136,9 @@ project('common') {
 
     javadoc {
         title = "Pravega Common Libraries"
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
-        source {
-            project(':common').sourceSets.main.java
-
-        }
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion  
-        }
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
@@ -140,13 +152,8 @@ project('shared:authplugin') {
 
     javadoc {
         title = "Pravega Auth API"
-        failOnError = false
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion   
-        }
-        source {
-            sourceSets.main.java
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -168,17 +175,12 @@ project('shared:security') {
 
     javadoc {
         exclude 'io/pravega/shared/*'
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion
-        }
-        source {
-            sourceSets.main.java
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
 }
-
 project ('shared:cluster') {
     dependencies {
         compile project(':common')
@@ -190,9 +192,8 @@ project ('shared:cluster') {
     }
     javadoc {
         exclude 'io/pravega/shared/*'
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion   
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -211,9 +212,8 @@ project ('shared:metrics') {
 
     javadoc {
         exclude 'io/pravega/shared/*'
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -245,6 +245,8 @@ project('client') {
 
     javadoc {
         title = "Pravega Client API"
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         exclude "**/impl/**";
         options.addBooleanOption("Xdoclint:all,-reference", true)
@@ -261,9 +263,8 @@ project('test:testcommon') {
         compile group: 'org.apache.curator', name: 'curator-test', version: apacheCuratorVersion, withoutLogger
     }
     javadoc {
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -275,9 +276,8 @@ project('segmentstore:contracts') {
         testCompile project(':test:testcommon')
     }
     javadoc {
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:all,-reference", true)
     }
@@ -292,9 +292,8 @@ project('segmentstore:storage') {
         testCompile project(':test:testcommon')
     }
     javadoc {
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -312,9 +311,8 @@ project('segmentstore:storage:impl') {
         testCompile project(path:':segmentstore:storage', configuration:'testRuntime')
     }
     javadoc {
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -341,9 +339,8 @@ project ('bindings') {
         testCompile project(path: ':segmentstore:storage', configuration: 'testRuntime')
     }
     javadoc {
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
@@ -358,9 +355,8 @@ project('segmentstore:server') {
         testCompile project(':test:testcommon')
     }
     javadoc {
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:all,-reference,-missing", true)
     }
@@ -543,7 +539,6 @@ project('shared:controller-api') {
         compile project(':common')
         compile group: 'org.apache.commons', name: 'commons-lang3', version: commonsLang3Version
         compile group: 'commons-io', name: 'commons-io', version: commonsioVersion
-        compile group: 'io.netty', name: 'netty-all', version: nettyVersion
         compile "io.grpc:grpc-netty:" + grpcVersion
         compile "io.grpc:grpc-auth:" + grpcVersion
         compile "io.grpc:grpc-protobuf:" + grpcVersion
@@ -555,9 +550,8 @@ project('shared:controller-api') {
 
     javadoc {
         exclude 'io/pravega/controller/*'
-        dependencies {
-            compile 'org.projectlombok:lombok:' + lombokVersion            
-        }
+        dependsOn delombok
+        source = delombok.outputDir
         failOnError = false
         options.addBooleanOption("Xdoclint:none", true)
     }
