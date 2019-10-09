@@ -60,7 +60,7 @@ public class EventWriterConfig implements Serializable {
         private int backoffMultiple = 10;
         private long transactionTimeoutTime = 90 * 1000 - 1;
         private boolean automaticallyNoteTime = false; 
-        // connection pooling for event writers is enabled by default.
-        private boolean enableConnectionPooling = true;
+        // connection pooling for event writers is disabled by default.
+        private boolean enableConnectionPooling = false;
     }
 }
