@@ -9,11 +9,13 @@
  */
 package io.pravega.client.security.auth;
 
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 @Getter
+@EqualsAndHashCode
 class DelegationToken {
 
     /**
@@ -31,4 +33,5 @@ class DelegationToken {
      * Caches the expiration time of the current token, so that the token does not need to be parsed upon every retrieval.
      */
     private final Long expiryTime;
+
 }

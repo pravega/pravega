@@ -11,7 +11,6 @@ package io.pravega.client.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -22,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.Base64;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,6 +56,8 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     private final String streamName;
 
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
+
+    private AtomicBoolean isTokenBeingRefreshed = new AtomicBoolean(false);
 
     protected JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
         this(controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
@@ -125,7 +127,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     @Override
     public String retrieveToken() {
         if (isTokenNearingExpiry()) {
-            log.info("Token is nearing expiry, so refreshing it");
+            log.info("Token is nearing expiry");
             return refreshToken();
         } else {
             return delegationToken.get().getValue();
@@ -134,16 +136,36 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     @Override
     public String refreshToken() {
-        log.trace("Refreshing token");
-        resetToken(newToken());
+        log.trace("Entered refreshToken().");
+        DelegationToken existingToken = this.getCurrentToken();
+        if (isTokenBeingRefreshed.get()) {
+            log.debug("Token is already under refresh.");
+
+            // Wait for the token to finish refreshing
+            while (!isTokenBeingRefreshed.get()) {
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        } else {
+            if (isTokenBeingRefreshed.compareAndSet(false, true)) {
+                log.debug("Resetting token");
+                resetToken(existingToken, newToken());
+            } else {
+                log.debug("Token refresh status setting to 'true' failed.");
+            }
+        }
         String result = delegationToken.get().getValue();
-        log.trace("Finished refreshing token. Token is [{}]", Strings.isNullOrEmpty(result) ? result : "not empty");
+        log.trace("Exiting refreshToken()");
         return result;
     }
 
-    protected String newToken() {
-        return Futures.getAndHandleExceptions(
+    protected DelegationToken newToken() {
+        String token = Futures.getAndHandleExceptions(
                 controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName), RuntimeException::new);
+        return new DelegationToken(token, extractExpirationTime(token));
     }
 
     protected DelegationToken getCurrentToken() {
@@ -167,8 +189,13 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         return currentInstant.plusSeconds(tokenRefreshThreshold).getEpochSecond() >= expiration.getEpochSecond();
     }
 
-    protected void resetToken(String newToken) {
-        delegationToken.set(new DelegationToken(newToken, extractExpirationTime(newToken)));
+    protected boolean resetToken(DelegationToken existingToken, DelegationToken newToken) {
+        boolean isTokenResetSuccessful = delegationToken.compareAndSet(existingToken, newToken);
+        if (isTokenResetSuccessful) {
+            log.debug("Successfully reset token");
+            isTokenBeingRefreshed.compareAndSet(true, false);
+        }
+        return isTokenResetSuccessful;
     }
 
     @VisibleForTesting

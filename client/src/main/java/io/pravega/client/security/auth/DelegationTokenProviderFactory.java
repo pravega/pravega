@@ -40,7 +40,7 @@ public class DelegationTokenProviderFactory {
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} is empty
      */
     @VisibleForTesting
-    static DelegationTokenProvider create(Controller controller, String scopeName, String streamName) {
+    public static DelegationTokenProvider create(Controller controller, String scopeName, String streamName) {
         return create(null, controller, scopeName, streamName);
     }
 
