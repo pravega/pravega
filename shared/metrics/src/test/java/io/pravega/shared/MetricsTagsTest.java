@@ -14,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
 import java.net.InetAddress;
-import java.util.Iterator;
 
 import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
 import static io.pravega.shared.MetricsTags.containerTag;
