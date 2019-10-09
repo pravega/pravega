@@ -9,6 +9,7 @@
  */
 package io.pravega.client.security.auth;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.impl.Controller;
 import lombok.NonNull;
@@ -19,10 +20,11 @@ import lombok.NonNull;
 public class DelegationTokenProviderFactory {
 
     /**
-     * Creates a {@link DelegationTokenProvider} instance with empty token.
+     * Creates a {@link DelegationTokenProvider} instance with empty token. Intended to be Used for testing only.
      *
      * @return a new {@link DelegationTokenProvider} instance
      */
+    @VisibleForTesting
     public static DelegationTokenProvider createWithEmptyToken() {
         return new EmptyTokenProviderImpl();
     }
@@ -37,7 +39,8 @@ public class DelegationTokenProviderFactory {
      * @throws NullPointerException if {@code controller}, {@code scopeName} or {@code streamName} is null
      * @throws IllegalArgumentException if {@code scopeName} or {@code streamName} is empty
      */
-    public static DelegationTokenProvider create(Controller controller, String scopeName, String streamName) {
+    @VisibleForTesting
+    static DelegationTokenProvider create(Controller controller, String scopeName, String streamName) {
         return create(null, controller, scopeName, streamName);
     }
 

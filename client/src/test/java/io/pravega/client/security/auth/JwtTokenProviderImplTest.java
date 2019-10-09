@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
 @Slf4j
 public class JwtTokenProviderImplTest {
 
-    private Controller dummyController = mock(Controller.class);
+    Controller dummyController = mock(Controller.class);
 
     @Test
     public void testIsWithinThresholdForRefresh() {

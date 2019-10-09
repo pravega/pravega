@@ -18,8 +18,7 @@ import lombok.NonNull;
  */
 public class NullInitializedTokenProviderImpl extends JwtTokenProviderImpl {
 
-    public NullInitializedTokenProviderImpl(@NonNull Controller controllerClient,
-                                            @NonNull String scopeName, @NonNull String streamName) {
+    public NullInitializedTokenProviderImpl(@NonNull Controller controllerClient, @NonNull String scopeName, @NonNull String streamName) {
             super(controllerClient, scopeName, streamName);
     }
 

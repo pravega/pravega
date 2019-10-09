@@ -55,7 +55,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED;
 
-
 @Slf4j
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 

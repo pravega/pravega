@@ -344,10 +344,10 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
         DelegationTokenProvider tokenProvider = null;
-        for (Segment s : txnSegments.getSteamSegments().getSegments()) {
+        for (Segment s : txnSegments.getStreamSegments().getSegments()) {
             if (tokenProvider == null) {
                 // We can share token providers across segments as delegation tokens are scope + stream specific.
-                tokenProvider = DelegationTokenProviderFactory.create(txnSegments.getSteamSegments().getDelegationToken(),
+                tokenProvider = DelegationTokenProviderFactory.create(txnSegments.getStreamSegments().getDelegationToken(),
                         controller, s);
             }
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId, config, tokenProvider);
@@ -355,7 +355,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
             transactions.put(s, impl);
         }
         pinger.startPing(txnId);
-        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getSteamSegments(), controller, stream, pinger);
+        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getStreamSegments(), controller, stream, pinger);
     }
     
     /**

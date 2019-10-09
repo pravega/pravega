@@ -73,4 +73,19 @@ public class NullInitializedTokenProviderImplTest extends JwtTokenProviderImplTe
         String token = objectUnderTest.retrieveToken();
         assertEquals(token, objectUnderTest.retrieveToken());
     }
+
+    @Test(expected = NullPointerException.class)
+    public void testCtorRejectsNullControllerInput() {
+        new NullInitializedTokenProviderImpl(null, "somescope", "somestream");
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testCtorRejectsNullScopeInput() {
+        new NullInitializedTokenProviderImpl(dummyController, null, "somestream");
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testCtorRejectsNullStreamInput() {
+        new NullInitializedTokenProviderImpl(dummyController, "somescope", null);
+    }
 }
