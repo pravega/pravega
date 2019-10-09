@@ -11,6 +11,7 @@ package io.pravega.client.security.auth;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
@@ -133,10 +134,10 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     @Override
     public String refreshToken() {
-        log.info("refreshToken: - Enter");
+        log.trace("Refreshing token");
         resetToken(newToken());
         String result = delegationToken.get().getValue();
-        log.info("refreshToken- Leave {}", result);
+        log.trace("Finished refreshing token. Token is [{}]", Strings.isNullOrEmpty(result) ? result : "not empty");
         return result;
     }
 

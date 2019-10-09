@@ -177,10 +177,13 @@ public class SegmentSelector {
     }
 
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack, String delegationToken) {
+        DelegationTokenProvider tokenProvider = null;
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
-                DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(delegationToken,
-                        controller, segment);
+                if (tokenProvider == null) {
+                    tokenProvider = DelegationTokenProviderFactory.create(delegationToken,
+                            controller, segment);
+                }
                 log.debug("Creating writer for segment {}", segment);
                 SegmentOutputStream out = outputStreamFactory.createOutputStreamForSegment(segment,
                         segmentSealedCallBack, config, tokenProvider);

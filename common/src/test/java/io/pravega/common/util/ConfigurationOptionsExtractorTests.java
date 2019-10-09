@@ -16,8 +16,9 @@ import static org.junit.Assert.assertSame;
 public class ConfigurationOptionsExtractorTests {
 
     @Test
-    public void testExtractInteger() {
-        String propertyName = this.getClass().getSimpleName() + ".testExtractInteger." + ".test.property";
+    public void testExtractIntWhenPropertyIsSetToAnInt() {
+        String propertyName = this.getClass().getSimpleName() + ".testExtractIntWhenPropertyIsSetToAnInt."
+                + ".test.property";
         try {
             System.setProperty(propertyName, "5");
             assertSame(5, ConfigurationOptionsExtractor.extractInt(propertyName,
@@ -28,8 +29,21 @@ public class ConfigurationOptionsExtractorTests {
     }
 
     @Test
-    public void testExtractString() {
-        String propertyName = this.getClass().getSimpleName() + ".testExtractInteger." + ".test.property";
+    public void testExtractIntReturnsDefaultValueWhenPropertyIsNotAString() {
+        String propertyName = this.getClass().getSimpleName()
+                + ".testExctactIntReturnsDefaultValueWhenPropertyIsNotAString." + ".test.property";
+        try {
+            System.setProperty(propertyName, "ABC");
+            assertSame(1, ConfigurationOptionsExtractor.extractInt(propertyName,
+                    "", 1));
+        } finally {
+            System.clearProperty(propertyName);
+        }
+    }
+
+    @Test
+    public void testExtractStringFromSystemPropertyWhenItIsSet() {
+        String propertyName = this.getClass().getSimpleName() + ".testExtractString." + ".test.property";
         try {
             System.setProperty(propertyName, "5");
             assertSame("5", ConfigurationOptionsExtractor.extractString(propertyName,
@@ -45,7 +59,4 @@ public class ConfigurationOptionsExtractorTests {
         assertSame(1, ConfigurationOptionsExtractor.extractInt(propertyName,
                 "test_property_1", 1));
     }
-
-
-
 }

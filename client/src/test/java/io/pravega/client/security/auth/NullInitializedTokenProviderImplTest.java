@@ -18,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,5 +49,28 @@ public class NullInitializedTokenProviderImplTest extends JwtTokenProviderImplTe
         log.debug(token);
 
         assertTrue(token.startsWith("newtokenheader"));
+    }
+
+    @Test
+    public void testRetrievesSameTokenOutsideOfTokenRefreshThreshold() {
+        // Setup mock
+        Controller mockController = mock(Controller.class);
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+            @Override
+            public String get() {
+                return String.format("newtokenheader.%s.signature", createJwtBody(
+                        JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+            }
+        });
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+                .thenReturn(future);
+
+        // Setup the object under test
+        NullInitializedTokenProviderImpl objectUnderTest = new NullInitializedTokenProviderImpl(mockController,
+                "somescope", "somestream");
+
+        // Act
+        String token = objectUnderTest.retrieveToken();
+        assertEquals(token, objectUnderTest.retrieveToken());
     }
 }

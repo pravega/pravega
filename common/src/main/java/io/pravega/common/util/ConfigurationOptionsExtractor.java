@@ -10,10 +10,12 @@
 package io.pravega.common.util;
 
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * A utility class for processing configuration items specified via system properties and/ environment variables.
  */
+@Slf4j
 public class ConfigurationOptionsExtractor {
 
     /**
@@ -62,6 +64,8 @@ public class ConfigurationOptionsExtractor {
         try {
             result = Integer.parseInt(property);
         } catch (NumberFormatException e) {
+            log.warn("Value of the system property {} or environment variable {} is not an integer: {}",
+                    systemProperty, environmentVariable, property);
             // Ignore
             result = defaultValue;
         }

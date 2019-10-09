@@ -18,6 +18,7 @@ import java.time.Instant;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 public class DelegationTokenProviderFactoryTest {
@@ -77,5 +78,12 @@ public class DelegationTokenProviderFactoryTest {
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(jwtDelegationToken,
                 dummyController, new Segment("test-scope", "test-stream", 1));
         assertEquals(jwtDelegationToken, tokenProvider.retrieveToken());
+    }
+
+    @Test
+    public void testCreateWithNullDelegationToken() {
+        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(null,
+                dummyController, new Segment("test-scope", "test-stream", 1));
+        assertTrue(tokenProvider instanceof NullInitializedTokenProviderImpl);
     }
 }

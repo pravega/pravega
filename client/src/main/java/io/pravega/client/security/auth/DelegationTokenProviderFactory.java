@@ -60,13 +60,23 @@ public class DelegationTokenProviderFactory {
      * @param controller  the {@link Controller} client used for obtaining a delegation token from the Controller
      * @param segment the {@link Segment}, for which a delegation token is to be obtained
      * @return a new {@link DelegationTokenProvider} instance
+     * @throws NullPointerException if {@code controller} or {@code segment} is null
      */
     public static DelegationTokenProvider create(String delegationToken, @NonNull Controller controller,
                                                  @NonNull Segment segment) {
-
          return create(delegationToken, controller, segment.getScope(), segment.getStreamName());
     }
 
+    /**
+     * Creates a {@link DelegationTokenProvider} instance of an appropriate type.
+     *
+     * @param delegationToken an existing delegation token to populate the {@link DelegationTokenProvider} instance with.
+     * @param controller the {@link Controller} client used for obtaining a delegation token from the Controller if/when
+     *                   the token expires or is nearing expiry
+     * @param scopeName the name of the scope tied to the segment, for which a delegation token is to be obtained
+     * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
+     * @return a new {@link DelegationTokenProvider} instance
+     */
     public static DelegationTokenProvider create(String delegationToken, Controller controller, String scopeName,
                                                  String streamName) {
         if (delegationToken == null) {

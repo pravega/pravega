@@ -119,7 +119,7 @@ public class JwtTokenProviderImplTest {
 
         // Act
         String newToken = objectUnderTest.retrieveToken();
-        log.debug(newToken);
+        log.debug("new token: {}", newToken);
 
         assertTrue(newToken.startsWith("newtokenheader"));
     }
