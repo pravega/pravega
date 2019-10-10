@@ -19,7 +19,12 @@ import java.util.function.Supplier;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static io.pravega.client.security.auth.JwtTestUtils.dummyToken;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -241,5 +246,26 @@ public class JwtTokenProviderImplTest {
     @Test(expected = NullPointerException.class)
     public void testCtorRejectsNullStreamInput() {
         new JwtTokenProviderImpl(dummyController, "somescope", null);
+    }
+
+    @Test
+    public void testPopulateTokenReturnsFalseWhenTokenIsEmpty() {
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream");
+        assertFalse(objectUnderTest.populateToken(""));
+    }
+
+    @Test
+    public void testPopulateTokenReturnsTrueWhenTokenIsNonEmpty() {
+        String initialToken = String.format("%s.%s.%s", "base64-encoded-header",
+                JwtTestUtils.createJwtBody(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
+                "base64-encoded-signature");
+
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(initialToken, this.dummyController,
+                "somescope", "somestream");
+
+        String newToken = String.format("%s.%s.%s", "base64-encoded-header",
+                JwtTestUtils.createJwtBody(JwtBody.builder().expirationTime(Instant.now().getEpochSecond()).build()),
+                "base64-encoded-signature");
+        assertTrue(objectUnderTest.populateToken(newToken));
     }
 }

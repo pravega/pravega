@@ -9,6 +9,7 @@
  */
 package io.pravega.common.util;
 
+import com.google.common.annotations.VisibleForTesting;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
@@ -29,7 +30,8 @@ public class ConfigurationOptionsExtractor {
      *                     specified
      * @return the specified or default configuration value
      */
-    public static String extractString(@NonNull String systemProperty, @NonNull String environmentVariable,
+    @VisibleForTesting
+    static String extractString(@NonNull String systemProperty, @NonNull String environmentVariable,
                                        @NonNull String defaultValue) {
         String result = null;
         String valueFromSystemProperty = System.getProperty(systemProperty);

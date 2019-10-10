@@ -11,25 +11,28 @@ package io.pravega.client.security.auth;
 
 import io.pravega.common.Exceptions;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 /**
  * A provider for handling non-JWT, non-empty delegation tokens. Used solely for testing purposes.
  */
 public class StringTokenProviderImpl implements DelegationTokenProvider {
 
-    private final String token;
+    private final AtomicReference<String> token = new AtomicReference<>();
 
     StringTokenProviderImpl(String token) {
         Exceptions.checkNotNullOrEmpty(token, "token");
-        this.token = token;
+        this.token.set(token);
     }
 
     @Override
     public String retrieveToken() {
-        return token;
+        return this.token.get();
     }
 
     @Override
-    public String refreshToken() {
-        return token;
+    public boolean populateToken(String token) {
+        this.token.set(token);
+        return true;
     }
 }

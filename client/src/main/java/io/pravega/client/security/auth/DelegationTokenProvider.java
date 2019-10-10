@@ -25,9 +25,10 @@ public interface DelegationTokenProvider {
     String retrieveToken();
 
     /**
-     * Refresh and retrieve delegation token.
+     * Populates the object with the specified delegation token.
      *
-     * @return a new delegation token
+     * @param token the token to populate the object with
+     * @return whether the population was successful
      */
-    String refreshToken();
+    boolean populateToken(String token);
 }

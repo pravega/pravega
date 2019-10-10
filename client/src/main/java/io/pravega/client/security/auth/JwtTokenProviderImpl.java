@@ -14,15 +14,15 @@ import com.google.common.base.Preconditions;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ConfigurationOptionsExtractor;
 import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.Base64;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -70,7 +70,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
-    private final AtomicBoolean isTokenBeingRefreshed = new AtomicBoolean(false);
+    private final AtomicReference<CompletableFuture<Void>> tokenRefreshFuture = new AtomicReference<>();
 
     JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
         this(controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
@@ -131,6 +131,39 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         this.refreshThresholdInSeconds = refreshThresholdInSeconds;
     }
 
+    @VisibleForTesting
+    static Long extractExpirationTime(String token) {
+        if (token == null || token.trim().equals("")) {
+            return null;
+        }
+        String[] tokenParts = token.split("\\.");
+
+        // JWT is of the format abc.def.ghe. The middle part is the body.
+        String encodedBody = tokenParts[1];
+        String decodedJsonBody = new String(Base64.getDecoder().decode(encodedBody));
+
+        return parseExpirationTime(decodedJsonBody);
+    }
+
+    @VisibleForTesting
+    static Long parseExpirationTime(String json) {
+        Long result = null;
+        if (json != null && !json.trim().equals("")) {
+
+            Matcher matcher = JWT_EXPIRATION_PATTERN.matcher(json);
+            if (matcher.find()) {
+               // Will look like this, if a match is found: "exp": 1569837434
+               String matchedString = matcher.group();
+
+               String[] expiryTimeFieldParts = matchedString.split(":");
+               if (expiryTimeFieldParts != null && expiryTimeFieldParts.length == 2) {
+                   result = Long.parseLong(expiryTimeFieldParts[1].trim());
+               }
+            }
+        }
+        return result;
+    }
+
     /**
      * Returns the delegation token. It returns existing delegation token if it is not close to expiry. If the token
      * is close to expiry, it obtains a new delegation token and returns that one instead.
@@ -139,7 +172,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      */
     @Override
     public String retrieveToken() {
-        if (this.getCurrentToken() == null) {
+        if (this.delegationToken.get() == null) {
             return this.refreshToken();
         } else if (isTokenNearingExpiry()) {
             log.info("Token is nearing expiry");
@@ -150,39 +183,13 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     }
 
     @Override
-    public String refreshToken() {
-        long traceEnterId = LoggerHelpers.traceEnter(log, "refreshToken", this.scopeName, this.streamName);
-        DelegationToken existingToken = this.getCurrentToken();
-        if (isTokenBeingRefreshed.get()) {
-            log.debug("Token is already under refresh for scope {} and stream {}", this.scopeName, this.streamName);
-
-            // Wait for the token to finish refreshing
-            while (!isTokenBeingRefreshed.get()) {
-                try {
-                    Thread.sleep(200);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }
+    public boolean populateToken(@NonNull String token) {
+        if (token.trim().equals("")) {
+            return false;
         } else {
-            if (isTokenBeingRefreshed.compareAndSet(false, true)) {
-                log.debug("Resetting token for scope {} and stream {}", this.scopeName, this.streamName);
-                resetToken(existingToken, newToken());
-            }
+            this.delegationToken.set(new DelegationToken(token, extractExpirationTime(token)));
+            return true;
         }
-        String result = delegationToken.get().getValue();
-        LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
-        return result;
-    }
-
-    protected DelegationToken newToken() {
-        String token = Futures.getAndHandleExceptions(
-                controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName), RuntimeException::new);
-        return new DelegationToken(token, extractExpirationTime(token));
-    }
-
-    protected DelegationToken getCurrentToken() {
-        return this.delegationToken.get();
     }
 
     private boolean isTokenNearingExpiry() {
@@ -202,45 +209,26 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         return currentInstant.plusSeconds(refreshThresholdInSeconds).getEpochSecond() >= expiration.getEpochSecond();
     }
 
-    protected boolean resetToken(DelegationToken existingToken, DelegationToken newToken) {
-        boolean isTokenResetSuccessful = delegationToken.compareAndSet(existingToken, newToken);
-        if (isTokenResetSuccessful) {
-            log.debug("Successfully reset token for scope {} and stream {}", this.scopeName, this.streamName);
-            isTokenBeingRefreshed.compareAndSet(true, false);
+    @VisibleForTesting
+    String refreshToken() {
+        long traceEnterId = LoggerHelpers.traceEnter(log, "refreshToken", this.scopeName, this.streamName);
+        CompletableFuture<Void> currentRefreshFuture = tokenRefreshFuture.get();
+        if (currentRefreshFuture == null) {
+            log.debug("Initiated token refresh for scope {} and stream {}", this.scopeName, this.streamName);
+            this.tokenRefreshFuture.set(this.recreateToken());
+        } else {
+            log.debug("Token is already under refresh for scope {} and stream {}", this.scopeName, this.streamName);
         }
-        return isTokenResetSuccessful;
+        tokenRefreshFuture.get().join(); // Block until the token is refreshed
+        this.tokenRefreshFuture.compareAndSet(currentRefreshFuture, null); // Token is already refreshed, so resetting the future to null.
+
+        LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
+        return delegationToken.get().getValue();
     }
 
-    @VisibleForTesting
-    Long extractExpirationTime(String token) {
-        if (token == null || token.trim().equals("")) {
-            return null;
-        }
-        String[] tokenParts = token.split("\\.");
-
-        // JWT is of the format abc.def.ghe. The middle part is the body.
-        String encodedBody = tokenParts[1];
-        String decodedJsonBody = new String(Base64.getDecoder().decode(encodedBody));
-
-        return parseExpirationTime(decodedJsonBody);
-    }
-
-    @VisibleForTesting
-    Long parseExpirationTime(String json) {
-        Long result = null;
-        if (json != null && !json.trim().equals("")) {
-
-            Matcher matcher = JWT_EXPIRATION_PATTERN.matcher(json);
-            if (matcher.find()) {
-               // Will look like this, if a match is found: "exp": 1569837434
-               String matchedString = matcher.group();
-
-               String[] expiryTimeFieldParts = matchedString.split(":");
-               if (expiryTimeFieldParts != null && expiryTimeFieldParts.length == 2) {
-                   result = Long.parseLong(expiryTimeFieldParts[1].trim());
-               }
-            }
-        }
-        return result;
+    private CompletableFuture<Void> recreateToken() {
+        return controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName)
+                .thenApply(s -> new DelegationToken(s, extractExpirationTime(s)))
+                .thenAccept(d -> this.delegationToken.set(d));
     }
 }

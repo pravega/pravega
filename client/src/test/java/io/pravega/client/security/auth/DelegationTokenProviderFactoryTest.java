@@ -29,7 +29,6 @@ public class DelegationTokenProviderFactoryTest {
     public void testCreateWithEmptyToken() {
        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.createWithEmptyToken();
        assertEquals("", tokenProvider.retrieveToken());
-       assertEquals("", tokenProvider.refreshToken());
     }
 
     @Test
@@ -68,7 +67,6 @@ public class DelegationTokenProviderFactoryTest {
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(nonJwtDelegationToken,
                 dummyController, new Segment("test-scope", "test-stream", 1));
         assertEquals(nonJwtDelegationToken, tokenProvider.retrieveToken());
-        assertEquals(nonJwtDelegationToken, tokenProvider.refreshToken());
     }
 
     @Test

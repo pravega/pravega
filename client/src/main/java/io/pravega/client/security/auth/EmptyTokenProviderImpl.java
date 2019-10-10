@@ -20,7 +20,7 @@ public class EmptyTokenProviderImpl implements DelegationTokenProvider {
     }
 
     @Override
-    public String refreshToken() {
-        return "";
+    public boolean populateToken(String token) {
+        return false;
     }
 }
