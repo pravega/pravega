@@ -19,6 +19,7 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
+import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableFutureLatch;
@@ -84,6 +85,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
+    private final SequentialProcessor dataAppendedProcessor;
 
     /**
      * Internal object that tracks the state of the connection.
@@ -349,8 +351,11 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             long previousAckLevel = dataAppended.getPreviousEventNumber();
             try {
                 checkAckLevels(ackLevel, previousAckLevel);
-                state.noteSegmentLength(dataAppended.getCurrentSegmentWriteOffset());
-                ackUpTo(ackLevel);
+                // invoke state updation on a different thread and release the EventLoop thread.
+                dataAppendedProcessor.add(() -> CompletableFuture.runAsync(() -> {
+                    state.noteSegmentLength(dataAppended.getCurrentSegmentWriteOffset());
+                    ackUpTo(ackLevel);
+                }, connectionFactory.getInternalExecutor()));
             } catch (Exception e) {
                 failConnection(e);
             }
@@ -497,6 +502,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         log.debug("Closing writer: {}", writerId);
         // Wait until all the inflight events are written
         flush();
+        dataAppendedProcessor.close();
         state.setClosed(true);
         ClientConnection connection = state.getConnection();
         if (connection != null) {
