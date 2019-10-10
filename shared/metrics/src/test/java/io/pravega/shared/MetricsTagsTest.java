@@ -11,7 +11,6 @@ package io.pravega.shared;
 
 import com.google.common.base.Strings;
 import lombok.extern.slf4j.Slf4j;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.net.InetAddress;
@@ -43,7 +42,6 @@ public class MetricsTagsTest {
     }
 
     @Test
-    @Ignore // TODO: FIX THIS.
     public void testCreateHostTag() throws Exception {
         //Scenario 1: system property is defined - property is taken
         String originalProperty = System.getProperty(DEFAULT_HOSTNAME_KEY);
@@ -53,13 +51,23 @@ public class MetricsTagsTest {
             System.setProperty(DEFAULT_HOSTNAME_KEY, originalProperty);
         }
 
-        //Scenario 2: system property not defined, env var is defined - env var is taken
-        String envVarDefined = System.getenv().keySet().iterator().next();
-        originalProperty = System.getProperty(envVarDefined);
-        System.clearProperty(envVarDefined);
-        assertEquals(System.getenv(envVarDefined), createHostTag(envVarDefined)[1]);
-        if (!Strings.isNullOrEmpty(originalProperty)) {
-            System.setProperty(envVarDefined, originalProperty);
+        //Scenario 2: environment var is defined, and system property not defined - env var is taken
+        String envVarDefined = null;
+        //go through the list to find the env var with non empty/null value
+        for (String envVarName: System.getenv().keySet()) {
+            if (!Strings.isNullOrEmpty(System.getenv(envVarName))) {
+                envVarDefined = envVarName;
+                break;
+            }
+        }
+        //test scenario 2 only if there is env var with non empty/null value; otherwise skip scenario 2
+        if (envVarDefined != null) {
+            originalProperty = System.getProperty(envVarDefined);
+            System.clearProperty(envVarDefined);
+            assertEquals(System.getenv(envVarDefined), createHostTag(envVarDefined)[1]);
+            if (!Strings.isNullOrEmpty(originalProperty)) {
+                System.setProperty(envVarDefined, originalProperty);
+            }
         }
 
         //Scenario 3: system property not defined, env var not defined - localhost config is taken
