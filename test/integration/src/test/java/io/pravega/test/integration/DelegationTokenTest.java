@@ -162,14 +162,8 @@ public class DelegationTokenTest {
 
                 for (int i = 0; i < 10; i++) {
                     String msg = "message: " + i;
-                    try {
-                        writer.writeEvent(msg).get();
-                        log.debug("Done writing message '{}' to stream '{} / {}'", msg, scope, streamName);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    } catch (ExecutionException e) {
-                        throw new RuntimeException(e);
-                    }
+                    writer.writeEvent(msg).join();
+                    log.debug("Done writing message '{}' to stream '{} / {}'", msg, scope, streamName);
                 }
             };
             Thread writerThread = new Thread(runnable);

@@ -138,7 +138,8 @@ public class WireCommandsTest {
 
     @Test
     public void testAuthTokenCheckFailed() throws IOException {
-        testCommand(new WireCommands.AuthTokenCheckFailed(l, "", 0));
+        testCommand(new WireCommands.AuthTokenCheckFailed(l, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
         AtomicReference<Boolean> authTokenCheckFailedCalled = new AtomicReference<>(false);
         ReplyProcessor rp = new FailingReplyProcessor() {
             @Override
@@ -157,7 +158,8 @@ public class WireCommandsTest {
             }
         };
 
-        new WireCommands.AuthTokenCheckFailed(0, "", 0).process(rp);
+        new WireCommands.AuthTokenCheckFailed(0, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED).process(rp);
         assertTrue("Process should call the corresponding API", authTokenCheckFailedCalled.get());
     }
 

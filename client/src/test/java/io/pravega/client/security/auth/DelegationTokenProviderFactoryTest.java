@@ -18,6 +18,7 @@ import java.time.Instant;
 
 import static io.pravega.client.security.auth.JwtTestUtils.createJwtBody;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -29,6 +30,7 @@ public class DelegationTokenProviderFactoryTest {
     public void testCreateWithEmptyToken() {
        DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.createWithEmptyToken();
        assertEquals("", tokenProvider.retrieveToken());
+       assertFalse(tokenProvider.populateToken("new-token"));
     }
 
     @Test
@@ -63,10 +65,14 @@ public class DelegationTokenProviderFactoryTest {
 
     @Test
     public void testCreateWithNonJwtToken() {
-        String nonJwtDelegationToken = "non-jwt-delegation-token";
+        String nonJwtDelegationToken = "non-jwt-token";
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(nonJwtDelegationToken,
                 dummyController, new Segment("test-scope", "test-stream", 1));
         assertEquals(nonJwtDelegationToken, tokenProvider.retrieveToken());
+
+        String newNonJwtDelegationToken = "new-non-jwt-token";
+        tokenProvider.populateToken(newNonJwtDelegationToken);
+        assertEquals("new-non-jwt-token", tokenProvider.retrieveToken());
     }
 
     @Test

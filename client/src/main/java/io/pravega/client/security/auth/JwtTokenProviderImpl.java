@@ -175,7 +175,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         if (this.delegationToken.get() == null) {
             return this.refreshToken();
         } else if (isTokenNearingExpiry()) {
-            log.info("Token is nearing expiry");
+            log.debug("Token is nearing expiry for scope/stream {}/{}", this.scopeName, this.streamName);
             return refreshToken();
         } else {
             return delegationToken.get().getValue();
@@ -214,7 +214,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         long traceEnterId = LoggerHelpers.traceEnter(log, "refreshToken", this.scopeName, this.streamName);
         CompletableFuture<Void> currentRefreshFuture = tokenRefreshFuture.get();
         if (currentRefreshFuture == null) {
-            log.debug("Initiated token refresh for scope {} and stream {}", this.scopeName, this.streamName);
+            log.debug("Initiated token refresh for scope/stream {} and stream {}", this.scopeName, this.streamName);
             this.tokenRefreshFuture.set(this.recreateToken());
         } else {
             log.debug("Token is already under refresh for scope {} and stream {}", this.scopeName, this.streamName);

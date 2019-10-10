@@ -51,7 +51,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 8;
+    public static final int WIRE_VERSION = 9;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -1516,29 +1516,33 @@ public final class WireCommands {
 
     @Data
     public static final class AuthTokenCheckFailed implements Reply, WireCommand {
-        public final static int ERROR_CODE_TOKEN_CHECK_FAILED = 0;
-        public final static int ERROR_CODE_TOKEN_EXPIRED = 1;
+
+        final ErrorCode errorCode;
+
         final WireCommandType type = WireCommandType.AUTH_TOKEN_CHECK_FAILED;
         final long requestId;
         final String serverStackTrace;
-
-        // -1 indicates un-specified (for backward compatibility)
-        // 0 / ERROR_CODE_TOKEN_CHECK_FAILED indicates a general token error
-        // 1 / ERROR_CODE_TOKEN_EXPIRED indicates token has expired
-        final int errorCode;
-
         public AuthTokenCheckFailed(long requestId, String serverStackTrace) {
-            this(requestId, serverStackTrace, -1);
+            this(requestId, serverStackTrace, ErrorCode.UNSPECIFIED);
         }
 
-        public AuthTokenCheckFailed(long requestId, String stackTrace, int errorCode) {
+        public AuthTokenCheckFailed(long requestId, String stackTrace, ErrorCode errorCode) {
             this.requestId = requestId;
             this.serverStackTrace = stackTrace;
             this.errorCode = errorCode;
         }
 
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
+
+            // errorCode is a new field and wasn't present earlier. Doing this to allow it to work with older clients.
+            int errorCode = in.available()  >= Integer.BYTES ? in.readInt() : -1;
+            return new AuthTokenCheckFailed(requestId, serverStackTrace, ErrorCode.valueOf(errorCode));
+        }
+
         public boolean isTokenExpired() {
-            return errorCode == ERROR_CODE_TOKEN_EXPIRED;
+            return errorCode == ErrorCode.TOKEN_EXPIRED;
         }
 
         @Override
@@ -1550,16 +1554,35 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(serverStackTrace);
-            out.writeInt(errorCode);
+            out.writeInt(errorCode.getCode());
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            long requestId = in.readLong();
-            String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
+        public enum ErrorCode {
+            UNSPECIFIED(-1),       // indicates un-specified (for backward compatibility)
+            TOKEN_CHECK_FAILED(0), // indicates a general token error
+            TOKEN_EXPIRED(1);      // indicates token has expired
 
-            // errorCode is a new field and wasn't present earlier. Doing this to allow it to work with older clients.
-            int errorCode = in.available()  >= Integer.BYTES ? in.readInt() : -1;
-            return new AuthTokenCheckFailed(requestId, serverStackTrace, errorCode);
+            private static final Map<Integer, ErrorCode> OBJECTS_BY_CODE = new HashMap<>();
+
+            static {
+                for (ErrorCode errorCode : ErrorCode.values()) {
+                    OBJECTS_BY_CODE.put(errorCode.code, errorCode);
+                }
+            }
+
+            private final int code;
+
+            private ErrorCode(int code) {
+                this.code = code;
+            }
+
+            public static ErrorCode valueOf(int code) {
+                return OBJECTS_BY_CODE.getOrDefault(code, ErrorCode.TOKEN_CHECK_FAILED);
+            }
+
+            public int getCode() {
+                return this.code;
+            }
         }
     }
 
