@@ -39,9 +39,9 @@ import io.pravega.segmentstore.server.host.delegationtoken.DelegationTokenVerifi
 import io.pravega.segmentstore.server.host.delegationtoken.PassingTokenVerifier;
 import io.pravega.segmentstore.server.host.stat.SegmentStatsRecorder;
 import io.pravega.segmentstore.server.host.stat.TableSegmentStatsRecorder;
-import io.pravega.segmentstore.server.security.TLSConfigChangeFileConsumer;
-import io.pravega.segmentstore.server.security.TLSConfigChangeEventConsumer;
-import io.pravega.segmentstore.server.security.TLSHelper;
+import io.pravega.segmentstore.server.host.security.TLSConfigChangeFileConsumer;
+import io.pravega.segmentstore.server.host.security.TLSConfigChangeEventConsumer;
+import io.pravega.segmentstore.server.host.security.TLSHelper;
 import io.pravega.shared.protocol.netty.AppendDecoder;
 import io.pravega.shared.protocol.netty.CommandDecoder;
 import io.pravega.shared.protocol.netty.CommandEncoder;
@@ -54,6 +54,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.pravega.shared.metrics.MetricNotifier.NO_OP_METRIC_NOTIFIER;
 import static io.pravega.shared.protocol.netty.WireCommands.MAX_WIRECOMMAND_SIZE;
 
 /**
@@ -190,7 +191,7 @@ public final class PravegaConnectionListener implements AutoCloseable {
 
                  ServerConnectionInboundHandler lsh = new ServerConnectionInboundHandler();
                  p.addLast(new ExceptionLoggingHandler(ch.remoteAddress().toString()),
-                         new CommandEncoder(null),
+                         new CommandEncoder(null, NO_OP_METRIC_NOTIFIER),
                          new LengthFieldBasedFrameDecoder(MAX_WIRECOMMAND_SIZE, 4, 4),
                          new CommandDecoder(),
                          new AppendDecoder(),

@@ -17,6 +17,7 @@ import java.net.URI;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class ClientConfigTest {
@@ -93,5 +94,18 @@ public class ClientConfigTest {
                 .controllerURI(URI.create("//hostname:9090"))
                 .build();
         assertFalse("TLS is enabled", clientConfig.isEnableTls());
+    }
+
+    @Test
+    public void testMetricsListener() {
+        ClientConfig clientConfig = ClientConfig.builder()
+                                                .controllerURI(URI.create("//hostname:9090"))
+                                                .build();
+        assertNull("Metrics listener is not configured", clientConfig.getMetricListener());
+        clientConfig = ClientConfig.builder()
+                                   .controllerURI(URI.create("//hostname:9090"))
+                                   .metricListener(null)
+                                   .build();
+        assertNull("Metrics listener is not configured", clientConfig.getMetricListener());
     }
 }
