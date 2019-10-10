@@ -236,7 +236,9 @@ project('client') {
         compile project(':shared:authplugin')
         compile project(':shared:protocol')
         compile project(":shared:controller-api")
-        compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion
+        // Ensure epoll native transport is used for linux-x86_64 architecture systems.
+        // The client fallsback to NIO based transport if epoll is not available.
+        compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion, classifier: 'linux-x86_64'
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
