@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.common.Exceptions;
+import io.pravega.common.LoggerHelpers;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ConfigurationOptionsExtractor;
 import lombok.AccessLevel;
@@ -33,18 +34,30 @@ import java.util.regex.Pattern;
 public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     /**
-     * Represents the threshold for triggering delegation token refresh.
+     * Represents the default threshold (in seconds) for triggering delegation token refresh.
      */
     @VisibleForTesting
-    static final int DEFAULT_REFRESH_THRESHOLD = 5;
+    static final int DEFAULT_REFRESH_THRESHOLD_SECONDS = 5;
 
     private static final String REFRESH_THRESHOLD_SYSTEM_PROPERTY = "pravega.client.auth.token-refresh.threshold";
 
     private static final String REFRESH_THRESHOLD_ENV_VARIABLE = "pravega_client_auth_token-refresh.threshold";
 
+    /**
+     * The regex pattern for extracting "exp" field from the JWT.
+     *
+     * Examples:
+     *    Input:- {"sub":"subject","aud":"segmentstore","iat":1569837384,"exp":1569837434}, output:- "exp":1569837434
+     *    Input:- {"sub": "subject","aud": "segmentstore","iat": 1569837384,"exp": 1569837434}, output:- "exp": 1569837434
+     */
+    private static final Pattern JWT_EXPIRATION_PATTERN = Pattern.compile("\"exp\":\\s?(\\d+)");
+
+    /**
+     * Represents the hreshold (in seconds) for triggering delegation token refresh.
+     */
     @VisibleForTesting
     @Getter(AccessLevel.PACKAGE)
-    private final int tokenRefreshThreshold;
+    private final int refreshThresholdInSeconds;
 
     /**
      * The Controller gRPC client used for interacting with the server.
@@ -57,15 +70,15 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     private final AtomicReference<DelegationToken> delegationToken = new AtomicReference<>();
 
-    private AtomicBoolean isTokenBeingRefreshed = new AtomicBoolean(false);
+    private final AtomicBoolean isTokenBeingRefreshed = new AtomicBoolean(false);
 
     protected JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
         this(controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
-                REFRESH_THRESHOLD_SYSTEM_PROPERTY, REFRESH_THRESHOLD_ENV_VARIABLE, DEFAULT_REFRESH_THRESHOLD));
+                REFRESH_THRESHOLD_SYSTEM_PROPERTY, REFRESH_THRESHOLD_ENV_VARIABLE, DEFAULT_REFRESH_THRESHOLD_SECONDS));
     }
 
     private JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName,
-                                 int tokenRefreshThreshold) {
+                                 int refreshThresholdInSeconds) {
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
         Exceptions.checkNotNullOrEmpty(streamName, "streamName");
@@ -73,7 +86,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         this.scopeName = scopeName;
         this.streamName = streamName;
         this.controllerClient = controllerClient;
-        this.tokenRefreshThreshold = tokenRefreshThreshold;
+        this.refreshThresholdInSeconds = refreshThresholdInSeconds;
     }
 
     /**
@@ -90,7 +103,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         this(token, controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
                 "pravega.client.auth.token-refresh.threshold",
                 "pravega_client_auth_token-refresh.threshold",
-                DEFAULT_REFRESH_THRESHOLD));
+                DEFAULT_REFRESH_THRESHOLD_SECONDS));
     }
 
     /**
@@ -101,10 +114,10 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      * @param controllerClient the {@link Controller} client used for obtaining a delegation token from the Controller
      * @param scopeName the name of the scope tied to the segment, for which a delegation token is to be obtained
      * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
-     * @param tokenRefreshThreshold the time in seconds before expiry that should trigger a token refresh
+     * @param refreshThresholdInSeconds the time in seconds before expiry that should trigger a token refresh
      */
     public JwtTokenProviderImpl(String token, Controller controllerClient, String scopeName, String streamName,
-                                    int tokenRefreshThreshold) {
+                                    int refreshThresholdInSeconds) {
         Exceptions.checkNotNullOrEmpty(token, "delegationToken");
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");
         Preconditions.checkNotNull(controllerClient, "controllerClient is null");
@@ -115,7 +128,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         this.scopeName = scopeName;
         this.streamName = streamName;
         this.controllerClient = controllerClient;
-        this.tokenRefreshThreshold = tokenRefreshThreshold;
+        this.refreshThresholdInSeconds = refreshThresholdInSeconds;
     }
 
     /**
@@ -126,7 +139,9 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      */
     @Override
     public String retrieveToken() {
-        if (isTokenNearingExpiry()) {
+        if (this.getCurrentToken() == null) {
+            return this.refreshToken();
+        } else if (isTokenNearingExpiry()) {
             log.info("Token is nearing expiry");
             return refreshToken();
         } else {
@@ -136,10 +151,10 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     @Override
     public String refreshToken() {
-        log.trace("Entered refreshToken().");
+        long traceEnterId = LoggerHelpers.traceEnter(log, "refreshToken", this.scopeName, this.streamName);
         DelegationToken existingToken = this.getCurrentToken();
         if (isTokenBeingRefreshed.get()) {
-            log.debug("Token is already under refresh.");
+            log.debug("Token is already under refresh for scope {} and stream {}", this.scopeName, this.streamName);
 
             // Wait for the token to finish refreshing
             while (!isTokenBeingRefreshed.get()) {
@@ -151,14 +166,12 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
             }
         } else {
             if (isTokenBeingRefreshed.compareAndSet(false, true)) {
-                log.debug("Resetting token");
+                log.debug("Resetting token for scope {} and stream {}", this.scopeName, this.streamName);
                 resetToken(existingToken, newToken());
-            } else {
-                log.debug("Token refresh status setting to 'true' failed.");
             }
         }
         String result = delegationToken.get().getValue();
-        log.trace("Exiting refreshToken()");
+        LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
         return result;
     }
 
@@ -180,19 +193,19 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     }
 
     private boolean isWithinRefreshThreshold(Long expirationTime) {
-        Preconditions.checkNotNull(expirationTime);
+        assert expirationTime != null;
         return isWithinRefreshThreshold(Instant.now(), Instant.ofEpochSecond(expirationTime));
     }
 
     @VisibleForTesting
     boolean isWithinRefreshThreshold(Instant currentInstant, Instant expiration) {
-        return currentInstant.plusSeconds(tokenRefreshThreshold).getEpochSecond() >= expiration.getEpochSecond();
+        return currentInstant.plusSeconds(refreshThresholdInSeconds).getEpochSecond() >= expiration.getEpochSecond();
     }
 
     protected boolean resetToken(DelegationToken existingToken, DelegationToken newToken) {
         boolean isTokenResetSuccessful = delegationToken.compareAndSet(existingToken, newToken);
         if (isTokenResetSuccessful) {
-            log.debug("Successfully reset token");
+            log.debug("Successfully reset token for scope {} and stream {}", this.scopeName, this.streamName);
             isTokenBeingRefreshed.compareAndSet(true, false);
         }
         return isTokenResetSuccessful;
@@ -216,11 +229,8 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     Long parseExpirationTime(String json) {
         Long result = null;
         if (json != null && !json.trim().equals("")) {
-            // Sample inputs:
-            //    {"sub":"subject","aud":"segmentstore","iat":1569837384,"exp":1569837434}
-            //    {"sub": "subject","aud": "segmentstore","iat": 1569837384,"exp": 1569837434}
-            Pattern pattern = Pattern.compile("\"exp\":\\s?(\\d+)");
-            Matcher matcher = pattern.matcher(json);
+
+            Matcher matcher = JWT_EXPIRATION_PATTERN.matcher(json);
             if (matcher.find()) {
                // Will look like this, if a match is found: "exp": 1569837434
                String matchedString = matcher.group();

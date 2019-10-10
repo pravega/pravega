@@ -57,13 +57,12 @@ public class JwtTokenProviderImplTest {
         // The body decodes to:
         //     {
         //        "sub": "1234567890",
-        //        "name": "John Doe",
+        //        "aud": "segmentstore",
         //        "iat": 1516239022
         //     }
-        String token = String.format("%s.%s.%s",
-                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", // header
-                "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ", // body
-                "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"); // signature
+        String token = String.format("%s.%s.%s", "base64-encoded-header",
+                JwtBody.builder().subject("1234567890").audience("segmentstore").issuedAtTime(1516239022L).build(),
+                "base64-encoded-signature");
 
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 token, mock(Controller.class), "somescope", "somestream");
@@ -142,8 +141,8 @@ public class JwtTokenProviderImplTest {
     public void testDefaultTokenRefreshThreshold() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 dummyToken(), dummyController, "some-scope", "some-stream");
-        assertSame(JwtTokenProviderImpl.DEFAULT_REFRESH_THRESHOLD,
-                objectUnderTest.getTokenRefreshThreshold());
+        assertSame(JwtTokenProviderImpl.DEFAULT_REFRESH_THRESHOLD_SECONDS,
+                objectUnderTest.getRefreshThresholdInSeconds());
     }
 
     @Test
