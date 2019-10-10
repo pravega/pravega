@@ -72,7 +72,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     private final AtomicBoolean isTokenBeingRefreshed = new AtomicBoolean(false);
 
-    protected JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
+    JwtTokenProviderImpl(Controller controllerClient, String scopeName, String streamName) {
         this(controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
                 REFRESH_THRESHOLD_SYSTEM_PROPERTY, REFRESH_THRESHOLD_ENV_VARIABLE, DEFAULT_REFRESH_THRESHOLD_SECONDS));
     }
@@ -98,7 +98,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      * @param scopeName the name of the scope tied to the segment, for which a delegation token is to be obtained
      * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
      */
-    public JwtTokenProviderImpl(String token, Controller controllerClient, String scopeName,
+    JwtTokenProviderImpl(String token, Controller controllerClient, String scopeName,
                                 String streamName) {
         this(token, controllerClient, scopeName, streamName, ConfigurationOptionsExtractor.extractInt(
                 "pravega.client.auth.token-refresh.threshold",
@@ -116,7 +116,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      * @param streamName the name of the stream tied to the segment, for which a delegation token is to be obtained
      * @param refreshThresholdInSeconds the time in seconds before expiry that should trigger a token refresh
      */
-    public JwtTokenProviderImpl(String token, Controller controllerClient, String scopeName, String streamName,
+    JwtTokenProviderImpl(String token, Controller controllerClient, String scopeName, String streamName,
                                     int refreshThresholdInSeconds) {
         Exceptions.checkNotNullOrEmpty(token, "delegationToken");
         Exceptions.checkNotNullOrEmpty(scopeName, "scopeName");

@@ -124,6 +124,29 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
+    public void testRetrievesSameTokenOutsideOfTokenRefreshThresholdWhenTokenIsNull() {
+        // Setup mock
+        Controller mockController = mock(Controller.class);
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+            @Override
+            public String get() {
+                return String.format("newtokenheader.%s.signature", createJwtBody(
+                        JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+            }
+        });
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+                .thenReturn(future);
+
+        // Setup the object under test
+        DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController,
+                "somescope", "somestream");
+
+        // Act
+        String token = objectUnderTest.retrieveToken();
+        assertEquals(token, objectUnderTest.retrieveToken());
+    }
+
+    @Test
     public void testReturnsNullExpirationTimeForNullToken() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
                 dummyToken(), dummyController, "some-scope", "some-stream");
@@ -179,5 +202,44 @@ public class JwtTokenProviderImplTest {
         String json = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384}";
 
         assertNull(objectUnderTest.parseExpirationTime(json));
+    }
+
+    @Test
+    public void testRetrievesNewTokenFirstTimeWhenInitialTokenIsNull() {
+        // Setup mock
+        Controller mockController = mock(Controller.class);
+        CompletableFuture<String> future = CompletableFuture.supplyAsync(new Supplier<String>() {
+            @Override
+            public String get() {
+                return String.format("newtokenheader.%s.signature", createJwtBody(
+                        JwtBody.builder().expirationTime(Instant.now().plusSeconds(10000).getEpochSecond()).build()));
+            }
+        });
+        when(mockController.getOrRefreshDelegationTokenFor("somescope", "somestream"))
+                .thenReturn(future);
+
+        // Setup the object under test
+        DelegationTokenProvider objectUnderTest = new JwtTokenProviderImpl(mockController, "somescope", "somestream");
+
+        // Act
+        String token = objectUnderTest.retrieveToken();
+        log.debug(token);
+
+        assertTrue(token.startsWith("newtokenheader"));
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testCtorRejectsNullControllerInput() {
+        new JwtTokenProviderImpl(null, "somescope", "somestream");
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testCtorRejectsNullScopeInput() {
+        new JwtTokenProviderImpl(dummyController, null, "somestream");
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testCtorRejectsNullStreamInput() {
+        new JwtTokenProviderImpl(dummyController, "somescope", null);
     }
 }

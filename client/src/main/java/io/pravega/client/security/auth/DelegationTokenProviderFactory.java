@@ -83,7 +83,7 @@ public class DelegationTokenProviderFactory {
     public static DelegationTokenProvider create(String delegationToken, Controller controller, String scopeName,
                                                  String streamName) {
         if (delegationToken == null) {
-            return new NullInitializedTokenProviderImpl(controller, scopeName, streamName);
+            return new JwtTokenProviderImpl(controller, scopeName, streamName);
         } else if (delegationToken.equals("")) {
             return new EmptyTokenProviderImpl();
         } else if (delegationToken.split("\\.").length == 3) {

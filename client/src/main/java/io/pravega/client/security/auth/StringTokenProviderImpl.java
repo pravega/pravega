@@ -18,7 +18,7 @@ public class StringTokenProviderImpl implements DelegationTokenProvider {
 
     private final String token;
 
-    public StringTokenProviderImpl(String token) {
+    StringTokenProviderImpl(String token) {
         Exceptions.checkNotNullOrEmpty(token, "token");
         this.token = token;
     }

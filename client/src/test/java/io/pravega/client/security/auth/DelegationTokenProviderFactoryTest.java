@@ -84,9 +84,9 @@ public class DelegationTokenProviderFactoryTest {
     public void testCreateWithNullDelegationToken() {
         DelegationTokenProvider tokenProvider = DelegationTokenProviderFactory.create(null,
                 dummyController, new Segment("test-scope", "test-stream", 1));
-        assertTrue(tokenProvider instanceof NullInitializedTokenProviderImpl);
+        assertTrue(tokenProvider instanceof JwtTokenProviderImpl);
 
         tokenProvider = DelegationTokenProviderFactory.create(dummyController, "test-scope", "test-stream");
-        assertTrue(tokenProvider instanceof NullInitializedTokenProviderImpl);
+        assertTrue(tokenProvider instanceof JwtTokenProviderImpl);
     }
 }

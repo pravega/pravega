@@ -11,11 +11,7 @@ package io.pravega.client.security.auth;
 
 import com.google.gson.Gson;
 import org.junit.Test;
-
 import java.time.Instant;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
