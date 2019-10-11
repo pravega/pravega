@@ -149,7 +149,6 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     static Long parseExpirationTime(String json) {
         Long result = null;
         if (json != null && !json.trim().equals("")) {
-
             Matcher matcher = JWT_EXPIRATION_PATTERN.matcher(json);
             if (matcher.find()) {
                // Will look like this, if a match is found: "exp": 1569837434

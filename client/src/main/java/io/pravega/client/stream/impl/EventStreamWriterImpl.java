@@ -95,12 +95,12 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
         this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
-        this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config);
+        this.tokenProvider = DelegationTokenProviderFactory.create(this.controller, this.stream.getScope(), this.stream.getStreamName());
+        this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config, tokenProvider);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
         this.retransmitPool = Preconditions.checkNotNull(retransmitPool);
         this.pinger = new Pinger(config, stream, controller, internalExecutor);
-        this.tokenProvider = DelegationTokenProviderFactory.create(this.controller, this.stream.getScope(), this.stream.getStreamName());
         List<PendingEvent> failedEvents = selector.refreshSegmentEventWriters(segmentSealedCallBack);
         assert failedEvents.isEmpty() : "There should not be any events to have failed";
         if (config.isAutomaticallyNoteTime()) {

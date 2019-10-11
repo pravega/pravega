@@ -210,6 +210,14 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
+    public void testParseExpirationTimeReturnsNullWhenTokenIsNullOrEmpty() {
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
+                dummyToken(), dummyController, "some-scope", "some-stream");
+        assertNull(objectUnderTest.parseExpirationTime(null));
+        assertNull(objectUnderTest.parseExpirationTime(""));
+    }
+
+    @Test
     public void testRetrievesNewTokenFirstTimeWhenInitialTokenIsNull() {
         // Setup mock
         Controller mockController = mock(Controller.class);
