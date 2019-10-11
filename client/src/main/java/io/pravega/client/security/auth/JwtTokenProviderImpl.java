@@ -17,7 +17,6 @@ import io.pravega.common.LoggerHelpers;
 import io.pravega.common.util.ConfigurationOptionsExtractor;
 import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -160,7 +159,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
                        result = Long.parseLong(expiryTimeFieldParts[1].trim());
                    } catch (NumberFormatException e) {
                        // ignore
-                       log.debug(e.getMessage());
+                       log.warn(e.getMessage());
                    }
                }
             }
@@ -191,7 +190,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     }
 
     @Override
-    public boolean populateToken(@NonNull String token) {
+    public boolean populateToken(String token) {
         DelegationToken currentToken = this.delegationToken.get();
         if (token == null || (currentToken != null && currentToken.getValue().equals(""))) {
             return false;
