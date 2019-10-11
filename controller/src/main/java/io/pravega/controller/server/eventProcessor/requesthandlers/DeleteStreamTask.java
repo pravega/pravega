@@ -65,9 +65,11 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
         return streamMetadataStore.getCreationTime(scope, stream, context, executor)
             .thenAccept(creationTime -> Preconditions.checkArgument(request.getCreationTime() == 0 ||
                                           request.getCreationTime() == creationTime))
-            .thenCompose(v -> streamMetadataStore.isSealed(scope, stream, context, executor))
-                .thenComposeAsync(sealed -> {
-                    if (!sealed) {
+            .thenCompose(v -> streamMetadataStore.getState(scope, stream, true, context, executor))
+                .thenComposeAsync(state -> {
+                    // We should delete stream if its creating or sealed. 
+                    // For streams in creating state, we may not have segments 
+                    if (!state.equals(State.CREATING) && !state.equals(State.SEALED)) {
                         log.warn(requestId, "{}/{} stream not sealed", scope, stream);
                         return Futures.failedFuture(new RuntimeException("Stream not sealed"));
                     }
@@ -75,7 +77,7 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
                         .thenCompose(v -> notifyAndDelete(context, scope, stream, requestId));
                 }, executor)
                 .exceptionally(e -> {
-                    if (e instanceof StoreException.DataNotFoundException) {
+                    if (Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException) {
                         return null;
                     }
                     log.error(requestId, "{}/{} stream delete workflow threw exception.", scope, stream, e);
@@ -93,14 +95,14 @@ public class DeleteStreamTask implements StreamTask<DeleteStreamEvent> {
 
     private CompletableFuture<Void> notifyAndDelete(OperationContext context, String scope, String stream, long requestId) {
         log.info(requestId, "{}/{} deleting segments", scope, stream);
-        return streamMetadataStore.getAllSegmentIds(scope, stream, context, executor)
-                .thenComposeAsync(allSegments -> {
-                    return streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, streamMetadataTasks.retrieveDelegationToken(), requestId)
+        return Futures.exceptionallyExpecting(streamMetadataStore.getAllSegmentIds(scope, stream, context, executor)
+                .thenComposeAsync(allSegments -> 
+                    streamMetadataTasks.notifyDeleteSegments(scope, stream, allSegments, streamMetadataTasks.retrieveDelegationToken(), requestId)),
+                            e -> Exceptions.unwrap(e) instanceof StoreException.DataNotFoundException, null)
                             .thenComposeAsync(x -> bucketStore.removeStreamFromBucketStore(BucketStore.ServiceType.RetentionService, 
                                     scope, stream, executor), executor)
                             .thenComposeAsync(x -> streamMetadataStore.deleteStream(scope, stream, context,
                                     executor), executor);
-                });
     }
 
     @Override
