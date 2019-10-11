@@ -146,17 +146,22 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
     }
 
     @VisibleForTesting
-    static Long parseExpirationTime(String json) {
+    static Long parseExpirationTime(String jwtBody) {
         Long result = null;
-        if (json != null && !json.trim().equals("")) {
-            Matcher matcher = JWT_EXPIRATION_PATTERN.matcher(json);
+        if (jwtBody != null && !jwtBody.trim().equals("")) {
+            Matcher matcher = JWT_EXPIRATION_PATTERN.matcher(jwtBody);
             if (matcher.find()) {
-               // Will look like this, if a match is found: "exp": 1569837434
+               // Should look like this, if a proper match is found: "exp": 1569837434
                String matchedString = matcher.group();
 
                String[] expiryTimeFieldParts = matchedString.split(":");
                if (expiryTimeFieldParts != null && expiryTimeFieldParts.length == 2) {
-                   result = Long.parseLong(expiryTimeFieldParts[1].trim());
+                   try {
+                       result = Long.parseLong(expiryTimeFieldParts[1].trim());
+                   } catch (NumberFormatException e) {
+                       // ignore
+                       log.debug(e.getMessage());
+                   }
                }
             }
         }
@@ -171,28 +176,32 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
      */
     @Override
     public String retrieveToken() {
-        if (this.delegationToken.get() == null) {
+        DelegationToken currentToken = this.delegationToken.get();
+
+        if (currentToken == null) {
             return this.refreshToken();
-        } else if (isTokenNearingExpiry()) {
+        } else if (currentToken.getExpiryTime() == null) {
+            return currentToken.getValue();
+        } else if (isTokenNearingExpiry(currentToken)) {
             log.debug("Token is nearing expiry for scope/stream {}/{}", this.scopeName, this.streamName);
             return refreshToken();
         } else {
-            return delegationToken.get().getValue();
+            return currentToken.getValue();
         }
     }
 
     @Override
     public boolean populateToken(@NonNull String token) {
-        if (token.trim().equals("")) {
+        DelegationToken currentToken = this.delegationToken.get();
+        if (token == null || (currentToken != null && currentToken.getValue().equals(""))) {
             return false;
         } else {
-            this.delegationToken.set(new DelegationToken(token, extractExpirationTime(token)));
-            return true;
+            return this.delegationToken.compareAndSet(currentToken, new DelegationToken(token, extractExpirationTime(token)));
         }
     }
 
-    private boolean isTokenNearingExpiry() {
-        Long currentTokenExpirationTime = this.delegationToken.get().getExpiryTime();
+    private boolean isTokenNearingExpiry(DelegationToken token) {
+        Long currentTokenExpirationTime = token.getExpiryTime();
 
         // currentTokenExpirationTime can be null if the server returns a null delegation token
         return currentTokenExpirationTime != null && isWithinRefreshThreshold(currentTokenExpirationTime);
@@ -213,7 +222,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         long traceEnterId = LoggerHelpers.traceEnter(log, "refreshToken", this.scopeName, this.streamName);
         CompletableFuture<Void> currentRefreshFuture = tokenRefreshFuture.get();
         if (currentRefreshFuture == null) {
-            log.debug("Initiated token refresh for scope/stream {} and stream {}", this.scopeName, this.streamName);
+            log.debug("Initiated token refresh for scope {} and stream {}", this.scopeName, this.streamName);
             this.tokenRefreshFuture.set(this.recreateToken());
         } else {
             log.debug("Token is already under refresh for scope {} and stream {}", this.scopeName, this.streamName);
