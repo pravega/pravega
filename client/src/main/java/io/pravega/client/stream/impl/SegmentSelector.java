@@ -134,7 +134,6 @@ public class SegmentSelector {
     private List<PendingEvent> updateSegments(StreamSegments newSteamSegments, Consumer<Segment>
             segmentSealedCallBack) {
         currentSegments = newSteamSegments;
-        tokenProvider.populateToken(newSteamSegments.getDelegationToken());
         createMissingWriters(segmentSealedCallBack);
 
         List<PendingEvent> toResend = new ArrayList<>();
@@ -160,7 +159,6 @@ public class SegmentSelector {
     private List<PendingEvent> updateSegmentsUponSealed(StreamSegmentsWithPredecessors successors, Segment sealedSegment,
                                                         Consumer<Segment> segmentSealedCallback) {
         currentSegments = currentSegments.withReplacementRange(sealedSegment, successors);
-        tokenProvider.populateToken(currentSegments.getDelegationToken());
         createMissingWriters(segmentSealedCallback);
         log.debug("Fetch unacked events for segment: {}, and adding new segments {}", sealedSegment, currentSegments);
         return writers.get(sealedSegment).getUnackedEventsOnSeal();
@@ -179,6 +177,7 @@ public class SegmentSelector {
     }
 
     private void createMissingWriters(Consumer<Segment> segmentSealedCallBack) {
+        tokenProvider.populateToken(currentSegments.getDelegationToken());
         for (Segment segment : currentSegments.getSegments()) {
             if (!writers.containsKey(segment)) {
                 log.debug("Creating writer for segment {}", segment);
