@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 @Slf4j
 public class JwtTokenProviderImplTest {
 
-    Controller dummyController = mock(Controller.class);
+    private Controller dummyController = mock(Controller.class);
 
     @Test
     public void testIsWithinThresholdForRefresh() {
@@ -257,8 +257,15 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
-    public void testPopulateTokenReturnsFalseWhenTokenIsEmpty() {
+    public void testPopulateTokenReturnsTrueWhenTokenIsEmptyAndExistingTokenIsNull() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream");
+        assertTrue(objectUnderTest.populateToken(""));
+    }
+
+    @Test
+    public void testPopulateTokenReturnsFalseWhenTokenIsEmptyAndExistingTokenIsEmpty() {
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream");
+        objectUnderTest.populateToken("");
         assertFalse(objectUnderTest.populateToken(""));
     }
 
