@@ -345,8 +345,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                 RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        this.tokenProvider.populateToken(txnSegments.getStreamSegments().getDelegationToken());
         for (Segment s : txnSegments.getStreamSegments().getSegments()) {
-            this.tokenProvider.populateToken(txnSegments.getStreamSegments().getDelegationToken());
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId, config, tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
