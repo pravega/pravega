@@ -218,6 +218,16 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
+    public void testParseExpirationTimeReturnsNullWhenTokenIsNotInteger() {
+        // Notice that the exp field value contains non-digits/alphabets
+        String jwtBody = "{\"sub\":\"subject\",\"aud\":\"segmentstore\",\"iat\":1569837384,\"exp\":\"abc\"}";
+
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
+                dummyToken(), dummyController, "some-scope", "some-stream");
+        assertNull(objectUnderTest.parseExpirationTime(jwtBody));
+    }
+
+    @Test
     public void testRetrievesNewTokenFirstTimeWhenInitialTokenIsNull() {
         // Setup mock
         Controller mockController = mock(Controller.class);
@@ -257,16 +267,22 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
-    public void testPopulateTokenReturnsTrueWhenTokenIsEmptyAndExistingTokenIsNull() {
+    public void testPopulateTokenReturnsTrueWhenInputIsEmptyAndExistingTokenIsNull() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream");
         assertTrue(objectUnderTest.populateToken(""));
     }
 
     @Test
-    public void testPopulateTokenReturnsFalseWhenTokenIsEmptyAndExistingTokenIsEmpty() {
+    public void testPopulateTokenReturnsFalseWhenInputIsEmptyAndExistingTokenIsEmpty() {
         JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream");
         objectUnderTest.populateToken("");
         assertFalse(objectUnderTest.populateToken(""));
+    }
+
+    @Test
+    public void testPopulateTokenReturnsFalseWhenInputIsNull() {
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(this.dummyController, "somescope", "somestream");
+        assertFalse(objectUnderTest.populateToken(null));
     }
 
     @Test
