@@ -119,7 +119,7 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                         .exceptionally(this::iterationErrorHandler)
                         .thenRunAsync(this::endIteration, this.executor),
                 this.executor)
-                .thenRun(this::closeProcessors);
+                      .thenRun(this::closeProcessors);
     }
 
     private boolean canRun() {
@@ -236,10 +236,10 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
                     });
                 },
                 this.executor)
-                .thenRun(() -> {
-                    logStageEvent("InputRead", result);
-                    LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
-                });
+                      .thenRun(() -> {
+                          logStageEvent("InputRead", result);
+                          LoggerHelpers.traceLeave(log, this.traceObjectId, "processReadResult", traceId);
+                      });
     }
 
     private CompletableFuture<Void> processOperation(Operation op) {
