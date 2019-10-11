@@ -223,13 +223,16 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         CompletableFuture<Void> currentRefreshFuture = tokenRefreshFuture.get();
         if (currentRefreshFuture == null) {
             log.debug("Initiated token refresh for scope {} and stream {}", this.scopeName, this.streamName);
-            this.tokenRefreshFuture.set(this.recreateToken());
+            currentRefreshFuture = this.recreateToken();
+            this.tokenRefreshFuture.compareAndSet(null, currentRefreshFuture);
         } else {
             log.debug("Token is already under refresh for scope {} and stream {}", this.scopeName, this.streamName);
         }
-        tokenRefreshFuture.get().join(); // Block until the token is refreshed
-        this.tokenRefreshFuture.compareAndSet(currentRefreshFuture, null); // Token is already refreshed, so resetting the future to null.
-
+        try {
+            currentRefreshFuture.join(); // Block until the token is refreshed
+        } finally {
+            this.tokenRefreshFuture.compareAndSet(currentRefreshFuture, null); // Token is already refreshed, so resetting the future to null.
+        }
         LoggerHelpers.traceLeave(log, "refreshToken", traceEnterId, this.scopeName, this.streamName);
         return delegationToken.get().getValue();
     }
