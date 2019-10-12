@@ -1516,12 +1516,11 @@ public final class WireCommands {
 
     @Data
     public static final class AuthTokenCheckFailed implements Reply, WireCommand {
-
-        final ErrorCode errorCode;
-
         final WireCommandType type = WireCommandType.AUTH_TOKEN_CHECK_FAILED;
         final long requestId;
         final String serverStackTrace;
+        final ErrorCode errorCode;
+
         public AuthTokenCheckFailed(long requestId, String serverStackTrace) {
             this(requestId, serverStackTrace, ErrorCode.UNSPECIFIED);
         }

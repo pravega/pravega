@@ -55,7 +55,7 @@ public class JwtTokenProviderImplTest {
     }
 
     @Test
-    public void testExpirationTimeIsNullIfExpInBodyIsNotSet() {
+    public void testExtractExpirationTimeReturnsNullIfExpInBodyIsNotSet() {
 
         // See decoded parts at https://jwt.io/.
         //
@@ -73,6 +73,15 @@ public class JwtTokenProviderImplTest {
                 token, mock(Controller.class), "somescope", "somestream");
 
         assertNull(objectUnderTest.extractExpirationTime(token));
+    }
+
+    @Test
+    public void testExtractExpirationTimeReturnsNullIfTokenIsNotInJwtFormat() {
+        JwtTokenProviderImpl objectUnderTest = new JwtTokenProviderImpl(
+                mock(Controller.class), "somescope", "somestream");
+        assertNull(objectUnderTest.extractExpirationTime("abc"));
+        assertNull(objectUnderTest.extractExpirationTime("abc.def"));
+        assertNull(objectUnderTest.extractExpirationTime("abc.def.ghi.jkl"));
     }
 
     // Refresh behavior when expiration time is not set

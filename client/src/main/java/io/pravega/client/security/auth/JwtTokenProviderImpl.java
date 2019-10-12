@@ -137,7 +137,12 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
         }
         String[] tokenParts = token.split("\\.");
 
-        // JWT is of the format abc.def.ghe. The middle part is the body.
+        //A JWT token has 3 parts: the header, the body and the signature.
+        if (tokenParts == null || tokenParts.length != 3) {
+            return null;
+        }
+
+        // The second part of the JWT token is the body, which contains the expiration time if present.
         String encodedBody = tokenParts[1];
         String decodedJsonBody = new String(Base64.getDecoder().decode(encodedBody));
 
@@ -159,7 +164,7 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
                        result = Long.parseLong(expiryTimeFieldParts[1].trim());
                    } catch (NumberFormatException e) {
                        // ignore
-                       log.warn(e.getMessage());
+                       log.warn("Encountered this exception when parsing JWT body for expiration time: {}", e.getMessage());
                    }
                }
             }
@@ -238,7 +243,6 @@ public class JwtTokenProviderImpl implements DelegationTokenProvider {
 
     private CompletableFuture<Void> recreateToken() {
         return controllerClient.getOrRefreshDelegationTokenFor(scopeName, streamName)
-                .thenApply(s -> new DelegationToken(s, extractExpirationTime(s)))
-                .thenAccept(d -> this.delegationToken.set(d));
+                .thenAccept(token -> this.delegationToken.set(new DelegationToken(token, extractExpirationTime(token))));
     }
 }
