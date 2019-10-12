@@ -349,16 +349,16 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             log.trace("Received dataAppended ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
             long previousAckLevel = dataAppended.getPreviousEventNumber();
-            try {
-                checkAckLevels(ackLevel, previousAckLevel);
-                // invoke state updation on a different thread and release the EventLoop thread.
-                dataAppendedProcessor.add(() -> CompletableFuture.runAsync(() -> {
+            // invoke state updation on a different thread and release the EventLoop thread.
+            dataAppendedProcessor.add(() -> CompletableFuture.runAsync(() -> {
+                try {
+                    checkAckLevels(ackLevel, previousAckLevel);
                     state.noteSegmentLength(dataAppended.getCurrentSegmentWriteOffset());
                     ackUpTo(ackLevel);
-                }, connectionFactory.getInternalExecutor()));
-            } catch (Exception e) {
-                failConnection(e);
-            }
+                } catch (Exception e) {
+                    failConnection(e);
+                }
+            }, connectionFactory.getInternalExecutor()));
         }
 
         @Override
