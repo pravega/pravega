@@ -272,7 +272,7 @@ class PravegaTablesStream extends PersistentStreamBase {
 
         // delete stream in scope
         return getId()
-                .thenCompose(id -> tryRemoveOlderTransactionsInEpochTables(epoch -> true)
+                .thenCompose(id -> storeHelper.expectingDataNotFound(tryRemoveOlderTransactionsInEpochTables(epoch -> true), null)
                         .thenCompose(v -> getEpochsWithTransactionsTable()
                                 .thenCompose(epochWithTxnTable -> storeHelper.expectingDataNotFound(
                                         storeHelper.deleteTable(epochWithTxnTable, false), null))

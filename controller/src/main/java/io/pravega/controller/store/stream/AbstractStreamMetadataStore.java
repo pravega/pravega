@@ -156,10 +156,11 @@ public abstract class AbstractStreamMetadataStore implements StreamMetadataStore
                                                 final OperationContext context,
                                                 final Executor executor) {
         Stream s = getStream(scope, name, context);
-        return s.getActiveSegments()
-                .thenApply(activeSegments -> activeSegments.stream().map(StreamSegmentRecord::getSegmentNumber)
+        return Futures.exceptionallyExpecting(s.getActiveEpoch(true)
+                .thenApply(epoch -> epoch.getSegments().stream().map(StreamSegmentRecord::getSegmentNumber)
                                                                     .reduce(Integer::max).get())
-                .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor))
+                .thenCompose(lastActiveSegment -> recordLastStreamSegment(scope, name, lastActiveSegment, context, executor)),
+                DATA_NOT_FOUND_PREDICATE, null)
                 .thenCompose(v -> withCompletion(s.delete(), executor))
                 .thenAccept(v -> cache.invalidate(new ImmutablePair<>(scope, name)));
     }
