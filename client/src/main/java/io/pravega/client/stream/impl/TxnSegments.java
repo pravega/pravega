@@ -15,7 +15,7 @@ import lombok.Data;
 @Data
 public class TxnSegments {
 
-    private final StreamSegments steamSegments;
+    private final StreamSegments streamSegments;
     private final UUID txnId;
     
 }
