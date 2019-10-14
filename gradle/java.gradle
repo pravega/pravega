@@ -38,8 +38,9 @@ plugins.withId('java') {
     artifacts { archives sourceJar }
 
     task generateJavadoc(type: Javadoc) {
-        source = sourceSets.main.allJava
-        classpath = sourceSets.main.runtimeClasspath
+        dependsOn delombok
+        source = delombok.outputDir
+        classpath = sourceSets.main.compileClasspath
         failOnError = false
     }
     task javadocJar(type: Jar) {
