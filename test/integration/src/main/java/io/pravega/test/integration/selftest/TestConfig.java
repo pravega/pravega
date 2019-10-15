@@ -25,6 +25,7 @@ import lombok.val;
 
 /**
  * Configuration for Self-Tester.
+ * See https://github.com/pravega/pravega/wiki/Local-Stress-Testing#arguments for detailed explanation.
  */
 public class TestConfig {
     //region Config Names

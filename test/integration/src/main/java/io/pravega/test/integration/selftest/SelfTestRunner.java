@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Main entry point for Self Tester.
+ * See https://github.com/pravega/pravega/wiki/Local-Stress-Testing for more details.
  */
 public class SelfTestRunner {
     private static final long STARTUP_TIMEOUT_MILLIS = 60 * 1000;
@@ -183,6 +184,8 @@ public class SelfTestRunner {
         System.out.println("- Shortcuts:");
         Shortcuts.forEach(s -> System.out.println(String.format("\t-%s: %s", s.key, s.property.getName())));
         System.out.println("At least one shortcut or a reference to a config file is required for the test.");
+        System.out.println();
+        System.out.println("Full user manual: https://github.com/pravega/pravega/wiki/Local-Stress-Testing.");
     }
 
     //region Shortcuts
