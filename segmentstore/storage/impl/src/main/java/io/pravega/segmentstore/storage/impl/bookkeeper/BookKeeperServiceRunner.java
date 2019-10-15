@@ -177,8 +177,7 @@ public class BookKeeperServiceRunner implements AutoCloseable {
         log.info("Formatting ZooKeeper ...");
 
         if (this.secureZK) {
-            ZKTLSUtils.setSecureZKServerProperties(this.tLSKeyStore, JKSHelper.loadPasswordFrom(this.tLSKeyStorePasswordPath),
-                    this.tlsTrustStore, JKSHelper.loadPasswordFrom(this.tLSKeyStorePasswordPath));
+            ZKTLSUtils.setSecureZKClientProperties(this.tlsTrustStore, JKSHelper.loadPasswordFrom(this.tLSKeyStorePasswordPath));
         } else {
             ZKTLSUtils.unsetSecureZKClientProperties();
         }
