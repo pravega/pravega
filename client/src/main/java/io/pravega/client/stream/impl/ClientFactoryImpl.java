@@ -24,6 +24,8 @@ import io.pravega.client.batch.impl.BatchClientFactoryImpl;
 import io.pravega.client.byteStream.impl.ByteStreamClientImpl;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.netty.impl.ConnectionFactoryImpl;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactory;
 import io.pravega.client.segment.impl.ConditionalOutputStreamFactoryImpl;
@@ -139,7 +141,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     public <T> EventStreamWriter<T> createEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
         return createEventWriter(UUID.randomUUID().toString(), streamName, s, config);
     }
-    
+
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String writerId, String streamName, Serializer<T> s,
                                                       EventWriterConfig config) {
@@ -190,7 +192,8 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                 watermarkReaders.put(stream, new WatermarkReaderImpl(stream, client, watermarkReaderThreads));
             }
         }
-        return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(), milliTime, config, watermarkReaders.build());
+        return new EventStreamReaderImpl<T>(inFactory, metaFactory, s, stateManager, new Orderer(),
+                milliTime, config, watermarkReaders.build(), controller);
     }
     
     @Override
@@ -205,10 +208,13 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
                                                                        SynchronizerConfig config) {
         EventSegmentReader in = inFactory.createEventReaderForSegment(segment, config.getReadBufferSize());
         String delegationToken = Futures.getAndHandleExceptions(controller.getOrRefreshDelegationTokenFor(segment.getScope(),
+
                                                                                                           segment.getStreamName()), RuntimeException::new);
-        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationToken, config.getEventWriterConfig());
-        SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationToken);
-        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationToken);
+        DelegationTokenProvider delegationTokenProvider = DelegationTokenProviderFactory.create(
+                delegationToken, controller, segment);
+        ConditionalOutputStream cond = condFactory.createConditionalOutputStream(segment, delegationTokenProvider, config.getEventWriterConfig());
+        SegmentMetadataClient meta = metaFactory.createSegmentMetadataClient(segment, delegationTokenProvider);
+        return new RevisionedStreamClientImpl<>(segment, in, outFactory, cond, meta, serializer, config.getEventWriterConfig(), delegationTokenProvider);
     }
 
     @Override
@@ -268,7 +274,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
         controller.close();
         connectionFactory.close();
     }
-    
+
     private int getThreadPoolSize() {
         String configuredThreads = System.getProperty("pravega.client.internal.threadpool.size", null);
         if (configuredThreads != null) {
