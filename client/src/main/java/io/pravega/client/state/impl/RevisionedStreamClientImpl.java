@@ -10,6 +10,7 @@
 package io.pravega.client.state.impl;
 
 import com.google.common.annotations.VisibleForTesting;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.ConditionalOutputStream;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
@@ -60,13 +61,13 @@ public class RevisionedStreamClientImpl<T> implements RevisionedStreamClient<T> 
 
     public RevisionedStreamClientImpl(Segment segment, EventSegmentReader in, SegmentOutputStreamFactory outFactory,
                                       ConditionalOutputStream conditional, SegmentMetadataClient meta,
-                                      Serializer<T> serializer, EventWriterConfig config, String delegationToken ) {
+                                      Serializer<T> serializer, EventWriterConfig config, DelegationTokenProvider tokenProvider ) {
         this.segment = segment;
         this.in = in;
         this.conditional = conditional;
         this.meta = meta;
         this.serializer = serializer;
-        this.out = outFactory.createOutputStreamForSegment(segment, s -> handleSegmentSealed(), config, delegationToken);
+        this.out = outFactory.createOutputStreamForSegment(segment, s -> handleSegmentSealed(), config, tokenProvider);
     }
 
 

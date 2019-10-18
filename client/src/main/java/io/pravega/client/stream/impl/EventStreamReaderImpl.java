@@ -12,6 +12,7 @@ package io.pravega.client.stream.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.EndOfSegmentException;
 import io.pravega.client.segment.impl.EventSegmentReader;
 import io.pravega.client.segment.impl.NoSuchEventException;
@@ -54,7 +55,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import static io.pravega.client.segment.impl.EndOfSegmentException.ErrorType.END_OF_SEGMENT_REACHED;
 
-
 @Slf4j
 public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
 
@@ -83,11 +83,12 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private String atCheckpoint;
     private final ReaderGroupStateManager groupState;
     private final Supplier<Long> clock;
+    private final Controller controller;
 
     EventStreamReaderImpl(SegmentInputStreamFactory inputStreamFactory,
             SegmentMetadataClientFactory metadataClientFactory, Serializer<Type> deserializer,
             ReaderGroupStateManager groupState, Orderer orderer, Supplier<Long> clock, ReaderConfig config, 
-            ImmutableMap<Stream, WatermarkReaderImpl> waterMarkReaders) {
+            ImmutableMap<Stream, WatermarkReaderImpl> waterMarkReaders, Controller controller) {
         this.deserializer = deserializer;
         this.inputStreamFactory = inputStreamFactory;
         this.metadataClientFactory = metadataClientFactory;
@@ -97,6 +98,7 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
         this.config = config;
         this.waterMarkReaders = waterMarkReaders;
         this.closed = false;
+        this.controller = controller;
     }
 
     @Override
@@ -292,10 +294,10 @@ public class EventStreamReaderImpl<Type> implements EventStreamReader<Type> {
     private void handleSegmentTruncated(EventSegmentReader segmentReader) throws TruncatedDataException {
         Segment segmentId = segmentReader.getSegmentId();
         log.info("{} encountered truncation for segment {} ", this, segmentId);
-        String delegationToken = groupState.getOrRefreshDelegationTokenFor(segmentId);
 
         @Cleanup
-        SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId, delegationToken);
+        SegmentMetadataClient metadataClient = metadataClientFactory.createSegmentMetadataClient(segmentId,
+                DelegationTokenProviderFactory.create(controller, segmentId));
         try {
             long startingOffset = metadataClient.getSegmentInfo().getStartingOffset();
             segmentReader.setOffset(startingOffset);
