@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
+import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
@@ -41,6 +42,10 @@ public class InMemoryStorageFactory implements StorageFactory, AutoCloseable {
         return new AsyncStorageWrapper(new RollingStorage(this.baseStorage), this.executor);
     }
 
+    @Override
+    public SyncStorage createSyncStorage() {
+        return this.baseStorage;
+    }
 
     @Override
     public void close() {

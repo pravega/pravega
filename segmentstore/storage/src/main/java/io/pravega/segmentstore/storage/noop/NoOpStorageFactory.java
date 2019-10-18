@@ -7,44 +7,35 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.pravega.storage.hdfs;
+package io.pravega.segmentstore.storage.noop;
 
 import com.google.common.base.Preconditions;
 import io.pravega.segmentstore.storage.AsyncStorageWrapper;
 import io.pravega.segmentstore.storage.Storage;
 import io.pravega.segmentstore.storage.StorageFactory;
-import io.pravega.segmentstore.storage.SyncStorage;
 import io.pravega.segmentstore.storage.rolling.RollingStorage;
 import java.util.concurrent.Executor;
 
 /**
- * Factory for HDFS Storage adapters.
+ * Factory for No-Op mode Storage adapters.
  */
-public class HDFSStorageFactory implements StorageFactory {
-    private final HDFSStorageConfig config;
+public class NoOpStorageFactory implements StorageFactory {
+    private final StorageExtraConfig config;
     private final Executor executor;
+    private final StorageFactory baseStorageFactory;
 
-    /**
-     * Creates a new instance of the HDFSStorageFactory class.
-     *
-     * @param config   The Configuration to use.
-     * @param executor An executor to use for background operations.
-     */
-    public HDFSStorageFactory(HDFSStorageConfig config, Executor executor) {
+    public NoOpStorageFactory(StorageExtraConfig config, Executor executor, StorageFactory baseStorageFactory) {
         Preconditions.checkNotNull(config, "config");
         Preconditions.checkNotNull(executor, "executor");
+        Preconditions.checkNotNull(baseStorageFactory, "baseStorageFactory");
         this.config = config;
         this.executor = executor;
+        this.baseStorageFactory = baseStorageFactory;
     }
 
     @Override
     public Storage createStorageAdapter() {
-        HDFSStorage s = new HDFSStorage(this.config);
+        NoOpStorage s = new NoOpStorage(this.config, this.baseStorageFactory.createSyncStorage());
         return new AsyncStorageWrapper(new RollingStorage(s), this.executor);
-    }
-
-    @Override
-    public SyncStorage createSyncStorage() {
-        return new HDFSStorage(this.config);
     }
 }

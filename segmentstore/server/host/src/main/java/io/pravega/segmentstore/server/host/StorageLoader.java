@@ -14,6 +14,9 @@ import io.pravega.segmentstore.storage.StorageFactory;
 import io.pravega.segmentstore.storage.StorageFactoryCreator;
 import java.util.ServiceLoader;
 import java.util.concurrent.ScheduledExecutorService;
+
+import io.pravega.segmentstore.storage.noop.StorageExtraConfig;
+import io.pravega.segmentstore.storage.noop.NoOpStorageFactory;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -26,10 +29,17 @@ import lombok.extern.slf4j.Slf4j;
 public class StorageLoader {
     public StorageFactory load(ConfigSetup setup, String storageImplementation, ScheduledExecutorService executor) {
         ServiceLoader<StorageFactoryCreator> loader = ServiceLoader.load(StorageFactoryCreator.class);
-        for (StorageFactoryCreator factory : loader) {
-            log.info("Loading {}, trying {}", storageImplementation, factory.getName());
-            if (factory.getName().equals(storageImplementation)) {
-                return factory.createFactory(setup, executor);
+        for (StorageFactoryCreator factoryCreator : loader) {
+            log.info("Loading {}, trying {}", storageImplementation, factoryCreator.getName());
+            if (factoryCreator.getName().equals(storageImplementation)) {
+                StorageFactory factory = factoryCreator.createFactory(setup, executor);
+                StorageExtraConfig noOpConfig = setup.getConfig(StorageExtraConfig::builder);
+                if (!noOpConfig.isStorageNoOpMode()) {
+                    return factory;
+                } else { //No-Op mode is set to true
+                    log.info("WARNING !!! {} is in NO-OP MODE: make sure this is by full intention for testing purpose!", storageImplementation);
+                    return new NoOpStorageFactory(noOpConfig, executor, factory);
+                }
             }
         }
         return null;
