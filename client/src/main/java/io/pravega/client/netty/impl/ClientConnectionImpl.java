@@ -11,7 +11,6 @@ package io.pravega.client.netty.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
@@ -23,8 +22,8 @@ import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -71,22 +70,20 @@ public class ClientConnectionImpl implements ClientConnection {
         Channel channel = nettyHandler.getChannel();
         EventLoop eventLoop = channel.eventLoop();
         ChannelPromise promise = channel.newPromise();
-        promise.addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-        AtomicReference<ChannelFuture> future = new AtomicReference<>();
+        promise.addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
         if (eventLoop.inEventLoop()) {
             channel.write(cmd, promise);
         } else {
+            CompletableFuture<Void> future = new CompletableFuture<Void>();
             eventLoop.execute(() -> {
                 if (channel.isWritable()) {
                     channel.write(cmd, promise);
                 } else {
-                    future.set(channel.writeAndFlush(cmd, promise));
+                    channel.writeAndFlush(cmd, promise);
                 }
+                future.complete(null);
             });
-        }
-        ChannelFuture f = future.get();
-        if (f != null) {
-            Futures.getAndHandleExceptions(f, ConnectionFailedException::new);
+            Futures.getAndHandleExceptions(future, ConnectionFailedException::new);
         }
     }
     
