@@ -30,8 +30,7 @@ import org.junit.Test;
 
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 import static io.pravega.test.common.AssertExtensions.assertThrows;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 
 public class WireCommandsTest {
@@ -137,8 +136,9 @@ public class WireCommandsTest {
     }
 
     @Test
-    public void testAuthTokenCheckFalied() throws IOException {
-        testCommand(new WireCommands.AuthTokenCheckFailed(l, ""));
+    public void testAuthTokenCheckFailed() throws IOException {
+        testCommand(new WireCommands.AuthTokenCheckFailed(l, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
         AtomicReference<Boolean> authTokenCheckFailedCalled = new AtomicReference<>(false);
         ReplyProcessor rp = new FailingReplyProcessor() {
             @Override
@@ -157,8 +157,15 @@ public class WireCommandsTest {
             }
         };
 
-        new WireCommands.AuthTokenCheckFailed(0, "").process(rp);
+        new WireCommands.AuthTokenCheckFailed(0, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED).process(rp);
         assertTrue("Process should call the corresponding API", authTokenCheckFailedCalled.get());
+
+        assertFalse(new WireCommands.AuthTokenCheckFailed(0, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED).isTokenExpired());
+
+        assertTrue(new WireCommands.AuthTokenCheckFailed(0, "",
+                WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED).isTokenExpired());
     }
 
     /*

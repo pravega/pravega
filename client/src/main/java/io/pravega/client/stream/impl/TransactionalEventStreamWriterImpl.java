@@ -10,6 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -176,14 +178,19 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
                 RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        for (Segment s : txnSegments.getSteamSegments().getSegments()) {
+        DelegationTokenProvider tokenProvider = null;
+        for (Segment s : txnSegments.getStreamSegments().getSegments()) {
+            if (tokenProvider == null) {
+                tokenProvider = DelegationTokenProviderFactory.create(
+                        txnSegments.getStreamSegments().getDelegationToken(), controller, s);
+            }
             SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
-                    config, txnSegments.getSteamSegments().getDelegationToken());
+                    config, tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
         pinger.startPing(txnId);
-        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getSteamSegments(), controller, stream, pinger);
+        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getStreamSegments(), controller, stream, pinger);
     }
 
     @Override
@@ -196,8 +203,13 @@ public class TransactionalEventStreamWriterImpl<Type> implements TransactionalEv
         }
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        DelegationTokenProvider tokenProvider = null;
         for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config, segments.getDelegationToken());
+            if (tokenProvider == null) {
+                tokenProvider = DelegationTokenProviderFactory.create(segments.getDelegationToken(), controller, s);
+            }
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config,
+                    tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }

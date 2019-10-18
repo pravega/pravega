@@ -11,7 +11,9 @@ package io.pravega.client.stream.impl;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.mockito.Mockito.mock;
 
+import io.pravega.client.state.Revision;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -24,6 +26,7 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
+import lombok.val;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.Test;
@@ -186,6 +189,7 @@ public class SerializationTest {
     }
     
     @Test
+    @SuppressWarnings("unchecked")
     public void testUpdateDistanceToTail() throws Exception {
         UpdateDistanceToTailSerializer serializer = new UpdateDistanceToTail.UpdateDistanceToTailSerializer();
         UpdateDistanceToTail update = new UpdateDistanceToTail(createString(), r.nextLong(), createSegmentRangeMap());
@@ -195,13 +199,20 @@ public class SerializationTest {
         UpdateDistanceToTailSerializer oldSerializer = new UpdateDistanceToTailSerializer() {
             @Override
             protected void declareVersions() {
-                version(0).revision(0,  this::write00, this::read00);
+                version(0).revision(0, this::write00, this::read00);
             }
         };
         UpdateDistanceToTail oldStyleUpdate = serializer.deserialize(oldSerializer.serialize(update));
         assertEquals(update.getReaderId(), oldStyleUpdate.getReaderId());
         assertEquals(update.getDistanceToTail(), oldStyleUpdate.getDistanceToTail());
         assertEquals(null, oldStyleUpdate.getLastReadPositions());
+
+        // Change the state to reflect the update
+        val segmentToOffsets = ImmutableMap.of(new SegmentWithRange(new Segment("scope", "stream", 0), 0.0, 1.0), 0L);
+        ReaderGroupState state = new ReaderGroupState("_RGTest", mock(Revision.class), mock(ReaderGroupConfig.class),
+                                                      segmentToOffsets, mock(Map.class));
+        oldStyleUpdate.update(state); // ensure no exceptions are thrown.
+
     }
     
     private void verify(ReaderGroupInitSerializer serializer, InitialUpdate<ReaderGroupState> value) throws IOException {
