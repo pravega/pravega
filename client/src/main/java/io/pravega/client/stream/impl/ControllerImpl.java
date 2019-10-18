@@ -951,6 +951,8 @@ public class ControllerImpl implements Controller {
                                                       .setTxnId(ModelHelper.decode(txId));
             if (timestamp != null) {
                 txnRequest.setTimestamp(timestamp);
+            } else {
+                txnRequest.setTimestamp(Long.MIN_VALUE);
             }
             client.commitTransaction(txnRequest.build(), callback);
             return callback.getFuture();
