@@ -94,7 +94,6 @@ public class FlowHandlerTest {
 
         when(ctx.channel()).thenReturn(ch);
         when(ch.eventLoop()).thenReturn(loop);
-        when(ch.writeAndFlush(any(Object.class))).thenReturn(completedFuture);
         when(ch.write(any(Object.class))).thenReturn(completedFuture);
         when(ch.newPromise()).thenReturn(promise);
 

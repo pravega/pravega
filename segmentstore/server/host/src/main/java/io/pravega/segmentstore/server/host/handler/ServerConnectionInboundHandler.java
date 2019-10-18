@@ -67,14 +67,14 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
         // Work around for https://github.com/netty/netty/issues/3246
         EventLoop eventLoop = c.eventLoop();
         if (eventLoop.inEventLoop()) {
-            eventLoop.execute(() -> writeAndFlush(c, cmd));
+            eventLoop.execute(() -> write(c, cmd));
         } else {
-            writeAndFlush(c, cmd);
+            write(c, cmd);
         }
     }
 
-    private static void writeAndFlush(Channel channel, WireCommand data) {
-        channel.writeAndFlush(data).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+    private static void write(Channel channel, WireCommand data) {
+        channel.write(data).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
     }  
     
     @Override

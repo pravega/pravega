@@ -12,12 +12,12 @@ package io.pravega.client.netty.impl;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.concurrent.ScheduledFuture;
 import io.pravega.client.stream.impl.ConnectionClosedException;
 import io.pravega.common.Exceptions;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.common.util.ReusableFutureLatch;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
@@ -308,7 +308,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         public void run() {
             try {
                 if (!recentMessage.getAndSet(false)) {
-                    Futures.getAndHandleExceptions(getChannel().writeAndFlush(new WireCommands.KeepAlive()), ConnectionFailedException::new);
+                    getChannel().write(new WireCommands.KeepAlive()).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
                 }
             } catch (Exception e) {
                 log.warn("Keep alive failed, killing connection {} due to {}", connectionName, e.getMessage());

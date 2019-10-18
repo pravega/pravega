@@ -11,7 +11,10 @@ package io.pravega.client.netty.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
+import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.pravega.common.Timer;
@@ -21,6 +24,7 @@ import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
@@ -49,7 +53,7 @@ public class ClientConnectionImpl implements ClientConnection {
     public void send(WireCommand cmd) throws ConnectionFailedException {
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
-        Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(cmd), ConnectionFailedException::new);
+        write(cmd);
     }
 
     @Override
@@ -57,12 +61,35 @@ public class ClientConnectionImpl implements ClientConnection {
         Timer timer = new Timer();
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
-        Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
+        write(append);
         nettyHandler.getMetricNotifier()
                     .updateSuccessMetric(CLIENT_APPEND_LATENCY, segmentTags(append.getSegment(), append.getWriterId().toString()),
                                          timer.getElapsedMillis());
     }
 
+    private void write(Object cmd) throws ConnectionFailedException {
+        Channel channel = nettyHandler.getChannel();
+        EventLoop eventLoop = channel.eventLoop();
+        ChannelPromise promise = channel.newPromise();
+        promise.addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+        AtomicReference<ChannelFuture> future = new AtomicReference<>();
+        if (eventLoop.inEventLoop()) {
+            channel.write(cmd, promise);
+        } else {
+            eventLoop.execute(() -> {
+                if (channel.isWritable()) {
+                    channel.write(cmd, promise);
+                } else {
+                    future.set(channel.writeAndFlush(cmd, promise));
+                }
+            });
+        }
+        ChannelFuture f = future.get();
+        if (f != null) {
+            Futures.getAndHandleExceptions(f, ConnectionFailedException::new);
+        }
+    }
+    
     @Override
     public void sendAsync(WireCommand cmd, CompletedCallback callback) {
         Channel channel = null;
@@ -72,7 +99,7 @@ public class ClientConnectionImpl implements ClientConnection {
 
             channel = nettyHandler.getChannel();
             log.debug("Write and flush message {} on channel {}", cmd, channel);
-            channel.writeAndFlush(cmd)
+            channel.write(cmd)
                    .addListener((Future<? super Void> f) -> {
                        if (f.isSuccess()) {
                            callback.complete(null);
