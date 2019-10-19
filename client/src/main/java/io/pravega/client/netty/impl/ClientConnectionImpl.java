@@ -11,13 +11,13 @@ package io.pravega.client.netty.impl;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
 import io.pravega.common.Timer;
-import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
@@ -70,20 +70,27 @@ public class ClientConnectionImpl implements ClientConnection {
         Channel channel = nettyHandler.getChannel();
         EventLoop eventLoop = channel.eventLoop();
         ChannelPromise promise = channel.newPromise();
-        promise.addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+        promise.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) {
+                if (!future.isSuccess()) {
+                    future.channel().pipeline().fireExceptionCaught(future.cause());
+                    future.channel().close();
+                }
+            }
+        });
         if (eventLoop.inEventLoop()) {
             channel.write(cmd, promise);
         } else {
             CompletableFuture<Void> future = new CompletableFuture<Void>();
             eventLoop.execute(() -> {
-                if (channel.isWritable()) {
+                try {
                     channel.write(cmd, promise);
-                } else {
-                    channel.writeAndFlush(cmd, promise);
+                } finally {
+                    future.complete(null);
                 }
-                future.complete(null);
             });
-            Futures.getAndHandleExceptions(future, ConnectionFailedException::new);
+            future.join();
         }
     }
     
