@@ -10,6 +10,8 @@
 package io.pravega.client.stream.impl;
 
 import com.google.common.base.Preconditions;
+import io.pravega.client.security.auth.DelegationTokenProvider;
+import io.pravega.client.security.auth.DelegationTokenProviderFactory;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -83,6 +85,7 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
     private final ConcurrentLinkedQueue<Segment> sealedSegmentQueue = new ConcurrentLinkedQueue<>();
     private final ExecutorService retransmitPool;
     private final Pinger pinger;
+    private final DelegationTokenProvider tokenProvider;
     
     EventStreamWriterImpl(Stream stream, String writerId, Controller controller, SegmentOutputStreamFactory outputStreamFactory,
                           Serializer<Type> serializer, EventWriterConfig config, ExecutorService retransmitPool,
@@ -92,7 +95,8 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         this.controller = Preconditions.checkNotNull(controller);
         this.segmentSealedCallBack = this::handleLogSealed;
         this.outputStreamFactory = Preconditions.checkNotNull(outputStreamFactory);
-        this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config);
+        this.tokenProvider = DelegationTokenProviderFactory.create(this.controller, this.stream.getScope(), this.stream.getStreamName());
+        this.selector = new SegmentSelector(stream, controller, outputStreamFactory, config, tokenProvider);
         this.serializer = Preconditions.checkNotNull(serializer);
         this.config = config;
         this.retransmitPool = Preconditions.checkNotNull(retransmitPool);
@@ -341,14 +345,14 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
                 RuntimeException::new);
         UUID txnId = txnSegments.getTxnId();
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
-        for (Segment s : txnSegments.getSteamSegments().getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId,
-                    config, txnSegments.getSteamSegments().getDelegationToken());
+        this.tokenProvider.populateToken(txnSegments.getStreamSegments().getDelegationToken());
+        for (Segment s : txnSegments.getStreamSegments().getSegments()) {
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txnId, config, tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txnId, out, serializer);
             transactions.put(s, impl);
         }
         pinger.startPing(txnId);
-        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getSteamSegments(), controller, stream, pinger);
+        return new TransactionImpl<Type>(writerId, txnId, transactions, txnSegments.getStreamSegments(), controller, stream, pinger);
     }
     
     /**
@@ -366,8 +370,9 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         }
         
         Map<Segment, SegmentTransaction<Type>> transactions = new HashMap<>();
+        this.tokenProvider.populateToken(segments.getDelegationToken());
         for (Segment s : segments.getSegments()) {
-            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config, segments.getDelegationToken());
+            SegmentOutputStream out = outputStreamFactory.createOutputStreamForTransaction(s, txId, config, tokenProvider);
             SegmentTransactionImpl<Type> impl = new SegmentTransactionImpl<>(txId, out, serializer);
             transactions.put(s, impl);
         }
@@ -441,5 +446,4 @@ public class EventStreamWriterImpl<Type> implements EventStreamWriter<Type>, Tra
         WriterPosition position = new WriterPosition(offsets);
         controller.noteTimestampFromWriter(writerId, stream, timestamp, position);
     }
-
 }
