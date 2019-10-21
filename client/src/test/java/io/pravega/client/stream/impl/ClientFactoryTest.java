@@ -13,7 +13,6 @@ package io.pravega.client.stream.impl;
 import io.pravega.client.ClientFactory;
 import io.pravega.client.netty.impl.ConnectionFactory;
 import io.pravega.client.stream.EventWriterConfig;
-import io.pravega.client.stream.TransactionalEventStreamWriter;
 import lombok.val;
 import org.junit.Test;
 import org.junit.runner.RunWith;
