@@ -229,8 +229,7 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                         && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
                 if (canRemove) {
                     toRemove.add(entry);
-                } else {
-		}
+                }
             });
 
             // Remove from the index and from the cache.

@@ -177,14 +177,12 @@ class ThrottlerCalculator {
 
         @Override
         boolean isThrottlingRequired() {
-            //log.info("isThrottlingRequired() getCacheUtilization={}, targetCacheUtilization={}", this.getCacheUtilization.get(), this.targetCacheUtilization);
             return this.getCacheUtilization.get() > this.targetCacheUtilization;
         }
 
         @Override
         int getDelayMillis() {
             // We only throttle if we exceed the cache capacity. We increase the throttling amount in a linear fashion.
-            //log.info("getDelayMillis() {}", (int) (getDelayMultiplier(this.getCacheUtilization.get()) * this.baseDelay)); 
             return (int) (getDelayMultiplier(this.getCacheUtilization.get()) * this.baseDelay);
         }
 
