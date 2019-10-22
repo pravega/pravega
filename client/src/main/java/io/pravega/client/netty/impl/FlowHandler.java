@@ -137,7 +137,13 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
      * @return Batch size Tracker object.
      */
     public AppendBatchSizeTracker getAppendBatchSizeTracker(final long requestID) {
-        return flowIDBatchSizeTrackerMap.get(Flow.toFlowID(requestID));
+        int flowID;
+        if (disableFlow.get()) {
+            flowID = FLOW_DISABLED;
+        } else {
+            flowID = Flow.toFlowID(requestID);
+        }
+        return flowIDBatchSizeTrackerMap.get(flowID);
     }
 
     /**
