@@ -17,12 +17,14 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
+import io.pravega.common.Exceptions;
 import io.pravega.common.Timer;
 import io.pravega.shared.protocol.netty.Append;
+import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.WireCommand;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +43,7 @@ public class ClientConnectionImpl implements ClientConnection {
     @Getter
     private final FlowHandler nettyHandler;
     private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final Semaphore throttle = new Semaphore(AppendBatchSizeTracker.MAX_BATCH_SIZE);
 
     public ClientConnectionImpl(String connectionName, int flowId, FlowHandler nettyHandler) {
         this.connectionName = connectionName;
@@ -66,7 +69,28 @@ public class ClientConnectionImpl implements ClientConnection {
                                          timer.getElapsedMillis());
     }
 
-    private void write(Object cmd) throws ConnectionFailedException {
+    private void write(Append cmd) throws ConnectionFailedException {
+        Channel channel = nettyHandler.getChannel();
+        EventLoop eventLoop = channel.eventLoop();
+        ChannelPromise promise = channel.newPromise();
+        promise.addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) {
+                throttle.release(cmd.getDataLength());
+                if (!future.isSuccess()) {
+                    future.channel().pipeline().fireExceptionCaught(future.cause());
+                    future.channel().close();
+                }
+            }
+        });
+        // Work around for https://github.com/netty/netty/issues/3246
+        eventLoop.execute(() -> {
+            channel.write(cmd, promise);
+        });
+        Exceptions.handleInterrupted(() -> throttle.acquire(cmd.getDataLength()));
+    }
+    
+    private void write(WireCommand cmd) throws ConnectionFailedException {
         Channel channel = nettyHandler.getChannel();
         EventLoop eventLoop = channel.eventLoop();
         ChannelPromise promise = channel.newPromise();
@@ -79,18 +103,10 @@ public class ClientConnectionImpl implements ClientConnection {
                 }
             }
         });
-        CompletableFuture<Void> future = new CompletableFuture<>();
         // Work around for https://github.com/netty/netty/issues/3246
         eventLoop.execute(() -> {
-            try {
-                channel.write(cmd, promise);
-            } finally {
-                future.complete(null);
-            }
+            channel.write(cmd, promise);
         });
-        if (!eventLoop.inEventLoop()) {
-            future.join();
-        }
     }
     
     @Override
