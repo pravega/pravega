@@ -217,7 +217,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         AtomicLong sizeRemoved = new AtomicLong();
         ArrayList<ReadIndexEntry> toRemove = new ArrayList<>();
         synchronized (this.lock) {
-            log.info(">>> lock");
             this.indexEntries.forEach(entry -> {
                 // We can only evict if both these conditions are met:
                 // 1. The entry is a Cache Entry (Redirect entries cannot be removed).
@@ -229,11 +228,9 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
                         && lastOffset < this.metadata.getStorageLength()
                         && (entry.getGeneration() < oldestGeneration || lastOffset < this.metadata.getStartOffset());
                 if (canRemove) {
-                    log.info(">>> can Remove {} {} {} {}", entry.getGeneration(), oldestGeneration, lastOffset, this.metadata.getStartOffset());
                     toRemove.add(entry);
                 } else {
-                    log.info(">>> can't Remove {} {} {} {}", entry.getGeneration(), oldestGeneration, lastOffset, this.metadata.getStartOffset());  
-		}	
+		}
             });
 
             // Remove from the index and from the cache.
@@ -664,7 +661,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
         ArrayList<InputStream> contents = new ArrayList<>();
         contents.add(entryContents.getData());
         int readLength = entryContents.getLength();
-        log.info("Rocksdb cache get, readLength={}, length={}", readLength, length);
         while (readLength < length) {
             // No need to search the index; from now on, we know each offset we are looking for is at the beginning of a cache entry.
             // Also, no need to acquire the lock there. The cache itself is thread safe, and if the entry we are about to fetch
@@ -676,7 +672,6 @@ class StreamSegmentReadIndex implements CacheManager.Client, AutoCloseable {
             }
 
             int entryReadLength = Math.min(entryData.length, length - readLength);
-            log.info("Rocksdb cache get, entryReadLength={}", entryReadLength);
             assert entryReadLength > 0 : "about to have fetched zero bytes from a cache entry";
             contents.add(new ByteArrayInputStream(entryData, 0, entryReadLength));
             readLength += entryReadLength;

@@ -107,7 +107,6 @@ class StorageWriter extends AbstractThreadPoolService implements Writer {
         // 3. Load data into SegmentProcessors.
         // 4. Flush eligible SegmentProcessors.
         // 5. Acknowledge (truncate).
-        log.info(">>>> {}");
         return Futures.loop(
                 this::canRun,
                 () -> Futures
