@@ -314,7 +314,7 @@ public class FlowHandler extends ChannelInboundHandlerAdapter implements AutoClo
         public void run() {
             try {
                 if (!recentMessage.getAndSet(false)) {
-                    getChannel().write(new WireCommands.KeepAlive()).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+                    getChannel().write(new WireCommands.KeepAlive()).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
                 }
             } catch (Exception e) {
                 log.warn("Keep alive failed, killing connection {} due to {}", connectionName, e.getMessage());

@@ -70,7 +70,7 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
     }
 
     private static void write(Channel channel, WireCommand data) {
-        channel.write(data).addListener(ChannelFutureListener.CLOSE_ON_FAILURE);
+        channel.write(data).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
     }  
     
     @Override
