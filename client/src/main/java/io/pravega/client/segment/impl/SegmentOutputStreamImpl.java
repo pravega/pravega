@@ -463,14 +463,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 return;
             }
             long eventNumber = state.addToInflight(event);
-            try {
-                Append append = new Append(segmentName, writerId, eventNumber, 1, event.getData(), null, requestId);
-                log.trace("Sending append request: {}", append);
-                connection.send(append);
-            } catch (ConnectionFailedException e) {
+            Append append = new Append(segmentName, writerId, eventNumber, 1, event.getData(), null, requestId);
+            log.trace("Sending append request: {}", append);
+            connection.sendAsync(append, e -> {
                 log.warn("Connection " + writerId + " failed due to: ", e);
                 reconnect(); // As the message is inflight, this will perform the retransmission.
-            }
+            });
         }
     }
 
