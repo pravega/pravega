@@ -66,11 +66,7 @@ public class ServerConnectionInboundHandler extends ChannelInboundHandlerAdapter
         Channel c = getChannel();
         // Work around for https://github.com/netty/netty/issues/3246
         EventLoop eventLoop = c.eventLoop();
-        if (eventLoop.inEventLoop()) {
-            eventLoop.execute(() -> write(c, cmd));
-        } else {
-            write(c, cmd);
-        }
+        eventLoop.execute(() -> write(c, cmd));
     }
 
     private static void write(Channel channel, WireCommand data) {

@@ -79,17 +79,16 @@ public class ClientConnectionImpl implements ClientConnection {
                 }
             }
         });
-        if (eventLoop.inEventLoop()) {
-            channel.write(cmd, promise);
-        } else {
-            CompletableFuture<Void> future = new CompletableFuture<Void>();
-            eventLoop.execute(() -> {
-                try {
-                    channel.write(cmd, promise);
-                } finally {
-                    future.complete(null);
-                }
-            });
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        // Work around for https://github.com/netty/netty/issues/3246
+        eventLoop.execute(() -> {
+            try {
+                channel.write(cmd, promise);
+            } finally {
+                future.complete(null);
+            }
+        });
+        if (!eventLoop.inEventLoop()) {
             future.join();
         }
     }
@@ -103,7 +102,7 @@ public class ClientConnectionImpl implements ClientConnection {
 
             channel = nettyHandler.getChannel();
             log.debug("Write and flush message {} on channel {}", cmd, channel);
-            channel.write(cmd)
+            channel.writeAndFlush(cmd)
                    .addListener((Future<? super Void> f) -> {
                        if (f.isSuccess()) {
                            callback.complete(null);

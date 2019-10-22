@@ -10,6 +10,7 @@
 package io.pravega.shared.protocol.netty;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.channel.Channel;
@@ -17,6 +18,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.pravega.shared.metrics.MetricNotifier;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlock;
 import io.pravega.shared.protocol.netty.WireCommands.AppendBlockEnd;
+import io.pravega.shared.protocol.netty.WireCommands.Hello;
 import io.pravega.shared.protocol.netty.WireCommands.Padding;
 import io.pravega.shared.protocol.netty.WireCommands.PartialEvent;
 import io.pravega.shared.protocol.netty.WireCommands.SetupAppend;
@@ -248,6 +250,10 @@ public class CommandEncoder extends FlushingMessageToByteEncoder<Object> {
                 flushAll(out);
             }
             flushRequired();
+        } else if (msg instanceof Hello) {
+            Preconditions.checkState(isChannelFree());
+            Preconditions.checkState(pendingWrites.isEmpty());
+            writeMessage((WireCommand) msg, out);
         } else if (msg instanceof WireCommand) {
             breakCurrentAppend(out);
             flushAll(out);
