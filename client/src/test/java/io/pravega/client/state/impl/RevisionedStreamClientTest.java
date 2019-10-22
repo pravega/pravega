@@ -10,6 +10,7 @@
 package io.pravega.client.state.impl;
 
 import io.pravega.client.SynchronizerClientFactory;
+import io.pravega.client.security.auth.DelegationTokenProvider;
 import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.segment.impl.SegmentOutputStream;
 import io.pravega.client.segment.impl.SegmentOutputStreamFactory;
@@ -280,7 +281,7 @@ public class RevisionedStreamClientTest {
         // Setup mock
         SegmentOutputStreamFactory outFactory = mock(SegmentOutputStreamFactory.class);
         SegmentOutputStream out = mock(SegmentOutputStream.class);
-        when(outFactory.createOutputStreamForSegment(eq(new Segment(scope, stream, 0)), any(), any(), eq("")))
+        when(outFactory.createOutputStreamForSegment(eq(new Segment(scope, stream, 0)), any(), any(), any(DelegationTokenProvider.class)))
                 .thenReturn(out);
         @Cleanup
         SynchronizerClientFactory clientFactory = new ClientFactoryImpl(scope, controller, connectionFactory,
