@@ -165,7 +165,7 @@ class OutOfProcessAdapter extends ExternalAdapter {
                         pathOfConfigItem(SecurityConfigDefaults.TLS_BK_KEYSTORE_PASSWORD_FILE_NAME))
                 .sysProp(BookKeeperServiceRunner.PROPERTY_BOOKIE_COUNT, bookieCount)
                 .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_PORT, this.testConfig.getZkPort())
-                .sysProp(BookKeeperServiceRunner.PROPERTY_LEDGERS_PATH, TestConfig.BK_LEDGER_PATH)
+                .sysProp(BookKeeperServiceRunner.PROPERTY_ZK_LEDGERS_PATH, TestConfig.BK_ZK_LEDGER_PATH)
                 .stdOut(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentOutLogPath("bk", 0))))
                 .stdErr(ProcessBuilder.Redirect.to(new File(this.testConfig.getComponentErrLogPath("bk", 0))))
                 .start());

@@ -31,7 +31,7 @@ public class TestConfig {
     //region Config Names
 
     public static final String DEFAULT_CONFIG_FILE_NAME = "selftest.config.properties";
-    public static final String BK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
+    public static final String BK_ZK_LEDGER_PATH = "/pravega/selftest/bookkeeper/ledgers";
     public static final String LOCALHOST = InetAddress.getLoopbackAddress().getHostName();
     static final Property<Integer> OPERATION_COUNT = Property.named("operationCount", 100 * 1000);
     static final Property<Integer> CONTAINER_COUNT = Property.named("containerCount", 1);
@@ -59,6 +59,7 @@ public class TestConfig {
     static final Property<String> CONTROLLER_HOST = Property.named("controllerHost", LOCALHOST);
     static final Property<Integer> CONTROLLER_BASE_PORT = Property.named("controllerPort", 9200);
     static final Property<Boolean> PAUSE_BEFORE_EXIT = Property.named("pauseBeforeExit", false);
+    static final Property<String> BOOKIE_LEDGERS_DIR = Property.named("bkLedgersDir", "");
     private static final Property<Integer> ZK_PORT = Property.named("zkPort", 9000);
     private static final Property<Integer> BK_BASE_PORT = Property.named("bkBasePort", 9100);
     private static final Property<Integer> SEGMENT_STORE_BASE_PORT = Property.named("segmentStorePort", 9300);
@@ -131,6 +132,8 @@ public class TestConfig {
     @Getter
     private final boolean enableSecurity;
     @Getter
+    private final String bookieLedgersDir;
+    @Getter
     private final String testId = Long.toHexString(System.currentTimeMillis());
 
     //endregion
@@ -189,6 +192,7 @@ public class TestConfig {
         this.metricsEnabled = properties.getBoolean(METRICS_ENABLED);
         this.pauseBeforeExit = properties.getBoolean(PAUSE_BEFORE_EXIT);
         this.enableSecurity = properties.getBoolean(ENABLE_SECURITY);
+        this.bookieLedgersDir = properties.get(BOOKIE_LEDGERS_DIR);
         checkOverlappingPorts();
     }
 

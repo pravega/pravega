@@ -147,7 +147,7 @@ public class SelfTestRunner {
                 .include(BookKeeperConfig.builder()
                                          .with(BookKeeperConfig.BK_LEDGER_MAX_SIZE, Integer.MAX_VALUE)
                                          .with(BookKeeperConfig.ZK_METADATA_PATH, "/pravega/selftest/segmentstore/containers")
-                                         .with(BookKeeperConfig.BK_LEDGER_PATH, TestConfig.BK_LEDGER_PATH));
+                        .with(BookKeeperConfig.BK_LEDGER_PATH, TestConfig.BK_ZK_LEDGER_PATH));
     }
 
     private static void setupLogging(TestConfig testConfig) {
@@ -208,6 +208,7 @@ public class SelfTestRunner {
                     new Shortcut("cc", TestConfig.CONTROLLER_COUNT),
                     new Shortcut("ssc", TestConfig.SEGMENT_STORE_COUNT),
                     new Shortcut("bkc", TestConfig.BOOKIE_COUNT),
+                    new Shortcut("bkledgerdir", TestConfig.BOOKIE_LEDGERS_DIR),
                     new Shortcut("controller", TestConfig.CONTROLLER_HOST),
                     new Shortcut("controllerport", TestConfig.CONTROLLER_BASE_PORT),
                     new Shortcut("metrics", TestConfig.METRICS_ENABLED),
