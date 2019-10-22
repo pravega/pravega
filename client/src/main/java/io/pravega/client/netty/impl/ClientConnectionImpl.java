@@ -14,6 +14,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelPromise;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.PromiseCombiner;
+import io.pravega.common.Timer;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
@@ -22,6 +23,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+
+import static io.pravega.shared.metrics.ClientMetricKeys.CLIENT_APPEND_LATENCY;
+import static io.pravega.shared.segment.StreamSegmentNameUtils.segmentTags;
 
 @Slf4j
 public class ClientConnectionImpl implements ClientConnection {
@@ -50,9 +54,13 @@ public class ClientConnectionImpl implements ClientConnection {
 
     @Override
     public void send(Append append) throws ConnectionFailedException {
+        Timer timer = new Timer();
         checkClientConnectionClosed();
         nettyHandler.setRecentMessage();
         Futures.getAndHandleExceptions(nettyHandler.getChannel().writeAndFlush(append), ConnectionFailedException::new);
+        nettyHandler.getMetricNotifier()
+                    .updateSuccessMetric(CLIENT_APPEND_LATENCY, segmentTags(append.getSegment(), append.getWriterId().toString()),
+                                         timer.getElapsedMillis());
     }
 
     @Override
@@ -63,6 +71,7 @@ public class ClientConnectionImpl implements ClientConnection {
             nettyHandler.setRecentMessage();
 
             channel = nettyHandler.getChannel();
+            log.debug("Write and flush message {} on channel {}", cmd, channel);
             channel.writeAndFlush(cmd)
                    .addListener((Future<? super Void> f) -> {
                        if (f.isSuccess()) {
@@ -72,7 +81,7 @@ public class ClientConnectionImpl implements ClientConnection {
                        }
                    });
         } catch (ConnectionFailedException cfe) {
-            log.debug("ConnectionFaileException observed when attempting to write WireCommand {} ", cmd);
+            log.debug("ConnectionFailedException observed when attempting to write WireCommand {} ", cmd);
             callback.complete(cfe);
         } catch (Exception e) {
             log.warn("Exception while attempting to write WireCommand {} on netty channel {}", cmd, channel);

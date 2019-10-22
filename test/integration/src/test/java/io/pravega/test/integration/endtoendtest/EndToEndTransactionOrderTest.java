@@ -102,7 +102,6 @@ public class EndToEndTransactionOrderTest {
 
         controllerWrapper = new ControllerWrapper(zkTestServer.getConnectString(), port);
         controller = controllerWrapper.getController();
-        controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
 
         connectionFactory = new ConnectionFactoryImpl(ClientConfig.builder().build());
 
@@ -113,12 +112,14 @@ public class EndToEndTransactionOrderTest {
         StreamSegmentStore store = serviceBuilder.createStreamSegmentService();
         TableStore tableStore = serviceBuilder.createTableStoreService();
 
+        controllerWrapper.getControllerService().createScope(NameUtils.INTERNAL_SCOPE_NAME).get();
+
         autoScaleMonitor = new AutoScaleMonitor(store,
                 internalCF,
                 AutoScalerConfig.builder().with(AutoScalerConfig.MUTE_IN_SECONDS, 0)
                                 .with(AutoScalerConfig.COOLDOWN_IN_SECONDS, 0).build());
 
-        server = new PravegaConnectionListener(false, "localhost", 12345, store, tableStore,
+        server = new PravegaConnectionListener(false, false, "localhost", 12345, store, tableStore,
                 autoScaleMonitor.getStatsRecorder(), autoScaleMonitor.getTableSegmentStatsRecorder(), null, null, null, true);
         server.startListening();
 
@@ -224,7 +225,7 @@ public class EndToEndTransactionOrderTest {
         EventWriterConfig writerConfig = EventWriterConfig.builder()
                                                           .transactionTimeoutTime(30000)
                                                           .build();
-        TransactionalEventStreamWriter<Integer> test = clientFactory.createTransactionalEventWriter("test", new IntegerSerializer(), writerConfig);
+        TransactionalEventStreamWriter<Integer> test = clientFactory.createTransactionalEventWriter(writerId, "test", new IntegerSerializer(), writerConfig);
         List<UUID> list = new LinkedList<>();
         writersList.put(writerId, list);
 

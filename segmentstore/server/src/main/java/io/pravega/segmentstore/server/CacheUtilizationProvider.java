@@ -23,4 +23,53 @@ public interface CacheUtilizationProvider {
      * @return The cache utilization.
      */
     double getCacheUtilization();
+
+    /**
+     * Gets a value representing the target utilization of the cache, as a ratio of cache used to cache max size.
+     * The cache should be kept at or below this level. Any utilization above this limit should cause throttling and/or
+     * cache eviction to occur.
+     *
+     * See {@link #getCacheUtilization()} for more details.
+     *
+     * @return The maximum cache utilization.
+     */
+    double getCacheTargetUtilization();
+
+    /**
+     * Gets a value representing the maximum allowed utilization of the cache, as a ratio of cache used to cache max size.
+     * Any utilization above this limit should cause both full throttling and cache eviction to occur.
+     *
+     * See {@link #getCacheUtilization()} for more details.
+     *
+     * @return The maximum cache utilization.
+     */
+    double getCacheMaxUtilization();
+
+    /**
+     * Registers the given {@link CleanupListener}, which will be notified of all subsequent Cache Cleanup events that
+     * result in at least one entry being evicted from the cache.
+     *
+     * @param listener The {@link CleanupListener} to register. This will be auto-unregistered on the first Cache Cleanup
+     *                 run that detects {@link CleanupListener#isClosed()} to be true.
+     */
+    void registerCleanupListener(CleanupListener listener);
+
+    /**
+     * Defines a listener that will be notified by the {@link CacheManager} after every normally scheduled Cache Cleanup
+     * event that resulted in at least one entry being evicted from the cache.
+     */
+    interface CleanupListener {
+        /**
+         * Notifies this {@link CleanupListener} that a normally scheduled Cache Cleanup event that resulted in at least
+         * one entry being evicted from the cache has just finished.
+         */
+        void cacheCleanupComplete();
+
+        /**
+         * Gets a value indicating whether this {@link CleanupListener} is closed and should be unregistered.
+         *
+         * @return True if need to be unregistered (no further notifications will be sent), false otherwise.
+         */
+        boolean isClosed();
+    }
 }

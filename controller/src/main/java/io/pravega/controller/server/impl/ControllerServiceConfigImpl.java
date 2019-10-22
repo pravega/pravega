@@ -38,6 +38,8 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
     private final boolean controllerClusterListenerEnabled;
     private final TimeoutServiceConfig timeoutServiceConfig;
 
+    private final String tlsEnabledForSegmentStore;
+
     private final Optional<ControllerEventProcessorConfig> eventProcessorConfig;
 
     private final Optional<GRPCServerConfig> gRPCServerConfig;
@@ -49,6 +51,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
                                 final StoreClientConfig storeClientConfig,
                                 final HostMonitorConfig hostMonitorConfig,
                                 final boolean controllerClusterListenerEnabled,
+                                final String tlsEnabledForSegmentStore,
                                 final TimeoutServiceConfig timeoutServiceConfig,
                                 final Optional<ControllerEventProcessorConfig> eventProcessorConfig,
                                 final Optional<GRPCServerConfig> grpcServerConfig,
@@ -78,6 +81,7 @@ public class ControllerServiceConfigImpl implements ControllerServiceConfig {
         this.storeClientConfig = storeClientConfig;
         this.hostMonitorConfig = hostMonitorConfig;
         this.controllerClusterListenerEnabled = controllerClusterListenerEnabled;
+        this.tlsEnabledForSegmentStore = tlsEnabledForSegmentStore;
         this.timeoutServiceConfig = timeoutServiceConfig;
         this.eventProcessorConfig = eventProcessorConfig;
         this.gRPCServerConfig = grpcServerConfig;

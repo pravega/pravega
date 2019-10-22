@@ -19,11 +19,12 @@ import io.netty.channel.ChannelPromise;
 import io.pravega.common.ObjectClosedException;
 import io.pravega.common.concurrent.Futures;
 import io.pravega.shared.protocol.netty.Append;
-import io.pravega.shared.protocol.netty.AppendBatchSizeTracker;
 import io.pravega.shared.protocol.netty.ConnectionFailedException;
 import io.pravega.shared.protocol.netty.Reply;
 import io.pravega.shared.protocol.netty.ReplyProcessor;
+import io.pravega.shared.protocol.netty.WireCommand;
 import io.pravega.shared.protocol.netty.WireCommands;
+import io.pravega.test.common.AssertExtensions;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.UUID;
@@ -66,8 +67,6 @@ public class FlowHandlerTest {
     private FlowHandler flowHandler;
     @Mock
     private ReplyProcessor processor;
-    @Mock
-    private AppendBatchSizeTracker tracker;
     @Mock
     private Append appendCmd;
     @Mock
@@ -221,6 +220,10 @@ public class FlowHandlerTest {
         WireCommands.GetSegmentAttribute cmd = new WireCommands.GetSegmentAttribute(flow.asLong(), "seg", UUID.randomUUID(), "");
         clientConnection.sendAsync(cmd, Assert::assertNotNull);
         clientConnection.sendAsync(Collections.singletonList(appendCmd), Assert::assertNotNull);
+        
+        CompletableFuture<Void> result = new CompletableFuture<>();
+        flowHandler.completeWhenRegistered(result);
+        assertEquals(true, result.isCompletedExceptionally());
     }
 
     @Test
@@ -248,7 +251,7 @@ public class FlowHandlerTest {
     public void testChannelReadDataAppended() throws Exception {
         @Cleanup
         ClientConnection clientConnection = flowHandler.createFlow(flow, processor);
-        WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1);
+        WireCommands.DataAppended dataAppendedCmd = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1, 0);
         InOrder order = inOrder(processor);
         flowHandler.channelRegistered(ctx);
         flowHandler.channelRead(ctx, dataAppendedCmd);
@@ -281,8 +284,8 @@ public class FlowHandlerTest {
         doAnswer((Answer<Void>) invocation -> {
             throw new RuntimeException("ReplyProcessorError");
         }).when(processor).process(any(Reply.class));
-
-        WireCommands.DataAppended msg = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1);
+ 
+        WireCommands.DataAppended msg = new WireCommands.DataAppended(flow.asLong(), UUID.randomUUID(), 2, 1, 0);
         flowHandler.channelRead(ctx, msg);
         verify(processor).process(msg);
         verify(processor).processingFailure(any(RuntimeException.class));
@@ -320,5 +323,26 @@ public class FlowHandlerTest {
         flowHandler.channelUnregistered(ctx);
         verify(processor).connectionDropped();
         verify(errorProcessor).connectionDropped();
+    }
+
+    @Test
+    public void keepAliveFailureTest() throws Exception {
+        ReplyProcessor replyProcessor = mock(ReplyProcessor.class);
+        @Cleanup
+        ClientConnection connection1 = flowHandler.createFlow(flow, processor);
+        @Cleanup
+        ClientConnection connection2 = flowHandler.createFlow(new Flow(11, 0), replyProcessor);
+        flowHandler.channelRegistered(ctx);
+
+        // simulate a KeepAlive connection failure.
+        flowHandler.close();
+
+        // ensure all the reply processors are informed immediately of the channel being closed due to KeepAlive Failure.
+        verify(processor).processingFailure(any(ConnectionFailedException.class));
+        verify(replyProcessor).processingFailure(any(ConnectionFailedException.class));
+
+        // verify any attempt to send msg over the connection will throw a ConnectionFailedException.
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection1.send(mock(WireCommand.class))  );
+        AssertExtensions.assertThrows(ConnectionFailedException.class, () -> connection2.send(mock(WireCommand.class))  );
     }
 }

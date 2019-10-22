@@ -10,7 +10,7 @@
 package io.pravega.controller.server.eventProcessor;
 
 import io.pravega.controller.mocks.SegmentHelperMock;
-import io.pravega.controller.server.rpc.auth.AuthHelper;
+import io.pravega.controller.server.rpc.auth.GrpcAuthHelper;
 import io.pravega.controller.store.stream.StreamMetadataStore;
 import io.pravega.controller.store.stream.StreamStoreFactory;
 
@@ -21,6 +21,6 @@ public class ControllerEventProcessorPravegaTablesStreamTest extends ControllerE
     @Override
     StreamMetadataStore createStore() {
         return StreamStoreFactory.createPravegaTablesStore(
-                SegmentHelperMock.getSegmentHelperMockForTables(executor), AuthHelper.getDisabledAuthHelper(), zkClient, executor);
+                SegmentHelperMock.getSegmentHelperMockForTables(executor), GrpcAuthHelper.getDisabledAuthHelper(), zkClient, executor);
     }
 }

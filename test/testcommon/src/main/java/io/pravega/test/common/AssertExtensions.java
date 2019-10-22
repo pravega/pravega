@@ -55,13 +55,15 @@ public class AssertExtensions {
      * @param timeoutMillis         The timeout in milliseconds after which an assertion error should be thrown.
      * @throws Exception            If the is an assertion error, and exception from `eval`, or the thread is interrupted.
      */
-    public static <T> void assertEventuallyEquals(T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
-        long remainingMillis = timeoutMillis;
-        while (remainingMillis > 0) {
+    private static <T> void assertEventuallyEquals(T expected, Callable<T> eval, int checkIntervalMillis, long timeoutMillis) throws Exception {
+        long currentTime = System.currentTimeMillis();
+        long endTime = currentTime + timeoutMillis;
+        while (currentTime < endTime) {
             if ((expected == null && eval.call() == null) || (expected != null && expected.equals(eval.call()))) {
                 return;
             }
             Thread.sleep(checkIntervalMillis);
+            currentTime = System.currentTimeMillis();
         }
         assertEquals(expected, eval.call());
     }

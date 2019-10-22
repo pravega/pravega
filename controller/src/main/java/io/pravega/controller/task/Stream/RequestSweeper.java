@@ -26,19 +26,19 @@ import static io.pravega.controller.util.RetryHelper.UNCONDITIONAL_PREDICATE;
 import static io.pravega.controller.util.RetryHelper.withRetries;
 import static io.pravega.controller.util.RetryHelper.withRetriesAsync;
 
-@Slf4j
 /**
  * This method implements a failover sweeper for requests posted via {@link StreamMetadataTasks} into request stream.
- * Stream metadata task indexes the request in hostRequestIndex before initiating the work in metadata store. 
- * If controller fails before the event is posted, the sweeper will be invoked upon failover. 
- * The sweeper fetches indexed requests and posts corresponding event into request stream. 
+ * Stream metadata task indexes the request in hostRequestIndex before initiating the work in metadata store.
+ * If controller fails before the event is posted, the sweeper will be invoked upon failover.
+ * The sweeper fetches indexed requests and posts corresponding event into request stream.
  *
- * This class wait before becoming ready until {@link StreamMetadataTasks} has its event writer set up.  
+ * This class wait before becoming ready until {@link StreamMetadataTasks} has its event writer set up.
  */
+@Slf4j
 public class RequestSweeper implements FailoverSweeper {
 
     public static final int LIMIT = 100;
-    
+
     private final StreamMetadataStore metadataStore;
     private final ScheduledExecutorService executor;
     private final StreamMetadataTasks streamMetadataTasks;
@@ -46,7 +46,7 @@ public class RequestSweeper implements FailoverSweeper {
 
     /**
      * Constructor for RequestSweeper object.
-     * 
+     *
      * @param metadataStore stream metadata store
      * @param executor executor
      * @param streamMetadataTasks stream metadata tasks
