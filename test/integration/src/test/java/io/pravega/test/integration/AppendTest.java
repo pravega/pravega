@@ -301,11 +301,11 @@ public class AppendTest {
         @Cleanup
         EventStreamWriter<String> producer = clientFactory.createEventWriter(streamName, new JavaSerializer<>(), EventWriterConfig.builder().build());
         long blockingTime = timeWrites(testString, 200, producer, true);
-        long nonBlockingTime = timeWrites(testString, 1000, producer, false);
+        long nonBlockingTime = timeWrites(testString, 10000, producer, false);
         System.out.println("Blocking took: " + blockingTime + "ms.");
         System.out.println("Non blocking took: " + nonBlockingTime + "ms.");        
-        assertTrue(blockingTime < 15000);
-        assertTrue(nonBlockingTime < 15000);
+        assertTrue(blockingTime < 5000);
+        assertTrue(nonBlockingTime < 5000);
     }
 
     private long timeWrites(String testString, int number, EventStreamWriter<String> producer, boolean synchronous)
