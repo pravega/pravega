@@ -128,7 +128,7 @@ public abstract class ControllerServiceWithStreamTest {
                 executor);
 
         streamMetadataTasks.setRequestEventWriter(new ControllerEventStreamWriterMock(streamRequestHandler, executor));
-        consumer = new ControllerService(streamStore, streamMetadataTasks, streamTransactionMetadataTasks, segmentHelperMock, executor, null);
+        consumer = new ControllerService(streamStore, bucketStore, streamMetadataTasks, streamTransactionMetadataTasks, segmentHelperMock, executor, null);
     }
 
     abstract StreamMetadataStore getStore();
@@ -161,13 +161,14 @@ public abstract class ControllerServiceWithStreamTest {
         Controller.CreateStreamStatus streamStatus = consumer.createStream(SCOPE, stream, configuration1, start).get();
         assertEquals(Controller.CreateStreamStatus.Status.SUCCESS, streamStatus.getStatus());
 
-        verify(streamStore, times(1)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
+        // there will be two invocations because we also create internal mark stream
+        verify(streamStore, times(2)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
         
         streamStatus = consumer.createStream(SCOPE, stream, configuration1, start).get();
         assertEquals(Controller.CreateStreamStatus.Status.STREAM_EXISTS, streamStatus.getStatus());
 
         // verify that create stream is not called again
-        verify(streamStore, times(1)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
+        verify(streamStore, times(2)).createStream(anyString(), anyString(), any(), anyLong(), any(), any());
     }
 
     @Test(timeout = 5000)
