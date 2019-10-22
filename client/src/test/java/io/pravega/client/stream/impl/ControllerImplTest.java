@@ -83,6 +83,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import lombok.Cleanup;
 import lombok.val;
@@ -125,6 +126,7 @@ public class ControllerImplTest {
     private ControllerImpl controllerClient = null;
     private ScheduledExecutorService executor;
     private NettyServerBuilder serverBuilder;
+    private final AtomicReference<Object> lastRequest = new AtomicReference<>();
 
     @Before
     public void setup() throws IOException {
@@ -557,6 +559,8 @@ public class ControllerImplTest {
             @Override
             public void commitTransaction(TxnRequest request,
                     StreamObserver<Controller.TxnStatus> responseObserver) {
+                lastRequest.set(request);
+
                 if (request.getStreamInfo().getStream().equals("stream1")) {
                     responseObserver.onNext(Controller.TxnStatus.newBuilder()
                                                     .setStatus(Controller.TxnStatus.Status.SUCCESS)
@@ -1138,9 +1142,13 @@ public class ControllerImplTest {
         CompletableFuture<Void> transaction;
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream1"), "writer", null, UUID.randomUUID());
         assertTrue(transaction.get() == null);
+        assertTrue(lastRequest.get() instanceof TxnRequest);
+        assertEquals(((TxnRequest) (lastRequest.get())).getTimestamp(), Long.MIN_VALUE);
         
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream1"), "writer", 100L, UUID.randomUUID());
         assertTrue(transaction.get() == null);
+        assertTrue(lastRequest.get() instanceof TxnRequest);
+        assertEquals(((TxnRequest) (lastRequest.get())).getTimestamp(), 100L);
 
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream2"), "writer", null, UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> throwable instanceof TxnFailedException);
@@ -1153,6 +1161,7 @@ public class ControllerImplTest {
 
         transaction = controllerClient.commitTransaction(new StreamImpl("scope1", "stream5"), "writer", null, UUID.randomUUID());
         AssertExtensions.assertFutureThrows("Should throw Exception", transaction, throwable -> true);
+           
     }
 
     @Test
