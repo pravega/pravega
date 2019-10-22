@@ -103,6 +103,7 @@ public class FlowHandlerTest {
                 return null;
             }
         }).when(loop).execute(any(Runnable.class));
+        when(ch.writeAndFlush(any(Object.class))).thenReturn(completedFuture);
         when(ch.write(any(Object.class))).thenReturn(completedFuture);
         when(ch.newPromise()).thenReturn(promise);
 
