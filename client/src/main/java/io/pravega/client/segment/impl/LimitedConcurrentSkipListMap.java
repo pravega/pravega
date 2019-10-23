@@ -36,7 +36,7 @@ implements LimitedNavigableMap<K, V> {
 
     @Override
     public final boolean putIfNotFull(final K k, final V v) {
-        if(insertPermits.tryAcquire()) {
+        if (insertPermits.tryAcquire()) {
             super.put(k, v);
             return true;
         }
