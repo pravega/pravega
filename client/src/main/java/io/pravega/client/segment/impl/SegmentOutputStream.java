@@ -19,6 +19,8 @@ import java.util.List;
  */
 public interface SegmentOutputStream extends AutoCloseable {
 
+    int LIMIT_INFLIGHT = 100_000;
+
     /**
      * Returns the name of the segment associated to this output stream.
      *

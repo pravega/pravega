@@ -43,11 +43,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.GuardedBy;
@@ -107,7 +107,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         @GuardedBy("lock")
         private Throwable exception = null;
         @GuardedBy("lock")
-        private final ConcurrentSkipListMap<Long, PendingEvent> inflight = new ConcurrentSkipListMap<>();
+        private final LimitedNavigableMap<Long, PendingEvent> inflight = new LimitedConcurrentSkipListMap<>(LIMIT_INFLIGHT);
         @GuardedBy("lock")
         private long eventNumber = 0;
         @GuardedBy("lock")
@@ -231,14 +231,20 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * @return The EventNumber for the event.
          */
         private long addToInflight(PendingEvent event) {
-            synchronized (lock) {
-                eventNumber++;
-                log.trace("Adding event {} to inflight on writer {}", eventNumber, writerId);
-                inflight.put(eventNumber, event);
-                if (!needSuccessors.get()) {
-                    waitingInflight.reset();
+            while(true) {
+                synchronized (lock) {
+                    eventNumber ++;
+                    log.trace("Adding event {} to inflight on writer {}", eventNumber, writerId);
+                    if(inflight.putIfNotFull(eventNumber, event)) {
+                        if (!needSuccessors.get()) {
+                            waitingInflight.reset();
+                        }
+                        return eventNumber;
+                    } else {
+                        eventNumber --;
+                    }
                 }
-                return eventNumber;
+                LockSupport.parkNanos(1);
             }
         }
 
@@ -247,7 +253,7 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          */
         private List<PendingEvent> removeInflightBelow(long ackLevel) {
             synchronized (lock) {
-                ConcurrentNavigableMap<Long, PendingEvent> acked = inflight.headMap(ackLevel, true);
+                NavigableMap<Long, PendingEvent> acked = inflight.headMap(ackLevel, true);
                 List<PendingEvent> result = new ArrayList<>(acked.values());
                 acked.clear();
                 return result;
@@ -463,14 +469,12 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
                 return;
             }
             long eventNumber = state.addToInflight(event);
-            try {
-                Append append = new Append(segmentName, writerId, eventNumber, 1, event.getData(), null, requestId);
-                log.trace("Sending append request: {}", append);
-                connection.send(append);
-            } catch (ConnectionFailedException e) {
+            Append append = new Append(segmentName, writerId, eventNumber, 1, event.getData(), null, requestId);
+            log.trace("Sending append request: {}", append);
+            connection.sendAsync(append, e -> {
                 log.warn("Connection " + writerId + " failed due to: ", e);
                 reconnect(); // As the message is inflight, this will perform the retransmission.
-            }
+            });
         }
     }
 

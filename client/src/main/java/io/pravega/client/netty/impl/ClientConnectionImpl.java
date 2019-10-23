@@ -90,6 +90,26 @@ public class ClientConnectionImpl implements ClientConnection {
     }
 
     @Override
+    public void sendAsync(Append append, CompletedCallback callback) {
+        Channel ch;
+        try {
+            checkClientConnectionClosed();
+            nettyHandler.setRecentMessage();
+            ch = nettyHandler.getChannel();
+        } catch (ConnectionFailedException e) {
+            callback.complete(new ConnectionFailedException("Connection to " + connectionName + " is not established."));
+            return;
+        }
+        ch.write(append);
+        ch.flush();
+        ChannelPromise promise = ch.newPromise();
+        promise.addListener(future -> {
+            Throwable cause = future.cause();
+            callback.complete(cause == null ? null : new ConnectionFailedException(cause));
+        });
+    }
+
+    @Override
     public void sendAsync(List<Append> appends, CompletedCallback callback) {
         Channel ch;
         try {
