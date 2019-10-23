@@ -21,7 +21,6 @@ import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.PendingEvent;
 import io.pravega.common.Exceptions;
 import io.pravega.common.concurrent.Futures;
-import io.pravega.common.concurrent.SequentialProcessor;
 import io.pravega.common.util.Retry;
 import io.pravega.common.util.Retry.RetryWithBackoff;
 import io.pravega.common.util.ReusableFutureLatch;
@@ -87,7 +86,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
     @VisibleForTesting
     @Getter
     private final long requestId = Flow.create().asLong();
-    private final SequentialProcessor dataAppendedProcessor;
 
     /**
      * Internal object that tracks the state of the connection.
@@ -352,16 +350,13 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
             log.trace("Received dataAppended ack: {}", dataAppended);
             long ackLevel = dataAppended.getEventNumber();
             long previousAckLevel = dataAppended.getPreviousEventNumber();
-            // invoke state updation on a different thread and release the EventLoop thread.
-            dataAppendedProcessor.add(() -> CompletableFuture.runAsync(() -> {
-                try {
-                    checkAckLevels(ackLevel, previousAckLevel);
-                    state.noteSegmentLength(dataAppended.getCurrentSegmentWriteOffset());
-                    ackUpTo(ackLevel);
-                } catch (Exception e) {
-                    failConnection(e);
-                }
-            }, connectionFactory.getInternalExecutor()));
+            try {
+                checkAckLevels(ackLevel, previousAckLevel);
+                state.noteSegmentLength(dataAppended.getCurrentSegmentWriteOffset());
+                ackUpTo(ackLevel);
+            } catch (Exception e) {
+                failConnection(e);
+            }
         }
 
         @Override
@@ -414,12 +409,16 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         }
 
         private void ackUpTo(long ackLevel) {
-            for (PendingEvent toAck : state.removeInflightBelow(ackLevel)) {
-                if (toAck.getAckFuture() != null) {
-                    toAck.getAckFuture().complete(null);
+            final List<PendingEvent> pendingEvents = state.removeInflightBelow(ackLevel);
+            // Complete the futures and release buffer in a different thread.
+            connectionFactory.getInternalExecutor().execute(() -> {
+                for (PendingEvent toAck : pendingEvents) {
+                    if (toAck.getAckFuture() != null) {
+                        toAck.getAckFuture().complete(null);
+                    }
+                    toAck.getData().release();
                 }
-                toAck.getData().release();
-            }
+            });
         }
 
         private void checkAckLevels(long ackLevel, long previousAckLevel) {
@@ -508,7 +507,6 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
         log.debug("Closing writer: {}", writerId);
         // Wait until all the inflight events are written
         flush();
-        dataAppendedProcessor.close();
         state.setClosed(true);
         ClientConnection connection = state.getConnection();
         if (connection != null) {
