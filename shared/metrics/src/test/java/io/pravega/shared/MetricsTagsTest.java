@@ -13,14 +13,15 @@ import com.google.common.base.Strings;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 
-import static io.pravega.shared.MetricsTags.HOSTNAME_PROPERTY_NAME;
+import java.net.InetAddress;
+
+import static io.pravega.shared.MetricsTags.DEFAULT_HOSTNAME_KEY;
 import static io.pravega.shared.MetricsTags.containerTag;
 import static io.pravega.shared.MetricsTags.createHostTag;
 import static io.pravega.shared.MetricsTags.hostTag;
 import static io.pravega.shared.MetricsTags.segmentTags;
 import static io.pravega.shared.MetricsTags.streamTags;
 import static io.pravega.shared.MetricsTags.transactionTags;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
 
 @Slf4j
@@ -41,13 +42,41 @@ public class MetricsTagsTest {
     }
 
     @Test
-    public void testCreateHostTag() {
-        System.setProperty(HOSTNAME_PROPERTY_NAME, "testHostName");
-        assertEquals("testHostName", createHostTag()[1]);
-        System.setProperty(HOSTNAME_PROPERTY_NAME, "");
-        assertFalse(Strings.isNullOrEmpty(createHostTag()[1]));
-        System.clearProperty(HOSTNAME_PROPERTY_NAME);
-        assertFalse(Strings.isNullOrEmpty(createHostTag()[1]));
+    public void testCreateHostTag() throws Exception {
+        //Scenario 1: system property is defined - property is taken
+        String originalProperty = System.getProperty(DEFAULT_HOSTNAME_KEY);
+        System.setProperty(DEFAULT_HOSTNAME_KEY, "expectedHostname");
+        assertEquals("expectedHostname", createHostTag(DEFAULT_HOSTNAME_KEY)[1]);
+        if (!Strings.isNullOrEmpty(originalProperty)) {
+            System.setProperty(DEFAULT_HOSTNAME_KEY, originalProperty);
+        }
+
+        //Scenario 2: environment var is defined, and system property not defined - env var is taken
+        String envVarDefined = null;
+        //go through the list to find the env var with non empty/null value
+        for (String envVarName: System.getenv().keySet()) {
+            if (!Strings.isNullOrEmpty(System.getenv(envVarName))) {
+                envVarDefined = envVarName;
+                break;
+            }
+        }
+        //test scenario 2 only if there is env var with non empty/null value; otherwise skip scenario 2
+        if (envVarDefined != null) {
+            originalProperty = System.getProperty(envVarDefined);
+            System.clearProperty(envVarDefined);
+            assertEquals(System.getenv(envVarDefined), createHostTag(envVarDefined)[1]);
+            if (!Strings.isNullOrEmpty(originalProperty)) {
+                System.setProperty(envVarDefined, originalProperty);
+            }
+        }
+
+        //Scenario 3: system property not defined, env var not defined - localhost config is taken
+        originalProperty = System.getProperty("NON_EXIST_ENV");
+        System.clearProperty("NON_EXIST_ENV");
+        assertEquals(InetAddress.getLocalHost().getHostName(), createHostTag("NON_EXIST_ENV")[1]);
+        if (!Strings.isNullOrEmpty(originalProperty)) {
+            System.setProperty("NON_EXIST_ENV", originalProperty);
+        }
     }
 
     @Test

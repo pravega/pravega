@@ -15,6 +15,7 @@ import io.pravega.client.admin.StreamManager;
 import io.pravega.test.common.SecurityConfigDefaults;
 import io.pravega.test.common.AssertExtensions;
 import java.net.URI;
+import java.util.concurrent.ExecutionException;
 import javax.net.ssl.SSLHandshakeException;
 import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +60,12 @@ public class TlsEnabledInProcPravegaClusterTest extends InProcPravegaClusterTest
                 .trustStore(SecurityConfigDefaults.TLS_CA_CERT_PATH)
                 .validateHostName(false)
                 .build();
+    }
+
+    @Override
+    @Test
+    public void testWriteAndReadEventWithValidClientConfig() throws ExecutionException, InterruptedException {
+        super.testWriteAndReadEventWithValidClientConfig();
     }
 
     /**

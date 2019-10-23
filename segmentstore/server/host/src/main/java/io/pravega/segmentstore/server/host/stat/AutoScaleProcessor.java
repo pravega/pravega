@@ -10,6 +10,7 @@
 package io.pravega.segmentstore.server.host.stat;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalCause;
@@ -28,6 +29,7 @@ import io.pravega.common.util.Retry;
 import io.pravega.shared.NameUtils;
 import io.pravega.shared.controller.event.AutoScaleEvent;
 import io.pravega.shared.controller.event.ControllerEventSerializer;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
@@ -157,16 +159,37 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     private static EventStreamClientFactory createFactory(AutoScalerConfig configuration) {
+        return EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME, prepareClientConfig(configuration));
+    }
+
+    @VisibleForTesting
+    static ClientConfig prepareClientConfig(AutoScalerConfig configuration) {
+        // Auth credentials are passed via system properties or environment variables at deployment time, when needed.
+        ClientConfig.ClientConfigBuilder clientConfigBuilder =
+                ClientConfig.builder().controllerURI(configuration.getControllerUri());
+
         if (configuration.isTlsEnabled()) {
-            return EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
-                    ClientConfig.builder().controllerURI(configuration.getControllerUri())
-                                .trustStore(configuration.getTlsCertFile())
-                                .validateHostName(configuration.isValidateHostName())
-                                .build());
-        } else {
-            return EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
-                    ClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
+            log.debug("Auto scale TLS is enabled");
+            clientConfigBuilder.trustStore(configuration.getTlsCertFile())
+                    .validateHostName(configuration.isValidateHostName());
+
+            if (!hasTlsEnabled(configuration.getControllerUri())) {
+                log.debug("Auto scale Controller URI [{}] has a non-TLS scheme, although auto scale TLS is enabled",
+                        configuration.getControllerUri());
+                clientConfigBuilder.enableTlsToSegmentStore(true);
+            }
         }
+        return clientConfigBuilder.build();
+    }
+
+    @VisibleForTesting
+    static boolean hasTlsEnabled(@NonNull final URI controllerURI) {
+        Preconditions.checkNotNull(controllerURI);
+        String uriScheme = controllerURI.getScheme();
+        if (uriScheme == null) {
+            return false;
+        }
+        return uriScheme.equals("tls") || uriScheme.equals("pravegas");
     }
 
     private boolean isInitialized() {

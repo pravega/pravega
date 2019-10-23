@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import lombok.Data;
+import lombok.ToString;
 import lombok.experimental.Accessors;
 
 import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
@@ -51,7 +52,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * Incompatible changes should instead create a new WireCommand object.
  */
 public final class WireCommands {
-    public static final int WIRE_VERSION = 8;
+    public static final int WIRE_VERSION = 9;
     public static final int OLDEST_COMPATIBLE_VERSION = 5;
     public static final int TYPE_SIZE = 4;
     public static final int TYPE_PLUS_LENGTH_SIZE = 8;
@@ -494,6 +495,7 @@ public final class WireCommands {
         final long requestId;
         final UUID writerId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -686,6 +688,7 @@ public final class WireCommands {
         final UUID writerId;
         final long eventNumber;
         final long previousEventNumber;
+        final long currentSegmentWriteOffset;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -699,18 +702,16 @@ public final class WireCommands {
             out.writeLong(eventNumber);
             out.writeLong(previousEventNumber);
             out.writeLong(requestId);
+            out.writeLong(currentSegmentWriteOffset);
         }
 
         public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             UUID writerId = new UUID(in.readLong(), in.readLong());
-            long offset = in.readLong();
-            long previousEventNumber = -1;
-            if (length >= 32) {
-                previousEventNumber = in.readLong();
-            }
+            long eventNumber = in.readLong();
+            long previousEventNumber = in.available() >= Long.BYTES ? in.readLong() : -1L;
             long requestId = in.available() >= Long.BYTES ? in.readLong() : -1L;
-
-            return new DataAppended(requestId, writerId, offset, previousEventNumber);
+            long currentSegmentWriteOffset = in.available() >= Long.BYTES ? in.readLong() : -1L;
+            return new DataAppended(requestId, writerId, eventNumber, previousEventNumber, currentSegmentWriteOffset);
         }
         
         @Override
@@ -758,6 +759,7 @@ public final class WireCommands {
         final String segment;
         final long offset;
         final int suggestedLength;
+        @ToString.Exclude
         final String delegationToken;
         final long requestId;
 
@@ -844,6 +846,7 @@ public final class WireCommands {
         final long requestId;
         final String segmentName;
         final UUID attributeId;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -901,6 +904,7 @@ public final class WireCommands {
         final UUID attributeId;
         final long newValue;
         final long expectedValue;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -959,6 +963,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.GET_STREAM_SEGMENT_INFO;
         final long requestId;
         final String segmentName;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1039,6 +1044,7 @@ public final class WireCommands {
         final String segment;
         final byte scaleType;
         final int targetRate;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1072,6 +1078,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.CREATE_TABLE_SEGMENT;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1127,6 +1134,7 @@ public final class WireCommands {
         final String segment;
         final byte scaleType;
         final int targetRate;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1184,6 +1192,7 @@ public final class WireCommands {
         final long requestId;
         final String target;
         final String source;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1214,6 +1223,7 @@ public final class WireCommands {
         final long requestId;
         final String target;
         final String source;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1244,6 +1254,7 @@ public final class WireCommands {
         final long requestId;
         final String target;
         final String source;
+        final long newTargetWriteOffset;
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -1255,13 +1266,15 @@ public final class WireCommands {
             out.writeLong(requestId);
             out.writeUTF(target);
             out.writeUTF(source);
+            out.writeLong(newTargetWriteOffset);
         }
 
-        public static WireCommand readFrom(DataInput in, int length) throws IOException {
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
             long requestId = in.readLong();
             String target = in.readUTF();
             String source = in.readUTF();
-            return new SegmentsMerged(requestId, target, source);
+            long newTargetWriteOffset = in.available() > 0 ? in.readLong() : -1;
+            return new SegmentsMerged(requestId, target, source, newTargetWriteOffset);
         }
     }
 
@@ -1270,6 +1283,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.SEAL_SEGMENT;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1297,6 +1311,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.SEAL_TABLE_SEGMENT;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1349,6 +1364,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final long truncationOffset;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1402,6 +1418,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.DELETE_SEGMENT;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1430,6 +1447,7 @@ public final class WireCommands {
         final long requestId;
         final String segment;
         final boolean mustBeEmpty; // If true, the Table Segment will only be deleted if it is empty (contains no keys)
+        @ToString.Exclude
         final String delegationToken;
 
         @Override
@@ -1517,6 +1535,30 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.AUTH_TOKEN_CHECK_FAILED;
         final long requestId;
         final String serverStackTrace;
+        final ErrorCode errorCode;
+
+        public AuthTokenCheckFailed(long requestId, String serverStackTrace) {
+            this(requestId, serverStackTrace, ErrorCode.UNSPECIFIED);
+        }
+
+        public AuthTokenCheckFailed(long requestId, String stackTrace, ErrorCode errorCode) {
+            this.requestId = requestId;
+            this.serverStackTrace = stackTrace;
+            this.errorCode = errorCode;
+        }
+
+        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
+            long requestId = in.readLong();
+            String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
+
+            // errorCode is a new field and wasn't present earlier. Doing this to allow it to work with older clients.
+            int errorCode = in.available()  >= Integer.BYTES ? in.readInt() : -1;
+            return new AuthTokenCheckFailed(requestId, serverStackTrace, ErrorCode.valueOf(errorCode));
+        }
+
+        public boolean isTokenExpired() {
+            return errorCode == ErrorCode.TOKEN_EXPIRED;
+        }
 
         @Override
         public void process(ReplyProcessor cp) {
@@ -1527,12 +1569,35 @@ public final class WireCommands {
         public void writeFields(DataOutput out) throws IOException {
             out.writeLong(requestId);
             out.writeUTF(serverStackTrace);
+            out.writeInt(errorCode.getCode());
         }
 
-        public static WireCommand readFrom(ByteBufInputStream in, int length) throws IOException {
-            long requestId = in.readLong();
-            String serverStackTrace = (in.available() > 0) ? in.readUTF() : EMPTY_STACK_TRACE;
-            return new AuthTokenCheckFailed(requestId, serverStackTrace);
+        public enum ErrorCode {
+            UNSPECIFIED(-1),       // indicates un-specified (for backward compatibility)
+            TOKEN_CHECK_FAILED(0), // indicates a general token error
+            TOKEN_EXPIRED(1);      // indicates token has expired
+
+            private static final Map<Integer, ErrorCode> OBJECTS_BY_CODE = new HashMap<>();
+
+            static {
+                for (ErrorCode errorCode : ErrorCode.values()) {
+                    OBJECTS_BY_CODE.put(errorCode.code, errorCode);
+                }
+            }
+
+            private final int code;
+
+            private ErrorCode(int code) {
+                this.code = code;
+            }
+
+            public static ErrorCode valueOf(int code) {
+                return OBJECTS_BY_CODE.getOrDefault(code, ErrorCode.TOKEN_CHECK_FAILED);
+            }
+
+            public int getCode() {
+                return this.code;
+            }
         }
     }
 
@@ -1542,6 +1607,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.UPDATE_TABLE_ENTRIES;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final TableEntries tableEntries;
 
@@ -1605,6 +1671,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.REMOVE_TABLE_KEYS;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final List<TableKey> keys;
 
@@ -1667,6 +1734,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.READ_TABLE;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final List<TableKey> keys; // the version of the key is always set to io.pravega.segmentstore.contracts.tables.TableKey.NO_VERSION
 
@@ -1732,6 +1800,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.READ_TABLE_KEYS;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final int suggestedKeyCount;
         final ByteBuf continuationToken; // this is used to indicate the point from which the next keys should be fetched.
@@ -1826,6 +1895,7 @@ public final class WireCommands {
         final WireCommandType type = WireCommandType.READ_TABLE_ENTRIES;
         final long requestId;
         final String segment;
+        @ToString.Exclude
         final String delegationToken;
         final int suggestedEntryCount;
         final ByteBuf continuationToken; // this is used to indicate the point from which the next entry should be fetched.

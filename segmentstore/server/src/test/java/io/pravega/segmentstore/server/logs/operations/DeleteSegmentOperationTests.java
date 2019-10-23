@@ -17,7 +17,7 @@ import java.util.Random;
 public class DeleteSegmentOperationTests extends OperationTestsBase<DeleteSegmentOperation> {
     @Override
     protected DeleteSegmentOperation createOperation(Random random) {
-        DeleteSegmentOperation result = new DeleteSegmentOperation(random.nextInt(1000));
+        DeleteSegmentOperation result = new DeleteSegmentOperation(1 + random.nextInt(1000)); // segmentId must not be zero.
         result.setStreamSegmentOffset(random.nextInt(1000));
         return result;
     }

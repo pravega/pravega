@@ -52,7 +52,9 @@ public class CommandDecoder extends ByteToMessageDecoder {
         }
         WireCommandType type = readType(is);
         int length = readLength(is, readableBytes);
+        int readIndex = in.readerIndex();
         WireCommand command = type.readFrom(is, length);
+        in.readerIndex(readIndex + length);
         return command;
     }
 

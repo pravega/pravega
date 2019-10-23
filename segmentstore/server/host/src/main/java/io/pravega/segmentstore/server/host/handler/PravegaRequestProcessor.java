@@ -14,6 +14,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import io.netty.buffer.ByteBuf;
 import io.pravega.auth.TokenException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -27,10 +28,10 @@ import io.pravega.segmentstore.contracts.Attributes;
 import io.pravega.segmentstore.contracts.BadAttributeUpdateException;
 import io.pravega.segmentstore.contracts.BadOffsetException;
 import io.pravega.segmentstore.contracts.ContainerNotFoundException;
+import io.pravega.segmentstore.contracts.MergeStreamSegmentResult;
 import io.pravega.segmentstore.contracts.ReadResult;
 import io.pravega.segmentstore.contracts.ReadResultEntry;
 import io.pravega.segmentstore.contracts.ReadResultEntryContents;
-import io.pravega.segmentstore.contracts.SegmentProperties;
 import io.pravega.segmentstore.contracts.StreamSegmentExistsException;
 import io.pravega.segmentstore.contracts.StreamSegmentMergedException;
 import io.pravega.segmentstore.contracts.StreamSegmentNotExistsException;
@@ -458,15 +459,24 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
 
         log.info(mergeSegments.getRequestId(), "Merging Segments {} ", mergeSegments);
         segmentStore.mergeStreamSegment(mergeSegments.getTarget(), mergeSegments.getSource(), TIMEOUT)
-                    .thenAccept(txnProp -> {
-                        recordStatForTransaction(txnProp, mergeSegments.getTarget());
-                        connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(), mergeSegments.getTarget(), mergeSegments.getSource()));
+                    .thenAccept(mergeResult -> {
+                        recordStatForTransaction(mergeResult, mergeSegments.getTarget());
+                        connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
+                                                                        mergeSegments.getTarget(),
+                                                                        mergeSegments.getSource(),
+                                                                        mergeResult.getTargetSegmentLength()));
                     })
                     .exceptionally(e -> {
                         if (Exceptions.unwrap(e) instanceof StreamSegmentMergedException) {
                             log.info(mergeSegments.getRequestId(), "Stream segment is already merged '{}'.",
                                     mergeSegments.getSource());
-                            connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(), mergeSegments.getTarget(), mergeSegments.getSource()));
+                            segmentStore.getStreamSegmentInfo(mergeSegments.getTarget(), TIMEOUT)
+                                        .thenAccept(properties -> {
+                                            connection.send(new WireCommands.SegmentsMerged(mergeSegments.getRequestId(),
+                                                                                            mergeSegments.getTarget(),
+                                                                                            mergeSegments.getSource(),
+                                                                                            properties.getLength()));
+                                        });
                             return null;
                         } else {
                             return handleException(mergeSegments.getRequestId(), mergeSegments.getSource(), operation, e);
@@ -605,7 +615,7 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         tableStore.merge(mergeTableSegments.getTarget(), mergeTableSegments.getSource(), TIMEOUT)
                   .thenRun(() -> connection.send(new WireCommands.SegmentsMerged(mergeTableSegments.getRequestId(),
                                                                                  mergeTableSegments.getTarget(),
-                                                                                 mergeTableSegments.getSource())))
+                                                                                 mergeTableSegments.getSource(), -1)))
                   .exceptionally(e -> handleException(mergeTableSegments.getRequestId(), mergeTableSegments.getSource(), operation, e));
     }
 
@@ -938,11 +948,16 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
             invokeSafely(connection::send, new SegmentRead(segment, offset, true, false, EMPTY_BYTE_BUFFER, requestId), failureHandler);
         } else if (u instanceof CancellationException) {
             log.info(requestId, "Closing connection {} while performing {} due to {}.",
-                     connection, operation, u.toString());
+                    connection, operation, u.toString());
             connection.close();
+        } else if (u instanceof TokenExpiredException) {
+            log.warn(requestId, "Expired token during operation {}", operation);
+            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace,
+                    AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED), failureHandler);
         } else if (u instanceof TokenException) {
-            log.warn(requestId, "Token verification failed during '{}'.", operation);
-            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace), failureHandler);
+            log.warn(requestId, "Token exception encountered during operation {}.", operation, u);
+            invokeSafely(connection::send, new AuthTokenCheckFailed(requestId, clientReplyStackTrace,
+                    AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED), failureHandler);
         } else if (u instanceof UnsupportedOperationException) {
             log.warn(requestId, "Unsupported Operation '{}'.", operation, u);
             invokeSafely(connection::send, new OperationUnsupported(requestId, operation, clientReplyStackTrace), failureHandler);
@@ -977,19 +992,19 @@ public class PravegaRequestProcessor extends FailingRequestProcessor implements 
         }
     }
 
-    private void recordStatForTransaction(SegmentProperties sourceInfo, String targetSegmentName) {
+    private void recordStatForTransaction(MergeStreamSegmentResult mergeResult, String targetSegmentName) {
         try {
-            if (sourceInfo != null &&
-                    sourceInfo.getAttributes().containsKey(Attributes.CREATION_TIME) &&
-                            sourceInfo.getAttributes().containsKey(Attributes.EVENT_COUNT)) {
-                long creationTime = sourceInfo.getAttributes().get(Attributes.CREATION_TIME);
-                int numOfEvents = sourceInfo.getAttributes().get(Attributes.EVENT_COUNT).intValue();
-                long len = sourceInfo.getLength();
+            if (mergeResult != null &&
+                    mergeResult.getAttributes().containsKey(Attributes.CREATION_TIME) &&
+                            mergeResult.getAttributes().containsKey(Attributes.EVENT_COUNT)) {
+                long creationTime = mergeResult.getAttributes().get(Attributes.CREATION_TIME);
+                int numOfEvents = mergeResult.getAttributes().get(Attributes.EVENT_COUNT).intValue();
+                long len = mergeResult.getMergedDataLength();
                 statsRecorder.merge(targetSegmentName, len, numOfEvents, creationTime);
             }
         } catch (Exception ex) {
             // gobble up any errors from stat recording so we do not affect rest of the flow.
-            log.error("exception while computing stats while merging txn {}", sourceInfo.getName(), ex);
+            log.error("exception while computing stats while merging txn into {}", targetSegmentName, ex);
         }
     }
 
