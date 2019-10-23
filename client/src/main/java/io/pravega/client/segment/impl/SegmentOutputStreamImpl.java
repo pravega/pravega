@@ -231,17 +231,17 @@ class SegmentOutputStreamImpl implements SegmentOutputStream {
          * @return The EventNumber for the event.
          */
         private long addToInflight(PendingEvent event) {
-            while(true) {
+            while (true) {
                 synchronized (lock) {
-                    eventNumber ++;
+                    eventNumber++;
                     log.trace("Adding event {} to inflight on writer {}", eventNumber, writerId);
-                    if(inflight.putIfNotFull(eventNumber, event)) {
+                    if (inflight.putIfNotFull(eventNumber, event)) {
                         if (!needSuccessors.get()) {
                             waitingInflight.reset();
                         }
                         return eventNumber;
                     } else {
-                        eventNumber --;
+                        eventNumber--;
                     }
                 }
                 LockSupport.parkNanos(1);

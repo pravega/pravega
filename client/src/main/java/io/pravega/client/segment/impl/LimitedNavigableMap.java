@@ -15,7 +15,7 @@ public interface LimitedNavigableMap<K, V>
 extends NavigableMap<K, V> {
 
     /**
-     A method allowing to insert the entry conditionally (until the map meets the size limit)
+     A method allowing to insert the entry conditionally (until the map meets the size limit).
      @param k key
      @param v value
      @return true if the entry was inserted, false otherwise
