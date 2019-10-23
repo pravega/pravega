@@ -967,8 +967,7 @@ public class SegmentOutputStreamTest extends ThreadPooledTestSuite {
         InOrder order = Mockito.inOrder(connection);
 
         SegmentOutputStreamImpl output = new SegmentOutputStreamImpl(TXN_SEGMENT, true, controller, cf, cid, segmentSealedCallback,
-                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken(),
-                                                                     new SequentialProcessor(cf.getInternalExecutor()));
+                                                                     RETRY_SCHEDULE, DelegationTokenProviderFactory.createWithEmptyToken());
         output.reconnect();
         order.verify(connection).send(new SetupAppend(output.getRequestId(), cid, TXN_SEGMENT, ""));
         cf.getProcessor(uri).appendSetup(new AppendSetup(output.getRequestId(), TXN_SEGMENT, cid, 0));
