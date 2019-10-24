@@ -9,6 +9,8 @@
  */
 package io.pravega.segmentstore.server.host;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.auth.JKSHelper;
 import io.pravega.common.auth.ZKTLSUtils;
@@ -33,6 +35,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.curator.utils.ZookeeperFactory;
+import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.ZooKeeper;
+
+import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Starts the Pravega Service.
@@ -178,20 +186,55 @@ public final class ServiceStarter {
                         setup.getCoreExecutor()));
     }
 
-    private CuratorFramework createZKClient() {
+    @VisibleForTesting
+    public CuratorFramework createZKClient() {
         if (this.serviceConfig.isSecureZK()) {
             ZKTLSUtils.setSecureZKClientProperties(this.serviceConfig.getZkTrustStore(),
-                                                   JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
+                    JKSHelper.loadPasswordFrom(this.serviceConfig.getZkTrustStorePasswordPath()));
         }
         CuratorFramework zkClient = CuratorFrameworkFactory
                 .builder()
                 .connectString(this.serviceConfig.getZkURL())
                 .namespace("pravega/" + this.serviceConfig.getClusterName())
+                .zookeeperFactory(new ZKClientFactory())
                 .retryPolicy(new ExponentialBackoffRetry(this.serviceConfig.getZkRetrySleepMs(), this.serviceConfig.getZkRetryCount()))
                 .sessionTimeoutMs(this.serviceConfig.getZkSessionTimeoutMs())
                 .build();
         zkClient.start();
         return zkClient;
+    }
+
+    /**
+     * This custom factory is used to ensure that Zookeeper clients in Curator are always created using the Zookeeper
+     * hostname, so it can be resolved to a new IP in the case of a Zookeeper instance restart.
+     */
+    @ThreadSafe
+    static class ZKClientFactory implements ZookeeperFactory {
+        @GuardedBy("this")
+        private ZooKeeper client;
+        @GuardedBy("this")
+        private String connectString;
+        @GuardedBy("this")
+        private int sessionTimeout;
+        @GuardedBy("this")
+        private boolean canBeReadOnly;
+
+        @Override
+        public ZooKeeper newZooKeeper(String connectString, int sessionTimeout, Watcher watcher, boolean canBeReadOnly) throws Exception {
+            Exceptions.checkNotNullOrEmpty(connectString, "connectString");
+            Preconditions.checkArgument(sessionTimeout > 0, "sessionTimeout should be a positive integer");
+            synchronized (this) {
+                if (client == null) {
+                    this.connectString = connectString;
+                    this.sessionTimeout = sessionTimeout;
+                    this.canBeReadOnly = canBeReadOnly;
+                }
+                log.info("Creating new Zookeeper client with arguments: {}, {}, {}.", this.connectString, this.sessionTimeout,
+                        this.canBeReadOnly);
+                this.client = new ZooKeeper(this.connectString, this.sessionTimeout, watcher, this.canBeReadOnly);
+                return this.client;
+            }
+        }
     }
 
     //endregion

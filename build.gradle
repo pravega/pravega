@@ -1,3 +1,4 @@
+import com.github.spotbugs.SpotBugsTask
 import org.gradle.internal.jvm.Jvm
 
 /**
@@ -95,11 +96,12 @@ allprojects {
             options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
         }
     }
-    tasks.withType(com.github.spotbugs.SpotBugsTask) {
-      reports {
-        xml.enabled = false
-        html.enabled = true
-      }
+    tasks.withType(SpotBugsTask) {
+        classpath += sourceSets."${(it.name - ~/^spotbugs/).uncapitalize()}".compileClasspath
+        reports {
+            xml.enabled = false
+            html.enabled = true
+        }
     }
     version = getProjectVersion()
     group = "io.pravega"
@@ -118,6 +120,13 @@ allprojects {
             force "org.glassfish.jersey.core:jersey-server:" + jerseyVersion
             force "com.fasterxml.jackson.core:jackson-databind:" + jacksonVersion 
             force "org.slf4j:slf4j-api:" + slf4jApiVersion
+            force "org.apache.zookeeper:zookeeper:" + apacheZookeeperVersion
+            force "io.netty:netty-transport:" + nettyVersion
+            force "io.netty:netty-handler:" + nettyVersion
+            force "io.netty:netty-transport-native-epoll:" + nettyVersion
+            force "io.netty:netty-all:" + nettyVersion
+            force "io.netty:netty:" + nettyAllVersion
+            force "io.netty:netty-tcnative-boringssl-static:" + nettyBoringSSLVersion
 
             dependencySubstitution {
                 substitute module("javax.ws.rs:jsr311-api") with module("javax.ws.rs:javax.ws.rs-api:" + javaxwsrsApiVersion)
@@ -241,6 +250,7 @@ project('client') {
         compile group: 'io.netty', name: 'netty-transport-native-epoll', version: nettyVersion, classifier: 'linux-x86_64'
         compile group: 'com.google.guava', name: 'guava', version: guavaVersion
         testCompile project(':test:testcommon')
+        testCompile group: 'com.google.code.gson', name: 'gson', version: gsonVersion
         testCompile group: 'org.slf4j', name: 'log4j-over-slf4j', version: slf4jApiVersion
         testCompile group: 'ch.qos.logback', name: 'logback-classic', version: qosLogbackVersion
     }

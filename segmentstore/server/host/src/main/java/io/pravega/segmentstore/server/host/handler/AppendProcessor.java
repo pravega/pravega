@@ -17,6 +17,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.pravega.auth.AuthHandler;
 import io.pravega.auth.TokenException;
+import io.pravega.auth.TokenExpiredException;
 import io.pravega.common.Exceptions;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.Timer;
@@ -161,8 +162,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         if (this.tokenVerifier != null) {
             try {
                 tokenVerifier.verifyToken(newSegment,
-                                          setupAppend.getDelegationToken(),
-                                          AuthHandler.Permissions.READ_UPDATE);
+                        setupAppend.getDelegationToken(),
+                        AuthHandler.Permissions.READ_UPDATE);
             } catch (TokenException e) {
                 handleException(setupAppend.getWriterId(), setupAppend.getRequestId(), newSegment,
                         "Update Segment Attribute", e);
@@ -355,9 +356,14 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             log.warn("Bad attribute update by {} on segment {}.", writerId, segment, u);
             connection.send(new InvalidEventNumber(writerId, requestId, clientReplyStackTrace));
             connection.close();
+        } else if (u instanceof TokenExpiredException) {
+            log.warn("Token expired for writer {} on segment {}.", writerId, segment, u);
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
+                    WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_EXPIRED));
         } else if (u instanceof TokenException) {
-            log.warn("Token check failed while being written by {} on segment {}.", writerId, segment, u);
-            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace));
+            log.warn("Token check failed or writer {} on segment {}.", writerId, segment, u);
+            connection.send(new WireCommands.AuthTokenCheckFailed(requestId, clientReplyStackTrace,
+                    WireCommands.AuthTokenCheckFailed.ErrorCode.TOKEN_CHECK_FAILED));
         } else if (u instanceof UnsupportedOperationException) {
             log.warn("Unsupported Operation '{}'.", doingWhat, u);
             connection.send(new OperationUnsupported(requestId, doingWhat, clientReplyStackTrace));
