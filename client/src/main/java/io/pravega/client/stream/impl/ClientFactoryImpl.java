@@ -145,7 +145,7 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     @Override
     public <T> EventStreamWriter<T> createEventWriter(String writerId, String streamName, Serializer<T> s,
                                                       EventWriterConfig config) {
-        log.info("Creating writer for stream: {} with configuration: {}", streamName, config);
+        log.info("Creating writer: {} for stream: {} with configuration: {}", writerId, streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
         ThreadPoolExecutor retransmitPool = ExecutorServiceHelpers.getShrinkingExecutor(1, 100, "ScalingRetransmition-"
                 + stream.getScopedName());
@@ -153,13 +153,17 @@ public class ClientFactoryImpl implements ClientFactory, EventStreamClientFactor
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String writerId, String streamName,
                                                                                 Serializer<T> s,
                                                                                 EventWriterConfig config) {
-        log.info("Creating transactional writer for stream: {} with configuration: {}", streamName, config);
+        log.info("Creating transactional writer:{} for stream: {} with configuration: {}", writerId, streamName, config);
         Stream stream = new StreamImpl(scope, streamName);
         return new TransactionalEventStreamWriterImpl<T>(stream, writerId, controller, outFactory, s, config, connectionFactory.getInternalExecutor());
+    }
+
+    @Override
+    public <T> TransactionalEventStreamWriter<T> createTransactionalEventWriter(String streamName, Serializer<T> s, EventWriterConfig config) {
+        return createTransactionalEventWriter(UUID.randomUUID().toString(), streamName, s, config);
     }
 
     @Override
