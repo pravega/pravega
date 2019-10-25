@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@ import java.util.List;
  * Allows data to be appended to the end of the segment by calling {@link #write(PendingEvent)}
  */
 public interface SegmentOutputStream extends AutoCloseable {
+
+    int LIMIT_INFLIGHT = 100_000;
 
     /**
      * Returns the name of the segment associated to this output stream.

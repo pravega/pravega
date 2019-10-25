@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017 Dell Inc., or its subsidiaries. All Rights Reserved.
+ * Copyright (c) Dell Inc., or its subsidiaries. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,7 +71,6 @@ public class ClientConnectionImpl implements ClientConnection {
             nettyHandler.setRecentMessage();
 
             channel = nettyHandler.getChannel();
-            log.debug("Write and flush message {} on channel {}", cmd, channel);
             channel.writeAndFlush(cmd)
                    .addListener((Future<? super Void> f) -> {
                        if (f.isSuccess()) {
@@ -81,12 +80,32 @@ public class ClientConnectionImpl implements ClientConnection {
                        }
                    });
         } catch (ConnectionFailedException cfe) {
-            log.debug("ConnectionFailedException observed when attempting to write WireCommand {} ", cmd);
+            log.debug("ConnectionFaileException observed when attempting to write WireCommand {} ", cmd);
             callback.complete(cfe);
         } catch (Exception e) {
             log.warn("Exception while attempting to write WireCommand {} on netty channel {}", cmd, channel);
             callback.complete(new ConnectionFailedException(e));
         }
+    }
+
+    @Override
+    public void sendAsync(Append append, CompletedCallback callback) {
+        Channel ch;
+        try {
+            checkClientConnectionClosed();
+            nettyHandler.setRecentMessage();
+            ch = nettyHandler.getChannel();
+        } catch (ConnectionFailedException e) {
+            callback.complete(new ConnectionFailedException("Connection to " + connectionName + " is not established."));
+            return;
+        }
+        ch.write(append);
+        ch.flush();
+        ChannelPromise promise = ch.newPromise();
+        promise.addListener(future -> {
+            Throwable cause = future.cause();
+            callback.complete(cause == null ? null : new ConnectionFailedException(cause));
+        });
     }
 
     @Override
