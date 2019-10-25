@@ -248,10 +248,11 @@ public class AppendProcessorAdapter extends StoreAdapter {
         }
 
         private void appendInternal(Event event, CompletableFuture<Void> result) {
-            WireCommands.Event e = new WireCommands.Event(event.getWriteBuffer().copy());
+            WireCommands.Event e = new WireCommands.Event(event.getWriteBuffer().retain());
             synchronized (this.resultFutures) {
                 this.resultFutures.addLast(new AbstractMap.SimpleImmutableEntry<>(this.nextSequence, result));
-                this.appendProcessor.append(new Append(this.segmentName, getWriterId(event.getOwnerId()), this.nextSequence, e, 0));
+                // Event.getRoutingKey() is the ProducerId. We can use it to simulate different Writer Ids.
+                this.appendProcessor.append(new Append(this.segmentName, getWriterId(event.getRoutingKey()), this.nextSequence, e, 0));
                 this.nextSequence++;
             }
         }
